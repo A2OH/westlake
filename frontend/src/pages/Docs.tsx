@@ -123,7 +123,8 @@ function DocViewer() {
     if (!path) return;
     setContent(null);
     setError(false);
-    fetch(`/docs/${path}.md`)
+    const base = import.meta.env.BASE_URL || '/';
+    fetch(`${base}docs/${path}.md`)
       .then(r => { if (!r.ok) throw new Error('Not found'); return r.text(); })
       .then(setContent)
       .catch(() => setError(true));

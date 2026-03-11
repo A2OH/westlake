@@ -11,7 +11,7 @@ import Docs from './pages/Docs';
 
 export default function App() {
   return (
-    <BrowserRouter>
+    <BrowserRouter basename={import.meta.env.BASE_URL}>
       <div className="min-h-screen bg-black text-white">
         <Header />
         <Routes>
