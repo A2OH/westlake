@@ -8,3 +8,12 @@
     font-family: 'Manrope', system-ui, -apple-system, sans-serif;
   }
 }
+
+/* Force white text in Recharts tooltips */
+.recharts-tooltip-label,
+.recharts-tooltip-item-name,
+.recharts-tooltip-item-separator,
+.recharts-tooltip-item-value,
+.recharts-tooltip-item-unit {
+  color: #e5e7eb !important;
+}
