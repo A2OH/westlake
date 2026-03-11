@@ -31,9 +31,14 @@ export async function getDb(): Promise<Database> {
         locateFile: (file: string) => `${base}${file}`,
       });
       setStatus('downloading');
-      const resp = await fetch(`${base}api_compat.db`);
-      const buf = await resp.arrayBuffer();
-      db = new SQL.Database(new Uint8Array(buf));
+      const resp = await fetch(`${base}api_compat.db.gz`);
+      const compressed = await resp.arrayBuffer();
+      const ds = new DecompressionStream('gzip');
+      const writer = ds.writable.getWriter();
+      writer.write(new Uint8Array(compressed));
+      writer.close();
+      const decompressed = await new Response(ds.readable).arrayBuffer();
+      db = new SQL.Database(new Uint8Array(decompressed));
       setStatus('ready');
       return db;
     } catch (e) {

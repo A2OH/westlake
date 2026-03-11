@@ -5,7 +5,7 @@ import type { DbStatus } from '../api/sqldb';
 const STATUS_TEXT: Record<DbStatus, string> = {
   init: 'Initializing...',
   wasm: 'Loading SQL engine...',
-  downloading: 'Downloading database (~10MB compressed)...',
+  downloading: 'Downloading database (~10 MB)...',
   ready: '',
   error: 'Failed to load database. Please refresh.',
 };
