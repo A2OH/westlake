@@ -7,7 +7,10 @@ let _useStatic: boolean | null = null;
 async function isStaticMode(): Promise<boolean> {
   if (_useStatic !== null) return _useStatic;
   try {
-    const res = await fetch(`${BASE}/health`, { signal: AbortSignal.timeout(2000) });
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 1500);
+    const res = await fetch(`${BASE}/health`, { signal: controller.signal });
+    clearTimeout(timer);
     _useStatic = !res.ok;
   } catch {
     _useStatic = true;
