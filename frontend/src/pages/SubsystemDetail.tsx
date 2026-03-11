@@ -138,7 +138,9 @@ export default function SubsystemDetail() {
                   return typeSortDir === 'asc' ? cmp : -cmp;
                 }).map((tp) => (
                   <tr key={tp.id} className="border-b border-gray-800/50 hover:bg-gray-800/30">
-                    <td className="py-2 px-3 font-mono text-blue-300">{tp.name}</td>
+                    <td className="py-2 px-3 font-mono">
+                      <Link to={`/browse?package=${encodeURIComponent(tp.package_name)}&search=${encodeURIComponent(tp.name)}`} className="text-blue-300 hover:underline">{tp.name}</Link>
+                    </td>
                     <td className="py-2 px-3 text-gray-400">{tp.kind}</td>
                     <td className="py-2 px-3 text-gray-500 text-xs">{tp.package_name}</td>
                     <td className="text-right py-2 px-3">{tp.api_count}</td>

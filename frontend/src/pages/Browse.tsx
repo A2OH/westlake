@@ -11,7 +11,7 @@ export default function Browse() {
   const [selectedPkg, setSelectedPkg] = useState(searchParams.get('package') || '');
   const [apis, setApis] = useState<PaginatedResponse<AndroidApi> | null>(null);
   const [page, setPage] = useState(1);
-  const [search, setSearch] = useState('');
+  const [search, setSearch] = useState(searchParams.get('search') || '');
   const [scoreFilter, setScoreFilter] = useState('');
   const [effortFilter, setEffortFilter] = useState('');
   const [kindFilter, setKindFilter] = useState('');
