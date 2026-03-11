@@ -119,6 +119,7 @@ export async function getAndroidApis(paramsStr: string): Promise<PaginatedRespon
   const binds: any[] = [];
 
   if (params.get('package')) { where += ' AND p.name = ?'; binds.push(params.get('package')); }
+  if (params.get('type')) { where += ' AND t.name = ?'; binds.push(params.get('type')); }
   if (params.get('search')) { where += ' AND a.name LIKE ?'; binds.push(`%${params.get('search')}%`); }
   if (params.get('kind')) { where += ' AND a.kind = ?'; binds.push(params.get('kind')); }
   if (params.get('score_min')) { where += ' AND m.score >= ?'; binds.push(Number(params.get('score_min'))); }
