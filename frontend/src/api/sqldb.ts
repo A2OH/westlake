@@ -31,14 +31,23 @@ export async function getDb(): Promise<Database> {
         locateFile: (file: string) => `${base}${file}`,
       });
       setStatus('downloading');
-      const resp = await fetch(`${base}api_compat.db.gz`);
-      const compressed = await resp.arrayBuffer();
-      const ds = new DecompressionStream('gzip');
-      const writer = ds.writable.getWriter();
-      writer.write(new Uint8Array(compressed));
-      writer.close();
-      const decompressed = await new Response(ds.readable).arrayBuffer();
-      db = new SQL.Database(new Uint8Array(decompressed));
+      let buf: ArrayBuffer;
+      try {
+        const resp = await fetch(`${base}api_compat.db.gz`);
+        if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+        const compressed = await resp.arrayBuffer();
+        const ds = new DecompressionStream('gzip');
+        const writer = ds.writable.getWriter();
+        writer.write(new Uint8Array(compressed));
+        writer.close();
+        buf = await new Response(ds.readable).arrayBuffer();
+      } catch {
+        // Fallback: try uncompressed DB
+        const resp = await fetch(`${base}api_compat.db`);
+        if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+        buf = await resp.arrayBuffer();
+      }
+      db = new SQL.Database(new Uint8Array(buf));
       setStatus('ready');
       return db;
     } catch (e) {
