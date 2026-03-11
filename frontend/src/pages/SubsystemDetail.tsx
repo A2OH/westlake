@@ -66,7 +66,7 @@ export default function SubsystemDetail() {
               <BarChart data={data.score_distribution}>
                 <XAxis dataKey="bucket" stroke="#9ca3af" fontSize={11} />
                 <YAxis stroke="#9ca3af" fontSize={11} />
-                <Tooltip contentStyle={{ background: '#1f2937', border: '1px solid #374151', borderRadius: '8px', color: '#e5e7eb' }} />
+                <Tooltip contentStyle={{ background: '#1f2937', border: '1px solid #374151', borderRadius: '8px', color: '#e5e7eb' }} labelStyle={{ color: '#e5e7eb' }} itemStyle={{ color: '#e5e7eb' }} />
                 <Bar dataKey="count" radius={[4, 4, 0, 0]} fill="#3b82f6" />
               </BarChart>
             </ResponsiveContainer>
@@ -81,7 +81,7 @@ export default function SubsystemDetail() {
               <BarChart data={data.effort_distribution} layout="vertical">
                 <XAxis type="number" stroke="#9ca3af" fontSize={11} />
                 <YAxis type="category" dataKey="effort_level" stroke="#9ca3af" fontSize={11} width={80} />
-                <Tooltip contentStyle={{ background: '#1f2937', border: '1px solid #374151', borderRadius: '8px', color: '#e5e7eb' }} />
+                <Tooltip contentStyle={{ background: '#1f2937', border: '1px solid #374151', borderRadius: '8px', color: '#e5e7eb' }} labelStyle={{ color: '#e5e7eb' }} itemStyle={{ color: '#e5e7eb' }} />
                 <Bar dataKey="count" radius={[0, 4, 4, 0]}>
                   {data.effort_distribution.map((e) => (
                     <Cell key={e.effort_level} fill={EFFORT_COLORS[e.effort_level] || '#6b7280'} />
