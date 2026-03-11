@@ -26,11 +26,11 @@ export async function getDb(): Promise<Database> {
   dbPromise = (async () => {
     try {
       setStatus('wasm');
+      const base = import.meta.env.BASE_URL || '/';
       const SQL = await initSqlJs({
-        locateFile: (file: string) => `https://sql.js.org/dist/${file}`,
+        locateFile: (file: string) => `${base}${file}`,
       });
       setStatus('downloading');
-      const base = import.meta.env.BASE_URL || '/';
       const resp = await fetch(`${base}api_compat.db`);
       const buf = await resp.arrayBuffer();
       db = new SQL.Database(new Uint8Array(buf));
