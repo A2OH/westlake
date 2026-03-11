@@ -53,7 +53,7 @@ export default function Dashboard() {
             <BarChart data={scoreData}>
               <XAxis dataKey="score" stroke="#9ca3af" fontSize={12} />
               <YAxis stroke="#9ca3af" fontSize={12} />
-              <Tooltip contentStyle={{ background: '#1f2937', border: '1px solid #374151', borderRadius: '8px' }} />
+              <Tooltip contentStyle={{ background: '#1f2937', border: '1px solid #374151', borderRadius: '8px', color: '#e5e7eb' }} />
               <Bar dataKey="count" radius={[4, 4, 0, 0]}>
                 {scoreData.map((entry) => (
                   <Cell key={entry.score} fill={scoreBarColor(entry.score)} />
@@ -70,7 +70,7 @@ export default function Dashboard() {
             <BarChart data={effort} layout="vertical">
               <XAxis type="number" stroke="#9ca3af" fontSize={12} />
               <YAxis type="category" dataKey="effort_level" stroke="#9ca3af" fontSize={12} width={80} />
-              <Tooltip contentStyle={{ background: '#1f2937', border: '1px solid #374151', borderRadius: '8px' }} />
+              <Tooltip contentStyle={{ background: '#1f2937', border: '1px solid #374151', borderRadius: '8px', color: '#e5e7eb' }} />
               <Bar dataKey="count" radius={[0, 4, 4, 0]}>
                 {effort.map((e) => (
                   <Cell key={e.effort_level} fill={EFFORT_COLORS[e.effort_level] || '#6b7280'} />
