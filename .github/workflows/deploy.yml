@@ -30,8 +30,10 @@ jobs:
           npm ci
           npm run build
 
-      - name: Compress and copy database to dist
-        run: gzip -9 -c database/api_compat.db > frontend/dist/api_compat.db.gz
+      - name: Copy database to dist (compressed + raw fallback)
+        run: |
+          gzip -9 -c database/api_compat.db > frontend/dist/api_compat.db.gz
+          cp database/api_compat.db frontend/dist/api_compat.db
 
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3
