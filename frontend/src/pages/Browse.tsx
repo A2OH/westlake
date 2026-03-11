@@ -12,6 +12,7 @@ export default function Browse() {
   const [apis, setApis] = useState<PaginatedResponse<AndroidApi> | null>(null);
   const [page, setPage] = useState(1);
   const [search, setSearch] = useState(searchParams.get('search') || '');
+  const [typeFilter, setTypeFilter] = useState(searchParams.get('type') || '');
   const [scoreFilter, setScoreFilter] = useState('');
   const [effortFilter, setEffortFilter] = useState('');
   const [kindFilter, setKindFilter] = useState('');
@@ -24,6 +25,7 @@ export default function Browse() {
   useEffect(() => {
     const params = new URLSearchParams();
     if (selectedPkg) params.set('package', selectedPkg);
+    if (typeFilter) params.set('type', typeFilter);
     if (search) params.set('search', search);
     if (scoreFilter) {
       const [min, max] = scoreFilter.split('-');
@@ -35,7 +37,7 @@ export default function Browse() {
     params.set('page', String(page));
     params.set('page_size', '50');
     getAndroidApis(params.toString()).then(setApis);
-  }, [selectedPkg, page, search, scoreFilter, effortFilter, kindFilter]);
+  }, [selectedPkg, page, search, typeFilter, scoreFilter, effortFilter, kindFilter]);
 
   // Group packages by subsystem
   const grouped = packages.reduce((acc, pkg) => {
@@ -77,6 +79,12 @@ export default function Browse() {
       <div className="flex-1 min-w-0">
         {/* Filters */}
         <div className="bg-gray-900 border border-gray-800 rounded-xl p-3 mb-4 flex flex-wrap gap-3 items-center">
+          {typeFilter && (
+            <span className="inline-flex items-center gap-1 px-2 py-1 bg-blue-900/50 border border-blue-700 rounded text-xs text-blue-300">
+              Type: {typeFilter}
+              <button onClick={() => { setTypeFilter(''); setPage(1); }} className="ml-1 text-blue-400 hover:text-white">&times;</button>
+            </span>
+          )}
           <input
             type="text"
             placeholder={t('browse.filterByName')}
