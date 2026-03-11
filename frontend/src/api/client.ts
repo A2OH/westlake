@@ -6,6 +6,12 @@ const BASE = '/api';
 let _useStatic: boolean | null = null;
 async function isStaticMode(): Promise<boolean> {
   if (_useStatic !== null) return _useStatic;
+  // Skip health check on known static hosts (GitHub Pages, custom domain)
+  const host = window.location.hostname;
+  if (host.endsWith('.github.io') || host === 'harmony.moxin.app') {
+    _useStatic = true;
+    return true;
+  }
   try {
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), 1500);
