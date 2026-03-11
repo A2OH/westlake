@@ -275,74 +275,96 @@ export async function getSubsystems(): Promise<any[]> {
 
 export async function getSubsystem(name: string): Promise<SubsystemDetail> {
   const db = await getDb();
+  console.time('getSubsystem:' + name);
 
-  const apiCount = queryOne(db, `
-    SELECT COUNT(*) as c FROM android_apis WHERE subsystem = ?
-  `, [name])!.c;
+  try {
+    console.time('apiCount');
+    const apiCount = queryOne(db, `
+      SELECT COUNT(*) as c FROM android_apis WHERE subsystem = ?
+    `, [name])!.c;
+    console.timeEnd('apiCount');
 
-  const avgRow = queryOne(db, `
-    SELECT AVG(m.score) as avg_score FROM api_mappings m
-    JOIN android_apis a ON m.android_api_id = a.id
-    WHERE a.subsystem = ?
-  `, [name]);
+    console.time('avgScore');
+    const avgRow = queryOne(db, `
+      SELECT AVG(m.score) as avg_score FROM api_mappings m
+      JOIN android_apis a ON m.android_api_id = a.id
+      WHERE a.subsystem = ?
+    `, [name]);
+    console.timeEnd('avgScore');
 
-  const overall = avgRow?.avg_score || 0;
-  const coverage = queryOne(db, `
-    SELECT ROUND(100.0 * SUM(CASE WHEN m.score >= 5 THEN 1 ELSE 0 END) / COUNT(*), 1) as pct
-    FROM android_apis a
-    LEFT JOIN api_mappings m ON m.android_api_id = a.id
-    WHERE a.subsystem = ?
-  `, [name])?.pct || 0;
+    const overall = avgRow?.avg_score || 0;
 
-  const scoreDist = queryAll(db, `
-    SELECT CASE
-      WHEN m.score >= 9 THEN 'Direct (9-10)'
-      WHEN m.score >= 7 THEN 'Good (7-8)'
-      WHEN m.score >= 5 THEN 'Partial (5-6)'
-      WHEN m.score >= 3 THEN 'Hard (3-4)'
-      ELSE 'Gap (1-2)' END as bucket,
-      COUNT(*) as count
-    FROM api_mappings m
-    JOIN android_apis a ON m.android_api_id = a.id
-    WHERE a.subsystem = ?
-    GROUP BY bucket
-  `, [name]);
+    console.time('coverage');
+    const coverage = queryOne(db, `
+      SELECT ROUND(100.0 * SUM(CASE WHEN m.score >= 5 THEN 1 ELSE 0 END) / COUNT(*), 1) as pct
+      FROM android_apis a
+      LEFT JOIN api_mappings m ON m.android_api_id = a.id
+      WHERE a.subsystem = ?
+    `, [name])?.pct || 0;
+    console.timeEnd('coverage');
 
-  const effortDist = queryAll(db, `
-    SELECT effort_level, COUNT(*) as count FROM api_mappings m
-    JOIN android_apis a ON m.android_api_id = a.id
-    WHERE a.subsystem = ?
-    GROUP BY effort_level ORDER BY count DESC
-  `, [name]);
+    console.time('scoreDist');
+    const scoreDist = queryAll(db, `
+      SELECT CASE
+        WHEN m.score >= 9 THEN 'Direct (9-10)'
+        WHEN m.score >= 7 THEN 'Good (7-8)'
+        WHEN m.score >= 5 THEN 'Partial (5-6)'
+        WHEN m.score >= 3 THEN 'Hard (3-4)'
+        ELSE 'Gap (1-2)' END as bucket,
+        COUNT(*) as count
+      FROM api_mappings m
+      JOIN android_apis a ON m.android_api_id = a.id
+      WHERE a.subsystem = ?
+      GROUP BY bucket
+    `, [name]);
+    console.timeEnd('scoreDist');
 
-  const types = queryAll(db, `
-    SELECT t.id, t.name, t.kind, p.name as package_name,
-      COUNT(a.id) as api_count, ROUND(AVG(m.score), 1) as avg_score
-    FROM android_apis a
-    JOIN android_types t ON a.type_id = t.id
-    JOIN android_packages p ON t.package_id = p.id
-    LEFT JOIN api_mappings m ON m.android_api_id = a.id
-    WHERE a.subsystem = ?
-    GROUP BY t.id ORDER BY api_count DESC LIMIT 50
-  `, [name]);
+    console.time('effortDist');
+    const effortDist = queryAll(db, `
+      SELECT effort_level, COUNT(*) as count FROM api_mappings m
+      JOIN android_apis a ON m.android_api_id = a.id
+      WHERE a.subsystem = ?
+      GROUP BY effort_level ORDER BY count DESC
+    `, [name]);
+    console.timeEnd('effortDist');
 
-  const topGaps = queryAll(db, `
-    SELECT a.id, a.name, a.signature, m.score as compat_score,
-      t.name as type_name, p.name as package_name
-    FROM android_apis a
-    JOIN android_types t ON a.type_id = t.id
-    JOIN android_packages p ON t.package_id = p.id
-    LEFT JOIN api_mappings m ON m.android_api_id = a.id
-    WHERE a.subsystem = ?
-    ORDER BY COALESCE(m.score, 0) ASC LIMIT 20
-  `, [name]);
+    console.time('types');
+    const types = queryAll(db, `
+      SELECT t.id, t.name, t.kind, p.name as package_name,
+        COUNT(a.id) as api_count, ROUND(AVG(m.score), 1) as avg_score
+      FROM android_apis a
+      JOIN android_types t ON a.type_id = t.id
+      JOIN android_packages p ON t.package_id = p.id
+      LEFT JOIN api_mappings m ON m.android_api_id = a.id
+      WHERE a.subsystem = ?
+      GROUP BY t.id ORDER BY api_count DESC LIMIT 50
+    `, [name]);
+    console.timeEnd('types');
 
-  return {
-    id: 0, name, api_count_android: apiCount,
-    overall_score: overall, coverage_pct: coverage,
-    score_distribution: scoreDist, effort_distribution: effortDist,
-    types, top_gaps: topGaps,
-  };
+    console.time('topGaps');
+    const topGaps = queryAll(db, `
+      SELECT a.id, a.name, a.signature, m.score as compat_score,
+        t.name as type_name, p.name as package_name
+      FROM android_apis a
+      JOIN android_types t ON a.type_id = t.id
+      JOIN android_packages p ON t.package_id = p.id
+      LEFT JOIN api_mappings m ON m.android_api_id = a.id
+      WHERE a.subsystem = ?
+      ORDER BY COALESCE(m.score, 0) ASC LIMIT 20
+    `, [name]);
+    console.timeEnd('topGaps');
+
+    console.timeEnd('getSubsystem:' + name);
+    return {
+      id: 0, name, api_count_android: apiCount,
+      overall_score: overall, coverage_pct: coverage,
+      score_distribution: scoreDist, effort_distribution: effortDist,
+      types, top_gaps: topGaps,
+    };
+  } catch (e) {
+    console.error('getSubsystem error:', e);
+    throw e;
+  }
 }
 
 export async function getGaps(): Promise<any[]> {

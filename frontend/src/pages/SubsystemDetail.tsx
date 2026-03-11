@@ -15,12 +15,18 @@ const EFFORT_COLORS: Record<string, string> = {
 export default function SubsystemDetail() {
   const { name } = useParams();
   const [data, setData] = useState<SubsystemDetailType | null>(null);
+  const [error, setError] = useState<string | null>(null);
   const { t } = useLang();
 
   useEffect(() => {
-    if (name) getSubsystem(name).then(setData);
+    if (name) {
+      setData(null);
+      setError(null);
+      getSubsystem(name).then(setData).catch(e => setError(e.message || 'Failed to load'));
+    }
   }, [name]);
 
+  if (error) return <div className="p-8 text-center text-red-400">Error: {error}</div>;
   if (!data) return <div className="p-8 text-center text-gray-500">{t('loading')}</div>;
 
   return (
