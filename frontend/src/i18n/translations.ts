@@ -143,6 +143,7 @@ export const translations: Record<Lang, Record<string, string>> = {
     'docs.a2ohFactory': 'AI-Driven Shim Build Plans',
     'docs.a2ohFactoryDesc': 'Detailed plans for building the Android-to-OHOS API translation layer using AI-assisted code generation, automated testing, and headless ArkUI validation.',
     'docs.backToDocumentation': '← Back to Documentation',
+    'docs.sourceRepo': 'Source',
     'docs.notFound': 'Document not found.',
 
     // Badge
@@ -290,6 +291,7 @@ export const translations: Record<Lang, Record<string, string>> = {
     'docs.a2ohFactory': 'AI 驱动适配层构建计划',
     'docs.a2ohFactoryDesc': '基于 AI 辅助代码生成、自动化测试和无头 ArkUI 验证，构建 Android 到 OHOS API 翻译层的详细计划。',
     'docs.backToDocumentation': '← 返回文档',
+    'docs.sourceRepo': '来源',
     'docs.notFound': '文档未找到。',
 
     // Badge
