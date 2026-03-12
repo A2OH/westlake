@@ -252,12 +252,16 @@ function DocViewer() {
         <ReactMarkdown
           remarkPlugins={[remarkGfm]}
           components={{
-            code({ className, children, ...props }) {
-              const match = /language-mermaid/.exec(className || '');
-              if (match) {
-                return <MermaidBlock code={String(children).trim()} />;
+            pre({ children, ...props }) {
+              // Check if the child is a <code> with language-mermaid
+              const child = Array.isArray(children) ? children[0] : children;
+              if (child && typeof child === 'object' && 'props' in child) {
+                const codeProps = child.props as { className?: string; children?: React.ReactNode };
+                if (/language-mermaid/.test(codeProps.className || '')) {
+                  return <MermaidBlock code={String(codeProps.children).trim()} />;
+                }
               }
-              return <code className={className} {...props}>{children}</code>;
+              return <pre {...props}>{children}</pre>;
             },
           }}
         >{content}</ReactMarkdown>
