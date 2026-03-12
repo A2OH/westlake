@@ -62,6 +62,19 @@ const A2OH_FACTORY_DOCS = [
   { slug: 'shim-build-plan', title: 'API Shim Layer: AI-Driven Build Plan', titleZh: 'API 适配层：AI 驱动构建计划' },
 ];
 
+// External repo doc sources — fetched from raw.githubusercontent.com at runtime
+const EXTERNAL_DOCS: Record<string, { repo: string; enPath: string; zhPath: string }> = {
+  'a2oh-factory/shim-build-plan': {
+    repo: 'A2OH/A2OH-Factory',
+    enPath: '02-SHIM-BUILD-PLAN.md',
+    zhPath: '02-SHIM-BUILD-PLAN-CN.md',
+  },
+};
+
+function getExternalUrl(repo: string, filePath: string): string {
+  return `https://raw.githubusercontent.com/${repo}/main/${filePath}`;
+}
+
 const OH_API_ENUM = [
   { slug: 'api-count-report', title: 'API Count Report', titleZh: 'API 数量报告' },
   { slug: 'api-enumeration-js-part1', title: 'JS API Enumeration (Part 1)', titleZh: 'JS API 枚举（第一部分）' },
@@ -177,10 +190,31 @@ function DocViewer() {
     if (!path) return;
     setContent(null);
     setError(false);
-    const base = import.meta.env.BASE_URL || '/';
 
+    // Check if this doc is served from an external repo
+    const ext = EXTERNAL_DOCS[path];
+    if (ext) {
+      const url = getExternalUrl(ext.repo, lang === 'zh' ? ext.zhPath : ext.enPath);
+      fetch(url)
+        .then(r => { if (!r.ok) throw new Error('Not found'); return r.text(); })
+        .then(setContent)
+        .catch(() => {
+          // Fall back to English if Chinese not found
+          if (lang === 'zh') {
+            fetch(getExternalUrl(ext.repo, ext.enPath))
+              .then(r => { if (!r.ok) throw new Error('Not found'); return r.text(); })
+              .then(setContent)
+              .catch(() => setError(true));
+          } else {
+            setError(true);
+          }
+        });
+      return;
+    }
+
+    // Local docs from public/docs/
+    const base = import.meta.env.BASE_URL || '/';
     if (lang === 'zh') {
-      // Try Chinese doc first, fall back to English
       fetch(`${base}docs/zh/${path}.md`)
         .then(r => { if (!r.ok) throw new Error('Not found'); return r.text(); })
         .then(setContent)
@@ -201,10 +235,18 @@ function DocViewer() {
   if (error) return <div className="p-8 text-center text-red-400">{t('docs.notFound')}</div>;
   if (content === null) return <div className="p-8 text-center text-gray-500">{t('loading')}</div>;
 
+  const ext = path ? EXTERNAL_DOCS[path] : undefined;
+
   return (
     <div className="max-w-5xl mx-auto px-4 py-6">
-      <div className="mb-4">
+      <div className="mb-4 flex items-center justify-between">
         <Link to="/docs" className="text-sm text-blue-400 hover:underline">{t('docs.backToDocumentation')}</Link>
+        {ext && (
+          <a href={`https://github.com/${ext.repo}`} target="_blank" rel="noopener noreferrer"
+            className="text-xs text-gray-500 hover:text-gray-400 flex items-center gap-1">
+            {t('docs.sourceRepo')}: {ext.repo}
+          </a>
+        )}
       </div>
       <article className="prose prose-invert prose-sm max-w-none bg-gray-900 border border-gray-800 rounded-xl p-6 overflow-x-auto">
         <ReactMarkdown
