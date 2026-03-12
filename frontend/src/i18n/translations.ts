@@ -140,6 +140,8 @@ export const translations: Record<Lang, Record<string, string>> = {
     'docs.apiEnumeration': 'API Enumeration',
     'docs.androidApiEnum': 'API Enumeration (56,387 APIs)',
     'docs.ohApiEnum': 'API Enumeration',
+    'docs.a2ohFactory': 'AI-Driven Shim Build Plans',
+    'docs.a2ohFactoryDesc': 'Detailed plans for building the Android-to-OHOS API translation layer using AI-assisted code generation, automated testing, and headless ArkUI validation.',
     'docs.backToDocumentation': '← Back to Documentation',
     'docs.notFound': 'Document not found.',
 
@@ -285,6 +287,8 @@ export const translations: Record<Lang, Record<string, string>> = {
     'docs.apiEnumeration': 'API 枚举',
     'docs.androidApiEnum': 'API 枚举（56,387 个 API）',
     'docs.ohApiEnum': 'API 枚举',
+    'docs.a2ohFactory': 'AI 驱动适配层构建计划',
+    'docs.a2ohFactoryDesc': '基于 AI 辅助代码生成、自动化测试和无头 ArkUI 验证，构建 Android 到 OHOS API 翻译层的详细计划。',
     'docs.backToDocumentation': '← 返回文档',
     'docs.notFound': '文档未找到。',
 
