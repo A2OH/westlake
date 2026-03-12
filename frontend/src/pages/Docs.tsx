@@ -57,6 +57,10 @@ const OH_REVIEWS = [
   { slug: '14-build-system-review', title: 'Build System', titleZh: '构建系统' },
 ];
 
+const A2OH_FACTORY_DOCS = [
+  { slug: 'shim-build-plan', title: 'API Shim Layer: AI-Driven Build Plan', titleZh: 'API 适配层：AI 驱动构建计划' },
+];
+
 const OH_API_ENUM = [
   { slug: 'api-count-report', title: 'API Count Report', titleZh: 'API 数量报告' },
   { slug: 'api-enumeration-js-part1', title: 'JS API Enumeration (Part 1)', titleZh: 'JS API 枚举（第一部分）' },
@@ -106,6 +110,23 @@ function DocIndex() {
               </Link>
             ))}
           </div>
+        </div>
+      </div>
+
+      {/* A2OH Factory */}
+      <div className="bg-gray-900 border border-gray-800 rounded-xl p-4">
+        <h2 className="text-lg font-semibold mb-3 flex items-center gap-2">
+          <span className="text-xs font-bold bg-purple-900 text-purple-300 px-2 py-0.5 rounded">A2OH FACTORY</span>
+          {t('docs.a2ohFactory')}
+        </h2>
+        <p className="text-sm text-gray-400 mb-3">{t('docs.a2ohFactoryDesc')}</p>
+        <div className="space-y-1">
+          {A2OH_FACTORY_DOCS.map(d => (
+            <Link key={d.slug} to={`/docs/a2oh-factory/${d.slug}`}
+              className="block text-sm text-blue-400 hover:text-blue-300 py-1 px-2 rounded hover:bg-gray-800">
+              {getTitle(d)}
+            </Link>
+          ))}
         </div>
       </div>
 
