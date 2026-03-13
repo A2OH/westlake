@@ -60,6 +60,7 @@ const OH_REVIEWS = [
 
 const A2OH_FACTORY_DOCS = [
   { slug: 'shim-build-plan', title: 'API Shim Layer: AI-Driven Build Plan', titleZh: 'API 适配层：AI 驱动构建计划' },
+  { slug: 'ai-agent-playbook', title: 'AI Agent Playbook: Per-API Shim Generation', titleZh: 'AI 代理操作手册：逐API适配代码生成' },
 ];
 
 // External repo doc sources — fetched from raw.githubusercontent.com at runtime
@@ -68,6 +69,11 @@ const EXTERNAL_DOCS: Record<string, { repo: string; enPath: string; zhPath: stri
     repo: 'A2OH/A2OH-Factory',
     enPath: '02-SHIM-BUILD-PLAN.md',
     zhPath: '02-SHIM-BUILD-PLAN-CN.md',
+  },
+  'a2oh-factory/ai-agent-playbook': {
+    repo: 'A2OH/A2OH-Factory',
+    enPath: '03-AI-AGENT-PLAYBOOK.md',
+    zhPath: '03-AI-AGENT-PLAYBOOK-CN.md',
   },
 };
 
