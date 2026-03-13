@@ -11,6 +11,7 @@ import Search from './pages/Search';
 import SubsystemDetail from './pages/SubsystemDetail';
 import Docs from './pages/Docs';
 import Status from './pages/Status';
+import Orchestrator from './pages/Orchestrator';
 
 export default function App() {
   return (
@@ -20,6 +21,7 @@ export default function App() {
           <Header />
           <Routes>
             <Route path="/status" element={<Status />} />
+            <Route path="/orchestrator" element={<Orchestrator />} />
             <Route path="/*" element={
               <DbLoader>
                 <Routes>
