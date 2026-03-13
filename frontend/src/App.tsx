@@ -15,25 +15,29 @@ import Status from './pages/Status';
 export default function App() {
   return (
     <LanguageProvider>
-      <DbLoader>
-        <BrowserRouter basename={(import.meta.env.BASE_URL || '/').replace(/\/$/, '')}>
-          <div className="min-h-screen bg-black text-white">
-            <Header />
-            <Routes>
-              <Route path="/" element={<Dashboard />} />
-              <Route path="/status" element={<Status />} />
-              <Route path="/browse" element={<Browse />} />
-              <Route path="/api/:id" element={<ApiDetail />} />
-              <Route path="/mappings" element={<Mappings />} />
-              <Route path="/gaps" element={<Gaps />} />
-              <Route path="/search" element={<Search />} />
-              <Route path="/subsystem/:name" element={<SubsystemDetail />} />
-              <Route path="/docs" element={<Docs />} />
-              <Route path="/docs/*" element={<Docs />} />
-            </Routes>
-          </div>
-        </BrowserRouter>
-      </DbLoader>
+      <BrowserRouter basename={(import.meta.env.BASE_URL || '/').replace(/\/$/, '')}>
+        <div className="min-h-screen bg-black text-white">
+          <Header />
+          <Routes>
+            <Route path="/status" element={<Status />} />
+            <Route path="/*" element={
+              <DbLoader>
+                <Routes>
+                  <Route path="/" element={<Dashboard />} />
+                  <Route path="/browse" element={<Browse />} />
+                  <Route path="/api/:id" element={<ApiDetail />} />
+                  <Route path="/mappings" element={<Mappings />} />
+                  <Route path="/gaps" element={<Gaps />} />
+                  <Route path="/search" element={<Search />} />
+                  <Route path="/subsystem/:name" element={<SubsystemDetail />} />
+                  <Route path="/docs" element={<Docs />} />
+                  <Route path="/docs/*" element={<Docs />} />
+                </Routes>
+              </DbLoader>
+            } />
+          </Routes>
+        </div>
+      </BrowserRouter>
     </LanguageProvider>
   );
 }
