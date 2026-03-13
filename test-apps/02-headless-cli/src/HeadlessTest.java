@@ -52,6 +52,11 @@ public class HeadlessTest {
         testStatFs();
         testAtomicFile();
         testProcess();
+        testMemoryFile();
+        testEnvironment();
+        testPowerManager();
+        testHandlerThread();
+        testParcel();
 
         System.out.println("\n═══ Results ═══");
         System.out.println("Passed: " + passed);
@@ -778,5 +783,108 @@ public class HeadlessTest {
         check("isApplicationUid system", !android.os.Process.isApplicationUid(android.os.Process.SYSTEM_UID));
         check("isIsolated", !android.os.Process.isIsolated());
         check("supportsProcesses", android.os.Process.supportsProcesses());
+    }
+
+    // ── MemoryFile ──
+
+    static void testMemoryFile() {
+        section("android.os.MemoryFile");
+        try {
+            android.os.MemoryFile mf = new android.os.MemoryFile("test", 1024);
+            check("length", mf.length() == 1024);
+
+            byte[] data = "Hello MemoryFile".getBytes();
+            mf.writeBytes(data, 0, 0, data.length);
+
+            byte[] readBuf = new byte[data.length];
+            mf.readBytes(readBuf, 0, 0, readBuf.length);
+            check("read matches write", java.util.Arrays.equals(data, readBuf));
+
+            // Stream interface
+            java.io.OutputStream os = mf.getOutputStream();
+            os.write("Stream!".getBytes());
+            java.io.InputStream is = mf.getInputStream();
+            byte[] streamBuf = new byte[7];
+            is.read(streamBuf);
+            check("stream write", "Stream!".equals(new String(streamBuf)));
+
+            mf.close();
+            boolean threw = false;
+            try { mf.readBytes(readBuf, 0, 0, 1); } catch (java.io.IOException e) { threw = true; }
+            check("closed throws", threw);
+        } catch (Exception e) {
+            check("MemoryFile no exception: " + e.getMessage(), false);
+        }
+    }
+
+    // ── Environment ──
+
+    static void testEnvironment() {
+        section("android.os.Environment");
+        check("getDataDirectory", android.os.Environment.getDataDirectory() != null);
+        check("getExternalStorageDirectory", android.os.Environment.getExternalStorageDirectory() != null);
+        check("getExternalStorageState", "mounted".equals(android.os.Environment.getExternalStorageState()));
+
+        java.io.File pics = android.os.Environment.getExternalStoragePublicDirectory(
+            android.os.Environment.DIRECTORY_PICTURES);
+        check("DIRECTORY_PICTURES", pics != null && pics.getPath().contains("Pictures"));
+    }
+
+    // ── PowerManager ──
+
+    static void testPowerManager() {
+        section("android.os.PowerManager");
+        android.os.PowerManager pm = new android.os.PowerManager();
+        check("isInteractive", pm.isInteractive());
+        check("isDeviceIdleMode", !pm.isDeviceIdleMode());
+        check("isPowerSaveMode", !pm.isPowerSaveMode());
+
+        android.os.PowerManager.WakeLock wl = pm.newWakeLock(
+            android.os.PowerManager.PARTIAL_WAKE_LOCK, "test");
+        check("WakeLock not held initially", !wl.isHeld());
+        wl.acquire();
+        check("WakeLock held after acquire", wl.isHeld());
+        wl.release();
+        check("WakeLock released", !wl.isHeld());
+    }
+
+    // ── HandlerThread ──
+
+    static void testHandlerThread() {
+        section("android.os.HandlerThread");
+        android.os.HandlerThread ht = new android.os.HandlerThread("test-thread");
+        ht.start();
+        ht.waitUntilReady();
+        check("thread alive", ht.isAlive());
+        check("getThreadId > 0", ht.getThreadId() > 0);
+        ht.quit();
+        try { ht.join(500); } catch (InterruptedException e) {}
+        check("quit stops thread", !ht.isAlive());
+    }
+
+    // ── Parcel ──
+
+    static void testParcel() {
+        section("android.os.Parcel");
+        android.os.Parcel p = android.os.Parcel.obtain();
+
+        p.writeInt(42);
+        p.writeLong(123456789L);
+        p.writeFloat(3.14f);
+        p.writeString("hello parcel");
+        p.writeString(null);
+        p.writeByteArray(new byte[]{1, 2, 3});
+
+        p.setDataPosition(0);
+        check("readInt", p.readInt() == 42);
+        check("readLong", p.readLong() == 123456789L);
+        check("readFloat", Math.abs(p.readFloat() - 3.14f) < 0.01f);
+        check("readString", "hello parcel".equals(p.readString()));
+        check("readString null", p.readString() == null);
+        byte[] bytes = p.createByteArray();
+        check("createByteArray", bytes != null && bytes.length == 3 && bytes[0] == 1);
+        check("dataSize > 0", p.dataSize() > 0);
+
+        p.recycle();
     }
 }
