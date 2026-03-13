@@ -57,6 +57,13 @@ public class HeadlessTest {
         testPowerManager();
         testHandlerThread();
         testParcel();
+        testHardwareBuffer();
+        testKeyguardManager();
+        testMediaSyncEvent();
+        testGeomagneticField();
+        testLocalServerSocket();
+        testGeocoder();
+        testAddress();
 
         System.out.println("\n═══ Results ═══");
         System.out.println("Passed: " + passed);
@@ -886,5 +893,111 @@ public class HeadlessTest {
         check("dataSize > 0", p.dataSize() > 0);
 
         p.recycle();
+    }
+
+    // ── HardwareBuffer ──
+
+    static void testHardwareBuffer() {
+        section("android.hardware.HardwareBuffer");
+        android.hardware.HardwareBuffer buf = android.hardware.HardwareBuffer.create(
+            1920, 1080, android.hardware.HardwareBuffer.RGBA_8888, 1,
+            android.hardware.HardwareBuffer.USAGE_GPU_SAMPLED_IMAGE);
+        check("getWidth", buf.getWidth() == 1920);
+        check("getHeight", buf.getHeight() == 1080);
+        check("getFormat", buf.getFormat() == android.hardware.HardwareBuffer.RGBA_8888);
+        check("getLayers", buf.getLayers() == 1);
+        check("isClosed initially", !buf.isClosed());
+        buf.close();
+        check("isClosed after close", buf.isClosed());
+        check("isSupported", android.hardware.HardwareBuffer.isSupported(100, 100, 1, 1, 0));
+        check("isSupported invalid", !android.hardware.HardwareBuffer.isSupported(0, 100, 1, 1, 0));
+    }
+
+    // ── KeyguardManager ──
+
+    static void testKeyguardManager() {
+        section("android.app.KeyguardManager");
+        android.app.KeyguardManager km = new android.app.KeyguardManager();
+        check("isKeyguardLocked", !km.isKeyguardLocked());
+        check("isDeviceLocked", !km.isDeviceLocked());
+        check("isDeviceSecure", !km.isDeviceSecure());
+        android.app.KeyguardManager.KeyguardLock kl = km.newKeyguardLock("test");
+        kl.disableKeyguard();
+        kl.reenableKeyguard();
+        check("KeyguardLock no throw", true);
+    }
+
+    // ── MediaSyncEvent ──
+
+    static void testMediaSyncEvent() {
+        section("android.media.MediaSyncEvent");
+        android.media.MediaSyncEvent evt = android.media.MediaSyncEvent.createEvent(
+            android.media.MediaSyncEvent.SYNC_EVENT_PRESENTATION_COMPLETE);
+        check("getType", evt.getType() == android.media.MediaSyncEvent.SYNC_EVENT_PRESENTATION_COMPLETE);
+        evt.setAudioSessionId(42);
+        check("getAudioSessionId", evt.getAudioSessionId() == 42);
+    }
+
+    // ── GeomagneticField ──
+
+    static void testGeomagneticField() {
+        section("android.hardware.GeomagneticField");
+        // San Francisco: 37.7749° N, 122.4194° W
+        android.hardware.GeomagneticField gf = new android.hardware.GeomagneticField(
+            37.7749f, -122.4194f, 0, System.currentTimeMillis());
+        check("getFieldStrength > 0", gf.getFieldStrength() > 0);
+        check("getDeclination is finite", Float.isFinite(gf.getDeclination()));
+        check("getInclination is finite", Float.isFinite(gf.getInclination()));
+        check("getX non-zero", gf.getX() != 0);
+    }
+
+    // ── LocalServerSocket ──
+
+    static void testLocalServerSocket() {
+        section("android.net.LocalServerSocket");
+        try {
+            android.net.LocalServerSocket server = new android.net.LocalServerSocket("test");
+            check("getName", "test".equals(server.getName()));
+            check("getLocalPort > 0", server.getLocalPort() > 0);
+            server.close();
+            check("close no throw", true);
+        } catch (Exception e) {
+            check("LocalServerSocket no exception: " + e.getMessage(), false);
+        }
+    }
+
+    // ── Geocoder ──
+
+    static void testGeocoder() {
+        section("android.location.Geocoder");
+        android.location.Geocoder gc = new android.location.Geocoder(null);
+        check("isPresent", !android.location.Geocoder.isPresent()); // mock returns false
+        try {
+            java.util.List<android.location.Address> results = gc.getFromLocation(37.7, -122.4, 1);
+            check("getFromLocation returns list", results != null);
+            results = gc.getFromLocationName("San Francisco", 1);
+            check("getFromLocationName returns list", results != null);
+        } catch (Exception e) {
+            check("Geocoder no exception", false);
+        }
+    }
+
+    // ── Address ──
+
+    static void testAddress() {
+        section("android.location.Address");
+        android.location.Address addr = new android.location.Address(java.util.Locale.US);
+        addr.setAddressLine(0, "123 Main St");
+        addr.setLocality("Springfield");
+        addr.setCountryCode("US");
+        addr.setLatitude(39.78);
+        addr.setLongitude(-89.65);
+
+        check("getAddressLine", "123 Main St".equals(addr.getAddressLine(0)));
+        check("getLocality", "Springfield".equals(addr.getLocality()));
+        check("getCountryCode", "US".equals(addr.getCountryCode()));
+        check("hasLatitude", addr.hasLatitude());
+        check("getLatitude", Math.abs(addr.getLatitude() - 39.78) < 0.01);
+        check("hasLongitude", addr.hasLongitude());
     }
 }
