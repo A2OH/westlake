@@ -12,3 +12,4 @@ dalvik-port/build-zlib-ohos/
 dalvik-port/ohos-sysroot/
 dalvik-port/*.jar
 database/*.db
+test-apps/build-local/

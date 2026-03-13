@@ -27,7 +27,8 @@ public final class Message implements Parcelable {
 
     public int describeContents() { return 0; }
     public Runnable getCallback() { return null; }
-    public Bundle getData() { return null; }
+    private Bundle mData;
+    public Bundle getData() { if (mData == null) mData = new Bundle(); return mData; }
     public Handler getTarget() { return target; }
     public long getWhen() { return 0L; }
     public boolean isAsynchronous() { return false; }
@@ -100,7 +101,7 @@ public final class Message implements Parcelable {
         return m;
     }
 
-    public Bundle peekData() { return null; }
+    public Bundle peekData() { return mData; }
 
     public void recycle() {
         what = 0;
@@ -120,7 +121,7 @@ public final class Message implements Parcelable {
     }
 
     public void setAsynchronous(boolean async) {}
-    public void setData(Bundle data) {}
+    public void setData(Bundle data) { mData = data; }
     public void setTarget(Handler t) { target = t; }
     public void writeToParcel(Parcel p0, int p1) {}
 }

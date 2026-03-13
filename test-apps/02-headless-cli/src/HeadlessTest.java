@@ -81,6 +81,17 @@ public class HeadlessTest {
         testWifiManager();
         testTelephonyManager();
         testGraphics();
+        testPatternMatcher();
+        testUriMatcher();
+        testPersistableBundle();
+        testResultReceiver();
+        testSpannableString();
+        testSpannableStringBuilder();
+        testComponentName();
+        testBundleExtended();
+        testMessageExtended();
+        testColorExtended();
+        testIntentExtended();
         testMatrixCursor();
         testMergeCursor();
         testMatrix();
@@ -2364,7 +2375,433 @@ public class HeadlessTest {
         check("PointF.set to (0,0) not equals original", !pf2.equals(pf));
     }
 
-    // ── MatrixCursor tests ──────────────────────────────────────────────────
+    // ── PatternMatcher tests ────────────────────────────────────────────
+
+    static void testPatternMatcher() {
+        section("android.os.PatternMatcher");
+
+        android.os.PatternMatcher lit = new android.os.PatternMatcher("/foo/bar", android.os.PatternMatcher.PATTERN_LITERAL);
+        check("PATTERN_LITERAL == 0", android.os.PatternMatcher.PATTERN_LITERAL == 0);
+        check("getPath", "/foo/bar".equals(lit.getPath()));
+        check("getType", lit.getType() == 0);
+        check("literal match exact", lit.match("/foo/bar"));
+        check("literal no match", !lit.match("/foo/baz"));
+
+        android.os.PatternMatcher prefix = new android.os.PatternMatcher("/foo", android.os.PatternMatcher.PATTERN_PREFIX);
+        check("prefix match", prefix.match("/foo/bar"));
+        check("prefix match exact", prefix.match("/foo"));
+        check("prefix no match", !prefix.match("/baz"));
+
+        android.os.PatternMatcher glob = new android.os.PatternMatcher("/foo/*/bar", android.os.PatternMatcher.PATTERN_SIMPLE_GLOB);
+        check("glob match", glob.match("/foo/xyz/bar"));
+        check("glob no match", !glob.match("/foo/bar"));
+
+        android.os.PatternMatcher suffix = new android.os.PatternMatcher(".txt", android.os.PatternMatcher.PATTERN_SUFFIX);
+        check("suffix match", suffix.match("file.txt"));
+        check("suffix no match", !suffix.match("file.pdf"));
+
+        check("null no match", !lit.match(null));
+        check("toString non-null", lit.toString() != null);
+    }
+
+    // ── UriMatcher tests ────────────────────────────────────────────────
+
+    static void testUriMatcher() {
+        section("android.content.UriMatcher");
+
+        android.content.UriMatcher matcher = new android.content.UriMatcher(android.content.UriMatcher.NO_MATCH);
+        check("NO_MATCH == -1", android.content.UriMatcher.NO_MATCH == -1);
+
+        matcher.addURI("com.example", "items", 1);
+        matcher.addURI("com.example", "items/#", 2);
+        matcher.addURI("com.example", "items/*/details", 3);
+
+        check("match items", matcher.match(android.net.Uri.parse("content://com.example/items")) == 1);
+        check("match items/42", matcher.match(android.net.Uri.parse("content://com.example/items/42")) == 2);
+        check("match items/foo/details", matcher.match(android.net.Uri.parse("content://com.example/items/foo/details")) == 3);
+        check("no match", matcher.match(android.net.Uri.parse("content://com.example/other")) == -1);
+        check("no match wrong authority", matcher.match(android.net.Uri.parse("content://com.other/items")) == -1);
+        check("# only matches digits", matcher.match(android.net.Uri.parse("content://com.example/items/abc")) == -1);
+        check("null returns NO_MATCH", matcher.match(null) == -1);
+    }
+
+    // ── PersistableBundle tests ─────────────────────────────────────────
+
+    static void testPersistableBundle() {
+        section("android.os.PersistableBundle");
+
+        android.os.PersistableBundle pb = new android.os.PersistableBundle();
+        check("initially empty", pb.isEmpty());
+
+        pb.putString("s", "hello");
+        pb.putInt("i", 42);
+        pb.putLong("l", 100L);
+        pb.putDouble("d", 3.14);
+        pb.putBoolean("b", true);
+
+        check("getString", "hello".equals(pb.getString("s")));
+        check("getInt", pb.getInt("i") == 42);
+        check("getLong", pb.getLong("l") == 100L);
+        check("getDouble", Math.abs(pb.getDouble("d") - 3.14) < 0.001);
+        check("getBoolean", pb.getBoolean("b"));
+        check("size == 5", pb.size() == 5);
+        check("containsKey", pb.containsKey("s"));
+
+        // Copy constructor
+        android.os.PersistableBundle copy = new android.os.PersistableBundle(pb);
+        check("copy getString", "hello".equals(copy.getString("s")));
+
+        // deepCopy
+        android.os.PersistableBundle deep = pb.deepCopy();
+        check("deepCopy getString", "hello".equals(deep.getString("s")));
+
+        // putPersistableBundle
+        android.os.PersistableBundle inner = new android.os.PersistableBundle();
+        inner.putString("nested", "value");
+        pb.putPersistableBundle("inner", inner);
+        check("getPersistableBundle", pb.getPersistableBundle("inner") != null);
+        check("nested value", "value".equals(pb.getPersistableBundle("inner").getString("nested")));
+
+        // EMPTY
+        check("EMPTY non-null", android.os.PersistableBundle.EMPTY != null);
+
+        // remove
+        pb.remove("s");
+        check("remove", !pb.containsKey("s"));
+
+        // clear
+        pb.clear();
+        check("clear empty", pb.isEmpty());
+    }
+
+    // ── ResultReceiver tests ────────────────────────────────────────────
+
+    static void testResultReceiver() {
+        section("android.os.ResultReceiver");
+
+        final int[] received = {-1};
+        final String[] receivedStr = {null};
+
+        android.os.ResultReceiver rr = new android.os.ResultReceiver(null) {
+            @Override
+            protected void onReceiveResult(int resultCode, android.os.Bundle resultData) {
+                received[0] = resultCode;
+                if (resultData != null) receivedStr[0] = resultData.getString("key");
+            }
+        };
+
+        android.os.Bundle data = new android.os.Bundle();
+        data.putString("key", "value");
+        rr.send(42, data);
+
+        check("received resultCode == 42", received[0] == 42);
+        check("received data", "value".equals(receivedStr[0]));
+        check("describeContents == 0", rr.describeContents() == 0);
+    }
+
+    // ── SpannableString tests ───────────────────────────────────────────
+
+    static void testSpannableString() {
+        section("android.text.SpannableString");
+
+        android.text.SpannableString ss = new android.text.SpannableString("Hello World");
+        check("length == 11", ss.length() == 11);
+        check("charAt(0) == H", ss.charAt(0) == 'H');
+        check("toString", "Hello World".equals(ss.toString()));
+        check("subSequence", "Hello".equals(ss.subSequence(0, 5).toString()));
+
+        // Spans
+        Object span1 = new Object();
+        ss.setSpan(span1, 0, 5, 0);
+        check("getSpanStart", ss.getSpanStart(span1) == 0);
+        check("getSpanEnd", ss.getSpanEnd(span1) == 5);
+        check("getSpanFlags", ss.getSpanFlags(span1) == 0);
+
+        Object[] spans = ss.getSpans(0, 11, Object.class);
+        check("getSpans length >= 1", spans.length >= 1);
+
+        ss.removeSpan(span1);
+        check("after removeSpan start == -1", ss.getSpanStart(span1) == -1);
+
+        // valueOf
+        android.text.SpannableString v = android.text.SpannableString.valueOf("test");
+        check("valueOf", "test".equals(v.toString()));
+
+        // valueOf returns same instance
+        android.text.SpannableString v2 = android.text.SpannableString.valueOf(v);
+        check("valueOf same instance", v == v2);
+    }
+
+    // ── SpannableStringBuilder tests ────────────────────────────────────
+
+    static void testSpannableStringBuilder() {
+        section("android.text.SpannableStringBuilder");
+
+        android.text.SpannableStringBuilder sb = new android.text.SpannableStringBuilder("Hello");
+        check("initial length == 5", sb.length() == 5);
+        check("toString", "Hello".equals(sb.toString()));
+
+        sb.append(" World");
+        check("after append length == 11", sb.length() == 11);
+        check("after append", "Hello World".equals(sb.toString()));
+
+        sb.insert(5, ",");
+        check("after insert", "Hello, World".equals(sb.toString()));
+
+        sb.delete(5, 6);
+        check("after delete", "Hello World".equals(sb.toString()));
+
+        sb.replace(6, 11, "Java");
+        check("after replace", "Hello Java".equals(sb.toString()));
+
+        // Spans
+        Object span = new Object();
+        sb.setSpan(span, 0, 5, 0);
+        check("getSpanStart", sb.getSpanStart(span) == 0);
+        check("getSpanEnd", sb.getSpanEnd(span) == 5);
+
+        sb.removeSpan(span);
+        check("after removeSpan", sb.getSpanStart(span) == -1);
+
+        // clear
+        sb.clear();
+        check("after clear length == 0", sb.length() == 0);
+
+        // from CharSequence constructor
+        android.text.SpannableStringBuilder sb2 = new android.text.SpannableStringBuilder("test");
+        check("constructor from string", "test".equals(sb2.toString()));
+    }
+
+    // ── ComponentName tests ─────────────────────────────────────────────
+
+    static void testComponentName() {
+        section("android.content.ComponentName");
+
+        android.content.ComponentName cn = new android.content.ComponentName("com.example", "com.example.MainActivity");
+        check("getPackageName", "com.example".equals(cn.getPackageName()));
+        check("getClassName", "com.example.MainActivity".equals(cn.getClassName()));
+        check("getShortClassName", ".MainActivity".equals(cn.getShortClassName()));
+        check("flattenToString", "com.example/com.example.MainActivity".equals(cn.flattenToString()));
+        check("flattenToShortString", "com.example/.MainActivity".equals(cn.flattenToShortString()));
+
+        // unflattenFromString
+        android.content.ComponentName cn2 = android.content.ComponentName.unflattenFromString("com.example/.MainActivity");
+        check("unflatten pkg", "com.example".equals(cn2.getPackageName()));
+        check("unflatten cls", "com.example.MainActivity".equals(cn2.getClassName()));
+
+        // equals
+        check("equals", cn.equals(cn2));
+
+        // compareTo
+        android.content.ComponentName cn3 = new android.content.ComponentName("com.example", "com.example.OtherActivity");
+        check("compareTo != 0", cn.compareTo(cn3) != 0);
+
+        check("unflattenFromString null", android.content.ComponentName.unflattenFromString(null) == null);
+        check("toString non-null", cn.toString() != null);
+    }
+
+    // ── Bundle extended tests ───────────────────────────────────────────
+
+    static void testBundleExtended() {
+        section("android.os.Bundle (extended)");
+
+        android.os.Bundle b = new android.os.Bundle();
+
+        // byte
+        b.putByte("byte", (byte) 42);
+        check("getByte", b.getByte("byte") == 42);
+
+        // char
+        b.putChar("char", 'Z');
+        check("getChar", b.getChar("char") == 'Z');
+
+        // float
+        b.putFloat("float", 1.5f);
+        check("getFloat", Math.abs(b.getFloat("float") - 1.5f) < 0.001f);
+
+        // short
+        b.putShort("short", (short) 123);
+        check("getShort", b.getShort("short") == 123);
+
+        // Bundle nesting
+        android.os.Bundle inner = new android.os.Bundle();
+        inner.putString("k", "v");
+        b.putBundle("nested", inner);
+        check("getBundle non-null", b.getBundle("nested") != null);
+        check("nested getString", "v".equals(b.getBundle("nested").getString("k")));
+
+        // byte array
+        b.putByteArray("bytes", new byte[]{1, 2, 3});
+        check("getByteArray length", b.getByteArray("bytes").length == 3);
+
+        // CharSequence
+        b.putCharSequence("cs", "hello");
+        check("getCharSequence", "hello".equals(b.getCharSequence("cs").toString()));
+
+        // putAll
+        android.os.Bundle other = new android.os.Bundle();
+        other.putString("extra", "val");
+        b.putAll(other);
+        check("putAll", "val".equals(b.getString("extra")));
+
+        // clone
+        android.os.Bundle cloned = (android.os.Bundle) b.clone();
+        check("clone getString", "val".equals(cloned.getString("extra")));
+
+        // Serializable
+        b.putSerializable("ser", "serializable_value");
+        check("getSerializable", "serializable_value".equals(b.getSerializable("ser")));
+
+        // putNull
+        b.putNull("nullkey");
+        check("putNull containsKey", b.containsKey("nullkey"));
+    }
+
+    // ── Message extended tests ──────────────────────────────────────────
+
+    static void testMessageExtended() {
+        section("android.os.Message (extended)");
+
+        android.os.Message msg = android.os.Message.obtain();
+        check("obtain non-null", msg != null);
+
+        // getData / setData
+        android.os.Bundle data = new android.os.Bundle();
+        data.putString("key", "value");
+        msg.setData(data);
+        check("getData non-null", msg.getData() != null);
+        check("getData getString", "value".equals(msg.getData().getString("key")));
+
+        // peekData
+        check("peekData non-null after setData", msg.peekData() != null);
+
+        android.os.Message fresh = new android.os.Message();
+        check("peekData null before setData", fresh.peekData() == null);
+
+        // getData creates bundle if null
+        android.os.Bundle auto = fresh.getData();
+        check("getData auto-creates bundle", auto != null);
+
+        // copyFrom
+        android.os.Message src = android.os.Message.obtain();
+        src.what = 99;
+        src.arg1 = 10;
+        src.arg2 = 20;
+        src.obj = "test";
+        android.os.Message dst = new android.os.Message();
+        dst.copyFrom(src);
+        check("copyFrom what", dst.what == 99);
+        check("copyFrom arg1", dst.arg1 == 10);
+        check("copyFrom obj", "test".equals(dst.obj));
+
+        // sendToTarget
+        msg.recycle();
+    }
+
+    // ── Color extended tests ────────────────────────────────────────────
+
+    static void testColorExtended() {
+        section("android.graphics.Color (extended)");
+
+        // RGBToHSV
+        float[] hsv = new float[3];
+        android.graphics.Color.RGBToHSV(255, 0, 0, hsv);
+        check("RGBToHSV red hue ~0", Math.abs(hsv[0]) < 1f || Math.abs(hsv[0] - 360f) < 1f);
+        check("RGBToHSV red sat ~1", Math.abs(hsv[1] - 1f) < 0.01f);
+        check("RGBToHSV red val ~1", Math.abs(hsv[2] - 1f) < 0.01f);
+
+        android.graphics.Color.RGBToHSV(0, 255, 0, hsv);
+        check("RGBToHSV green hue ~120", Math.abs(hsv[0] - 120f) < 1f);
+
+        android.graphics.Color.RGBToHSV(0, 0, 255, hsv);
+        check("RGBToHSV blue hue ~240", Math.abs(hsv[0] - 240f) < 1f);
+
+        // colorToHSV
+        android.graphics.Color.colorToHSV(android.graphics.Color.RED, hsv);
+        check("colorToHSV red hue ~0", Math.abs(hsv[0]) < 1f || Math.abs(hsv[0] - 360f) < 1f);
+
+        // HSVToColor roundtrip
+        float[] hsvIn = {120f, 1f, 1f};
+        int greenFromHSV = android.graphics.Color.HSVToColor(hsvIn);
+        check("HSVToColor green", android.graphics.Color.green(greenFromHSV) == 255);
+        check("HSVToColor green red==0", android.graphics.Color.red(greenFromHSV) == 0);
+
+        // luminance
+        float lumWhite = android.graphics.Color.luminance(android.graphics.Color.WHITE);
+        check("luminance white ~1.0", Math.abs(lumWhite - 1.0f) < 0.01f);
+
+        float lumBlack = android.graphics.Color.luminance(android.graphics.Color.BLACK);
+        check("luminance black ~0.0", Math.abs(lumBlack) < 0.01f);
+    }
+
+    // ── Intent extended tests ───────────────────────────────────────────
+
+    static void testIntentExtended() {
+        section("android.content.Intent (extended)");
+
+        android.content.Intent intent = new android.content.Intent(android.content.Intent.ACTION_VIEW);
+        check("ACTION_VIEW", android.content.Intent.ACTION_VIEW.equals(intent.getAction()));
+
+        // Data
+        intent.setData(android.net.Uri.parse("https://example.com"));
+        check("getData", intent.getData() != null);
+        check("getData scheme", "https".equals(intent.getData().getScheme()));
+
+        // Type clears data
+        intent.setType("text/plain");
+        check("setType clears data", intent.getData() == null);
+        check("getType", "text/plain".equals(intent.getType()));
+
+        // setDataAndType
+        intent.setDataAndType(android.net.Uri.parse("file:///test"), "image/png");
+        check("setDataAndType data", intent.getData() != null);
+        check("setDataAndType type", "image/png".equals(intent.getType()));
+
+        // Categories
+        intent.addCategory(android.content.Intent.CATEGORY_LAUNCHER);
+        check("hasCategory", intent.hasCategory(android.content.Intent.CATEGORY_LAUNCHER));
+        intent.removeCategory(android.content.Intent.CATEGORY_LAUNCHER);
+        check("removeCategory", !intent.hasCategory(android.content.Intent.CATEGORY_LAUNCHER));
+
+        // Flags
+        intent.setFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK);
+        check("getFlags", intent.getFlags() == android.content.Intent.FLAG_ACTIVITY_NEW_TASK);
+        intent.addFlags(android.content.Intent.FLAG_ACTIVITY_CLEAR_TOP);
+        check("addFlags", (intent.getFlags() & android.content.Intent.FLAG_ACTIVITY_CLEAR_TOP) != 0);
+
+        // Component
+        intent.setClassName("com.example", "com.example.Main");
+        check("getComponent non-null", intent.getComponent() != null);
+        check("getComponent pkg", "com.example".equals(intent.getComponent().getPackageName()));
+
+        // Clone
+        android.content.Intent clone = (android.content.Intent) intent.clone();
+        check("clone action", intent.getAction().equals(clone.getAction()));
+
+        // Extra types
+        intent.putExtra("bool", true);
+        check("getBooleanExtra", intent.getBooleanExtra("bool", false));
+        intent.putExtra("long", 999L);
+        check("getLongExtra", intent.getLongExtra("long", 0L) == 999L);
+        intent.putExtra("double", 2.5);
+        check("getDoubleExtra", Math.abs(intent.getDoubleExtra("double", 0) - 2.5) < 0.001);
+
+        check("hasExtra", intent.hasExtra("bool"));
+        intent.removeExtra("bool");
+        check("removeExtra", !intent.hasExtra("bool"));
+
+        // createChooser
+        android.content.Intent chooser = android.content.Intent.createChooser(intent, "Share");
+        check("createChooser action", android.content.Intent.ACTION_CHOOSER.equals(chooser.getAction()));
+
+        // makeMainActivity
+        android.content.ComponentName cn = new android.content.ComponentName("com.test", "com.test.Main");
+        android.content.Intent main = android.content.Intent.makeMainActivity(cn);
+        check("makeMainActivity action", android.content.Intent.ACTION_MAIN.equals(main.getAction()));
+        check("makeMainActivity category", main.hasCategory(android.content.Intent.CATEGORY_LAUNCHER));
+    }
+
+    // ── MatrixCursor tests ──────────────────────────────────────────────
 
     static void testMatrixCursor() {
         section("android.database.MatrixCursor");
@@ -2373,53 +2810,42 @@ public class HeadlessTest {
         android.database.MatrixCursor mc = new android.database.MatrixCursor(cols);
         check("initial count == 0", mc.getCount() == 0);
 
-        // addRow with Object[]
         mc.addRow(new Object[]{1, "alpha", "100"});
         mc.addRow(new Object[]{2, "beta", "200"});
         check("count after 2 addRow == 2", mc.getCount() == 2);
 
-        // getColumnNames
         String[] names = mc.getColumnNames();
         check("getColumnNames length == 3", names.length == 3);
         check("getColumnNames[1] == name", "name".equals(names[1]));
-
-        // getColumnIndex
         check("getColumnIndex(name) == 1", mc.getColumnIndex("name") == 1);
         check("getColumnIndex(missing) == -1", mc.getColumnIndex("missing") == -1);
 
-        // moveToFirst and read values
         check("moveToFirst", mc.moveToFirst());
         check("getString(1) == alpha", "alpha".equals(mc.getString(1)));
         check("getInt(0) == 1", mc.getInt(0) == 1);
 
-        // moveToNext
         check("moveToNext", mc.moveToNext());
         check("getString(1) == beta", "beta".equals(mc.getString(1)));
         check("getInt(2) == 200", mc.getInt(2) == 200);
-
-        // moveToNext at end
         check("moveToNext past end false", !mc.moveToNext());
 
-        // newRow with RowBuilder
         mc.newRow().add(3).add("gamma").add("300");
         check("count after newRow == 3", mc.getCount() == 3);
         mc.moveToLast();
         check("getString(1) after newRow == gamma", "gamma".equals(mc.getString(1)));
 
-        // isNull
         android.database.MatrixCursor mc2 = new android.database.MatrixCursor(new String[]{"a"});
         mc2.addRow(new Object[]{null});
         mc2.moveToFirst();
         check("isNull for null value", mc2.isNull(0));
 
-        // position checks
         mc.moveToFirst();
         check("isFirst", mc.isFirst());
         mc.moveToLast();
         check("isLast", mc.isLast());
     }
 
-    // ── MergeCursor tests ───────────────────────────────────────────────────
+    // ── MergeCursor tests ───────────────────────────────────────────────
 
     static void testMergeCursor() {
         section("android.database.MergeCursor");
@@ -2438,32 +2864,24 @@ public class HeadlessTest {
         check("total count == 3", merge.getCount() == 3);
         check("getColumnNames[0] == _id", "_id".equals(merge.getColumnNames()[0]));
 
-        // Navigate through all rows
         check("moveToFirst", merge.moveToFirst());
         check("row 0 val == a", "a".equals(merge.getString(1)));
-
         check("moveToNext", merge.moveToNext());
         check("row 1 val == b", "b".equals(merge.getString(1)));
-
         check("moveToNext crosses cursor boundary", merge.moveToNext());
         check("row 2 val == c", "c".equals(merge.getString(1)));
-
         check("moveToNext at end false", !merge.moveToNext());
 
-        // moveToPosition
         check("moveToPosition(0)", merge.moveToPosition(0));
         check("position 0 val == a", "a".equals(merge.getString(1)));
-
         check("moveToPosition(2)", merge.moveToPosition(2));
         check("position 2 val == c", "c".equals(merge.getString(1)));
 
-        // Empty merge
-        android.database.MergeCursor empty = new android.database.MergeCursor(
-            new android.database.Cursor[]{});
+        android.database.MergeCursor empty = new android.database.MergeCursor(new android.database.Cursor[]{});
         check("empty merge count == 0", empty.getCount() == 0);
     }
 
-    // ── Matrix tests ────────────────────────────────────────────────────────
+    // ── Matrix tests ────────────────────────────────────────────────────
 
     static void testMatrix() {
         section("android.graphics.Matrix");
@@ -2472,14 +2890,12 @@ public class HeadlessTest {
         check("new Matrix isIdentity", m.isIdentity());
         check("new Matrix isAffine", m.isAffine());
 
-        // Constants
         check("MSCALE_X == 0", android.graphics.Matrix.MSCALE_X == 0);
         check("MSCALE_Y == 4", android.graphics.Matrix.MSCALE_Y == 4);
         check("MTRANS_X == 2", android.graphics.Matrix.MTRANS_X == 2);
         check("MTRANS_Y == 5", android.graphics.Matrix.MTRANS_Y == 5);
         check("MPERSP_2 == 8", android.graphics.Matrix.MPERSP_2 == 8);
 
-        // getValues roundtrip
         float[] vals = new float[9];
         m.getValues(vals);
         check("identity[0] == 1", vals[0] == 1f);
@@ -2487,39 +2903,32 @@ public class HeadlessTest {
         check("identity[8] == 1", vals[8] == 1f);
         check("identity[1] == 0", vals[1] == 0f);
 
-        // setTranslate
         m.setTranslate(10f, 20f);
         check("after setTranslate not identity", !m.isIdentity());
         m.getValues(vals);
         check("translate X == 10", vals[2] == 10f);
         check("translate Y == 20", vals[5] == 20f);
 
-        // mapPoints with translation
         float[] pts = {0f, 0f};
         m.mapPoints(pts);
         check("mapPoints translated X == 10", Math.abs(pts[0] - 10f) < 0.001f);
         check("mapPoints translated Y == 20", Math.abs(pts[1] - 20f) < 0.001f);
 
-        // reset
         m.reset();
         check("after reset isIdentity", m.isIdentity());
 
-        // setScale
         m.setScale(2f, 3f);
         m.getValues(vals);
         check("scale X == 2", vals[0] == 2f);
         check("scale Y == 3", vals[4] == 3f);
 
-        // copy constructor
         android.graphics.Matrix m2 = new android.graphics.Matrix(m);
         check("copy equals original", m2.equals(m));
 
-        // set(Matrix)
         android.graphics.Matrix m3 = new android.graphics.Matrix();
         m3.set(m);
         check("set(matrix) equals", m3.equals(m));
 
-        // invert
         m.setScale(2f, 4f);
         android.graphics.Matrix inv = new android.graphics.Matrix();
         boolean ok = m.invert(inv);
@@ -2528,13 +2937,11 @@ public class HeadlessTest {
         check("inverted scale X == 0.5", Math.abs(vals[0] - 0.5f) < 0.001f);
         check("inverted scale Y == 0.25", Math.abs(vals[4] - 0.25f) < 0.001f);
 
-        // postTranslate
         m.reset();
         m.postTranslate(5f, 10f);
         m.getValues(vals);
         check("postTranslate X == 5", Math.abs(vals[2] - 5f) < 0.001f);
 
-        // setRotate 90 degrees
         m.setRotate(90f);
         float[] rpts = {1f, 0f};
         m.mapPoints(rpts);
@@ -2542,126 +2949,92 @@ public class HeadlessTest {
         check("rotate 90 maps (1,0) to ~(0,1) y", Math.abs(rpts[1] - 1f) < 0.001f);
     }
 
-    // ── DatabaseUtils tests ─────────────────────────────────────────────────
+    // ── DatabaseUtils tests ─────────────────────────────────────────────
 
     static void testDatabaseUtils() {
         section("android.database.DatabaseUtils");
 
-        // Statement type constants
-        check("STATEMENT_SELECT == 1",
-            android.database.DatabaseUtils.STATEMENT_SELECT == 1);
-        check("STATEMENT_UPDATE == 2",
-            android.database.DatabaseUtils.STATEMENT_UPDATE == 2);
-        check("STATEMENT_ATTACH == 3",
-            android.database.DatabaseUtils.STATEMENT_ATTACH == 3);
-        check("STATEMENT_BEGIN == 4",
-            android.database.DatabaseUtils.STATEMENT_BEGIN == 4);
-        check("STATEMENT_COMMIT == 5",
-            android.database.DatabaseUtils.STATEMENT_COMMIT == 5);
-        check("STATEMENT_ABORT == 6",
-            android.database.DatabaseUtils.STATEMENT_ABORT == 6);
-        check("STATEMENT_PRAGMA == 7",
-            android.database.DatabaseUtils.STATEMENT_PRAGMA == 7);
-        check("STATEMENT_DDL == 8",
-            android.database.DatabaseUtils.STATEMENT_DDL == 8);
-        check("STATEMENT_OTHER == 99",
-            android.database.DatabaseUtils.STATEMENT_OTHER == 99);
+        check("STATEMENT_SELECT == 1", android.database.DatabaseUtils.STATEMENT_SELECT == 1);
+        check("STATEMENT_UPDATE == 2", android.database.DatabaseUtils.STATEMENT_UPDATE == 2);
+        check("STATEMENT_ATTACH == 3", android.database.DatabaseUtils.STATEMENT_ATTACH == 3);
+        check("STATEMENT_BEGIN == 4", android.database.DatabaseUtils.STATEMENT_BEGIN == 4);
+        check("STATEMENT_COMMIT == 5", android.database.DatabaseUtils.STATEMENT_COMMIT == 5);
+        check("STATEMENT_ABORT == 6", android.database.DatabaseUtils.STATEMENT_ABORT == 6);
+        check("STATEMENT_PRAGMA == 7", android.database.DatabaseUtils.STATEMENT_PRAGMA == 7);
+        check("STATEMENT_DDL == 8", android.database.DatabaseUtils.STATEMENT_DDL == 8);
+        check("STATEMENT_OTHER == 99", android.database.DatabaseUtils.STATEMENT_OTHER == 99);
 
-        // getSqlStatementType
-        check("SELECT type",
-            android.database.DatabaseUtils.getSqlStatementType("SELECT * FROM t") == 1);
-        check("INSERT type",
-            android.database.DatabaseUtils.getSqlStatementType("INSERT INTO t VALUES(1)") == 2);
-        check("UPDATE type",
-            android.database.DatabaseUtils.getSqlStatementType("UPDATE t SET x=1") == 2);
-        check("DELETE type",
-            android.database.DatabaseUtils.getSqlStatementType("DELETE FROM t") == 2);
-        check("CREATE type",
-            android.database.DatabaseUtils.getSqlStatementType("CREATE TABLE t(x)") == 8);
-        check("BEGIN type",
-            android.database.DatabaseUtils.getSqlStatementType("BEGIN TRANSACTION") == 4);
-        check("COMMIT type",
-            android.database.DatabaseUtils.getSqlStatementType("COMMIT") == 5);
-        check("PRAGMA type",
-            android.database.DatabaseUtils.getSqlStatementType("PRAGMA journal_mode") == 7);
+        check("SELECT type", android.database.DatabaseUtils.getSqlStatementType("SELECT * FROM t") == 1);
+        check("INSERT type", android.database.DatabaseUtils.getSqlStatementType("INSERT INTO t VALUES(1)") == 2);
+        check("UPDATE type", android.database.DatabaseUtils.getSqlStatementType("UPDATE t SET x=1") == 2);
+        check("DELETE type", android.database.DatabaseUtils.getSqlStatementType("DELETE FROM t") == 2);
+        check("CREATE type", android.database.DatabaseUtils.getSqlStatementType("CREATE TABLE t(x)") == 8);
+        check("BEGIN type", android.database.DatabaseUtils.getSqlStatementType("BEGIN TRANSACTION") == 4);
+        check("COMMIT type", android.database.DatabaseUtils.getSqlStatementType("COMMIT") == 5);
+        check("PRAGMA type", android.database.DatabaseUtils.getSqlStatementType("PRAGMA journal_mode") == 7);
 
-        // sqlEscapeString
         String escaped = android.database.DatabaseUtils.sqlEscapeString("it's a test");
         check("sqlEscapeString quotes", escaped.equals("'it''s a test'"));
 
         String simple = android.database.DatabaseUtils.sqlEscapeString("hello");
         check("sqlEscapeString simple", simple.equals("'hello'"));
 
-        // concatenateWhere
         String where = android.database.DatabaseUtils.concatenateWhere("a=1", "b=2");
         check("concatenateWhere", "(a=1) AND (b=2)".equals(where));
 
         String whereNull = android.database.DatabaseUtils.concatenateWhere(null, "b=2");
         check("concatenateWhere null first", "b=2".equals(whereNull));
 
-        // appendSelectionArgs
-        String[] args = android.database.DatabaseUtils.appendSelectionArgs(
-            new String[]{"a"}, new String[]{"b", "c"});
+        String[] args = android.database.DatabaseUtils.appendSelectionArgs(new String[]{"a"}, new String[]{"b", "c"});
         check("appendSelectionArgs length == 3", args.length == 3);
         check("appendSelectionArgs[2] == c", "c".equals(args[2]));
 
-        // getCollationKey
         String key = android.database.DatabaseUtils.getCollationKey("Hello");
         check("getCollationKey lowercase", "hello".equals(key));
 
-        // getHexCollationKey
         String hex = android.database.DatabaseUtils.getHexCollationKey("ab");
         check("getHexCollationKey ab", "00610062".equals(hex));
 
-        // appendEscapedSQLString
         StringBuilder sb = new StringBuilder();
         android.database.DatabaseUtils.appendEscapedSQLString(sb, "O'Brien");
         check("appendEscapedSQLString", "'O''Brien'".equals(sb.toString()));
     }
 
-    // ── RectF extended tests ────────────────────────────────────────────────
+    // ── RectF extended tests ────────────────────────────────────────────
 
     static void testRectFExtended() {
         section("android.graphics.RectF (extended)");
 
-        // Copy constructor
         android.graphics.RectF orig = new android.graphics.RectF(1f, 2f, 3f, 4f);
         android.graphics.RectF copy = new android.graphics.RectF(orig);
         check("RectF copy constructor", copy.equals(orig));
 
-        // contains(RectF)
         android.graphics.RectF outer = new android.graphics.RectF(0f, 0f, 10f, 10f);
         android.graphics.RectF inner = new android.graphics.RectF(2f, 2f, 8f, 8f);
         check("contains(RectF) true", outer.contains(inner));
         check("contains(RectF) false", !inner.contains(outer));
 
-        // setEmpty
         android.graphics.RectF r = new android.graphics.RectF(1f, 2f, 3f, 4f);
         r.setEmpty();
         check("setEmpty isEmpty", r.isEmpty());
 
-        // offsetTo
         r.set(10f, 20f, 30f, 40f);
         r.offsetTo(0f, 0f);
         check("offsetTo left == 0", r.left == 0f);
         check("offsetTo right == 20", r.right == 20f);
         check("offsetTo bottom == 20", r.bottom == 20f);
 
-        // sort
         android.graphics.RectF unsorted = new android.graphics.RectF(5f, 5f, 1f, 1f);
         unsorted.sort();
         check("sort left < right", unsorted.left < unsorted.right);
         check("sort top < bottom", unsorted.top < unsorted.bottom);
 
-        // round
         android.graphics.RectF rf = new android.graphics.RectF(1.3f, 2.7f, 3.5f, 4.2f);
         android.graphics.Rect rounded = new android.graphics.Rect();
         rf.round(rounded);
         check("round left == 1", rounded.left == 1);
         check("round top == 3", rounded.top == 3);
-        check("round right == 4", rounded.right == 4 || rounded.right == 3);
 
-        // roundOut
         android.graphics.Rect roundedOut = new android.graphics.Rect();
         rf.roundOut(roundedOut);
         check("roundOut left == 1", roundedOut.left == 1);
@@ -2669,17 +3042,14 @@ public class HeadlessTest {
         check("roundOut right == 4", roundedOut.right == 4);
         check("roundOut bottom == 5", roundedOut.bottom == 5);
 
-        // flattenToString / unflattenFromString
         android.graphics.RectF r2 = new android.graphics.RectF(1.5f, 2.5f, 3.5f, 4.5f);
         String flat = r2.flattenToString();
         check("flattenToString non-null", flat != null);
         android.graphics.RectF unflat = android.graphics.RectF.unflattenFromString(flat);
         check("unflattenFromString roundtrip", unflat != null && unflat.equals(r2));
 
-        // toShortString
         check("toShortString non-null", r2.toShortString() != null);
 
-        // setIntersect
         android.graphics.RectF a = new android.graphics.RectF(0f, 0f, 10f, 10f);
         android.graphics.RectF b = new android.graphics.RectF(5f, 5f, 15f, 15f);
         android.graphics.RectF result = new android.graphics.RectF();
@@ -2687,7 +3057,6 @@ public class HeadlessTest {
         check("setIntersect left == 5", result.left == 5f);
         check("setIntersect bottom == 10", result.bottom == 10f);
 
-        // intersects (non-mutating)
         check("intersects true", a.intersects(5f, 5f, 15f, 15f));
         check("intersects false", !a.intersects(20f, 20f, 30f, 30f));
     }

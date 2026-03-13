@@ -19,42 +19,51 @@ public final class Bundle extends BaseBundle implements Cloneable, Parcelable {
     }
     public Bundle deepCopy() { return new Bundle(this); }
     public int describeContents() { return 0; }
-    public byte getByte(String p0) { return 0; }
-    public Byte getByte(String p0, byte p1) { return null; }
-    public char getChar(String p0) { return '\0'; }
-    public char getChar(String p0, char p1) { return '\0'; }
-    public CharSequence getCharSequence(String p0, CharSequence p1) { return null; }
+    public byte getByte(String key) { return getByte(key, (byte) 0); }
+    public Byte getByte(String key, byte def) { Object v = map.get(key); return v instanceof Byte ? (Byte) v : (v instanceof Number ? ((Number) v).byteValue() : def); }
+    public char getChar(String key) { return getChar(key, '\0'); }
+    public char getChar(String key, char def) { Object v = map.get(key); return v instanceof Character ? (Character) v : def; }
+    public CharSequence getCharSequence(String key) { Object v = map.get(key); return v instanceof CharSequence ? (CharSequence) v : null; }
+    public CharSequence getCharSequence(String key, CharSequence def) { Object v = map.get(key); return v instanceof CharSequence ? (CharSequence) v : def; }
     public ClassLoader getClassLoader() { return null; }
-    public float getFloat(String p0) { return 0f; }
-    public float getFloat(String p0, float p1) { return 0f; }
-    public short getShort(String p0) { return 0; }
-    public short getShort(String p0, short p1) { return 0; }
+    public float getFloat(String key) { return getFloat(key, 0f); }
+    public float getFloat(String key, float def) { Object v = map.get(key); return v instanceof Number ? ((Number) v).floatValue() : def; }
+    public short getShort(String key) { return getShort(key, (short) 0); }
+    public short getShort(String key, short def) { Object v = map.get(key); return v instanceof Number ? ((Number) v).shortValue() : def; }
+    public Parcelable getParcelable(String key) { Object v = map.get(key); return v instanceof Parcelable ? (Parcelable) v : null; }
+    public Serializable getSerializable(String key) { Object v = map.get(key); return v instanceof Serializable ? (Serializable) v : null; }
+    public Bundle getBundle(String key) { Object v = map.get(key); return v instanceof Bundle ? (Bundle) v : null; }
+    public byte[] getByteArray(String key) { Object v = map.get(key); return v instanceof byte[] ? (byte[]) v : null; }
+    public char[] getCharArray(String key) { Object v = map.get(key); return v instanceof char[] ? (char[]) v : null; }
+    public float[] getFloatArray(String key) { Object v = map.get(key); return v instanceof float[] ? (float[]) v : null; }
+    public short[] getShortArray(String key) { Object v = map.get(key); return v instanceof short[] ? (short[]) v : null; }
     public boolean hasFileDescriptors() { return false; }
     public void putAll(Bundle other) {
         if (other != null) map.putAll(other.map);
     }
-    public void putBinder(String p0, IBinder p1) {}
-    public void putBundle(String p0, Bundle p1) {}
-    public void putByte(String p0, byte p1) {}
-    public void putByteArray(String p0, byte[] p1) {}
-    public void putChar(String p0, char p1) {}
-    public void putCharArray(String p0, char[] p1) {}
-    public void putCharSequence(String p0, CharSequence p1) {}
-    public void putCharSequenceArray(String p0, CharSequence[] p1) {}
-    public void putCharSequenceArrayList(String p0, java.util.ArrayList<Object> p1) {}
-    public void putFloat(String p0, float p1) {}
-    public void putFloatArray(String p0, float[] p1) {}
-    public void putIntegerArrayList(String p0, java.util.ArrayList<Object> p1) {}
-    public void putParcelable(String p0, Parcelable p1) {}
-    public void putParcelableArray(String p0, Parcelable[] p1) {}
-    public void putParcelableArrayList(String p0, java.util.ArrayList<Object> p1) {}
-    public void putSerializable(String p0, Serializable p1) {}
-    public void putShort(String p0, short p1) {}
-    public void putShortArray(String p0, short[] p1) {}
-    public void putSize(String p0, Size p1) {}
-    public void putSizeF(String p0, SizeF p1) {}
-    public void putSparseParcelableArray(String p0, Object p1) {}
-    public void putStringArrayList(String p0, java.util.ArrayList<Object> p1) {}
+    public void putBinder(String key, IBinder val) { map.put(key, val); }
+    public void putBundle(String key, Bundle val) { map.put(key, val); }
+    public void putByte(String key, byte val) { map.put(key, val); }
+    public void putByteArray(String key, byte[] val) { map.put(key, val); }
+    public void putChar(String key, char val) { map.put(key, val); }
+    public void putCharArray(String key, char[] val) { map.put(key, val); }
+    public void putCharSequence(String key, CharSequence val) { map.put(key, val); }
+    public void putCharSequenceArray(String key, CharSequence[] val) { map.put(key, val); }
+    public void putCharSequenceArrayList(String key, java.util.ArrayList<Object> val) { map.put(key, val); }
+    public void putFloat(String key, float val) { map.put(key, val); }
+    public void putFloatArray(String key, float[] val) { map.put(key, val); }
+    public void putIntegerArrayList(String key, java.util.ArrayList<Object> val) { map.put(key, val); }
+    public void putParcelable(String key, Parcelable val) { map.put(key, val); }
+    public void putParcelableArray(String key, Parcelable[] val) { map.put(key, val); }
+    public void putParcelableArrayList(String key, java.util.ArrayList<Object> val) { map.put(key, val); }
+    public void putSerializable(String key, Serializable val) { map.put(key, val); }
+    public void putShort(String key, short val) { map.put(key, val); }
+    public void putShortArray(String key, short[] val) { map.put(key, val); }
+    public void putSize(String key, Size val) { map.put(key, val); }
+    public void putSizeF(String key, SizeF val) { map.put(key, val); }
+    public void putSparseParcelableArray(String key, Object val) { map.put(key, val); }
+    public void putStringArrayList(String key, java.util.ArrayList<Object> val) { map.put(key, val); }
+    public void putNull(String key) { map.put(key, null); }
     public void readFromParcel(Parcel p0) {}
     public void setClassLoader(ClassLoader p0) {}
     public void writeToParcel(Parcel p0, int p1) {}

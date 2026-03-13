@@ -9,6 +9,8 @@ import java.util.Set;
  * Only persists String, int, long, double, boolean, String[].
  */
 public final class PersistableBundle {
+    public static final PersistableBundle EMPTY = new PersistableBundle();
+
     private final Map<String, Object> mMap = new HashMap<>();
 
     public PersistableBundle() {}
@@ -33,9 +35,9 @@ public final class PersistableBundle {
     // --- get ---
     public String  getString(String key)               { return getString(key, null); }
     public String  getString(String key, String def)   { Object v = mMap.get(key); return (v instanceof String) ? (String) v : def; }
-    public int     getInt(String key)                  { return getInt(key); }
+    public int     getInt(String key)                  { return getInt(key, 0); }
     public int     getInt(String key, int def)         { Object v = mMap.get(key); return (v instanceof Integer) ? (Integer) v : def; }
-    public long    getLong(String key)                 { return getLong(key); }
+    public long    getLong(String key)                 { return getLong(key, 0L); }
     public long    getLong(String key, long def)       { Object v = mMap.get(key); return (v instanceof Long) ? (Long) v : def; }
     public double  getDouble(String key)               { return getDouble(key, 0.0); }
     public double  getDouble(String key, double def)   { Object v = mMap.get(key); return (v instanceof Double) ? (Double) v : def; }
@@ -50,6 +52,41 @@ public final class PersistableBundle {
     public boolean isEmpty()              { return mMap.isEmpty(); }
     public int     size()                 { return mMap.size(); }
     public Set<String> keySet()           { return mMap.keySet(); }
+
+    public void putPersistableBundle(String key, PersistableBundle value) { mMap.put(key, value); }
+    public PersistableBundle getPersistableBundle(String key) {
+        Object v = mMap.get(key);
+        return (v instanceof PersistableBundle) ? (PersistableBundle) v : null;
+    }
+
+    public PersistableBundle deepCopy() {
+        PersistableBundle copy = new PersistableBundle();
+        for (Map.Entry<String, Object> e : mMap.entrySet()) {
+            Object v = e.getValue();
+            if (v instanceof PersistableBundle) {
+                copy.mMap.put(e.getKey(), ((PersistableBundle) v).deepCopy());
+            } else if (v instanceof String[]) {
+                copy.mMap.put(e.getKey(), ((String[]) v).clone());
+            } else if (v instanceof int[]) {
+                copy.mMap.put(e.getKey(), ((int[]) v).clone());
+            } else if (v instanceof long[]) {
+                copy.mMap.put(e.getKey(), ((long[]) v).clone());
+            } else if (v instanceof double[]) {
+                copy.mMap.put(e.getKey(), ((double[]) v).clone());
+            } else {
+                copy.mMap.put(e.getKey(), v);
+            }
+        }
+        return copy;
+    }
+
+    @Override
+    public Object clone() {
+        return deepCopy();
+    }
+
+    public int describeContents() { return 0; }
+    public void writeToParcel(Parcel dest, int flags) {}
 
     @Override
     public String toString() { return "PersistableBundle[" + mMap + "]"; }
