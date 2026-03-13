@@ -6,4 +6,9 @@ __pycache__/
 .env
 .DS_Store
 dalvik-port/build/
+dalvik-port/build-ohos-*/
+dalvik-port/build-libffi-ohos/
+dalvik-port/build-zlib-ohos/
+dalvik-port/ohos-sysroot/
+dalvik-port/*.jar
 database/*.db

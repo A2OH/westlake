@@ -7,13 +7,20 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#ifndef __MUSL__
 #include <malloc.h>
+#endif
 
 /* ── bionic dlmalloc stubs ── */
 extern "C" {
 
 int dlmalloc_trim(size_t pad) {
+#ifdef __MUSL__
+    (void)pad;
+    return 0;  /* musl has no malloc_trim */
+#else
     return malloc_trim(pad);
+#endif
 }
 
 void dlmalloc_inspect_all(void(*handler)(void*, void*, size_t, void*),
