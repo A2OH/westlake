@@ -573,16 +573,31 @@ static jobjectArray JNICALL System_specialProperties(JNIEnv* env, jclass) {
     /* Return key=value pairs for system initialization.
      * Android normally fills this from build.prop etc. */
     const char* props[] = {
+#if defined(__aarch64__)
+        "os.arch=aarch64",
+#elif defined(__x86_64__)
         "os.arch=x86_64",
+#else
+        "os.arch=unknown",
+#endif
         "os.name=Linux",
         "java.io.tmpdir=/tmp",
+        "java.home=/tmp/android-root",
+        "java.class.path=.",
+        "java.library.path=/tmp",
+        "java.vm.name=Dalvik",
+        "java.vm.version=1.6.0",
+        "java.vm.vendor=A2OH",
         "user.home=/tmp",
         "user.dir=/tmp",
         "user.name=shell",
+        "user.language=en",
+        "user.region=US",
         "file.separator=/",
         "line.separator=\n",
         "path.separator=:",
         "file.encoding=UTF-8",
+        "android.icu.impl.ICUBinary.dataPath=",
     };
     int count = sizeof(props) / sizeof(props[0]);
     jclass strClass = env->FindClass("java/lang/String");

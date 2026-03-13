@@ -3,7 +3,7 @@
 ## Goal
 Port the Android KitKat-era Dalvik VM to run standalone on 64-bit Linux (x86_64), then cross-compile for OpenHarmony (aarch64-linux-ohos). This provides the Java runtime needed to execute Android APK bytecode + the Java shim layer on OHOS.
 
-## Current Status: VM FULLY BOOTS AND RUNS ON 64-BIT
+## Current Status: VM CROSS-COMPILES FOR OHOS aarch64
 
 The VM successfully:
 - Creates and initializes a full JavaVM via JNI invocation API
@@ -51,7 +51,11 @@ The VM successfully:
 | Launcher | `dalvik-port/launcher.cpp` |
 | Boot JARs | `dalvik-port/core-android-x86.jar` (USE THIS ONE) |
 | VM source (modified in-place) | `~/dalvik-kitkat/vm/` |
-| Build output | `dalvik-port/build/` (dalvikvm, dexopt, libdvm.a) |
+| Build output (x86_64) | `dalvik-port/build/` (dalvikvm, dexopt, libdvm.a) |
+| Build output (OHOS) | `dalvik-port/build-ohos-aarch64/` (dalvikvm, dexopt, libdvm.a) |
+| OHOS build script | `dalvik-port/build-ohos.sh` |
+| OHOS sysroot | `dalvik-port/ohos-sysroot/` (musl headers + libs, built from OH source) |
+| musl compat | `dalvik-port/compat/musl_compat.h` |
 
 ## Boot JARs
 
@@ -80,13 +84,58 @@ ln -sf $(pwd)/build/dexopt $ANDROID_ROOT/bin/dexopt
 
 ## Building
 
+### Linux x86_64 (native)
 ```bash
 cd dalvik-port
 make -j$(nproc)
 # Produces: build/dalvikvm, build/dexopt, build/libdvm.a
 ```
-
 Prerequisites: `g++`, `libffi-dev`, `zlib1g-dev`
+
+### OpenHarmony aarch64 (cross-compile)
+```bash
+cd dalvik-port
+./build-ohos.sh          # Full build: sysroot + deps + compile + link
+# Produces: build-ohos-aarch64/dalvikvm (5.6MB static ELF aarch64)
+#           build-ohos-aarch64/dexopt
+#           build-ohos-aarch64/libdvm.a (12MB)
+```
+
+Stepwise:
+```bash
+./build-ohos.sh sysroot    # Build musl sysroot from OH source headers
+./build-ohos.sh deps       # Build musl libc + zlib + libffi for aarch64
+./build-ohos.sh compile    # Cross-compile 125 VM source files
+./build-ohos.sh link       # Link dalvikvm + dexopt
+```
+
+Prerequisites: OpenHarmony source tree at `~/openharmony/` with:
+- LLVM/Clang 15 toolchain (`prebuilts/clang/ohos/linux-x86_64/llvm/`)
+- musl headers (`third_party/musl/`)
+- Linux 5.10 kernel headers (`kernel/linux/linux-5.10/`)
+- libffi source (`third_party/libffi/`)
+- zlib source (`third_party/zlib/`)
+
+### OHOS Cross-Compilation Details
+
+**Toolchain**: OHOS Clang 15.0.4 → `--target=aarch64-linux-ohos`
+**C library**: musl 1.2.3 (built from OH third_party/musl, static linked)
+**Sysroot**: Assembled from musl headers + kernel uapi headers + OH porting headers
+**Output**: Static ELF binaries (no dynamic deps, runs standalone on OHOS)
+
+Key musl differences handled:
+- No `malloc_trim` — stubbed in link_fixups.cpp (`#ifdef __MUSL__`)
+- No `execinfo.h` / `backtrace()` — guarded in launcher.cpp
+- No `isnanf` — use type-generic `isnan`
+- `sockaddr_storage` defined via OH porting headers, not `sys/socket.h`
+- `bits/alltypes.h` generated from musl `.in` files via `mkalltypes.sed`
+- `asm/` kernel headers from linux-5.10 arm64 uapi
+
+Additional OHOS fixes (beyond the 46 Linux x86_64 fixes):
+- **Fix #47**: aarch64 atomics — `Atomic.cpp` gets `__sync_*` builtins for 64-bit CAS/swap
+- **Fix #48**: `const jvalue*` — JNI function signatures match OHOS jni.h
+- **Fix #49**: hprof pointer casts — `(hprof_object_id)(uintptr_t)obj`
+- **Fix #50**: Debugger method/field/frame ID casts — `(u4)` → `(uintptr_t)`
 
 ## The 64-bit Problem & All Fixes
 
@@ -199,12 +248,14 @@ android_atomic_acquire_cas_ptr(intptr_t old, intptr_t new, volatile intptr_t* ad
 
 ## Next Steps
 
-1. **Cross-compile for OpenHarmony** — OHOS NDK toolchain (aarch64-linux-ohos), musl libc, libffi for aarch64
-2. **Get javac/d8 for test DEX** — Need to compile a Hello World to verify full bytecode execution
-3. **Restore -O2 optimization** — Currently at -O0 -g for debugging
-4. **Build libjavacore.so properly** — For full java.io, java.nio, java.net support
-5. **Clean up remaining debug logging** — dvmAddClassToHash verbose, dvmInitClass verbose
-6. **DestroyJavaVM shutdown fix** — Proper daemon thread cleanup instead of _exit()
+1. ~~**Cross-compile for OpenHarmony**~~ — **DONE** (125/125 files compile, static binary links)
+2. **Test on OHOS device/emulator** — Push dalvikvm + core-android-x86.jar to OHOS device, run Hello World
+3. **Get javac/d8 for test DEX** — Need to compile a Hello World to verify full bytecode execution
+4. **Restore -O2 optimization** — Currently at -O0 -g for debugging
+5. **Build libjavacore.so properly** — For full java.io, java.nio, java.net support
+6. **Clean up remaining debug logging** — dvmAddClassToHash verbose, dvmInitClass verbose
+7. **DestroyJavaVM shutdown fix** — Proper daemon thread cleanup instead of _exit()
+8. **OHOS HAP integration** — Package dalvikvm as OHOS native module in HAP
 
 ## Relationship to Shim Layer
 

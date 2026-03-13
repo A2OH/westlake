@@ -1,6 +1,11 @@
 # ═══════════════════════════════════════════════════════════════
 # Dalvik Portable VM — Standalone Build
 # Builds libdex + libdvm + dalvikvm from AOSP KitKat sources
+#
+# Usage:
+#   make -j$(nproc)                    # Build for Linux x86_64
+#   make -j$(nproc) TARGET=ohos        # Build for OpenHarmony aarch64
+#   make -j$(nproc) TARGET=ohos-x86    # Build for OpenHarmony x86_64
 # ═══════════════════════════════════════════════════════════════
 
 DALVIK    := /home/dspfac/dalvik-kitkat
@@ -10,9 +15,56 @@ LIBDEX    := $(DALVIK)/libdex
 COMPAT    := $(CURDIR)/compat
 BUILD     := $(CURDIR)/build
 
-CXX       := g++
-CC        := gcc
-AR        := ar
+# ── Toolchain selection ──
+
+OHOS_LLVM := /home/dspfac/openharmony/prebuilts/clang/ohos/linux-x86_64/llvm
+OHOS_MUSL := /home/dspfac/openharmony/third_party/musl
+OHOS_SYSROOT := $(CURDIR)/ohos-sysroot
+
+ifeq ($(TARGET),ohos)
+  # OpenHarmony aarch64 (primary target)
+  CXX       := $(OHOS_LLVM)/bin/clang++
+  CC        := $(OHOS_LLVM)/bin/clang
+  AR        := $(OHOS_LLVM)/bin/llvm-ar
+  RANLIB    := $(OHOS_LLVM)/bin/llvm-ranlib
+  BUILD     := $(CURDIR)/build-ohos-aarch64
+  TARGET_FLAGS := --target=aarch64-linux-ohos \
+                  --sysroot=$(OHOS_SYSROOT) \
+                  -D__MUSL__ \
+                  -fuse-ld=lld \
+                  --rtlib=compiler-rt
+  LINK_FLAGS := -fuse-ld=lld --rtlib=compiler-rt \
+                --target=aarch64-linux-ohos \
+                --sysroot=$(OHOS_SYSROOT) \
+                -static
+  LDFLAGS   := -lpthread -ldl -lz -lffi
+else ifeq ($(TARGET),ohos-x86)
+  # OpenHarmony x86_64 (for OHOS emulator)
+  CXX       := $(OHOS_LLVM)/bin/clang++
+  CC        := $(OHOS_LLVM)/bin/clang
+  AR        := $(OHOS_LLVM)/bin/llvm-ar
+  RANLIB    := $(OHOS_LLVM)/bin/llvm-ranlib
+  BUILD     := $(CURDIR)/build-ohos-x86_64
+  TARGET_FLAGS := --target=x86_64-linux-ohos \
+                  --sysroot=$(OHOS_SYSROOT) \
+                  -D__MUSL__ \
+                  -fuse-ld=lld \
+                  --rtlib=compiler-rt
+  LINK_FLAGS := -fuse-ld=lld --rtlib=compiler-rt \
+                --target=x86_64-linux-ohos \
+                --sysroot=$(OHOS_SYSROOT) \
+                -static
+  LDFLAGS   := -lpthread -ldl -lz -lffi
+else
+  # Linux x86_64 (default — native build)
+  CXX       := g++
+  CC        := gcc
+  AR        := ar
+  RANLIB    := ranlib
+  TARGET_FLAGS :=
+  LINK_FLAGS :=
+  LDFLAGS   := -lpthread -ldl -l:libz.so.1 -l:libffi.so.8
+endif
 
 # Include paths
 INCLUDES  := -I$(VM) \
@@ -22,27 +74,26 @@ INCLUDES  := -I$(VM) \
              -I$(AOSP)/external/zlib \
              -I$(AOSP)/external/dlmalloc
 
+# Common defines
+COMMON_DEFS := -DHAVE_LITTLE_ENDIAN \
+               -DHAVE_ENDIAN_H \
+               -DHAVE_SYS_UIO_H \
+               -DANDROID_SMP=1 \
+               -DLOG_TAG='"dalvikvm"' \
+               -DDVM_SHOW_EXCEPTION=1
+
 # Compiler flags
 CFLAGS    := -std=c11 -fPIC -O2 \
-             -DHAVE_LITTLE_ENDIAN \
-             -DHAVE_ENDIAN_H \
-             -DHAVE_SYS_UIO_H \
+             $(COMMON_DEFS) \
              -D_GNU_SOURCE \
-             -DANDROID_SMP=1 \
-             -DLOG_TAG='"dalvikvm"' \
-             -DDVM_SHOW_EXCEPTION=1 \
              -Wno-unused-parameter \
              -Wno-sign-compare \
+             $(TARGET_FLAGS) \
              $(INCLUDES)
 
 CXXFLAGS  := -std=c++11 -fPIC -O0 -g \
-             -DHAVE_LITTLE_ENDIAN \
-             -DHAVE_ENDIAN_H \
-             -DHAVE_SYS_UIO_H \
+             $(COMMON_DEFS) \
              -D_GNU_SOURCE \
-             -DANDROID_SMP=1 \
-             -DLOG_TAG='"dalvikvm"' \
-             -DDVM_SHOW_EXCEPTION=1 \
              -DNDEBUG \
              -DHAVE_POSIX_FILEMAP \
              -DDVM_NO_ASM_INTERP=1 \
@@ -59,6 +110,7 @@ CXXFLAGS  := -std=c++11 -fPIC -O0 -g \
              -Wno-format \
              -Wno-narrowing \
              -Wno-pointer-arith \
+             $(TARGET_FLAGS) \
              $(INCLUDES)
 
 # ── Source files ──
@@ -196,12 +248,45 @@ DVM_SRCS := \
 LIBDEX_OBJS := $(patsubst %.cpp,$(BUILD)/%.o,$(notdir $(LIBDEX_SRCS)))
 DVM_OBJS    := $(patsubst %.cpp,$(BUILD)/dvm/%.o,$(notdir $(DVM_SRCS)))
 
-# Link libraries
-LDFLAGS := -lpthread -ldl -l:libz.so.1 -l:libffi.so.8
-
-.PHONY: all clean first-pass build-all link dalvikvm
+.PHONY: all clean first-pass build-all link dalvikvm sysroot
 
 all: build-all link dalvikvm dexopt
+
+# ── OHOS sysroot construction ──
+# Run: make sysroot TARGET=ohos
+# Creates ohos-sysroot/ with musl headers + arch bits for cross-compilation
+
+sysroot:
+	@echo "═══ Building OHOS sysroot for cross-compilation ═══"
+	@mkdir -p $(OHOS_SYSROOT)/usr/include/bits
+	@mkdir -p $(OHOS_SYSROOT)/usr/lib
+	@# Copy musl headers
+	@cp -r $(OHOS_MUSL)/ndk_musl_include/* $(OHOS_SYSROOT)/usr/include/
+	@# Copy arch-specific bits (aarch64 by default)
+ifeq ($(TARGET),ohos-x86)
+	@cp -r $(OHOS_MUSL)/arch/x86_64/bits/* $(OHOS_SYSROOT)/usr/include/bits/
+	@cp $(OHOS_MUSL)/arch/x86_64/*.h $(OHOS_SYSROOT)/usr/include/ 2>/dev/null || true
+	@# Copy generic bits that aren't overridden by arch
+	@cp -n $(OHOS_MUSL)/arch/generic/bits/* $(OHOS_SYSROOT)/usr/include/bits/ 2>/dev/null || true
+	@# Copy x86_64 compiler-rt libs
+	@cp $(OHOS_LLVM)/lib/clang/15.0.4/lib/x86_64-linux-ohos/* $(OHOS_SYSROOT)/usr/lib/ 2>/dev/null || true
+	@cp $(OHOS_LLVM)/lib/x86_64-linux-ohos/* $(OHOS_SYSROOT)/usr/lib/ 2>/dev/null || true
+else
+	@cp -r $(OHOS_MUSL)/arch/aarch64/bits/* $(OHOS_SYSROOT)/usr/include/bits/
+	@cp $(OHOS_MUSL)/arch/aarch64/*.h $(OHOS_SYSROOT)/usr/include/ 2>/dev/null || true
+	@# Copy generic bits that aren't overridden by arch
+	@cp -n $(OHOS_MUSL)/arch/generic/bits/* $(OHOS_SYSROOT)/usr/include/bits/ 2>/dev/null || true
+	@# Copy aarch64 compiler-rt libs
+	@cp $(OHOS_LLVM)/lib/clang/15.0.4/lib/aarch64-linux-ohos/* $(OHOS_SYSROOT)/usr/lib/ 2>/dev/null || true
+	@cp $(OHOS_LLVM)/lib/aarch64-linux-ohos/* $(OHOS_SYSROOT)/usr/lib/ 2>/dev/null || true
+endif
+	@# Copy linux kernel headers (needed for syscalls, ioctl, etc.)
+	@if [ -d "$(OHOS_MUSL)/porting/linux/user/include" ]; then \
+		cp -r $(OHOS_MUSL)/porting/linux/user/include/* $(OHOS_SYSROOT)/usr/include/ 2>/dev/null || true; \
+	fi
+	@echo "Sysroot created at: $(OHOS_SYSROOT)"
+	@echo "Headers: $$(find $(OHOS_SYSROOT)/usr/include -name '*.h' | wc -l) files"
+	@echo "Libs:    $$(find $(OHOS_SYSROOT)/usr/lib -type f | wc -l) files"
 
 # First pass: just try to compile the first few files to see what headers are missing
 first-pass:
@@ -242,7 +327,7 @@ build-all:
 
 # Compile link_fixups separately (without AOSP dlmalloc include path to avoid macro conflicts)
 $(BUILD)/link_fixups.o: $(COMPAT)/link_fixups.cpp
-	$(CXX) -std=c++11 -fPIC -O2 -fpermissive -c $< -o $@
+	$(CXX) -std=c++11 -fPIC -O2 -fpermissive $(TARGET_FLAGS) -c $< -o $@
 
 # Compile libcore bridge (JNI natives for boot classes)
 $(BUILD)/libcore_bridge.o: $(COMPAT)/libcore_bridge.cpp
@@ -257,16 +342,22 @@ link: build-all $(BUILD)/link_fixups.o $(BUILD)/libcore_bridge.o
 # Build dalvikvm launcher
 dalvikvm: link
 	@echo "═══ Building dalvikvm launcher ═══"
-	$(CXX) $(CXXFLAGS) -o $(BUILD)/dalvikvm launcher.cpp $(BUILD)/libdvm.a $(LDFLAGS)
+	$(CXX) $(CXXFLAGS) $(LINK_FLAGS) -o $(BUILD)/dalvikvm launcher.cpp $(BUILD)/libdvm.a $(LDFLAGS)
 	@echo "Created: $(BUILD)/dalvikvm"
 	@ls -lh $(BUILD)/dalvikvm
+ifneq ($(TARGET),)
+	@file $(BUILD)/dalvikvm
+endif
 
 # Build dexopt tool (required for DEX verification/optimization at runtime)
 dexopt: link
 	@echo "═══ Building dexopt ═══"
-	$(CXX) $(CXXFLAGS) -o $(BUILD)/dexopt $(DALVIK)/dexopt/OptMain.cpp $(BUILD)/libdvm.a $(LDFLAGS)
+	$(CXX) $(CXXFLAGS) $(LINK_FLAGS) -o $(BUILD)/dexopt $(DALVIK)/dexopt/OptMain.cpp $(BUILD)/libdvm.a $(LDFLAGS)
 	@echo "Created: $(BUILD)/dexopt"
 	@ls -lh $(BUILD)/dexopt
 
 clean:
 	rm -rf $(BUILD)
+
+clean-ohos:
+	rm -rf build-ohos-aarch64 build-ohos-x86_64 ohos-sysroot

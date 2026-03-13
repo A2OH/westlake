@@ -9,14 +9,18 @@
 #include <stdlib.h>
 #include <string.h>
 #include <signal.h>
+#ifndef __MUSL__
 #include <execinfo.h>
+#endif
 #include <jni.h>
 
 static void crash_handler(int sig) {
     fprintf(stderr, "\n=== CRASH: signal %d ===\n", sig);
+#ifndef __MUSL__
     void* bt[64];
     int n = backtrace(bt, 64);
     backtrace_symbols_fd(bt, n, 2);
+#endif
     _exit(128 + sig);
 }
 
