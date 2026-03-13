@@ -111,12 +111,25 @@ public final class SmsManager {
     public static final int STATUS_ON_ICC_UNREAD = 0;
     public static final int STATUS_ON_ICC_UNSENT = 0;
     public Object createAppSpecificSmsToken(Object p0) { return null; }
-    public Object divideMessage(Object p0) { return null; }
+    public java.util.ArrayList<String> divideMessage(String text) {
+        java.util.ArrayList<String> parts = new java.util.ArrayList<>();
+        if (text == null) { parts.add(""); return parts; }
+        int len = text.length();
+        for (int i = 0; i < len; i += 160) {
+            parts.add(text.substring(i, Math.min(i + 160, len)));
+        }
+        return parts;
+    }
     public void downloadMultimediaMessage(Object p0, Object p1, Object p2, Object p3, Object p4) {}
-    public static Object getDefault() { return null; }
+    private int mSubscriptionId = -1;
+    public static SmsManager getDefault() { return new SmsManager(); }
     public static int getDefaultSmsSubscriptionId() { return 0; }
-    public static Object getSmsManagerForSubscriptionId(Object p0) { return null; }
-    public int getSubscriptionId() { return 0; }
+    public static SmsManager getSmsManagerForSubscriptionId(int subId) {
+        SmsManager sms = new SmsManager();
+        sms.mSubscriptionId = subId;
+        return sms;
+    }
+    public int getSubscriptionId() { return mSubscriptionId; }
     public void injectSmsPdu(Object p0, Object p1, Object p2) {}
     public void sendDataMessage(Object p0, Object p1, Object p2, Object p3, Object p4, Object p5) {}
     public void sendMultimediaMessage(Object p0, Object p1, Object p2, Object p3, Object p4) {}

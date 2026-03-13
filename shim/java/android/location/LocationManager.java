@@ -1,26 +1,73 @@
 package android.location;
 import android.app.PendingIntent;
 import android.os.Bundle;
+import java.util.ArrayList;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Set;
 
 public class LocationManager {
-    public static final int EXTRA_LOCATION_ENABLED = 0;
-    public static final int EXTRA_PROVIDER_ENABLED = 0;
-    public static final int EXTRA_PROVIDER_NAME = 0;
-    public static final int GPS_PROVIDER = 0;
-    public static final int KEY_LOCATION_CHANGED = 0;
-    public static final int KEY_PROVIDER_ENABLED = 0;
-    public static final int KEY_PROXIMITY_ENTERING = 0;
-    public static final int MODE_CHANGED_ACTION = 0;
-    public static final int NETWORK_PROVIDER = 0;
-    public static final int PASSIVE_PROVIDER = 0;
-    public static final int PROVIDERS_CHANGED_ACTION = 0;
+    private final Set<LocationListener> mListeners = new HashSet<>();
+    public static final String EXTRA_LOCATION_ENABLED = "location_enabled";
+    public static final String EXTRA_PROVIDER_ENABLED = "provider_enabled";
+    public static final String EXTRA_PROVIDER_NAME = "provider_name";
+    public static final String GPS_PROVIDER = "gps";
+    public static final String KEY_LOCATION_CHANGED = "location_changed";
+    public static final String KEY_PROVIDER_ENABLED = "provider_enabled";
+    public static final String KEY_PROXIMITY_ENTERING = "proximity_entering";
+    public static final String MODE_CHANGED_ACTION = "android.location.MODE_CHANGED";
+    public static final String NETWORK_PROVIDER = "network";
+    public static final String PASSIVE_PROVIDER = "passive";
+    public static final String PROVIDERS_CHANGED_ACTION = "android.location.PROVIDERS_CHANGED";
 
     public LocationManager() {}
 
+    public Location getLastKnownLocation(String provider) {
+        double[] coords = com.ohos.shim.bridge.OHBridge.locationGetLast();
+        Location loc = new Location(provider != null ? provider : "gps");
+        if (coords != null && coords.length >= 3) {
+            loc.setLatitude(coords[0]);
+            loc.setLongitude(coords[1]);
+            loc.setAltitude(coords[2]);
+        }
+        return loc;
+    }
+
+    public List<String> getProviders(boolean enabledOnly) {
+        List<String> providers = new ArrayList<>();
+        providers.add(GPS_PROVIDER);
+        providers.add(NETWORK_PROVIDER);
+        providers.add(PASSIVE_PROVIDER);
+        return providers;
+    }
+
+    public String getBestProvider(Criteria criteria, boolean enabledOnly) {
+        if (criteria != null && criteria.getAccuracy() == Criteria.ACCURACY_FINE) {
+            return GPS_PROVIDER;
+        }
+        return NETWORK_PROVIDER;
+    }
+
+    public void requestLocationUpdates(String provider, long minTime, float minDistance, LocationListener listener) {
+        if (listener != null) mListeners.add(listener);
+    }
+
+    public void removeUpdates(LocationListener listener) {
+        if (listener != null) mListeners.remove(listener);
+    }
+
+    public boolean hasListener(LocationListener listener) {
+        return mListeners.contains(listener);
+    }
+
+    public int getListenerCount() {
+        return mListeners.size();
+    }
+
     public void addTestProvider(String p0, boolean p1, boolean p2, boolean p3, boolean p4, boolean p5, boolean p6, boolean p7, int p8, int p9) {}
     public int getGnssYearOfHardware() { return 0; }
-    public boolean isLocationEnabled() { return false; }
-    public boolean isProviderEnabled(String p0) { return false; }
+    public boolean isLocationEnabled() { return com.ohos.shim.bridge.OHBridge.locationIsEnabled(); }
+    public boolean isProviderEnabled(String p0) { return com.ohos.shim.bridge.OHBridge.locationIsEnabled(); }
     public void removeNmeaListener(OnNmeaMessageListener p0) {}
     public void removeTestProvider(String p0) {}
     public void removeUpdates(PendingIntent p0) {}
