@@ -147,6 +147,31 @@ SharedPreferences (→HashMap+file), SQLite (→in-memory), Environment, Handler
 - **Self-validating** — every shim must include tests proving it works
 - **Check for conflicts** — if your branch can't merge cleanly, rebase on main
 
+## Worker Optimization
+
+- **Claim 5-10 issues at once** — don't implement one-at-a-time
+- **Launch parallel agents** — each agent implements one shim class independently
+- **Verify baseline once** after the entire batch completes (not after each class)
+- **Close all in batch**, then claim the next batch immediately
+- With 5 parallel agents per CC session, 3 CC sessions = ~15 concurrent implementations
+- The bottleneck is context window, not concurrency — keep agents focused and independent
+
+```bash
+# Example: claim a batch of 5
+for n in 1 2 3 4 5; do
+  gh issue edit $n --repo A2OH/harmony-android-guide --remove-label todo --add-label in-progress
+done
+
+# Then use Claude Code agents to implement all 5 in parallel
+# Verify baseline once after all 5 are done
+cd test-apps && ./run-local-tests.sh headless
+
+# Close all 5
+for n in 1 2 3 4 5; do
+  gh issue close $n --repo A2OH/harmony-android-guide --comment "Implemented and tested"
+done
+```
+
 ## Orchestration
 
 The task queue is managed by `scripts/create_issues.py`:
