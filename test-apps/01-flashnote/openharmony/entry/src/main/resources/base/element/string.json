@@ -1,0 +1,19 @@
+{
+  "string": [
+    { "name": "app_name", "value": "FlashNote" },
+    { "name": "hint_search", "value": "Search notes…" },
+    { "name": "btn_add", "value": "Add Note" },
+    { "name": "btn_save", "value": "Save" },
+    { "name": "btn_delete", "value": "Delete" },
+    { "name": "btn_remind", "value": "Set Reminder" },
+    { "name": "title_editor", "value": "Edit Note" },
+    { "name": "title_settings", "value": "Settings" },
+    { "name": "label_dark_mode", "value": "Dark Mode" },
+    { "name": "label_font_size", "value": "Font Size" },
+    { "name": "msg_saved", "value": "Note saved" },
+    { "name": "msg_deleted", "value": "Note deleted" },
+    { "name": "msg_empty", "value": "Please enter some text" },
+    { "name": "msg_reminder_set", "value": "Reminder set for 1 hour from now" },
+    { "name": "reason_reminder", "value": "Used to schedule note reminders" }
+  ]
+}

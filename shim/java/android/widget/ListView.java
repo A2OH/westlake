@@ -42,4 +42,7 @@ public class ListView extends AbsListView {
     }
 
     public ListAdapter getAdapter() { return adapter; }
+
+    /** Alias so code can reference ListView.ListAdapter. */
+    public interface ListAdapter extends android.widget.ListAdapter {}
 }
