@@ -184,6 +184,12 @@ public class Intent implements Cloneable, Parcelable {
     public boolean hasExtra(String name) { return mExtras != null && mExtras.containsKey(name); }
     public void removeExtra(String name) { if (mExtras != null) mExtras.remove(name); }
 
+    /** Returns a JSON-ish string of the extras for bridge serialisation. */
+    public String getExtrasJson() {
+        if (mExtras == null) return "{}";
+        return mExtras.toString();
+    }
+
     private void ensureExtras() { if (mExtras == null) mExtras = new Bundle(); }
 
     /* ── Factory methods ── */

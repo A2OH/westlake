@@ -1,10 +1,21 @@
 package android.view;
 
 public class ViewGroup extends View {
+    private final java.util.List<View> mChildren = new java.util.ArrayList<>();
+
     public ViewGroup(android.content.Context context, android.util.AttributeSet attrs) {}
     public ViewGroup(android.content.Context context) {}
-    public ViewGroup(int nodeType) {}
+    public ViewGroup(int nodeType) { super(nodeType); }
     public ViewGroup() {}
+
+    @Override
+    public void destroy() {
+        for (View child : mChildren) {
+            child.destroy();
+        }
+        mChildren.clear();
+        super.destroy();
+    }
 
     public static class LayoutParams {
         public static final int MATCH_PARENT = -1;
@@ -35,9 +46,16 @@ public class ViewGroup extends View {
     public static final int LAYOUT_MODE_CLIP_BOUNDS = 0;
     public static final int LAYOUT_MODE_OPTICAL_BOUNDS = 0;
     public boolean addStatesFromChildren() { return false; }
-    public void addView(Object p0) {}
-    public void addView(Object p0, Object p1) {}
-    public void addView(Object p0, Object p1, Object p2) {}
+
+    public void addView(View child) {
+        if (child != null) mChildren.add(child);
+    }
+    public void addView(View child, int index) {
+        if (child != null) mChildren.add(index, child);
+    }
+    public void addView(Object p0) { if (p0 instanceof View) addView((View) p0); }
+    public void addView(Object p0, Object p1) { if (p0 instanceof View) addView((View) p0); }
+    public void addView(Object p0, Object p1, Object p2) { if (p0 instanceof View) addView((View) p0); }
     public boolean addViewInLayout(Object p0, Object p1, Object p2) { return false; }
     public boolean addViewInLayout(Object p0, Object p1, Object p2, Object p3) { return false; }
     public void attachLayoutAnimationParameters(Object p0, Object p1, Object p2, Object p3) {}
@@ -65,8 +83,11 @@ public class ViewGroup extends View {
     public boolean gatherTransparentRegion(Object p0) { return false; }
     public Object generateDefaultLayoutParams() { return null; }
     public Object generateLayoutParams(Object p0) { return null; }
-    public Object getChildAt(Object p0) { return null; }
-    public int getChildCount() { return 0; }
+    public View getChildAt(int index) {
+        if (index >= 0 && index < mChildren.size()) return mChildren.get(index);
+        return null;
+    }
+    public int getChildCount() { return mChildren.size(); }
     public int getChildDrawingOrder(Object p0, Object p1) { return 0; }
     public int getChildDrawingOrder(Object p0) { return 0; }
     public static int getChildMeasureSpec(Object p0, Object p1, Object p2) { return 0; }
@@ -106,10 +127,11 @@ public class ViewGroup extends View {
     public void onViewAdded(Object p0) {}
     public void onViewRemoved(Object p0) {}
     public void recomputeViewAttributes(Object p0) {}
-    public void removeAllViews() {}
-    public void removeAllViewsInLayout() {}
+    public void removeAllViews() { mChildren.clear(); }
+    public void removeAllViewsInLayout() { mChildren.clear(); }
     public void removeDetachedView(Object p0, Object p1) {}
-    public void removeView(Object p0) {}
+    public void removeView(View child) { mChildren.remove(child); }
+    public void removeView(Object p0) { if (p0 instanceof View) removeView((View) p0); }
     public void removeViewAt(Object p0) {}
     public void removeViewInLayout(Object p0) {}
     public void removeViews(Object p0, Object p1) {}

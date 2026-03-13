@@ -1,5 +1,6 @@
 package android.telephony;
 import android.app.PendingIntent;
+import android.content.Context;
 import android.net.Uri;
 import android.telecom.PhoneAccountHandle;
 import java.util.List;
@@ -24,8 +25,8 @@ public class TelephonyManager {
     public static final int AUTHTYPE_EAP_AKA = 0;
     public static final int AUTHTYPE_EAP_SIM = 0;
     public static final int CALL_STATE_IDLE = 0;
-    public static final int CALL_STATE_OFFHOOK = 0;
-    public static final int CALL_STATE_RINGING = 0;
+    public static final int CALL_STATE_OFFHOOK = 1;
+    public static final int CALL_STATE_RINGING = 2;
     public static final int CDMA_ROAMING_MODE_AFFILIATED = 0;
     public static final int CDMA_ROAMING_MODE_ANY = 0;
     public static final int CDMA_ROAMING_MODE_HOME = 0;
@@ -35,8 +36,8 @@ public class TelephonyManager {
     public static final int DATA_ACTIVITY_INOUT = 0;
     public static final int DATA_ACTIVITY_NONE = 0;
     public static final int DATA_ACTIVITY_OUT = 0;
-    public static final int DATA_CONNECTED = 0;
-    public static final int DATA_CONNECTING = 0;
+    public static final int DATA_CONNECTED = 2;
+    public static final int DATA_CONNECTING = 1;
     public static final int DATA_DISCONNECTED = 0;
     public static final int DATA_DISCONNECTING = 0;
     public static final int DATA_SUSPENDED = 0;
@@ -66,44 +67,44 @@ public class TelephonyManager {
     public static final int NETWORK_SELECTION_MODE_AUTO = 0;
     public static final int NETWORK_SELECTION_MODE_MANUAL = 0;
     public static final int NETWORK_SELECTION_MODE_UNKNOWN = 0;
-    public static final int NETWORK_TYPE_1xRTT = 0;
-    public static final int NETWORK_TYPE_CDMA = 0;
-    public static final int NETWORK_TYPE_EDGE = 0;
-    public static final int NETWORK_TYPE_EHRPD = 0;
-    public static final int NETWORK_TYPE_EVDO_0 = 0;
-    public static final int NETWORK_TYPE_EVDO_A = 0;
-    public static final int NETWORK_TYPE_EVDO_B = 0;
-    public static final int NETWORK_TYPE_GPRS = 0;
-    public static final int NETWORK_TYPE_GSM = 0;
-    public static final int NETWORK_TYPE_HSDPA = 0;
-    public static final int NETWORK_TYPE_HSPA = 0;
-    public static final int NETWORK_TYPE_HSPAP = 0;
-    public static final int NETWORK_TYPE_HSUPA = 0;
-    public static final int NETWORK_TYPE_IDEN = 0;
-    public static final int NETWORK_TYPE_IWLAN = 0;
-    public static final int NETWORK_TYPE_LTE = 0;
-    public static final int NETWORK_TYPE_NR = 0;
-    public static final int NETWORK_TYPE_TD_SCDMA = 0;
-    public static final int NETWORK_TYPE_UMTS = 0;
+    public static final int NETWORK_TYPE_1xRTT = 7;
+    public static final int NETWORK_TYPE_CDMA = 4;
+    public static final int NETWORK_TYPE_EDGE = 2;
+    public static final int NETWORK_TYPE_EHRPD = 14;
+    public static final int NETWORK_TYPE_EVDO_0 = 5;
+    public static final int NETWORK_TYPE_EVDO_A = 6;
+    public static final int NETWORK_TYPE_EVDO_B = 12;
+    public static final int NETWORK_TYPE_GPRS = 1;
+    public static final int NETWORK_TYPE_GSM = 16;
+    public static final int NETWORK_TYPE_HSDPA = 8;
+    public static final int NETWORK_TYPE_HSPA = 10;
+    public static final int NETWORK_TYPE_HSPAP = 15;
+    public static final int NETWORK_TYPE_HSUPA = 9;
+    public static final int NETWORK_TYPE_IDEN = 11;
+    public static final int NETWORK_TYPE_IWLAN = 18;
+    public static final int NETWORK_TYPE_LTE = 13;
+    public static final int NETWORK_TYPE_NR = 20;
+    public static final int NETWORK_TYPE_TD_SCDMA = 17;
+    public static final int NETWORK_TYPE_UMTS = 3;
     public static final int NETWORK_TYPE_UNKNOWN = 0;
-    public static final int PHONE_TYPE_CDMA = 0;
-    public static final int PHONE_TYPE_GSM = 0;
+    public static final int PHONE_TYPE_CDMA = 2;
+    public static final int PHONE_TYPE_GSM = 1;
     public static final int PHONE_TYPE_NONE = 0;
-    public static final int PHONE_TYPE_SIP = 0;
+    public static final int PHONE_TYPE_SIP = 3;
     public static final int SET_OPPORTUNISTIC_SUB_INACTIVE_SUBSCRIPTION = 0;
     public static final int SET_OPPORTUNISTIC_SUB_NO_OPPORTUNISTIC_SUB_AVAILABLE = 0;
     public static final int SET_OPPORTUNISTIC_SUB_REMOTE_SERVICE_EXCEPTION = 0;
     public static final int SET_OPPORTUNISTIC_SUB_SUCCESS = 0;
     public static final int SET_OPPORTUNISTIC_SUB_VALIDATION_FAILED = 0;
-    public static final int SIM_STATE_ABSENT = 0;
-    public static final int SIM_STATE_CARD_IO_ERROR = 0;
-    public static final int SIM_STATE_CARD_RESTRICTED = 0;
-    public static final int SIM_STATE_NETWORK_LOCKED = 0;
-    public static final int SIM_STATE_NOT_READY = 0;
-    public static final int SIM_STATE_PERM_DISABLED = 0;
-    public static final int SIM_STATE_PIN_REQUIRED = 0;
-    public static final int SIM_STATE_PUK_REQUIRED = 0;
-    public static final int SIM_STATE_READY = 0;
+    public static final int SIM_STATE_ABSENT = 1;
+    public static final int SIM_STATE_CARD_IO_ERROR = 8;
+    public static final int SIM_STATE_CARD_RESTRICTED = 9;
+    public static final int SIM_STATE_NETWORK_LOCKED = 4;
+    public static final int SIM_STATE_NOT_READY = 6;
+    public static final int SIM_STATE_PERM_DISABLED = 7;
+    public static final int SIM_STATE_PIN_REQUIRED = 2;
+    public static final int SIM_STATE_PUK_REQUIRED = 3;
+    public static final int SIM_STATE_READY = 5;
     public static final int SIM_STATE_UNKNOWN = 0;
     public static final int UNINITIALIZED_CARD_ID = 0;
     public static final int UNKNOWN_CARRIER_ID = 0;
@@ -126,6 +127,23 @@ public class TelephonyManager {
     public static final int ERROR_MODEM_ERROR = 0;
     public static final int ERROR_TIMEOUT = 0;
 
+    private static final TelephonyManager sInstance = new TelephonyManager();
+
+    public static TelephonyManager from(Context context) {
+        return sInstance;
+    }
+
+    public String getDeviceId() {
+        return com.ohos.shim.bridge.OHBridge.telephonyGetDeviceId();
+    }
+
+    public String getLine1Number() {
+        return com.ohos.shim.bridge.OHBridge.telephonyGetLine1Number();
+    }
+
+    public int getNetworkType() {
+        return com.ohos.shim.bridge.OHBridge.telephonyGetNetworkType();
+    }
 
     public boolean canChangeDtmfToneLength() { return false; }
     public TelephonyManager createForSubscriptionId(int p0) { return null; }
@@ -134,21 +152,27 @@ public class TelephonyManager {
     public int getCardIdForDefaultEuicc() { return 0; }
     public int getCarrierIdFromSimMccMnc() { return 0; }
     public int getDataActivity() { return 0; }
-    public int getDataState() { return 0; }
+    public int getDataState() { return DATA_CONNECTED; }
     public String getIccAuthentication(int p0, int p1, String p2) { return null; }
     public String getMmsUAProfUrl() { return null; }
     public String getMmsUserAgent() { return null; }
     public String getNetworkCountryIso() { return null; }
     public String getNetworkOperator() { return null; }
-    public String getNetworkOperatorName() { return null; }
+    public String getNetworkOperatorName() {
+        return com.ohos.shim.bridge.OHBridge.telephonyGetNetworkOperatorName();
+    }
     public String getNetworkSpecifier() { return null; }
-    public int getPhoneType() { return 0; }
+    public int getPhoneType() {
+        return com.ohos.shim.bridge.OHBridge.telephonyGetPhoneType();
+    }
     public int getSimCarrierId() { return 0; }
     public String getSimCountryIso() { return null; }
     public String getSimOperator() { return null; }
     public String getSimOperatorName() { return null; }
     public int getSimSpecificCarrierId() { return 0; }
-    public int getSimState() { return 0; }
+    public int getSimState() {
+        return com.ohos.shim.bridge.OHBridge.telephonyGetSimState();
+    }
     public int getSimState(int p0) { return 0; }
     public int getSubscriptionId() { return 0; }
     public int getSupportedModemCount() { return 0; }

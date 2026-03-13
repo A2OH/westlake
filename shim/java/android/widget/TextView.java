@@ -1,13 +1,62 @@
 package android.widget;
 
 public class TextView extends android.view.View {
+    private CharSequence mText = "";
+    private CharSequence mHint = "";
+    private int mTextColor;
+    private float mTextSize;
+    private int mMaxLines = Integer.MAX_VALUE;
+    private int mInputType;
+
     public TextView(android.content.Context context) {}
-    public TextView(int nodeType) {}
+    public TextView(int nodeType) { super(nodeType); }
     public TextView() {}
+
+    // ── Properly-typed API used by tests ──
+    public void setText(CharSequence text) { mText = text != null ? text : ""; }
+    public CharSequence getText() { return mText; }
+
+    public void setHint(CharSequence hint) { mHint = hint != null ? hint : ""; }
+    public CharSequence getHint() { return mHint; }
+
+    public void setTextColor(int color) { mTextColor = color; }
+    public int getCurrentTextColor() { return mTextColor; }
+
+    public void setTextSize(float size) { mTextSize = size; }
+    public float getTextSize() { return mTextSize; }
+
+    public void setMaxLines(int maxLines) { mMaxLines = maxLines; }
+    public int getMaxLines() { return mMaxLines; }
+
+    public void setSingleLine(boolean single) { mMaxLines = single ? 1 : Integer.MAX_VALUE; }
+
+    public void setInputType(int type) { mInputType = type; }
+    public int getInputType() { return mInputType; }
+
+    public void setGravity(int gravity) {}
+
+    public interface TextWatcher {
+        default void beforeTextChanged(CharSequence s, int start, int count, int after) {}
+        void onTextChanged(CharSequence s, int start, int before, int count);
+        default void afterTextChanged(Object s) {}
+    }
+
+    private TextWatcher mTextWatcher;
+
+    public void addTextChangedListener(TextWatcher watcher) { mTextWatcher = watcher; }
+
+    @Override
+    public void onNativeEvent(int eventType, int eventCode, String data) {
+        if (eventCode == 7000 && mTextWatcher != null) {
+            mText = data != null ? data : "";
+            mTextWatcher.onTextChanged(mText, 0, 0, mText.length());
+        }
+        super.onNativeEvent(eventType, eventCode, data);
+    }
 
     public static final int AUTO_SIZE_TEXT_TYPE_NONE = 0;
     public static final int AUTO_SIZE_TEXT_TYPE_UNIFORM = 0;
-    public void addTextChangedListener(Object p0) {}
+    public void addTextChangedListener(Object p0) { if (p0 instanceof TextWatcher) mTextWatcher = (TextWatcher) p0; }
     public void append(Object p0) {}
     public void append(Object p0, Object p1, Object p2) {}
     public void beginBatchEdit() {}
@@ -52,7 +101,7 @@ public class TextView extends android.view.View {
     public int getImeOptions() { return 0; }
     public boolean getIncludeFontPadding() { return false; }
     public Object getInputExtras(Object p0) { return null; }
-    public int getInputType() { return 0; }
+    // getInputType() defined above with mInputType
     public int getJustificationMode() { return 0; }
     public Object getKeyListener() { return null; }
     public int getLastBaselineToBottomHeight() { return 0; }
@@ -68,7 +117,7 @@ public class TextView extends android.view.View {
     public int getMarqueeRepeatLimit() { return 0; }
     public int getMaxEms() { return 0; }
     public int getMaxHeight() { return 0; }
-    public int getMaxLines() { return 0; }
+    // getMaxLines() defined above with mMaxLines
     public int getMaxWidth() { return 0; }
     public int getMinEms() { return 0; }
     public int getMinHeight() { return 0; }

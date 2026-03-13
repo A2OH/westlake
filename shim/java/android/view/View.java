@@ -13,6 +13,47 @@ public class View {
     public View findViewByHandle(long handle) { return null; }
     public void onNativeEvent(int eventType, int eventCode, String data) {}
 
+    // ── State storage for properly-typed API ──
+    private int mId;
+    private int mVisibility = VISIBLE;
+    private boolean mEnabled = true;
+    private int mPaddingLeft, mPaddingTop, mPaddingRight, mPaddingBottom;
+    private float mAlpha = 1.0f;
+    private Object mTag;
+    private OnClickListener mClickListener;
+
+    public interface OnClickListener {
+        void onClick(View v);
+    }
+
+    public void destroy() {
+        if (nativeHandle != 0) {
+            com.ohos.shim.bridge.OHBridge.nodeDispose(nativeHandle);
+            nativeHandle = 0;
+        }
+    }
+
+    // Properly-typed overloads
+    public void setVisibility(int visibility) { mVisibility = visibility; }
+    public int getVisibility() { return mVisibility; }
+
+    public void setEnabled(boolean enabled) { mEnabled = enabled; }
+    public boolean isEnabled() { return mEnabled; }
+
+    public void setPadding(int left, int top, int right, int bottom) {
+        mPaddingLeft = left; mPaddingTop = top; mPaddingRight = right; mPaddingBottom = bottom;
+    }
+
+    public void setAlpha(float alpha) { mAlpha = alpha; }
+    public float getAlpha() { return mAlpha; }
+
+    public void setBackgroundColor(int color) {}
+
+    public void setTag(Object tag) { mTag = tag; }
+    public Object getTag() { return mTag; }
+
+    public void setOnClickListener(OnClickListener listener) { mClickListener = listener; }
+
     public static final int WRAP_CONTENT = -2;
     public static final int MATCH_PARENT = -1;
 
@@ -70,7 +111,7 @@ public class View {
     public static final int FOCUS_LEFT = 0;
     public static final int FOCUS_RIGHT = 0;
     public static final int FOCUS_UP = 0;
-    public static final int GONE = 0;
+    public static final int GONE = 8;
     public static final int HAPTIC_FEEDBACK_ENABLED = 0;
     public static final int IMPORTANT_FOR_ACCESSIBILITY_AUTO = 0;
     public static final int IMPORTANT_FOR_ACCESSIBILITY_NO = 0;
@@ -86,7 +127,7 @@ public class View {
     public static final int IMPORTANT_FOR_CONTENT_CAPTURE_NO_EXCLUDE_DESCENDANTS = 0;
     public static final int IMPORTANT_FOR_CONTENT_CAPTURE_YES = 0;
     public static final int IMPORTANT_FOR_CONTENT_CAPTURE_YES_EXCLUDE_DESCENDANTS = 0;
-    public static final int INVISIBLE = 0;
+    public static final int INVISIBLE = 4;
     public static final int KEEP_SCREEN_ON = 0;
     public static final int LAYER_TYPE_HARDWARE = 0;
     public static final int LAYER_TYPE_NONE = 0;
@@ -253,8 +294,8 @@ public class View {
     public Object focusSearch(Object p0) { return null; }
     public void forceHasOverlappingRendering(Object p0) {}
     public void forceLayout() {}
-    public int getId() { return 0; }
-    public void setId(int id) {}
+    public int getId() { return mId; }
+    public void setId(int id) { mId = id; }
     public static int generateViewId() { return 0; }
     public Object getAccessibilityClassName() { return null; }
     public Object getAccessibilityDelegate() { return null; }
@@ -307,12 +348,12 @@ public class View {
     public Object getOutlineProvider() { return null; }
     public int getOverScrollMode() { return 0; }
     public Object getOverlay() { return null; }
-    public int getPaddingBottom() { return 0; }
-    public int getPaddingEnd() { return 0; }
-    public int getPaddingLeft() { return 0; }
-    public int getPaddingRight() { return 0; }
-    public int getPaddingStart() { return 0; }
-    public int getPaddingTop() { return 0; }
+    public int getPaddingBottom() { return mPaddingBottom; }
+    public int getPaddingEnd() { return mPaddingRight; }
+    public int getPaddingLeft() { return mPaddingLeft; }
+    public int getPaddingRight() { return mPaddingRight; }
+    public int getPaddingStart() { return mPaddingLeft; }
+    public int getPaddingTop() { return mPaddingTop; }
     public Object getParent() { return null; }
     public Object getParentForAccessibility() { return null; }
     public Object getPointerIcon() { return null; }
@@ -331,7 +372,7 @@ public class View {
     public Object getStateListAnimator() { return null; }
     public int getSuggestedMinimumHeight() { return 0; }
     public int getSuggestedMinimumWidth() { return 0; }
-    public Object getTag(Object p0) { return null; }
+    public Object getTag(int key) { return null; }
     public float getTopFadingEdgeStrength() { return 0f; }
     public int getTopPaddingOffset() { return 0; }
     public Object getTouchDelegate() { return null; }
@@ -495,13 +536,13 @@ public class View {
     public void setAccessibilityTraversalAfter(Object p0) {}
     public void setAccessibilityTraversalBefore(Object p0) {}
     public void setActivated(Object p0) {}
-    public void setAlpha(Object p0, Object p1) {}
+    // setAlpha(Object,Object) removed — use setAlpha(float)
     public void setAnimation(Object p0) {}
     public void setAnimationMatrix(Object p0) {}
     public void setAutofillHints(Object p0) {}
     public void setAutofillId(Object p0) {}
     public void setBackground(Object p0) {}
-    public void setBackgroundColor(Object p0) {}
+    // setBackgroundColor(Object) removed — use setBackgroundColor(int)
     public void setBackgroundResource(Object p0) {}
     public void setBackgroundTintBlendMode(Object p0) {}
     public void setBackgroundTintList(Object p0) {}
@@ -517,7 +558,7 @@ public class View {
     public void setDefaultFocusHighlightEnabled(Object p0) {}
     public void setDuplicateParentStateEnabled(Object p0) {}
     public void setElevation(Object p0) {}
-    public void setEnabled(Object p0) {}
+    // setEnabled(Object) removed — use setEnabled(boolean)
     public void setFadingEdgeLength(Object p0) {}
     public void setFilterTouchesWhenObscured(Object p0) {}
     public void setFitsSystemWindows(Object p0) {}
@@ -537,7 +578,7 @@ public class View {
     public void setHorizontalScrollbarThumbDrawable(Object p0) {}
     public void setHorizontalScrollbarTrackDrawable(Object p0) {}
     public void setHovered(Object p0) {}
-    public void setId(Object p0) {}
+    // setId(Object) removed — use setId(int)
     public void setImportantForAccessibility(Object p0) {}
     public void setImportantForAutofill(Object p0) {}
     public void setImportantForContentCapture(Object p0) {}
@@ -563,7 +604,7 @@ public class View {
     public void setNextFocusUpId(Object p0) {}
     public void setOnApplyWindowInsetsListener(Object p0) {}
     public void setOnCapturedPointerListener(Object p0) {}
-    public void setOnClickListener(Object p0) {}
+    // setOnClickListener(Object) removed — use setOnClickListener(OnClickListener)
     public void setOnContextClickListener(Object p0) {}
     public void setOnCreateContextMenuListener(Object p0) {}
     public void setOnDragListener(Object p0) {}
@@ -578,7 +619,7 @@ public class View {
     public void setOutlineProvider(Object p0) {}
     public void setOutlineSpotShadowColor(Object p0) {}
     public void setOverScrollMode(Object p0) {}
-    public void setPadding(Object p0, Object p1, Object p2, Object p3) {}
+    // setPadding(Object...) removed — use setPadding(int,int,int,int)
     public void setPaddingRelative(Object p0, Object p1, Object p2, Object p3) {}
     public void setPivotX(Object p0) {}
     public void setPivotY(Object p0) {}
@@ -609,8 +650,8 @@ public class View {
     public void setStateDescription(Object p0) {}
     public void setStateListAnimator(Object p0) {}
     public void setSystemGestureExclusionRects(Object p0) {}
-    public void setTag(Object p0) {}
-    public void setTag(Object p0, Object p1) {}
+    // setTag(Object) defined above
+    public void setTag(int key, Object tag) {}
     public void setTextAlignment(Object p0) {}
     public void setTextDirection(Object p0) {}
     public void setTooltipText(Object p0) {}
@@ -627,7 +668,7 @@ public class View {
     public void setVerticalScrollbarPosition(Object p0) {}
     public void setVerticalScrollbarThumbDrawable(Object p0) {}
     public void setVerticalScrollbarTrackDrawable(Object p0) {}
-    public void setVisibility(Object p0) {}
+    // setVisibility(Object) removed — use setVisibility(int)
     public void setWillNotDraw(Object p0) {}
     public void setWindowInsetsAnimationCallback(Object p0) {}
     public void setX(Object p0) {}
