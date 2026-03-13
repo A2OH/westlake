@@ -64,6 +64,11 @@ public class HeadlessTest {
         testLocalServerSocket();
         testGeocoder();
         testAddress();
+        testConsumerIrManager();
+        testTypeface();
+        testContentProviderClient();
+        testMediaStore();
+        testLocation();
 
         System.out.println("\n═══ Results ═══");
         System.out.println("Passed: " + passed);
@@ -999,5 +1004,105 @@ public class HeadlessTest {
         check("hasLatitude", addr.hasLatitude());
         check("getLatitude", Math.abs(addr.getLatitude() - 39.78) < 0.01);
         check("hasLongitude", addr.hasLongitude());
+    }
+
+    // ── ConsumerIrManager ──
+
+    static void testConsumerIrManager() {
+        section("android.hardware.ConsumerIrManager");
+        android.hardware.ConsumerIrManager ir = new android.hardware.ConsumerIrManager();
+        check("hasIrEmitter", !ir.hasIrEmitter());
+        check("getCarrierFrequencies empty", ir.getCarrierFrequencies().length == 0);
+        ir.transmit(38000, new int[]{100, 50, 100, 50});
+        check("transmit no throw", true);
+
+        android.hardware.ConsumerIrManager.CarrierFrequencyRange r =
+            new android.hardware.ConsumerIrManager.CarrierFrequencyRange(30000, 60000);
+        check("CarrierFrequencyRange min", r.getMinFrequency() == 30000);
+        check("CarrierFrequencyRange max", r.getMaxFrequency() == 60000);
+    }
+
+    // ── Typeface ──
+
+    static void testTypeface() {
+        section("android.graphics.Typeface");
+        check("DEFAULT non-null", android.graphics.Typeface.DEFAULT != null);
+        check("DEFAULT_BOLD is bold", android.graphics.Typeface.DEFAULT_BOLD.isBold());
+        check("MONOSPACE non-null", android.graphics.Typeface.MONOSPACE != null);
+
+        android.graphics.Typeface bold = android.graphics.Typeface.create("sans-serif",
+            android.graphics.Typeface.BOLD);
+        check("create bold", bold.isBold());
+        check("create bold style", bold.getStyle() == android.graphics.Typeface.BOLD);
+
+        android.graphics.Typeface italic = android.graphics.Typeface.create("serif",
+            android.graphics.Typeface.ITALIC);
+        check("create italic", italic.isItalic());
+
+        android.graphics.Typeface weighted = android.graphics.Typeface.create(
+            android.graphics.Typeface.DEFAULT, 300, false);
+        check("create weight 300", weighted.getWeight() == 300);
+    }
+
+    // ── ContentProviderClient ──
+
+    static void testContentProviderClient() {
+        section("android.content.ContentProviderClient");
+        android.content.ContentProviderClient cpc =
+            new android.content.ContentProviderClient("com.example");
+        check("query returns null", cpc.query(null, null, null, null, null) == null);
+        check("update returns 0", cpc.update(null, null, null, null) == 0);
+        check("delete returns 0", cpc.delete(null, null, null) == 0);
+        cpc.close();
+        check("close no throw", true);
+    }
+
+    // ── MediaStore ──
+
+    static void testMediaStore() {
+        section("android.provider.MediaStore");
+        check("Images URI", android.provider.MediaStore.Images.Media.EXTERNAL_CONTENT_URI != null);
+        check("Video URI", android.provider.MediaStore.Video.Media.EXTERNAL_CONTENT_URI != null);
+        check("Audio URI", android.provider.MediaStore.Audio.Media.EXTERNAL_CONTENT_URI != null);
+
+        android.net.Uri filesUri = android.provider.MediaStore.Files.getContentUri("external");
+        check("Files getContentUri", filesUri != null && filesUri.toString().contains("external"));
+
+        android.net.Uri fileUri = android.provider.MediaStore.Files.getContentUri("external", 42);
+        check("Files getContentUri with id", fileUri != null && fileUri.toString().contains("42"));
+
+        check("AUTHORITY", "media".equals(android.provider.MediaStore.AUTHORITY));
+    }
+
+    // ── Location ──
+
+    static void testLocation() {
+        section("android.location.Location");
+        android.location.Location loc = new android.location.Location("gps");
+        loc.setLatitude(37.7749);
+        loc.setLongitude(-122.4194);
+        loc.setAltitude(10.0);
+        loc.setAccuracy(5.0f);
+        loc.setTime(System.currentTimeMillis());
+
+        check("getProvider", "gps".equals(loc.getProvider()));
+        check("getLatitude", Math.abs(loc.getLatitude() - 37.7749) < 0.0001);
+        check("getLongitude", Math.abs(loc.getLongitude() + 122.4194) < 0.0001);
+        check("hasAltitude", loc.hasAltitude());
+        check("getAltitude", Math.abs(loc.getAltitude() - 10.0) < 0.01);
+        check("hasAccuracy", loc.hasAccuracy());
+
+        // Distance: SF to LA (~560 km)
+        android.location.Location la = new android.location.Location("gps");
+        la.setLatitude(34.0522);
+        la.setLongitude(-118.2437);
+        float dist = loc.distanceTo(la);
+        check("distanceTo SF-LA ~560km", dist > 500000 && dist < 620000);
+
+        // Copy constructor
+        android.location.Location copy = new android.location.Location(loc);
+        check("copy latitude", Math.abs(copy.getLatitude() - loc.getLatitude()) < 0.0001);
+
+        check("toString", loc.toString().contains("gps"));
     }
 }
