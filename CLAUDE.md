@@ -44,14 +44,35 @@ Each issue has:
 - **Self-validation test** checklist
 - **Current stub** analysis (how many methods return null/0)
 
-### Step 3: Implement
-1. Read the existing stub at `shim/java/android/<path>/<Class>.java`
-2. Replace `return null` / `return 0` / `return false` with **real Java logic**
-3. For pure-data classes (Tier A): use `HashMap`, `ArrayList`, standard Java — no JNI needed
-4. Match AOSP method signatures exactly — apps depend on them
-5. Look at the AOSP source for reference behavior if unsure
+### Step 3: Look up the skill for this class
+```bash
+# Query the DB for the right conversion skill file
+sqlite3 database/api_compat.db "SELECT ap.skill FROM android_types at2 JOIN android_packages ap ON at2.package_id = ap.id WHERE at2.full_name = 'YourClassName'"
+# Returns e.g. A2OH-LIFECYCLE, A2OH-DATA-LAYER, A2OH-UI-REWRITE, etc.
+# Then read skills/<SKILL_NAME>.md for Android→OH conversion rules
+```
 
-### Step 4: Write self-test
+Available skills:
+| Skill | Covers |
+|-------|--------|
+| `A2OH-LIFECYCLE` | Activity, Service, BroadcastReceiver, Intent, Bundle, ContentProvider |
+| `A2OH-UI-REWRITE` | View, Widget, Animation, Layout, Transition |
+| `A2OH-DATA-LAYER` | SQLite, Cursor, Provider |
+| `A2OH-DEVICE-API` | Sensors, Camera, Bluetooth, Location, Telephony, NFC |
+| `A2OH-MEDIA` | MediaPlayer, Audio, DRM, Speech |
+| `A2OH-NETWORKING` | Connectivity, WiFi, HTTP |
+| `A2OH-JAVA-TO-ARKTS` | Text, Util, Graphics (pure logic), Annotation, ICU |
+| `A2OH-CONFIG` | Print, Security, System services, WebKit |
+
+### Step 4: Implement
+1. Read the existing stub at `shim/java/android/<path>/<Class>.java`
+2. Read the skill file for conversion rules and OH API mappings
+3. Replace `return null` / `return 0` / `return false` with **real Java logic**
+4. For pure-data classes (Tier A): use `HashMap`, `ArrayList`, standard Java — no JNI needed
+5. Match AOSP method signatures exactly — apps depend on them
+6. Look at the AOSP source for reference behavior if unsure
+
+### Step 5: Write self-test
 Add a test method to `test-apps/02-headless-cli/src/HeadlessTest.java`:
 ```java
 static void testYourClass() {
@@ -63,7 +84,7 @@ static void testYourClass() {
 ```
 Add `testYourClass();` to the `main()` method.
 
-### Step 5: Verify
+### Step 6: Verify
 ```bash
 # This compiles ALL shims + mock bridge + tests and runs them
 cd test-apps && ./run-local-tests.sh headless
@@ -71,7 +92,7 @@ cd test-apps && ./run-local-tests.sh headless
 # MUST: compile cleanly, new tests pass, existing tests don't regress
 ```
 
-### Step 6: Complete
+### Step 7: Complete
 ```bash
 # Create branch, commit, push
 git checkout -b shim/<class-name-lowercase>
