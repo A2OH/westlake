@@ -59,7 +59,6 @@ frontend/                   ← React dashboard (GitHub Pages)
   public/tier-classes.json  ← All 5,318 classes by tier (from DB)
 skills/                     ← Conversion skill files for CC workers
 dalvik-port/                ← Dalvik VM build artifacts
-a2oh-worker.sh              ← CC worker launcher script
 ```
 
 ## Quick Start
@@ -135,120 +134,21 @@ gh issue close <NUMBER> --repo A2OH/harmony-android-guide \
 
 The project uses a distributed task queue via GitHub Issues. Multiple Claude Code sessions work in parallel, each claiming issues, implementing shims, and closing them when done.
 
-### Worker Script
-
-The `a2oh-worker.sh` script automates the entire workflow: clone/update the repo, verify prerequisites, run test baseline, and launch Claude Code in autonomous mode.
-
-```
-a2oh-worker.sh [WORKER_DIR] [BATCH_SIZE]
-```
-
-#### Basic Usage
+Worker scripts and orchestration tools are in a separate repo: **[A2OH/a2oh-orchestrator](https://github.com/A2OH/a2oh-orchestrator)**
 
 ```bash
-# Launch a worker (auto-creates /tmp/a2oh-worker-<PID>)
-./a2oh-worker.sh
-
-# Use a specific directory, claim 10 issues
+# Quick start — launch a worker
+git clone https://github.com/A2OH/a2oh-orchestrator.git
+cd a2oh-orchestrator
 ./a2oh-worker.sh /tmp/worker1
 
-# Custom batch size (5 issues per session)
-./a2oh-worker.sh /tmp/worker1 5
+# Or run 3 workers in parallel
+./a2oh-worker.sh /tmp/w1 10 &
+./a2oh-worker.sh /tmp/w2 10 &
+./a2oh-worker.sh /tmp/w3 10 &
 ```
 
-#### Environment Variables
-
-| Variable | Default | Description |
-|----------|---------|-------------|
-| `TIER` | `a` | Which tier to work on (`a`, `b`, `c`, `d`) |
-| `LOOP` | `0` | Set to `1` to keep picking up work until no todo issues remain |
-
-```bash
-# Work on Tier B issues
-TIER=b ./a2oh-worker.sh /tmp/worker1
-
-# Loop mode — keeps going until all tier-a todo issues are done
-LOOP=1 ./a2oh-worker.sh /tmp/worker1
-
-# Tier C, loop, batch of 5
-TIER=c LOOP=1 ./a2oh-worker.sh /tmp/worker1 5
-```
-
-#### Running Multiple Workers in Parallel
-
-Each worker needs its own directory (separate git clone) to avoid conflicts:
-
-```bash
-# Terminal 1
-./a2oh-worker.sh /tmp/worker1 10 &
-
-# Terminal 2
-./a2oh-worker.sh /tmp/worker2 10 &
-
-# Terminal 3
-./a2oh-worker.sh /tmp/worker3 10 &
-
-# Monitor
-watch 'gh issue list --repo A2OH/harmony-android-guide --label in-progress --json number | python3 -c "import json,sys; print(len(json.load(sys.stdin)),\"in-progress\")"'
-```
-
-#### What the Script Does
-
-```
-1. CLONE/UPDATE
-   - If WORKER_DIR doesn't exist: git clone
-   - If it exists: git fetch + git reset --hard origin/main
-   - Handles force-push scenarios gracefully
-
-2. VERIFY PREREQUISITES
-   - javac available (JDK 8+)
-   - gh CLI authenticated
-   - Test infrastructure files present
-   - claude CLI installed
-
-3. RUN TEST BASELINE
-   - Runs test-apps/run-local-tests.sh headless
-   - Reports pass/fail counts
-
-4. LAUNCH CLAUDE CODE
-   - Runs: claude --dangerously-skip-permissions -p "<prompt>"
-   - CC claims N issues, implements shims in parallel agents
-   - Verifies test baseline holds
-   - Commits, pushes, closes issues
-
-5. LOOP (if LOOP=1)
-   - Checks for remaining todo issues
-   - Pulls latest, re-launches CC
-   - Stops when no todo issues remain
-```
-
-#### Running Without the Script
-
-If you prefer to run CC directly:
-
-```bash
-cd /path/to/harmony-android-guide
-
-claude --dangerously-skip-permissions -p "
-Read CLAUDE.md. Claim up to 10 open tier-a todo issues from A2OH/harmony-android-guide.
-Implement each shim with real Java logic, verify 497/502 baseline holds, close as done.
-Use parallel agents (5 at a time).
-Do NOT add Co-Authored-By lines to commits."
-```
-
-#### Worker Optimization
-
-- Each CC session can run **5 parallel agents** (one per shim class)
-- Claim **5-10 issues per batch** to maximize throughput
-- Run **3 CC sessions** = ~15 concurrent implementations
-- Verify test baseline **once** after the entire batch (not after each class)
-
-```
-Throughput:
-  1 CC session  × 5 agents  × ~3 min/class  = ~100 classes/hour
-  3 CC sessions × 5 agents  × ~3 min/class  = ~300 classes/hour
-  314 Tier A classes ÷ 300/hour              = ~1 hour for all Tier A
-```
+See the [orchestrator README](https://github.com/A2OH/a2oh-orchestrator#readme) for full docs on worker setup, loop mode, tier selection, and throughput estimates.
 
 ---
 
@@ -259,32 +159,9 @@ The Orchestrator is a React web app deployed to GitHub Pages that provides:
 - **Real-time issue status** — auto-refreshes every 30s from GitHub API
 - **Progress tracking** — completion percentage, per-tier statistics
 - **Issue management** — Claim/Done/Fail/Release/Reopen buttons per issue
-- **Batch issue creation** — select classes by tier, create issues in bulk
+- **Batch issue creation** — select classes by tier from DB (5,318 classes), create issues in bulk
 - **Single issue creation** — free-form class name with auto skill detection
 - **Search/filter** — filter by status (todo/in-progress/done/failed) and tier (A/B/C/D)
-
-The dashboard loads class lists from `frontend/public/tier-classes.json` (1.3MB, generated from the DB) rather than hardcoding them.
-
-### Generating tier-classes.json
-
-If the DB changes, regenerate the JSON:
-
-```bash
-sqlite3 database/api_compat.db "
-SELECT json_object(
-  'generated', datetime('now'),
-  'tiers', json_object(
-    'A', (SELECT json_group_array(json_object('fqcn',fqcn,'short',short,'package',pkg,'apis',cnt,'skill',skill))
-          FROM (SELECT ap.name||'.'||at.full_name as fqcn, at.full_name as short, ap.name as pkg,
-                COUNT(*) as cnt, COALESCE(ap.skill,'') as skill
-                FROM api_mappings am JOIN android_apis aa ON am.android_api_id=aa.id
-                JOIN android_types at ON aa.type_id=at.id JOIN android_packages ap ON at.package_id=ap.id
-                WHERE mapping_tier='A' GROUP BY fqcn ORDER BY fqcn)),
-    -- repeat for B, C, D
-  ),
-  'counts', json_object(...)
-);" | python3 -m json.tool > frontend/public/tier-classes.json
-```
 
 ---
 
