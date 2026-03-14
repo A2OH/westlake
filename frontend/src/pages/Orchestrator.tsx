@@ -156,6 +156,52 @@ const TIER_CLASSES: Record<string, { label: string; color: string; classes: Tier
   },
 };
 
+// ─── Package → Skill mapping (from api_compat.db android_packages.skill) ────
+
+const PACKAGE_SKILL_MAP: Record<string, string> = {
+  'android.app': 'A2OH-LIFECYCLE', 'android.app.admin': 'A2OH-LIFECYCLE',
+  'android.app.assist': 'A2OH-LIFECYCLE', 'android.app.backup': 'A2OH-LIFECYCLE',
+  'android.app.blob': 'A2OH-LIFECYCLE', 'android.app.job': 'A2OH-LIFECYCLE',
+  'android.app.role': 'A2OH-LIFECYCLE', 'android.app.slice': 'A2OH-LIFECYCLE',
+  'android.app.usage': 'A2OH-LIFECYCLE', 'android.content': 'A2OH-LIFECYCLE',
+  'android.content.pm': 'A2OH-LIFECYCLE', 'android.content.res': 'A2OH-LIFECYCLE',
+  'android.content.res.loader': 'A2OH-LIFECYCLE', 'android.accounts': 'A2OH-LIFECYCLE',
+  'android.os': 'A2OH-LIFECYCLE', 'android.os.storage': 'A2OH-LIFECYCLE',
+  'android.os.health': 'A2OH-LIFECYCLE', 'android.os.strictmode': 'A2OH-LIFECYCLE',
+  'android.view': 'A2OH-UI-REWRITE', 'android.view.accessibility': 'A2OH-UI-REWRITE',
+  'android.view.animation': 'A2OH-UI-REWRITE', 'android.view.autofill': 'A2OH-UI-REWRITE',
+  'android.view.inputmethod': 'A2OH-UI-REWRITE', 'android.widget': 'A2OH-UI-REWRITE',
+  'android.widget.inline': 'A2OH-UI-REWRITE', 'android.transition': 'A2OH-UI-REWRITE',
+  'android.animation': 'A2OH-UI-REWRITE', 'android.gesture': 'A2OH-UI-REWRITE',
+  'android.appwidget': 'A2OH-UI-REWRITE', 'android.preference': 'A2OH-UI-REWRITE',
+  'android.inputmethodservice': 'A2OH-UI-REWRITE',
+  'android.database': 'A2OH-DATA-LAYER', 'android.database.sqlite': 'A2OH-DATA-LAYER',
+  'android.provider': 'A2OH-DATA-LAYER',
+  'android.hardware': 'A2OH-DEVICE-API', 'android.hardware.biometrics': 'A2OH-DEVICE-API',
+  'android.hardware.camera2': 'A2OH-DEVICE-API', 'android.hardware.camera2.params': 'A2OH-DEVICE-API',
+  'android.hardware.display': 'A2OH-DEVICE-API', 'android.hardware.fingerprint': 'A2OH-DEVICE-API',
+  'android.hardware.input': 'A2OH-DEVICE-API', 'android.hardware.usb': 'A2OH-DEVICE-API',
+  'android.bluetooth': 'A2OH-DEVICE-API', 'android.bluetooth.le': 'A2OH-DEVICE-API',
+  'android.location': 'A2OH-DEVICE-API', 'android.telephony': 'A2OH-DEVICE-API',
+  'android.telephony.gsm': 'A2OH-DEVICE-API', 'android.telecom': 'A2OH-DEVICE-API',
+  'android.nfc': 'A2OH-DEVICE-API', 'android.nfc.tech': 'A2OH-DEVICE-API',
+  'android.media': 'A2OH-MEDIA', 'android.media.audiofx': 'A2OH-MEDIA',
+  'android.media.session': 'A2OH-MEDIA', 'android.media.browse': 'A2OH-MEDIA',
+  'android.drm': 'A2OH-MEDIA', 'android.speech': 'A2OH-MEDIA', 'android.speech.tts': 'A2OH-MEDIA',
+  'android.net': 'A2OH-NETWORKING', 'android.net.http': 'A2OH-NETWORKING',
+  'android.net.wifi': 'A2OH-NETWORKING', 'android.net.wifi.p2p': 'A2OH-NETWORKING',
+  'android.net.ssl': 'A2OH-NETWORKING',
+  'android.util': 'A2OH-JAVA-TO-ARKTS', 'android.text': 'A2OH-JAVA-TO-ARKTS',
+  'android.text.format': 'A2OH-JAVA-TO-ARKTS', 'android.text.style': 'A2OH-JAVA-TO-ARKTS',
+  'android.text.util': 'A2OH-JAVA-TO-ARKTS', 'android.annotation': 'A2OH-JAVA-TO-ARKTS',
+  'android.graphics': 'A2OH-JAVA-TO-ARKTS', 'android.graphics.drawable': 'A2OH-JAVA-TO-ARKTS',
+  'android.graphics.drawable.shapes': 'A2OH-JAVA-TO-ARKTS',
+  'android.graphics.fonts': 'A2OH-JAVA-TO-ARKTS', 'android.graphics.pdf': 'A2OH-JAVA-TO-ARKTS',
+  'android.icu.text': 'A2OH-JAVA-TO-ARKTS', 'android.icu.util': 'A2OH-JAVA-TO-ARKTS',
+  'android.security': 'A2OH-CONFIG', 'android.webkit': 'A2OH-CONFIG',
+  'android.print': 'A2OH-CONFIG', 'android.accessibilityservice': 'A2OH-CONFIG',
+};
+
 // ─── API helpers ─────────────────────────────────────────────────────────────
 
 async function fetchAllShimIssues(): Promise<Issue[]> {
@@ -280,6 +326,13 @@ export default function Orchestrator() {
 
   // Detail panel
   const [selectedIssue, setSelectedIssue] = useState<Issue | null>(null);
+
+  // Single issue creation
+  const [showSingleCreate, setShowSingleCreate] = useState(false);
+  const [singleClassName, setSingleClassName] = useState('');
+  const [singleTier, setSingleTier] = useState('a');
+  const [singleDesc, setSingleDesc] = useState('');
+  const [singleCreating, setSingleCreating] = useState(false);
 
   const saveToken = (t: string) => {
     setToken(t);
@@ -447,30 +500,25 @@ export default function Orchestrator() {
 
       const title = `[SHIM] Implement ${fqn}`;
       const relpath = `shim/java/${c.pkg.replace(/\./g, '/')}/${c.cls}.java`;
+      const skill = PACKAGE_SKILL_MAP[c.pkg] || 'A2OH-JAVA-TO-ARKTS';
       const body = `## Class: \`${fqn}\`
 
 **Tier:** ${createTier.toUpperCase()} ${tier.label.split(' — ')[1] || ''}
 **Description:** ${c.desc}
 **File:** \`${relpath}\`
+**Skill:** \`skills/${skill}.md\`
 
 ## Task
 
 Replace stub implementations (\`return null\`, \`return 0\`, \`return false\`) with **real Java logic**.
+Read \`skills/${skill}.md\` for Android-to-OpenHarmony conversion rules.
 
 ## Verification
 
 \`\`\`bash
 cd test-apps && ./run-local-tests.sh headless
-# Must compile cleanly and all tests pass
-# Existing tests must not regress (baseline: 497/502)
+# Baseline: 497/502 pass. Must not regress.
 \`\`\`
-
-## Completion
-
-1. Implement real logic in \`${relpath}\`
-2. Verify with \`./run-local-tests.sh headless\`
-3. Commit to branch \`shim/${c.cls.toLowerCase()}\`
-4. Close this issue with test results
 `;
 
       try {
@@ -488,6 +536,67 @@ cd test-apps && ./run-local-tests.sh headless
     setCreating(false);
     setSelectedClasses(new Set());
     refresh();
+  };
+
+  // ─── Single issue creation ──────────────────────────────────────────────
+
+  const createSingleIssue = async () => {
+    const t = requireToken();
+    if (!t || !singleClassName.trim()) return;
+    setSingleCreating(true);
+    setActionMsg(null);
+
+    const fqn = singleClassName.trim();
+    const parts = fqn.split('.');
+    const cls = parts[parts.length - 1];
+    const pkg = parts.slice(0, -1).join('.');
+    const relpath = `shim/java/${pkg.replace(/\./g, '/')}/${cls}.java`;
+    const skill = PACKAGE_SKILL_MAP[pkg] || 'A2OH-JAVA-TO-ARKTS';
+    const tierLabel = singleTier.toUpperCase();
+    const tierDesc = { a: 'Pure Java', b: 'I/O with Java Fallback', c: 'System Services (needs OHBridge)', d: 'UI Components (needs ArkUI)' }[singleTier] || '';
+
+    const title = `[SHIM] Implement ${fqn}`;
+    const body = `## Class: \`${fqn}\`
+
+**Tier:** ${tierLabel} (${tierDesc})
+**Description:** ${singleDesc || cls}
+**File:** \`${relpath}\`
+**Skill:** \`skills/${skill}.md\`
+
+## Task
+
+Replace stub implementations (\`return null\`, \`return 0\`, \`return false\`) with **real Java logic**.
+
+### Conversion Skill
+Read \`skills/${skill}.md\` for Android-to-OpenHarmony conversion rules for this package.
+
+Query the DB for API details:
+\`\`\`bash
+sqlite3 database/api_compat.db "SELECT a.name, a.signature, m.score, m.mapping_type, m.effort_level FROM api_mappings m JOIN android_apis a ON m.android_api_id = a.id JOIN android_types t ON a.type_id = t.id WHERE t.full_name = '${cls}' ORDER BY m.score DESC"
+\`\`\`
+
+## Verification
+
+\`\`\`bash
+cd test-apps && ./run-local-tests.sh headless
+# Baseline: 497/502 pass. Must not regress.
+\`\`\`
+`;
+
+    try {
+      await ghApiCall('/issues', 'POST', t, {
+        title,
+        body,
+        labels: [`tier-${singleTier}`, 'todo', 'non-ui', 'shim'],
+      });
+      setActionMsg(`Created: ${title}`);
+      setSingleClassName('');
+      setSingleDesc('');
+      refresh();
+    } catch (e: any) {
+      setActionMsg(`Error: ${e.message}`);
+    }
+    setSingleCreating(false);
   };
 
   return (
@@ -599,13 +708,80 @@ cd test-apps && ./run-local-tests.sh headless
             </button>
           ))}
         </div>
-        <button
-          onClick={() => setShowCreatePanel(!showCreatePanel)}
-          className="px-4 py-2 bg-green-700 text-white rounded-lg text-sm hover:bg-green-600 font-medium"
-        >
-          {showCreatePanel ? 'Close' : '+ Add Issues'}
-        </button>
+        <div className="flex gap-2">
+          <button
+            onClick={() => { setShowSingleCreate(!showSingleCreate); setShowCreatePanel(false); }}
+            className="px-4 py-2 bg-blue-700 text-white rounded-lg text-sm hover:bg-blue-600 font-medium"
+          >
+            {showSingleCreate ? 'Close' : '+ Create Issue'}
+          </button>
+          <button
+            onClick={() => { setShowCreatePanel(!showCreatePanel); setShowSingleCreate(false); }}
+            className="px-4 py-2 bg-green-700 text-white rounded-lg text-sm hover:bg-green-600 font-medium"
+          >
+            {showCreatePanel ? 'Close' : '+ Batch Add'}
+          </button>
+        </div>
       </div>
+
+      {/* Single issue create */}
+      {showSingleCreate && (
+        <div className="bg-gray-900 rounded-xl border border-gray-800 p-5 space-y-4">
+          <h2 className="text-lg font-semibold">Create Single Issue</h2>
+          <p className="text-sm text-gray-400">
+            Enter any Android class name. The skill file is auto-detected from the package.
+          </p>
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
+            <div className="md:col-span-2">
+              <label className="block text-xs text-gray-500 mb-1">Class (fully qualified)</label>
+              <input type="text" value={singleClassName} onChange={e => setSingleClassName(e.target.value)}
+                placeholder="android.graphics.Bitmap"
+                className="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded-lg text-sm text-gray-200 placeholder-gray-500 focus:outline-none focus:border-blue-500" />
+            </div>
+            <div>
+              <label className="block text-xs text-gray-500 mb-1">Tier</label>
+              <select value={singleTier} onChange={e => setSingleTier(e.target.value)}
+                className="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded-lg text-sm text-gray-200">
+                <option value="a">A — Pure Java</option>
+                <option value="b">B — I/O Fallback</option>
+                <option value="c">C — System (OHBridge)</option>
+                <option value="d">D — UI (ArkUI)</option>
+              </select>
+            </div>
+            <div>
+              <label className="block text-xs text-gray-500 mb-1">Description (optional)</label>
+              <input type="text" value={singleDesc} onChange={e => setSingleDesc(e.target.value)}
+                placeholder="Short description"
+                className="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded-lg text-sm text-gray-200 placeholder-gray-500 focus:outline-none focus:border-blue-500" />
+            </div>
+          </div>
+          {singleClassName && (
+            <div className="text-xs text-gray-500">
+              Skill: <code className="bg-gray-800 px-1.5 py-0.5 rounded text-gray-300">
+                {PACKAGE_SKILL_MAP[singleClassName.split('.').slice(0, -1).join('.')] || 'A2OH-JAVA-TO-ARKTS'}
+              </code>
+              {' | '}File: <code className="bg-gray-800 px-1.5 py-0.5 rounded text-gray-300">
+                shim/java/{singleClassName.replace(/\./g, '/').replace(/\/([^/]+)$/, '/$1')}.java
+              </code>
+              {existingClassNames.has(singleClassName) && (
+                <span className="ml-2 text-yellow-400">Issue already exists</span>
+              )}
+            </div>
+          )}
+          <div className="flex justify-end">
+            {!token ? (
+              <button onClick={() => setShowTokenInput(true)}
+                className="px-4 py-2 bg-blue-700 text-white rounded-lg text-sm hover:bg-blue-600">Set Token First</button>
+            ) : (
+              <button onClick={createSingleIssue}
+                disabled={!singleClassName.trim() || singleCreating || existingClassNames.has(singleClassName)}
+                className="px-4 py-2 bg-green-700 text-white rounded-lg text-sm hover:bg-green-600 disabled:opacity-50 font-medium">
+                {singleCreating ? 'Creating...' : 'Create Issue'}
+              </button>
+            )}
+          </div>
+        </div>
+      )}
 
       {/* Batch create panel */}
       {showCreatePanel && (
