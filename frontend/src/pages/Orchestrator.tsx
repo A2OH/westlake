@@ -210,7 +210,13 @@ export default function Orchestrator() {
   const [createLog, setCreateLog] = useState<string[]>([]);
   const [tierSearch, setTierSearch] = useState('');
 
-  // Detail panel (reserved for future use)
+  // Auto-fill: auto-create issues when todo queue runs low
+  const [autoFill, setAutoFill] = useState(false);
+  const [autoFillTier, setAutoFillTier] = useState('A');
+  const [autoFillThreshold, setAutoFillThreshold] = useState(10);
+  const [autoFillBatch, setAutoFillBatch] = useState(20);
+  const [autoFillLog, setAutoFillLog] = useState<string[]>([]);
+  const autoFillRunning = useRef(false);
 
   // Single issue creation
   const [showSingleCreate, setShowSingleCreate] = useState(false);
@@ -259,6 +265,51 @@ export default function Orchestrator() {
     s.total++;
     return s;
   }, { todo: 0, inProgress: 0, done: 0, failed: 0, total: 0, tierA: 0, tierB: 0, tierC: 0, tierD: 0 });
+
+  // Auto-fill: when todo drops below threshold, inject more issues from tier-classes.json
+  useEffect(() => {
+    if (!autoFill || !token || !tierData || autoFillRunning.current) return;
+    if (stats.todo >= autoFillThreshold) return;
+
+    const existingNames = new Set(issues.map(i => extractClassName(i.title)));
+    const candidates = (tierData.tiers[autoFillTier] || [])
+      .filter(c => !existingNames.has(c.fqcn));
+
+    if (candidates.length === 0) {
+      setAutoFillLog(prev => [...prev.slice(-19), `[${new Date().toLocaleTimeString()}] No more ${autoFillTier} classes to create`]);
+      return;
+    }
+
+    const batch = candidates.slice(0, autoFillBatch);
+    autoFillRunning.current = true;
+    setAutoFillLog(prev => [...prev.slice(-19), `[${new Date().toLocaleTimeString()}] Todo=${stats.todo} < ${autoFillThreshold}, creating ${batch.length} Tier ${autoFillTier} issues...`]);
+
+    (async () => {
+      let created = 0;
+      for (const c of batch) {
+        const title = `[SHIM] Implement ${c.fqcn}`;
+        const relpath = fqcnToPath(c.fqcn);
+        const skill = c.skill || lookupSkill(c.package, tierData);
+        const tierInfo = TIER_LABELS[autoFillTier];
+        const body = `## Android Class\n\`${c.fqcn}\`\n\n## Tier\n${autoFillTier} (${tierInfo?.label.split(' — ')[1] || ''})\n\n## APIs to implement\n${c.apis} method(s)/field(s) classified as Tier ${autoFillTier}\n\n## Package\n\`${c.package}\`\n\n## Skill file\n${skill || 'N/A'}\n\n## Instructions\n1. Read the existing shim at \`${relpath}\`\n2. Implement all Tier ${autoFillTier} methods with real Java logic\n3. Write a self-validating test in the test harness\n4. Verify 497/502 baseline holds`;
+
+        try {
+          await ghApiCall('/issues', 'POST', token, {
+            title,
+            body,
+            labels: [`tier-${autoFillTier.toLowerCase()}`, 'todo', 'non-ui', 'shim'],
+          });
+          created++;
+        } catch (e: any) {
+          setAutoFillLog(prev => [...prev.slice(-19), `  FAILED ${c.fqcn}: ${e.message}`]);
+          if (e.message.includes('403')) await new Promise(r => setTimeout(r, 5000));
+        }
+      }
+      setAutoFillLog(prev => [...prev.slice(-19), `  Created ${created}/${batch.length} issues`]);
+      autoFillRunning.current = false;
+      refresh();
+    })();
+  }, [autoFill, token, tierData, stats.todo, autoFillThreshold, autoFillBatch, autoFillTier, issues, refresh]);
 
   const filtered = issues.filter(i => {
     if (filter !== 'all' && getStatus(i) !== filter) return false;
@@ -595,6 +646,54 @@ cd test-apps && ./run-local-tests.sh headless
           <span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-full bg-gray-500" /> {stats.todo} todo</span>
           <span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-full bg-red-500" /> {stats.failed} failed</span>
         </div>
+      </div>
+
+      {/* Auto-fill controls */}
+      <div className="bg-gray-900 rounded-xl p-4 border border-gray-800">
+        <div className="flex items-center justify-between flex-wrap gap-3">
+          <div className="flex items-center gap-3">
+            <label className="flex items-center gap-1.5 text-sm">
+              <input type="checkbox" checked={autoFill} onChange={e => setAutoFill(e.target.checked)}
+                className="rounded" disabled={!token} />
+              <span className={autoFill ? 'text-green-400' : 'text-gray-400'}>Auto-fill queue</span>
+            </label>
+            {autoFill && (
+              <>
+                <span className="text-gray-600">|</span>
+                <label className="flex items-center gap-1 text-xs text-gray-400">
+                  Tier
+                  <select value={autoFillTier} onChange={e => setAutoFillTier(e.target.value)}
+                    className="px-2 py-0.5 bg-gray-800 border border-gray-700 rounded text-xs text-gray-200 w-14">
+                    {['A', 'B', 'C', 'D'].map(t => <option key={t} value={t}>{t}</option>)}
+                  </select>
+                </label>
+                <label className="flex items-center gap-1 text-xs text-gray-400">
+                  When todo &lt;
+                  <input type="number" value={autoFillThreshold} onChange={e => setAutoFillThreshold(Number(e.target.value))}
+                    min={1} max={100}
+                    className="px-2 py-0.5 bg-gray-800 border border-gray-700 rounded text-xs text-gray-200 w-14" />
+                </label>
+                <label className="flex items-center gap-1 text-xs text-gray-400">
+                  Add
+                  <input type="number" value={autoFillBatch} onChange={e => setAutoFillBatch(Number(e.target.value))}
+                    min={1} max={100}
+                    className="px-2 py-0.5 bg-gray-800 border border-gray-700 rounded text-xs text-gray-200 w-14" />
+                  issues
+                </label>
+              </>
+            )}
+          </div>
+          {!token && autoFill === false && (
+            <span className="text-xs text-gray-500">Requires GitHub token</span>
+          )}
+        </div>
+        {autoFillLog.length > 0 && (
+          <div className="mt-3 bg-gray-800 rounded-lg p-2 max-h-32 overflow-y-auto">
+            {autoFillLog.map((log, i) => (
+              <div key={i} className={`text-xs font-mono ${log.includes('FAILED') ? 'text-red-400' : log.includes('Created') ? 'text-green-400' : 'text-gray-400'}`}>{log}</div>
+            ))}
+          </div>
+        )}
       </div>
 
       {/* Stat cards */}
