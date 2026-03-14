@@ -1,12 +1,19 @@
 # Android-to-OpenHarmony API Migration: Comprehensive Analysis Plan
 
-**Goal:** Evaluate feasibility of a shim/translation layer that transparently maps Android APIs to OpenHarmony APIs, enabling Android APKs to run on OpenHarmony without modifying app source code.
+**Goal:** Run unmodified Android APKs on OpenHarmony by treating the Android framework as an embeddable runtime engine — similar to how OH hosts Flutter or React Native.
 
-**Date:** 2026-03-10
+**Date:** 2026-03-10 (Updated: 2026-03-14)
+**Execution Plan:** See `03-ENGINE-EXECUTION-PLAN.md` for the concrete WS1-4 implementation plan
 
 ---
 
-## Architecture Overview
+## Architecture: Android-as-Engine on OpenHarmony
+
+### Core Insight
+
+OpenHarmony already hosts **Flutter** — a complete standalone platform with its own rendering engine (Skia), widget system, layout engine, and runtime (Dart VM). Flutter doesn't map to ArkUI widgets; it renders directly to an XComponent surface.
+
+**Android can work the same way.** Instead of shimming 57,000 Android APIs to OH APIs one by one, we port the Android framework as a self-contained engine that renders to OH surfaces.
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
@@ -17,314 +24,335 @@
 └───────┼────────────┼────────────┼───────────────┼───────────┘
         │            │            │               │
    ┌────▼────────────▼────────────▼───────────────▼───────────┐
-   │              SHIM / TRANSLATION LAYER                     │
-   │  ┌──────────┐ ┌──────────┐ ┌──────────┐ ┌────────────┐  │
-   │  │ Java API │ │ Resource │ │ NDK/JNI  │ │  Manifest  │  │
-   │  │  Shim    │ │ Adapter  │ │  Bridge  │ │  Mapper    │  │
-   │  └────┬─────┘ └────┬─────┘ └────┬─────┘ └─────┬──────┘  │
-   └───────┼────────────┼────────────┼──────────────┼─────────┘
-           │            │            │              │
-   ┌───────▼────────────▼────────────▼──────────────▼─────────┐
+   │         ANDROID-AS-ENGINE (like Flutter Engine)           │
+   │                                                           │
+   │  ┌──────────────────────────────────────────────────────┐ │
+   │  │  Layer 1: Android Framework (ported from AOSP)       │ │
+   │  │  View, ViewGroup, Activity, Service, Intent,         │ │
+   │  │  ContentProvider, MediaPlayer, Camera, Bluetooth...  │ │
+   │  │  [runs in Dalvik/ART — NOT shimmed to ArkUI]         │ │
+   │  └──────────────────┬───────────────────────────────────┘ │
+   │                     │                                     │
+   │  ┌──────────────────▼───────────────────────────────────┐ │
+   │  │  Layer 2: Dalvik/ART Runtime                         │ │
+   │  │  DEX bytecode execution, GC, JNI, class loading      │ │
+   │  │  [dalvik-port — already building]                    │ │
+   │  └──────────────────┬───────────────────────────────────┘ │
+   │                     │                                     │
+   │  ┌──────────────────▼───────────────────────────────────┐ │
+   │  │  Layer 3: Platform Bridge (Android→OH)               │ │
+   │  │  Skia → OH Drawing/GPU    (rendering)                │ │
+   │  │  Binder → OH IPC          (services)                 │ │
+   │  │  SurfaceFlinger → NativeWindow (display)             │ │
+   │  │  InputDispatcher → XComponent events (touch/key)     │ │
+   │  │  AudioFlinger → OH Audio  (sound)                    │ │
+   │  │  Camera HAL → OH Camera   (camera)                   │ │
+   │  └──────────────────┬───────────────────────────────────┘ │
+   └─────────────────────┼─────────────────────────────────────┘
+                         │
+   ┌─────────────────────▼─────────────────────────────────────┐
    │                 OpenHarmony OS                             │
-   │  ┌──────────┐ ┌──────────┐ ┌──────────┐ ┌────────────┐  │
-   │  │  ArkTS   │ │ Resource │ │   NDK    │ │   Ability  │  │
-   │  │  APIs    │ │  System  │ │   APIs   │ │  Framework │  │
-   │  └──────────┘ └──────────┘ └──────────┘ └────────────┘  │
-   └──────────────────────────────────────────────────────────┘
+   │  ┌──────────┐ ┌──────────┐ ┌──────────┐ ┌────────────┐   │
+   │  │XComponent│ │NativeWin │ │ OH NDK   │ │ OH System  │   │
+   │  │ Surface  │ │ Buffer   │ │ Drawing  │ │ Services   │   │
+   │  └──────────┘ └──────────┘ └──────────┘ └────────────┘   │
+   └───────────────────────────────────────────────────────────┘
 ```
+
+### Why This Works (Flutter Analogy)
+
+| Aspect | Flutter on OH | Android-as-Engine on OH |
+|--------|--------------|------------------------|
+| Runtime | Dart VM | Dalvik/ART VM |
+| Widget system | Flutter Widgets (own tree) | Android Views (own tree) |
+| Layout engine | Flutter RenderObject | Android View.measure/layout |
+| Rendering | Skia → XComponent | Skia → XComponent |
+| Input | XComponent → Flutter gestures | XComponent → Android MotionEvent |
+| Lifecycle | OH Ability → Flutter lifecycle | OH Ability → Android Activity |
+| Platform services | Platform Channels → OH APIs | Platform Bridge → OH APIs |
+| App modification needed | **None** | **None** |
+
+### What Does NOT Need Mapping
+
+With this architecture, the entire View/Widget/Animation/Text subsystem is **not an API mapping problem** — it runs natively in the Android engine. Our APK analysis showed these represent 2,841 unmapped APIs per app (11.7% of Tier 4). They're now zero-cost.
+
+### What DOES Need the Platform Bridge (Layer 3)
+
+Only the system service boundaries need translation. Based on our 13-app APK analysis, these are the OH subsystems that need bridges:
+
+| Bridge | Android Side | OH Side | Status |
+|--------|-------------|---------|--------|
+| Graphics/Rendering | Skia/Canvas/OpenGL ES | OH_Drawing + XComponent | OH has full Skia + OpenGL ES |
+| Audio | AudioFlinger/AudioTrack | @ohos.multimedia.audio | OH has AudioRenderer/Capturer |
+| Camera | Camera HAL / camera2 | @ohos.multimedia.camera | OH has camera pipeline |
+| Display/Surface | SurfaceFlinger/NativeWindow | OHNativeWindow | OH has NativeWindow API |
+| Input | InputDispatcher | XComponent.DispatchTouchEvent | OH has full touch/key |
+| Network | ConnectivityManager | @ohos.net.connection | OH has net APIs |
+| Location | LocationManager | @ohos.geoLocationManager | OH has location |
+| Bluetooth | Bluetooth HAL | @ohos.bluetooth.* | OH has BT stack |
+| Telephony | RIL/TelephonyManager | @ohos.telephony.* | OH has telephony |
+| Sensors | SensorService | @ohos.sensor | OH has sensors |
+| Storage/DB | VFS/SQLite | @ohos.file.fs + SQLite | OH has file + SQLite |
+| Notifications | NotificationManager | @ohos.notificationManager | OH has notifications |
+| Permissions | PackageManager | @ohos.abilityAccessCtrl | OH has permissions |
+| DRM | MediaDrm/Widevine | **NO EQUIVALENT** | True gap |
 
 ---
 
-## Phase 1: API Domain Mapping (Similarity Analysis)
+## Findings from Real APK Analysis (13 Apps, March 2026)
 
-**Purpose:** Map every Android API domain to its OpenHarmony equivalent, classify coverage level.
+### Apps Analyzed
 
-### 1.1 — Domain-Level API Correspondence Matrix
+| App | Size | DEX Files | Unique Framework APIs | OH Coverage |
+|-----|-----:|----------:|---------------------:|----------:|
+| TikTok 44.3 | 355 MB | 45 | 18,225 | 17.2% |
+| Instagram | 110 MB | 17 | 18,531 | 17.0% |
+| YouTube 21.10 | 170 MB | 7 | 26,957 | 9.9% |
+| Netflix 9.57 | 175 MB | 8 | 22,988 | 11.1% |
+| Spotify | 36 MB | 10 | 23,496 | 10.7% |
+| Facebook (base) | 91 MB | 2 | 3,669 | 30.0% |
+| Google Maps | 37 MB | 10 | 31,838 | 8.9% |
+| Zoom | 137 MB | 13 | 160,519 | 1.9% |
+| Grab | 231 MB | 21 | 111,675 | 3.0% |
+| Duolingo | 126 MB | 12 | 76,997 | 3.5% |
+| Uber Driver | 234 MB | 24 | 1,384 | 13.5% |
+| PayPal (base) | 149 MB | 42 | 516 | 32.8% |
+| Amazon | 45 MB | 8 | 27,576 | 7.1% |
 
-Create a comprehensive matrix mapping Android API packages → OpenHarmony equivalents:
+### Tier 4 Gap Decomposition
 
-| Analysis Report | Android Domain | OH Domain | Priority |
-|----------------|---------------|-----------|----------|
-| `01-domain-mapping-app-lifecycle.md` | `android.app` (Activity, Service, BroadcastReceiver, ContentProvider) | `@ohos.app.ability` (UIAbility, ServiceExtension, DataShareExtension) | P0 |
-| `02-domain-mapping-ui.md` | `android.view`, `android.widget` (View, ViewGroup, 181 widgets) | ArkUI declarative components (127 @internal components) | P0 |
-| `03-domain-mapping-content.md` | `android.content` (Context, Intent, ContentResolver, SharedPreferences) | `@ohos.app.ability.Want`, `@ohos.data.preferences`, `@ohos.data.dataSharePredicates` | P0 |
-| `04-domain-mapping-os-ipc.md` | `android.os` (Handler, Binder, Bundle, Parcelable) | `@ohos.rpc`, `@ohos.worker`, `@ohos.taskpool` | P0 |
-| `05-domain-mapping-net.md` | `android.net`, `android.net.wifi` (ConnectivityManager, WiFi) | `@ohos.net.connection`, `@ohos.net.http`, `@ohos.wifi` | P1 |
-| `06-domain-mapping-media.md` | `android.media` (MediaPlayer, AudioManager, Camera2) | `@ohos.multimedia.media`, `@ohos.multimedia.audio`, `@ohos.multimedia.camera` | P1 |
-| `07-domain-mapping-telephony.md` | `android.telephony` (TelephonyManager, SmsManager) | `@ohos.telephony.call`, `@ohos.telephony.sms`, `@ohos.telephony.sim` | P1 |
-| `08-domain-mapping-security.md` | `android.security`, `android.security.keystore` | `@ohos.security.huks`, `@ohos.userIAM.userAuth` | P1 |
-| `09-domain-mapping-location.md` | `android.location` (LocationManager) | `@ohos.geoLocationManager` | P2 |
-| `10-domain-mapping-bluetooth.md` | `android.bluetooth` (BluetoothAdapter, BLE) | `@ohos.bluetooth.ble`, `@ohos.bluetooth.connection` | P2 |
-| `11-domain-mapping-nfc.md` | `android.nfc` | `@ohos.nfc.tag`, `@ohos.nfc.cardEmulation` | P2 |
-| `12-domain-mapping-sensors.md` | `android.hardware` (SensorManager, Camera) | `@ohos.sensor`, `@ohos.vibrator` | P2 |
-| `13-domain-mapping-storage.md` | `android.database.sqlite`, `android.provider` | `@ohos.data.relationalStore`, `@ohos.file.fs` | P1 |
-| `14-domain-mapping-notifications.md` | `android.app.Notification*` | `@ohos.notificationManager` | P1 |
-| `15-domain-mapping-permissions.md` | `android.permission`, `Manifest.permission` | `@ohos.abilityAccessCtrl`, `@ohos.bundle.bundleManager` | P0 |
-| `16-domain-mapping-graphics.md` | `android.graphics` (Canvas, Paint, Bitmap, OpenGL) | OH NDK: `drawing_canvas.h`, `drawing_pen.h`, OpenGL ES headers | P1 |
-| `17-domain-mapping-ndk-native.md` | Android NDK (libc, libm, liblog, libandroid) | OH NDK: musl libc, HiLog, NAPI, XComponent | P1 |
-| `18-domain-mapping-text.md` | `android.text` (Spannable, TextUtils, Html) | ArkUI Text component, `@ohos.util` | P2 |
-| `19-domain-mapping-animation.md` | `android.animation` (Animator, ValueAnimator) | ArkUI animation APIs (`animateTo`, `@AnimatableExtend`) | P1 |
-| `20-domain-mapping-webkit.md` | `android.webkit` (WebView, WebSettings) | `@ohos.web.webview`, ArkWeb NDK | P1 |
+The headline "67-83% Tier 4 gap" is misleading. Actual breakdown (YouTube as reference):
 
-### 1.2 — Per-API Method-Level Similarity Scoring
+| Category | % of Tier 4 | Action Required |
+|----------|:----------:|-----------------|
+| **Noise** (proprietary libs, AndroidX, Dalvik) | **70.1%** | None — handled by Android-as-Engine runtime |
+| **UI Paradigm Shift** (View/Widget/Animation) | **11.7%** | None — Android View pipeline runs natively in engine |
+| **OH Has Capability** (mapping gap in our DB) | **11.8%** | Fix DB + build Platform Bridges |
+| **Java Runtime** (java.*/javax.*) | **6.3%** | Handled by Dalvik/ART runtime |
+| **True Platform Gap** (DRM) | **0.1%** | Platform-level work needed |
 
-For each domain mapping, produce a method-level comparison with scores:
+**Conclusion:** With the Android-as-Engine architecture, ~94% of Tier 4 is handled by the runtime itself. Only ~6% (Platform Bridge + DRM) needs real engineering work.
 
-```
-Score System:
-  1.0 = Direct equivalent (same semantics, can map 1:1)
-  0.8 = Near equivalent (minor parameter/behavior differences, shimmable)
-  0.5 = Partial equivalent (similar concept, significant adaptation needed)
-  0.3 = Indirect equivalent (achievable via composition of multiple OH APIs)
-  0.0 = No equivalent (API gap — requires emulation or is impossible)
-```
+### Subsystem Usage Across 13 Apps
 
-Output format per API:
-```markdown
-| Android API | Score | OH Equivalent | Gap Notes |
-|-------------|------:|---------------|-----------|
-| Activity.onCreate(Bundle) | 0.8 | UIAbility.onCreate(Want,LaunchParam) | Bundle→Want mapping needed |
-| Activity.startActivity(Intent) | 0.5 | UIAbilityContext.startAbility(Want) | Intent→Want + implicit intent resolution missing |
-| View.setOnClickListener() | 0.8 | onClick() declarative handler | Imperative→declarative paradigm shift |
-| SQLiteDatabase.query() | 0.8 | RdbStore.query(RdbPredicates) | SQL→RdbPredicates translation |
-| BluetoothAdapter.startDiscovery() | 1.0 | connection.startBluetoothDiscovery() | Direct mapping |
-| ContentResolver.query(Uri) | 0.3 | dataShare.query() | Different URI scheme, different provider model |
-```
+| Subsystem | Max APIs (any app) | Avg Score | Bridge Priority |
+|-----------|-------------------:|:---------:|:---------------:|
+| View/Widget | 2,916 (TikTok) | 1.2-1.3 | **Engine** (no bridge) |
+| Graphics | 942 (TikTok) | 2.0-2.1 | **Engine** (Skia shared) |
+| Java Standard | 2,822 (TikTok) | 3.2 | **Engine** (Dalvik) |
+| Media | 741 (YouTube) | 3.1-3.4 | P0 Bridge |
+| App Framework | 886 (Maps) | 2.5-2.8 | P0 Bridge |
+| OS | 465 (Instagram) | 3.0-3.1 | P0 Bridge |
+| Content | 316 (TikTok) | 3.1-3.4 | P0 Bridge |
+| Networking | 240 (YouTube) | 2.0-2.3 | P1 Bridge |
+| Camera | 133 (Maps) | 2.7-3.2 | P1 Bridge |
+| Location | 125 (Maps) | 4.5-6.5 | P1 Bridge |
+| Bluetooth | 85 (Spotify) | 3.8-3.9 | P2 Bridge |
+| Database | 153 (Zoom) | 3.4-4.0 | P1 Bridge |
+| Telephony | 192 (Instagram) | 2.8-3.7 | P2 Bridge |
+| WebView | 283 (TikTok) | 1.6-2.1 | P1 Bridge |
+| Security | 38 (Grab) | 1.8-2.0 | P2 Bridge |
+| Notifications | 6 (YouTube) | 2.7-2.9 | P2 Bridge |
 
----
+### APIs Unmapped Across ALL 13 Apps (Highest Priority for DB)
 
-## Phase 2: Platform Gap Analysis
-
-**Purpose:** Identify APIs with NO OpenHarmony equivalent — the hard problems.
-
-### 2.1 — Structural/Paradigm Gaps
-
-| Gap ID | Android Concept | OH Status | Impact | Mitigation Strategy |
-|--------|----------------|-----------|--------|---------------------|
-| GAP-01 | Implicit Intents | No equivalent | HIGH | Build intent resolution registry in shim layer |
-| GAP-02 | ContentProvider (cross-app data) | DataShareExtension (different model) | HIGH | Implement ContentProvider→DataShare adapter |
-| GAP-03 | Fragment lifecycle | No equivalent (ArkUI is declarative) | HIGH | Must rewrite UI — cannot shim |
-| GAP-04 | BroadcastReceiver (system broadcasts) | CommonEvent (partial) | MEDIUM | Map ACTION_* → CommonEvent equivalents |
-| GAP-05 | Imperative View system | ArkUI declarative only | CRITICAL | **Cannot shim** — UI must be recompiled for ArkUI |
-| GAP-06 | Service (background) | ServiceExtensionAbility (limited) | HIGH | Map Android Service → OH ServiceExtension |
-| GAP-07 | AccountManager | No equivalent | MEDIUM | Implement in shim layer with local storage |
-| GAP-08 | Binder IPC (custom) | OH IPC/RPC (different AIDL) | HIGH | Map AIDL→IDL or use RPC shim |
-| GAP-09 | AppWidget | FormExtensionAbility (different) | MEDIUM | Widget model translation |
-| GAP-10 | DRM framework | No equivalent | LOW | Stub or third-party |
-
-### 2.2 — Report: `21-gap-analysis-critical.md`
-Detailed analysis of each gap with:
-- Root cause (architectural difference vs missing feature)
-- Feasibility of shimming (possible / hard / impossible)
-- Estimated effort
-- Alternative approaches
-
-### 2.3 — Report: `22-gap-analysis-ndk.md`
-NDK/native layer gaps:
-- Android NDK APIs with no OH NDK equivalent
-- Bionic vs musl libc differences
-- JNI vs NAPI bridge differences
-- Native library loading differences
+These APIs appear in every single analyzed app and have no OH mapping:
+- `Intent.putExtra`, `Intent.<init>` — Content/Navigation
+- `ViewGroup.addView`, `FrameLayout.<init>` — View (handled by engine)
+- `StringBuilder.append`, `String.valueOf`, `Arrays.*` — Java Standard (handled by runtime)
+- `Handler.<init>`, `Handler.obtainMessage` — OS threading
 
 ---
 
-## Phase 3: Shim Layer Architecture Design
+## Revised Execution Plan
 
-**Purpose:** Design the actual translation layer architecture.
+### Phase 1: Dalvik/ART Runtime on OH (FOUNDATION)
 
-### 3.1 — Runtime Architecture Analysis: `23-runtime-bridge.md`
+**Status:** In progress (`dalvik-port/`)
+**Goal:** Run DEX bytecode on OpenHarmony
 
+Already have:
+- Dalvik KitKat VM building for x86_64, OHOS aarch64, OHOS ARM32
+- 1,968 android.* stub classes compiling
+- Mock OHBridge for JVM testing
+
+Remaining:
+- Complete VM stability (GC, threading, JNI)
+- Class loader for multi-DEX APKs (TikTok has 45!)
+- JNI bridge to OH NDK
+
+### Phase 2: Graphics/Rendering Bridge (CRITICAL — Unlocks UI)
+
+**Goal:** Android Canvas → OH_Drawing_Canvas + XComponent
+
+This is the Flutter-equivalent rendering bridge. OH provides:
+- `OH_Drawing_Canvas` — CPU 2D rendering (drawRect, drawText, drawPath, drawBitmap)
+- `OH_Drawing_Pen/Brush` — stroke/fill styles (maps to Android Paint)
+- `OH_Drawing_Bitmap` — pixel buffer (maps to Android Bitmap)
+- `XComponent` — native rendering surface with touch/lifecycle callbacks
+- `OHNativeWindow` — buffer queue for surface rendering
+- OpenGL ES — GPU rendering (shared with Android)
+- **Skia** — both Android and OH use Skia internally
+
+Bridge mapping:
 ```
-Key Question: How does DEX bytecode run on ArkCompiler?
-
-Options:
-A) ART-on-OH: Port ART runtime to run on OpenHarmony (heavy)
-B) DEX→ABC transpiler: Convert DEX bytecode to Ark bytecode (.abc)
-C) Java→ArkTS source transpiler: Convert Java/Kotlin source to ArkTS
-D) Hybrid: Native shim + recompiled UI layer
+android.graphics.Canvas.drawRect()  →  OH_Drawing_CanvasDrawRect()
+android.graphics.Canvas.drawText()  →  OH_Drawing_CanvasDrawText()
+android.graphics.Canvas.drawPath()  →  OH_Drawing_CanvasDrawPath()
+android.graphics.Canvas.drawBitmap()→  OH_Drawing_CanvasDrawBitmap()
+android.graphics.Canvas.save()      →  OH_Drawing_CanvasSave()
+android.graphics.Canvas.restore()   →  OH_Drawing_CanvasRestore()
+android.graphics.Canvas.translate() →  OH_Drawing_CanvasTranslate()
+android.graphics.Canvas.clipRect()  →  OH_Drawing_CanvasClipRect()
+android.graphics.Paint (color,style)→  OH_Drawing_Pen + OH_Drawing_Brush
+android.graphics.Bitmap             →  OH_Drawing_Bitmap
+android.view.Surface                →  OHNativeWindow
 ```
 
-Analysis for each option:
-- Technical feasibility
-- Performance implications
-- Maintenance burden
-- Android version compatibility
+Once this bridge works, the **entire Android View system runs unchanged**:
+- View.measure() / layout() — pure Java, runs in Dalvik
+- View.draw(canvas) — canvas routes to OH_Drawing
+- ViewGroup.dispatchDraw() — recursively draws children
+- Touch events — XComponent.DispatchTouchEvent → Android MotionEvent
 
-### 3.2 — API Shim Layers: `24-shim-layer-design.md`
+**This eliminates the "UI paradigm shift" problem entirely.**
 
-For each mappable domain, design the shim:
+### Phase 3: Improve API Mapping DB (ACCURACY)
 
-```
-Layer 1: android.jar stub (compile-time)
-  - Provide android.* class stubs so APK compiles
-  - Forward calls to Layer 2
+**Goal:** Fix the 11.8% of Tier 4 where OH has capability but DB mapping is wrong
 
-Layer 2: Runtime bridge (Java/ArkTS interop)
-  - Android API → OH API translation
-  - State management (Activity lifecycle → UIAbility lifecycle)
-  - Event model translation
+Already planned and approved:
+1. Fix OH JS/TS parser (`import_oh_js.py`) — fill 267 empty modules
+2. Fix OH NDK parser (`import_oh_ndk.py`) — callback typedefs, struct members
+3. Schema enhancements — tier classification, multi-candidate, capability assessment
+4. Rewrite auto-mapper — multi-signal scoring, 200+ known mappings, real confidence
+5. Generate migration guidance — gap descriptions, migration guides
 
-Layer 3: Native bridge
-  - Android NDK → OH NDK function mapping
-  - JNI → NAPI bridge
-  - Shared library loading shim (dlopen mapping)
-```
+Expected impact: OH API count 29,290 → 55,000+, coverage 10% → 40-50%
 
-### 3.3 — FFI Bridge Design: `25-ffi-bridge-design.md`
+### Phase 4: Platform Service Bridges (FUNCTIONALITY)
 
-```
-Android JNI                    OpenHarmony NAPI
-┌──────────────┐              ┌──────────────┐
-│ JNIEnv*      │    bridge    │ napi_env     │
-│ FindClass    │ ──────────── │ napi_get_*   │
-│ GetMethodID  │              │ napi_call_*  │
-│ CallVoidMethod│             │ napi_create_*│
-│ NewStringUTF │              │              │
-└──────────────┘              └──────────────┘
+Build bridges for each system service, prioritized by real app usage:
 
-Key challenges:
-- JNI uses Java class/method reflection → NAPI uses module exports
-- JNI has direct memory access → NAPI is value-based
-- Thread model differences (JNI AttachCurrentThread vs NAPI thread-safe functions)
-```
+**P0 (needed for basic app launch):**
+- Activity lifecycle → OH UIAbility lifecycle
+- Intent/Want navigation
+- SharedPreferences → @ohos.data.preferences
+- Context → OH application context
+- Window/Display → OH window manager
+
+**P1 (needed for media/content apps):**
+- MediaPlayer → @ohos.multimedia.media AVPlayer
+- AudioTrack/AudioRecord → OH audio renderer/capturer
+- Camera2 → @ohos.multimedia.camera
+- ConnectivityManager → @ohos.net.connection
+- SQLiteDatabase → @ohos.data.relationalStore (or just use SQLite directly)
+- WebView → @ohos.web.webview (ArkWeb)
+- LocationManager → @ohos.geoLocationManager
+
+**P2 (needed for device features):**
+- BluetoothAdapter → @ohos.bluetooth.*
+- SensorManager → @ohos.sensor
+- TelephonyManager → @ohos.telephony.*
+- NotificationManager → @ohos.notificationManager
+- Vibrator → @ohos.vibrator
+
+**P3 (specialized):**
+- NFC → @ohos.nfc.*
+- BiometricPrompt → @ohos.userIAM.userAuth
+- AccountManager → @ohos.account.osAccount
+- MediaDrm/Widevine → **NO OH EQUIVALENT** (park)
+
+### Phase 5: App Category Migration Roadmap
+
+Based on APK analysis, attack apps in this order:
+
+| Priority | Category | Key Bridges Needed | Example Apps |
+|----------|----------|-------------------|-------------|
+| P0 | Payment/Finance | Network + Security + NFC | PayPal |
+| P1 | Social/Messaging | Camera + Media + Notifications | Facebook, Instagram |
+| P2 | E-commerce | WebView + Network | Amazon |
+| P3 | Navigation | Location + Sensors + Graphics | Maps, Uber, Grab |
+| P4 | Education | Audio + Notifications | Duolingo |
+| P5 | Music Streaming | Audio + Bluetooth + Media | Spotify |
+| LAST | Video+DRM | MediaDrm (BLOCKER) | Netflix, YouTube |
+
+### Phase 6: Rebuild Pipeline & Validation
+
+- `database/rebuild_db.sh` — full pipeline orchestration
+- `database/validate_db.py` — automated quality checks
+- `database/analyze_apk.py` — real APK analysis tool (built, working)
+- Before/after comparison reports
 
 ---
 
-## Phase 4: UI Translation Strategy
+## Key Architectural Decisions
 
-**Purpose:** Solve the hardest problem — Android's imperative View system vs ArkUI's declarative model.
+### Decision 1: Android-as-Engine, NOT API Shimming
 
-### 4.1 — `26-ui-translation-strategy.md`
+**Rejected:** Map 57,000 Android APIs to OH APIs individually
+**Adopted:** Port Android framework as a self-contained runtime engine
 
-```
-CRITICAL FINDING: Direct View→ArkUI shimming is NOT feasible.
+Rationale:
+- Flutter proves OH can host foreign rendering engines
+- 70% of Tier 4 "gaps" are handled automatically by the runtime
+- UI paradigm shift (11.7% of gaps) is eliminated entirely
+- Only ~12% of gaps need real Platform Bridge work
+- App developers change ZERO lines of code
 
-Android: Imperative (new Button(), addView(), setOnClickListener())
-ArkUI:   Declarative (struct + build() + @State)
+### Decision 2: Skia Bridge, NOT Canvas-to-ArkUI Translation
 
-Viable approaches:
-A) Source-level transpiler: Convert Android XML layouts + Java view code → ArkUI components
-B) Canvas-based renderer: Render Android Views onto an ArkUI Canvas/XComponent
-C) WebView bridge: Run Android UI in a WebView-based container
-D) Custom render engine: Port Android's View rendering to OH's graphics layer
-```
+**Rejected:** Translate Android View tree to ArkUI components at runtime
+**Adopted:** Android Views render through Skia → OH_Drawing/OpenGL → XComponent
 
-### 4.2 — `27-view-component-mapping.md`
+Rationale:
+- Both Android and OH use Skia internally
+- OH_Drawing_Canvas maps near-1:1 to Android Canvas (rect, text, path, bitmap, transforms, clip)
+- Paradigm mismatch (imperative vs declarative) is irrelevant — Android Views render to pixels, not ArkUI nodes
+- Performance: direct GPU path via shared OpenGL ES, CPU fallback via OH_Drawing
 
-Map each Android widget to its ArkUI equivalent:
+### Decision 3: Bridge at System Boundary, NOT at API Level
 
-| Android Widget | ArkUI Component | Mapping Quality | Notes |
-|---------------|----------------|:---------------:|-------|
-| TextView | Text | 0.9 | Rich text differences |
-| EditText | TextInput/TextArea | 0.8 | IME handling differs |
-| Button | Button | 0.9 | Style mapping needed |
-| ImageView | Image | 0.9 | Drawable→Resource |
-| RecyclerView | List/LazyForEach | 0.7 | Adapter→LazyForEach |
-| LinearLayout | Row/Column | 0.9 | Direct mapping |
-| RelativeLayout | RelativeContainer | 0.8 | Anchor rules differ |
-| FrameLayout | Stack | 0.9 | Direct mapping |
-| ScrollView | Scroll | 0.9 | Direct mapping |
-| WebView | Web | 0.8 | Different JS bridge |
-| ViewPager | Swiper/Tabs | 0.8 | Adapter pattern differs |
-| ConstraintLayout | RelativeContainer | 0.6 | Constraint system differs |
-| DrawerLayout | SideBarContainer | 0.7 | Gesture handling differs |
-| ToolBar/ActionBar | Navigation/Toolbar | 0.7 | Different API surface |
-| AlertDialog | AlertDialog/CustomDialog | 0.8 | Builder pattern → struct |
-| Toast | promptAction.showToast | 0.9 | Direct mapping |
-| ProgressBar | Progress | 0.9 | Direct mapping |
-| SeekBar | Slider | 0.9 | Direct mapping |
-| Switch | Toggle | 0.9 | Direct mapping |
-| CheckBox | Checkbox | 0.9 | Direct mapping |
-| RadioButton | Radio | 0.9 | Direct mapping |
-| Spinner | Select | 0.8 | Adapter → options array |
-| ListView | List | 0.7 | Adapter pattern → ForEach |
+**Rejected:** Shim every android.* class individually (57,000 bridges)
+**Adopted:** Bridge only at ~15 system service boundaries (HAL-equivalent)
+
+Rationale:
+- The Android framework is self-consistent internally — Activity calls View which calls Canvas which calls Paint
+- Only the bottom layer (where it touches hardware/OS services) needs bridging
+- Same approach as Anbox/Waydroid: run Android framework, bridge at HAL/binder level
+- Reduces bridge surface from 57,000 APIs to ~500 HAL/service interfaces
 
 ---
 
-## Phase 5: Resource & Manifest Translation
+## Role of the API Mapping DB Going Forward
 
-### 5.1 — `28-resource-translation.md`
+The `api_compat.db` serves a different purpose in the Android-as-Engine architecture:
 
-| Android Resource | OH Equivalent | Translation |
-|-----------------|---------------|-------------|
-| `res/layout/*.xml` | ArkUI `build()` method | XML→declarative transpilation |
-| `res/values/strings.xml` | `resources/base/element/string.json` | Key-value format conversion |
-| `res/drawable/*` | `resources/base/media/*` | File copy + reference update |
-| `res/mipmap/*` | `resources/base/media/*` | Icon mapping |
-| `res/values/colors.xml` | `resources/base/element/color.json` | Format conversion |
-| `res/values/dimens.xml` | `resources/base/element/float.json` | Unit conversion (dp→vp) |
-| `res/values/styles.xml` | `@Styles` decorator / Theme | Manual mapping |
-| `res/anim/*.xml` | ArkUI animation APIs | Must rewrite |
-| `res/menu/*.xml` | No direct equivalent | Must rewrite |
-| `AndroidManifest.xml` | `module.json5` | Structural translation |
+1. **Platform Bridge prioritization** — which OH system APIs map to Android HAL/service interfaces
+2. **Capability gap identification** — where OH genuinely lacks a feature (DRM)
+3. **App migration readiness scoring** — given the current bridge state, which apps can run
+4. **APK analysis** — `analyze_apk.py` tells us which bridges a specific APK needs
+5. **Developer documentation** — for apps that DO want to go native ArkUI, the mapping guide helps
 
-### 5.2 — `29-manifest-translation.md`
-
-```
-AndroidManifest.xml          →    module.json5
-─────────────────                 ────────────
-<application>                     "module": {
-  <activity>                        "abilities": [{
-    intent-filter                     "skills": [{
-      action MAIN                       "actions": ["action.system.home"]
-      category LAUNCHER                 "entities": ["entity.system.home"]
-  <service>                         }]
-  <receiver>                      "extensionAbilities": [{
-  <provider>                        "type": "dataShare"
-<uses-permission>                 "requestPermissions": [{
-<uses-feature>                    "deviceTypes": [...]
-```
+The DB is NOT used for runtime API translation anymore — the engine handles that internally.
 
 ---
 
-## Phase 6: Feasibility Scoring & Recommendation
+## Files & Tools
 
-### 6.1 — `30-feasibility-matrix.md`
-
-Per-domain feasibility score:
-
-| Domain | API Count | Mappable | Gaps | Shim Feasibility | Effort |
-|--------|----------:|:--------:|:----:|:----------------:|--------|
-| App Lifecycle | 1,116 methods | 60% | 40% | MEDIUM | High |
-| UI/Widgets | 4,063 methods | 10% | 90% | **NOT FEASIBLE** (must rewrite) | Very High |
-| Content/Data | 1,373 methods | 50% | 50% | MEDIUM | High |
-| OS/IPC | 803 methods | 40% | 60% | HARD | Very High |
-| Networking | 853 methods | 70% | 30% | HIGH | Medium |
-| Media | 1,713 methods | 60% | 40% | MEDIUM | High |
-| Telephony | 1,025 methods | 50% | 50% | MEDIUM | High |
-| Security | 348+ methods | 40% | 60% | HARD | High |
-| Graphics NDK | 2,744 methods | 80% | 20% | HIGH (OpenGL shared) | Medium |
-| Storage/DB | ~200 methods | 70% | 30% | HIGH | Medium |
-
-### 6.2 — `31-recommended-approach.md`
-
-Final recommendation with:
-- Recommended architecture (likely Option D: Hybrid)
-- Phase 1 scope (which APIs to shim first)
-- Estimated LOC for shim layer
-- Risk assessment
-- Comparison with existing solutions (e.g., HarmonyOS's Android compatibility layer)
-
----
-
-## Execution Plan
-
-### Analysis Reports to Generate (31 total):
-
-```
-Phase 1: Domain Mapping (20 reports)           → 20 parallel agents
-Phase 2: Gap Analysis (2 reports)               → 2 parallel agents
-Phase 3: Shim Architecture (3 reports)          → 3 parallel agents
-Phase 4: UI Translation (2 reports)             → 2 parallel agents
-Phase 5: Resource/Manifest (2 reports)          → 2 parallel agents
-Phase 6: Feasibility & Recommendation (2 reports) → 2 parallel agents (after all above)
-```
-
-### Input Data:
-- Android 11 API enumeration: `~/aosp-android-11/CODE_REVIEW_REPORTS/` (524KB + 4.1MB API enum)
-- OpenHarmony API enumeration: `~/openharmony-review/` (2.9MB reviews + API enum)
-- Android 11 source: `~/aosp-android-11/` (178GB)
-- OpenHarmony source: `~/openharmony/`
-
-### Output:
-All reports written to: `~/android-to-openharmony-migration/`
+| What | Path | Status |
+|------|------|--------|
+| Analysis plan (this file) | `00-ANALYSIS-PLAN.md` | Updated 2026-03-13 |
+| API compatibility database | `database/api_compat.db` | 57,289 Android + 29,290 OH APIs |
+| DB schema | `database/schema.sql` | Extended with tiers, candidates, capabilities |
+| OH JS parser | `database/import_oh_js.py` | Rewritten (brace-counting, declare/export default) |
+| OH NDK parser | `database/import_oh_ndk.py` | Enhanced (callbacks, struct members) |
+| Auto-mapper | `database/auto_mapper.py` | Rewritten (multi-signal, 200+ known mappings) |
+| APK analyzer | `database/analyze_apk.py` | Working — tested on 13 real APKs |
+| APK analysis results | `database/apk_analysis_results.json` | 13-app comparison data |
+| Dalvik VM port | `dalvik-port/` | Building for x86_64, OHOS aarch64, ARM32 |
+| Android shim stubs | `shim/java/android/` | 1,968 stub classes |
+| Platform bridge (C) | `shim/bridge/cpp/cpp_shim.h` | Initial OH API wrappers |
+| Skills/guides | `skills/` | Migration guides per subsystem |
+| Frontend | `frontend/` | Web dashboard for API mapping visualization |
+| Backend | `backend/` | FastAPI server for DB queries |
