@@ -6,10 +6,10 @@ import java.lang.Comparable;
  */
 public final class Rational extends Number implements Comparable<Rational> {
     public Rational(Object... args) {}
-    public static final Rational ZERO = new Rational(0);
-    public static final Rational NaN = new Rational(0);
-    public static final Rational POSITIVE_INFINITY = new Rational(1);
-    public static final Rational NEGATIVE_INFINITY = new Rational(-1);
+    public static final Rational ZERO = new Rational(0, 1);
+    public static final Rational NaN = new Rational(0, 0);
+    public static final Rational POSITIVE_INFINITY = new Rational(1, 0);
+    public static final Rational NEGATIVE_INFINITY = new Rational(-1, 0);
 
     private int mNumerator;
     private int mDenominator;
@@ -112,6 +112,18 @@ public final class Rational extends Number implements Comparable<Rational> {
     }
 
     public static Rational parseRational(String string) {
-        return NaN;
+        if (string == null) throw new NumberFormatException("null string");
+        int sep = string.indexOf('/');
+        if (sep < 0) {
+            sep = string.indexOf(':');
+        }
+        if (sep < 0) throw new NumberFormatException("Invalid rational: " + string);
+        try {
+            int num = Integer.parseInt(string.substring(0, sep).trim());
+            int den = Integer.parseInt(string.substring(sep + 1).trim());
+            return new Rational(num, den);
+        } catch (NumberFormatException e) {
+            throw new NumberFormatException("Invalid rational: " + string);
+        }
     }
 }

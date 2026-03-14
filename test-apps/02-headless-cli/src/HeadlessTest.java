@@ -97,6 +97,14 @@ public class HeadlessTest {
         testMatrix();
         testDatabaseUtils();
         testRectFExtended();
+        testProperty();
+        testRational();
+        testRange();
+        testDisplayMetrics();
+        testCancellationSignal();
+        testTrace();
+        testStrictMode();
+        testSystemProperties();
 
         System.out.println("\n═══ Results ═══");
         System.out.println("Passed: " + passed);
@@ -3059,5 +3067,238 @@ public class HeadlessTest {
 
         check("intersects true", a.intersects(5f, 5f, 15f, 15f));
         check("intersects false", !a.intersects(20f, 20f, 30f, 30f));
+    }
+
+    // ── Property tests ──────────────────────────────────────────────────
+
+    static void testProperty() {
+        section("android.util.Property");
+
+        // Create a concrete property
+        android.util.Property<String, Integer> lenProp = new android.util.Property<String, Integer>(Integer.class, "length") {
+            @Override
+            public Integer get(String object) {
+                return object.length();
+            }
+        };
+
+        check("getName", "length".equals(lenProp.getName()));
+        check("getType", Integer.class.equals(lenProp.getType()));
+        check("get", lenProp.get("hello") == 5);
+        check("isReadOnly", lenProp.isReadOnly());
+
+        // set should throw for read-only
+        boolean threw = false;
+        try { lenProp.set("test", 0); } catch (UnsupportedOperationException e) { threw = true; }
+        check("set read-only throws", threw);
+    }
+
+    // ── Rational tests ──────────────────────────────────────────────────
+
+    static void testRational() {
+        section("android.util.Rational");
+
+        android.util.Rational r = new android.util.Rational(1, 2);
+        check("getNumerator", r.getNumerator() == 1);
+        check("getDenominator", r.getDenominator() == 2);
+        check("floatValue ~0.5", Math.abs(r.floatValue() - 0.5f) < 0.001f);
+        check("doubleValue ~0.5", Math.abs(r.doubleValue() - 0.5) < 0.001);
+        check("isFinite", r.isFinite());
+        check("!isNaN", !r.isNaN());
+        check("!isInfinite", !r.isInfinite());
+        check("!isZero", !r.isZero());
+
+        // Zero
+        android.util.Rational zero = new android.util.Rational(0, 1);
+        check("isZero", zero.isZero());
+
+        // NaN
+        android.util.Rational nan = android.util.Rational.NaN;
+        check("NaN isNaN", nan.isNaN());
+
+        // Infinity
+        android.util.Rational inf = android.util.Rational.POSITIVE_INFINITY;
+        check("inf isInfinite", inf.isInfinite());
+
+        // toString
+        check("toString 1/2", "1/2".equals(r.toString()));
+
+        // equals
+        android.util.Rational r2 = new android.util.Rational(2, 4);
+        check("1/2 equals 2/4", r.equals(r2));
+
+        // parseRational
+        android.util.Rational parsed = android.util.Rational.parseRational("3/4");
+        check("parseRational num", parsed.getNumerator() == 3);
+        check("parseRational den", parsed.getDenominator() == 4);
+
+        // parseRational invalid
+        boolean threw = false;
+        try { android.util.Rational.parseRational("invalid"); } catch (NumberFormatException e) { threw = true; }
+        check("parseRational invalid throws", threw);
+    }
+
+    // ── Range tests ─────────────────────────────────────────────────────
+
+    static void testRange() {
+        section("android.util.Range");
+
+        android.util.Range<Integer> range = new android.util.Range<>(1, 10);
+        check("getLower", range.getLower() == 1);
+        check("getUpper", range.getUpper() == 10);
+        check("contains 5", range.contains(5));
+        check("!contains 0", !range.contains(0));
+        check("!contains 11", !range.contains(11));
+        check("contains boundary 1", range.contains(1));
+        check("contains boundary 10", range.contains(10));
+
+        // contains range
+        android.util.Range<Integer> inner = new android.util.Range<>(3, 7);
+        check("contains inner range", range.contains(inner));
+        check("!inner contains outer", !inner.contains(range));
+
+        // clamp
+        check("clamp 5", range.clamp(5).equals(5));
+        check("clamp -1", range.clamp(-1).equals(1));
+        check("clamp 20", range.clamp(20).equals(10));
+
+        // intersect
+        android.util.Range<Integer> overlap = new android.util.Range<>(5, 15);
+        android.util.Range<Integer> intersection = range.intersect(overlap);
+        check("intersect lower == 5", intersection.getLower() == 5);
+        check("intersect upper == 10", intersection.getUpper() == 10);
+
+        // extend
+        android.util.Range<Integer> extended = range.extend(15);
+        check("extend upper == 15", extended.getUpper() == 15);
+        check("extend lower unchanged", extended.getLower() == 1);
+
+        // toString
+        check("toString", "[1, 10]".equals(range.toString()));
+
+        // equals
+        android.util.Range<Integer> same = new android.util.Range<>(1, 10);
+        check("equals", range.equals(same));
+    }
+
+    // ── DisplayMetrics tests ────────────────────────────────────────────
+
+    static void testDisplayMetrics() {
+        section("android.util.DisplayMetrics");
+
+        android.util.DisplayMetrics dm = new android.util.DisplayMetrics();
+        check("density > 0", dm.density > 0f);
+        check("densityDpi > 0", dm.densityDpi > 0);
+        check("widthPixels > 0", dm.widthPixels > 0);
+        check("heightPixels > 0", dm.heightPixels > 0);
+        check("scaledDensity > 0", dm.scaledDensity > 0f);
+        check("xdpi > 0", dm.xdpi > 0f);
+        check("ydpi > 0", dm.ydpi > 0f);
+
+        // Constants
+        check("DENSITY_LOW == 120", android.util.DisplayMetrics.DENSITY_LOW == 120);
+        check("DENSITY_MEDIUM == 160", android.util.DisplayMetrics.DENSITY_MEDIUM == 160);
+        check("DENSITY_HIGH == 240", android.util.DisplayMetrics.DENSITY_HIGH == 240);
+        check("DENSITY_XHIGH == 320", android.util.DisplayMetrics.DENSITY_XHIGH == 320);
+        check("DENSITY_XXHIGH == 480", android.util.DisplayMetrics.DENSITY_XXHIGH == 480);
+    }
+
+    // ── CancellationSignal tests ────────────────────────────────────────
+
+    static void testCancellationSignal() {
+        section("android.os.CancellationSignal");
+
+        android.os.CancellationSignal cs = new android.os.CancellationSignal();
+        check("not canceled initially", !cs.isCanceled());
+
+        final boolean[] called = {false};
+        cs.setOnCancelListener(() -> called[0] = true);
+        cs.cancel();
+        check("isCanceled after cancel", cs.isCanceled());
+        check("listener called", called[0]);
+
+        // throwIfCanceled
+        boolean threw = false;
+        try { cs.throwIfCanceled(); } catch (RuntimeException e) { threw = true; }
+        check("throwIfCanceled throws", threw);
+
+        // Not canceled doesn't throw
+        android.os.CancellationSignal cs2 = new android.os.CancellationSignal();
+        boolean threw2 = false;
+        try { cs2.throwIfCanceled(); } catch (RuntimeException e) { threw2 = true; }
+        check("throwIfCanceled no throw when not canceled", !threw2);
+    }
+
+    // ── Trace tests ─────────────────────────────────────────────────────
+
+    static void testTrace() {
+        section("android.os.Trace");
+
+        // All no-ops, just verify they don't throw
+        android.os.Trace.beginSection("test");
+        android.os.Trace.endSection();
+        check("beginSection/endSection no throw", true);
+
+        android.os.Trace.beginAsyncSection("async", 1);
+        android.os.Trace.endAsyncSection("async", 1);
+        check("beginAsyncSection/endAsyncSection no throw", true);
+
+        check("isTagEnabled returns boolean", !android.os.Trace.isTagEnabled(0));
+
+        android.os.Trace.setCounter("counter", 42);
+        check("setCounter no throw", true);
+    }
+
+    // ── StrictMode tests ────────────────────────────────────────────────
+
+    static void testStrictMode() {
+        section("android.os.StrictMode");
+
+        android.os.StrictMode.ThreadPolicy tp = new android.os.StrictMode.ThreadPolicy.Builder()
+            .detectAll()
+            .penaltyLog()
+            .build();
+        check("ThreadPolicy non-null", tp != null);
+
+        android.os.StrictMode.VmPolicy vp = new android.os.StrictMode.VmPolicy.Builder()
+            .detectLeakedSqlLiteObjects()
+            .detectLeakedClosableObjects()
+            .build();
+        check("VmPolicy non-null", vp != null);
+
+        // set policies don't throw
+        android.os.StrictMode.setThreadPolicy(tp);
+        android.os.StrictMode.setVmPolicy(vp);
+        check("setThreadPolicy no throw", true);
+        check("setVmPolicy no throw", true);
+
+        check("getThreadPolicy non-null", android.os.StrictMode.getThreadPolicy() != null);
+        check("getVmPolicy non-null", android.os.StrictMode.getVmPolicy() != null);
+    }
+
+    // ── SystemProperties tests ──────────────────────────────────────────
+
+    static void testSystemProperties() {
+        section("android.os.SystemProperties");
+
+        // get with default
+        String val = android.os.SystemProperties.get("test.prop", "default");
+        check("get returns default", "default".equals(val));
+
+        String val2 = android.os.SystemProperties.get("test.prop");
+        check("get returns empty string", "".equals(val2));
+
+        int intVal = android.os.SystemProperties.getInt("test.int", 42);
+        check("getInt returns default", intVal == 42);
+
+        long longVal = android.os.SystemProperties.getLong("test.long", 100L);
+        check("getLong returns default", longVal == 100L);
+
+        boolean boolVal = android.os.SystemProperties.getBoolean("test.bool", true);
+        check("getBoolean returns default", boolVal);
+
+        // set doesn't throw
+        android.os.SystemProperties.set("test.prop", "value");
+        check("set no throw", true);
     }
 }

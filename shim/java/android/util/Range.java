@@ -54,10 +54,10 @@ public final class Range<T extends Comparable<? super T>> {
         return extend(new Range<>(value, value));
     }
 
-    public Range<T> clamp(T value) {
-        if (value.compareTo(mLower) < 0) return new Range<>(mLower, mLower);
-        if (value.compareTo(mUpper) > 0) return new Range<>(mUpper, mUpper);
-        return new Range<>(value, value);
+    public T clamp(T value) {
+        if (value.compareTo(mLower) < 0) return mLower;
+        if (value.compareTo(mUpper) > 0) return mUpper;
+        return value;
     }
 
     @Override
