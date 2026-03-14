@@ -19,8 +19,11 @@ public class Activity extends Context {
     int mResultCode = RESULT_CANCELED;
     Intent mResultData;
     String mTitle;
+    android.view.Window mWindow;
 
-    public Activity() {}
+    public Activity() {
+        mWindow = new android.view.Window(this);
+    }
 
     public static final int DEFAULT_KEYS_DIALER = 1;
     public static final int DEFAULT_KEYS_DISABLE = 0;
@@ -130,7 +133,13 @@ public class Activity extends Context {
     public boolean dispatchTrackballEvent(Object p0) { return false; }
     public void dump(Object p0, Object p1, Object p2, Object p3) {}
     public boolean enterPictureInPictureMode(Object p0) { return false; }
-    public Object findViewById(Object p0) { return null; }
+    public android.view.View findViewById(int id) {
+        return mWindow != null ? (android.view.View) mWindow.findViewById(id) : null;
+    }
+    public Object findViewById(Object p0) {
+        if (p0 instanceof Integer) return findViewById(((Integer) p0).intValue());
+        return null;
+    }
     public void finishActivity(Object p0) {}
     public void finishAffinity() {}
     public void finishAfterTransition() {}
@@ -148,8 +157,8 @@ public class Activity extends Context {
     public int getTitleColor() { return 0; }
     public Object getVoiceInteractor() { return null; }
     public int getVolumeControlStream() { return 0; }
-    public Object getWindow() { return null; }
-    public Object getWindowManager() { return null; }
+    public android.view.Window getWindow() { return mWindow; }
+    public Object getWindowManager() { return null; } // TODO: MiniWindowManager
     public boolean hasWindowFocus() { return false; }
     public void invalidateOptionsMenu() {}
     public boolean isActivityTransitionRunning() { return false; }
@@ -232,11 +241,29 @@ public class Activity extends Context {
     public void requestPermissions(Object p0, Object p1) {}
     public void requestShowKeyboardShortcuts() {}
     public boolean requestWindowFeature(Object p0) { return false; }
-    public void runOnUiThread(Object p0) {}
+    public void runOnUiThread(Runnable action) {
+        action.run(); // Synchronous in shim — no separate UI thread
+    }
+    public void runOnUiThread(Object p0) {
+        if (p0 instanceof Runnable) runOnUiThread((Runnable) p0);
+    }
     public void setActionBar(Object p0) {}
     public void setContentTransitionManager(Object p0) {}
-    public void setContentView(Object p0) {}
-    public void setContentView(Object p0, Object p1) {}
+    public void setContentView(android.view.View view) {
+        if (mWindow != null) mWindow.setContentView(view);
+    }
+    public void setContentView(int layoutResID) {
+        if (mWindow != null) mWindow.setContentView(layoutResID);
+    }
+    public void setContentView(Object p0) {
+        if (p0 instanceof android.view.View) setContentView((android.view.View) p0);
+        else if (p0 instanceof Integer) setContentView(((Integer) p0).intValue());
+    }
+    public void setContentView(Object p0, Object p1) {
+        if (p0 instanceof android.view.View) {
+            if (mWindow != null) mWindow.setContentView((android.view.View) p0, p1);
+        }
+    }
     public void setDefaultKeyMode(Object p0) {}
     public void setEnterSharedElementCallback(Object p0) {}
     public void setExitSharedElementCallback(Object p0) {}
