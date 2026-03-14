@@ -101,8 +101,12 @@ public class Context {
     public Context() {}
 
     public boolean bindIsolatedService(Intent p0, int p1, String p2, Executor p3, ServiceConnection p4) { return false; }
-    public boolean bindService(Intent p0, ServiceConnection p1, int p2) { return false; }
-    public boolean bindService(Intent p0, int p1, Executor p2, ServiceConnection p3) { return false; }
+    public boolean bindService(Intent p0, ServiceConnection p1, int p2) {
+        return android.app.MiniServer.get().getServiceManager().bindService(p0, p1);
+    }
+    public boolean bindService(Intent p0, int p1, Executor p2, ServiceConnection p3) {
+        return bindService(p0, p3, p1);
+    }
     public int checkSelfPermission(String p0) { return 0; }
     public Context createConfigurationContext(Configuration p0) { return null; }
     public Context createContextForSplit(String p0) { return null; }
@@ -168,15 +172,28 @@ public class Context {
     public void sendOrderedBroadcast(Intent p0, String p1, BroadcastReceiver p2, Handler p3, int p4, String p5, Bundle p6) {}
     public void sendOrderedBroadcast(Intent p0, String p1, String p2, BroadcastReceiver p3, Handler p4, int p5, String p6, Bundle p7) {}
     public void setTheme(int p0) {}
-    public void startActivities(Intent[] p0) {}
-    public void startActivities(Intent[] p0, Bundle p1) {}
-    public void startActivity(Intent p0) {}
-    public void startActivity(Intent p0, Bundle p1) {}
+    public void startActivities(Intent[] p0) {
+        if (p0 != null) {
+            for (Intent intent : p0) startActivity(intent);
+        }
+    }
+    public void startActivities(Intent[] p0, Bundle p1) { startActivities(p0); }
+    public void startActivity(Intent p0) {
+        android.app.MiniServer.get().startActivity(p0);
+    }
+    public void startActivity(Intent p0, Bundle p1) { startActivity(p0); }
     public boolean startInstrumentation(ComponentName p0, String p1, Bundle p2) { return false; }
     public void startIntentSender(IntentSender p0, Intent p1, int p2, int p3, int p4) {}
     public void startIntentSender(IntentSender p0, Intent p1, int p2, int p3, int p4, Bundle p5) {}
-    public boolean stopService(Intent p0) { return false; }
-    public void unbindService(ServiceConnection p0) {}
+    public ComponentName startService(Intent p0) {
+        return android.app.MiniServer.get().getServiceManager().startService(p0);
+    }
+    public boolean stopService(Intent p0) {
+        return android.app.MiniServer.get().getServiceManager().stopService(p0);
+    }
+    public void unbindService(ServiceConnection p0) {
+        android.app.MiniServer.get().getServiceManager().unbindService(p0);
+    }
     public void unregisterComponentCallbacks(ComponentCallbacks p0) {}
     public void unregisterReceiver(BroadcastReceiver p0) {}
     public void updateServiceGroup(ServiceConnection p0, int p1, int p2) {}

@@ -37,9 +37,19 @@ public class MiniActivityManager {
     public void startActivity(Activity caller, Intent intent, int requestCode) {
         ComponentName component = intent.getComponent();
         if (component == null) {
-            Log.w(TAG, "startActivity: no component in intent, action=" + intent.getAction());
-            // TODO: implicit intent resolution via MiniPackageManager
-            return;
+            // Implicit intent resolution via MiniPackageManager
+            android.content.pm.MiniPackageManager pm = mServer.getPackageManager();
+            if (pm != null) {
+                android.content.pm.ResolveInfo ri = pm.resolveActivity(intent);
+                if (ri != null && ri.resolvedComponentName != null) {
+                    component = ri.resolvedComponentName;
+                    intent.setComponent(component);
+                }
+            }
+            if (component == null) {
+                Log.w(TAG, "startActivity: cannot resolve intent, action=" + intent.getAction());
+                return;
+            }
         }
 
         String className = component.getClassName();

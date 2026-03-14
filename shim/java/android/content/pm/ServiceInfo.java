@@ -18,6 +18,8 @@ public class ServiceInfo {
     public static final int FOREGROUND_SERVICE_TYPE_MICROPHONE = 0;
     public static final int FOREGROUND_SERVICE_TYPE_NONE = 0;
     public static final int FOREGROUND_SERVICE_TYPE_PHONE_CALL = 0;
+    public String name;
+    public String packageName;
     public int flags = 0;
     public int permission = 0;
     public int describeContents() { return 0; }

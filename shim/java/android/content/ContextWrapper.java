@@ -18,7 +18,7 @@ public class ContextWrapper extends Context {
     public ContextWrapper(Context p0) {}
 
     public void attachBaseContext(Context p0) {}
-    public boolean bindService(Intent p0, ServiceConnection p1, int p2) { return false; }
+    public boolean bindService(Intent p0, ServiceConnection p1, int p2) { return super.bindService(p0, p1, p2); }
     public int checkCallingOrSelfPermission(String p0) { return 0; }
     public int checkCallingOrSelfUriPermission(Uri p0, int p1) { return 0; }
     public int checkCallingPermission(String p0) { return 0; }
@@ -72,7 +72,7 @@ public class ContextWrapper extends Context {
     public String getPackageResourcePath() { return null; }
     public Resources getResources() { return null; }
     public SharedPreferences getSharedPreferences(String p0, int p1) { return null; }
-    public Object getSystemService(String p0) { return null; }
+    public Object getSystemService(String p0) { return super.getSystemService(p0); }
     public String getSystemServiceName(Object p0) { return null; }
     public Object getTheme() { return null; }
     public void grantUriPermission(String p0, Uri p1, int p2) {}
@@ -100,14 +100,14 @@ public class ContextWrapper extends Context {
     public void setTheme(int p0) {}
     public void startActivities(Intent[] p0) {}
     public void startActivities(Intent[] p0, Bundle p1) {}
-    public void startActivity(Intent p0) {}
-    public void startActivity(Intent p0, Bundle p1) {}
+    public void startActivity(Intent p0) { super.startActivity(p0); }
+    public void startActivity(Intent p0, Bundle p1) { super.startActivity(p0, p1); }
     public ComponentName startForegroundService(Intent p0) { return null; }
     public boolean startInstrumentation(ComponentName p0, String p1, Bundle p2) { return false; }
     public void startIntentSender(IntentSender p0, Intent p1, int p2, int p3, int p4) {}
     public void startIntentSender(IntentSender p0, Intent p1, int p2, int p3, int p4, Bundle p5) {}
-    public ComponentName startService(Intent p0) { return null; }
-    public boolean stopService(Intent p0) { return false; }
-    public void unbindService(ServiceConnection p0) {}
+    public ComponentName startService(Intent p0) { return super.startService(p0); }
+    public boolean stopService(Intent p0) { return super.stopService(p0); }
+    public void unbindService(ServiceConnection p0) { super.unbindService(p0); }
     public void unregisterReceiver(BroadcastReceiver p0) {}
 }
