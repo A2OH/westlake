@@ -105,6 +105,14 @@ public class HeadlessTest {
         testTrace();
         testStrictMode();
         testSystemProperties();
+        testInsets();
+        testRegion();
+        testClipData();
+        testSelection();
+        testInputType();
+        testColorSpace();
+        testPath();
+        testBitmap();
 
         System.out.println("\n═══ Results ═══");
         System.out.println("Passed: " + passed);
@@ -3300,5 +3308,244 @@ public class HeadlessTest {
         // set doesn't throw
         android.os.SystemProperties.set("test.prop", "value");
         check("set no throw", true);
+    }
+
+    // ── Insets tests ────────────────────────────────────────────────────
+
+    static void testInsets() {
+        section("android.graphics.Insets");
+
+        android.graphics.Insets none = android.graphics.Insets.NONE;
+        check("NONE left == 0", none.left == 0);
+        check("NONE top == 0", none.top == 0);
+
+        android.graphics.Insets i = android.graphics.Insets.of(10, 20, 30, 40);
+        check("of left == 10", i.left == 10);
+        check("of top == 20", i.top == 20);
+        check("of right == 30", i.right == 30);
+        check("of bottom == 40", i.bottom == 40);
+
+        // of(0,0,0,0) returns NONE
+        android.graphics.Insets zero = android.graphics.Insets.of(0, 0, 0, 0);
+        check("of(0,0,0,0) == NONE", zero == android.graphics.Insets.NONE);
+
+        // add
+        android.graphics.Insets a = android.graphics.Insets.of(1, 2, 3, 4);
+        android.graphics.Insets b = android.graphics.Insets.of(10, 20, 30, 40);
+        android.graphics.Insets sum = android.graphics.Insets.add(a, b);
+        check("add left", sum.left == 11);
+        check("add bottom", sum.bottom == 44);
+
+        // subtract
+        android.graphics.Insets diff = android.graphics.Insets.subtract(b, a);
+        check("subtract left", diff.left == 9);
+
+        // max
+        android.graphics.Insets mx = android.graphics.Insets.max(a, b);
+        check("max left", mx.left == 10);
+
+        // min
+        android.graphics.Insets mn = android.graphics.Insets.min(a, b);
+        check("min left", mn.left == 1);
+
+        // equals
+        android.graphics.Insets i2 = android.graphics.Insets.of(10, 20, 30, 40);
+        check("equals", i.equals(i2));
+
+        check("toString non-null", i.toString() != null);
+    }
+
+    // ── Region tests ────────────────────────────────────────────────────
+
+    static void testRegion() {
+        section("android.graphics.Region");
+
+        android.graphics.Region r = new android.graphics.Region();
+        check("initially empty", r.isEmpty());
+
+        r.set(10, 20, 100, 200);
+        check("not empty after set", !r.isEmpty());
+        check("isRect", r.isRect());
+        check("!isComplex", !r.isComplex());
+
+        check("contains(50,50)", r.contains(50, 50));
+        check("!contains(0,0)", !r.contains(0, 0));
+
+        // getBounds
+        android.graphics.Rect bounds = r.getBounds();
+        check("getBounds left", bounds.left == 10);
+        check("getBounds bottom", bounds.bottom == 200);
+
+        // translate
+        r.translate(5, 5);
+        check("translate contains(55,55)", r.contains(55, 55));
+
+        // quickContains
+        check("quickContains inner", r.quickContains(20, 30, 50, 50));
+
+        // quickReject
+        check("quickReject outside", r.quickReject(200, 200, 300, 300));
+
+        // setEmpty
+        r.setEmpty();
+        check("empty after setEmpty", r.isEmpty());
+
+        // union
+        android.graphics.Region r2 = new android.graphics.Region();
+        r2.union(new android.graphics.Rect(0, 0, 10, 10));
+        check("union not empty", !r2.isEmpty());
+
+        // copy constructor
+        android.graphics.Region r3 = new android.graphics.Region(new android.graphics.Rect(5, 5, 15, 15));
+        check("rect constructor not empty", !r3.isEmpty());
+    }
+
+    // ── ClipData tests ──────────────────────────────────────────────────
+
+    static void testClipData() {
+        section("android.content.ClipData");
+
+        // newPlainText
+        android.content.ClipData clip = android.content.ClipData.newPlainText("label", "hello");
+        check("newPlainText non-null", clip != null);
+        check("getItemCount == 1", clip.getItemCount() == 1);
+        check("getItemAt(0) text", "hello".equals(clip.getItemAt(0).getText()));
+        check("getDescription non-null", clip.getDescription() != null);
+        check("description label", "label".equals(clip.getDescription().getLabel()));
+        check("description mimeType", "text/plain".equals(clip.getDescription().getMimeType(0)));
+
+        // addItem
+        clip.addItem(new android.content.ClipData.Item("world"));
+        check("getItemCount after add == 2", clip.getItemCount() == 2);
+        check("getItemAt(1) text", "world".equals(clip.getItemAt(1).getText()));
+
+        // newHtmlText
+        android.content.ClipData html = android.content.ClipData.newHtmlText("lbl", "text", "<b>text</b>");
+        check("htmlText", "<b>text</b>".equals(html.getItemAt(0).getHtmlText()));
+
+        // newIntent
+        android.content.Intent intent = new android.content.Intent("ACTION_TEST");
+        android.content.ClipData intentClip = android.content.ClipData.newIntent("lbl", intent);
+        check("intent clip non-null", intentClip.getItemAt(0).getIntent() != null);
+
+        // newRawUri
+        android.content.ClipData uriClip = android.content.ClipData.newRawUri("lbl",
+            android.net.Uri.parse("content://test"));
+        check("uri clip non-null", uriClip.getItemAt(0).getUri() != null);
+
+        // copy constructor
+        android.content.ClipData copy = new android.content.ClipData(clip);
+        check("copy count", copy.getItemCount() == clip.getItemCount());
+
+        // Item.coerceToText
+        check("coerceToText", "hello".equals(clip.getItemAt(0).coerceToText(null)));
+    }
+
+    // ── Selection tests ─────────────────────────────────────────────────
+
+    static void testSelection() {
+        section("android.text.Selection");
+
+        android.text.SpannableString ss = new android.text.SpannableString("Hello World");
+        android.text.Selection.setSelection(ss, 3, 7);
+        check("getSelectionStart", android.text.Selection.getSelectionStart(ss) == 3);
+        check("getSelectionEnd", android.text.Selection.getSelectionEnd(ss) == 7);
+
+        android.text.Selection.setSelection(ss, 5);
+        check("setSelection cursor", android.text.Selection.getSelectionStart(ss) == 5);
+        check("setSelection cursor end", android.text.Selection.getSelectionEnd(ss) == 5);
+
+        android.text.Selection.selectAll(ss);
+        check("selectAll start", android.text.Selection.getSelectionStart(ss) == 0);
+        check("selectAll end", android.text.Selection.getSelectionEnd(ss) == 11);
+
+        android.text.Selection.removeSelection(ss);
+        check("removeSelection start", android.text.Selection.getSelectionStart(ss) == -1);
+    }
+
+    // ── InputType tests ─────────────────────────────────────────────────
+
+    static void testInputType() {
+        section("android.text.InputType");
+
+        check("TYPE_CLASS_TEXT == 1", android.text.InputType.TYPE_CLASS_TEXT == 1);
+        check("TYPE_CLASS_NUMBER == 2", android.text.InputType.TYPE_CLASS_NUMBER == 2);
+        check("TYPE_CLASS_PHONE == 3", android.text.InputType.TYPE_CLASS_PHONE == 3);
+        check("TYPE_TEXT_FLAG_CAP_CHARACTERS == 4096",
+            android.text.InputType.TYPE_TEXT_FLAG_CAP_CHARACTERS == 4096);
+        check("TYPE_NULL == 0", android.text.InputType.TYPE_NULL == 0);
+    }
+
+    // ── ColorSpace tests ────────────────────────────────────────────────
+
+    static void testColorSpace() {
+        section("android.graphics.ColorSpace");
+
+        android.graphics.ColorSpace srgb = android.graphics.ColorSpace.get(
+            android.graphics.ColorSpace.Named.SRGB);
+        check("sRGB non-null", srgb != null);
+        check("sRGB name non-null", srgb.getName() != null);
+        check("sRGB componentCount > 0", srgb.getComponentCount() > 0);
+        check("sRGB componentCount == 3", srgb.getComponentCount() == 3);
+
+        android.graphics.ColorSpace linear = android.graphics.ColorSpace.get(
+            android.graphics.ColorSpace.Named.LINEAR_SRGB);
+        check("LINEAR_SRGB non-null", linear != null);
+        check("LINEAR_SRGB name non-null", linear.getName() != null);
+    }
+
+    // ── Path tests ──────────────────────────────────────────────────────
+
+    static void testPath() {
+        section("android.graphics.Path");
+
+        android.graphics.Path path = new android.graphics.Path();
+        check("initially empty", path.isEmpty());
+
+        path.moveTo(0f, 0f);
+        path.lineTo(100f, 100f);
+        check("not empty after lineTo", !path.isEmpty());
+
+        path.reset();
+        check("empty after reset", path.isEmpty());
+
+        // addRect
+        path.addRect(new android.graphics.RectF(0f, 0f, 10f, 10f), android.graphics.Path.Direction.CW);
+        check("not empty after addRect", !path.isEmpty());
+
+        // close
+        path.close();
+        check("still not empty after close", !path.isEmpty());
+
+        // copy constructor
+        android.graphics.Path copy = new android.graphics.Path(path);
+        check("copy not empty", !copy.isEmpty());
+
+        check("toString non-null", path.toString() != null);
+    }
+
+    // ── Bitmap tests ────────────────────────────────────────────────────
+
+    static void testBitmap() {
+        section("android.graphics.Bitmap");
+
+        android.graphics.Bitmap bmp = android.graphics.Bitmap.createBitmap(100, 200,
+            android.graphics.Bitmap.Config.ARGB_8888);
+        check("createBitmap non-null", bmp != null);
+        check("getWidth == 100", bmp.getWidth() == 100);
+        check("getHeight == 200", bmp.getHeight() == 200);
+        check("getConfig", bmp.getConfig() == android.graphics.Bitmap.Config.ARGB_8888);
+        check("getByteCount > 0", bmp.getByteCount() > 0);
+        check("!isRecycled", !bmp.isRecycled());
+
+        bmp.recycle();
+        check("isRecycled after recycle", bmp.isRecycled());
+
+        // createBitmap from source
+        android.graphics.Bitmap src = android.graphics.Bitmap.createBitmap(10, 10,
+            android.graphics.Bitmap.Config.RGB_565);
+        android.graphics.Bitmap cp = android.graphics.Bitmap.createBitmap(src);
+        check("createBitmap(src) non-null", cp != null);
+        check("createBitmap(src) width", cp.getWidth() == 10);
     }
 }
