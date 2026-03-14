@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback, useRef } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 
 interface Issue {
   number: number;
@@ -324,8 +324,7 @@ export default function Orchestrator() {
   const [creating, setCreating] = useState(false);
   const [createLog, setCreateLog] = useState<string[]>([]);
 
-  // Detail panel
-  const [selectedIssue, setSelectedIssue] = useState<Issue | null>(null);
+  // Detail panel (reserved for future use)
 
   // Single issue creation
   const [showSingleCreate, setShowSingleCreate] = useState(false);
@@ -403,7 +402,6 @@ export default function Orchestrator() {
     setActionLoading(issue.number);
     setActionMsg(null);
     try {
-      const currentStatus = getStatus(issue);
       const removeLabels = ['todo', 'in-progress', 'done', 'failed'].filter(l => l !== newStatus);
 
       // Remove old status labels
@@ -964,7 +962,7 @@ function BatchCreatePanel({
       <div className="flex items-center justify-between">
         <h2 className="text-lg font-semibold">Add Issues by Tier</h2>
         <div className="flex gap-2">
-          {Object.entries(TIER_CLASSES).map(([key, val]) => (
+          {Object.entries(TIER_CLASSES).map(([key]) => (
             <button key={key} onClick={() => { setCreateTier(key); deselectAll(); }}
               className={`px-3 py-1.5 rounded-lg text-sm ${createTier === key ? 'bg-purple-600 text-white' : 'bg-gray-800 text-gray-400 hover:text-white'}`}>
               {key.toUpperCase()}
