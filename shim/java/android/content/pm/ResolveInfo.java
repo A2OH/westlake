@@ -1,10 +1,12 @@
 package android.content.pm;
+import android.content.ComponentName;
 import android.graphics.drawable.Drawable;
 import android.os.Parcel;
 import android.os.Parcelable;
 import android.util.Printer;
 
 public class ResolveInfo implements Parcelable {
+    // Original int stub fields (kept for binary compat)
     public int activityInfo = 0;
     public int filter = 0;
     public int icon = 0;
@@ -20,8 +22,19 @@ public class ResolveInfo implements Parcelable {
     public int serviceInfo = 0;
     public int specificIndex = 0;
 
+    // Typed fields used by MiniPackageManager
+    public ActivityInfo activityInfoObj;
+    public ServiceInfo serviceInfoObj;
+    public ComponentName resolvedComponentName;
+
     public ResolveInfo() {}
-    public ResolveInfo(ResolveInfo p0) {}
+    public ResolveInfo(ResolveInfo p0) {
+        if (p0 != null) {
+            this.activityInfoObj = p0.activityInfoObj;
+            this.serviceInfoObj = p0.serviceInfoObj;
+            this.resolvedComponentName = p0.resolvedComponentName;
+        }
+    }
 
     public int describeContents() { return 0; }
     public void dump(Printer p0, String p1) {}

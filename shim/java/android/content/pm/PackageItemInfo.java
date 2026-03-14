@@ -10,9 +10,9 @@ public class PackageItemInfo {
     public int labelRes = 0;
     public int logo = 0;
     public int metaData = 0;
-    public int name = 0;
+    public String name;
     public int nonLocalizedLabel = 0;
-    public int packageName = 0;
+    public String packageName;
 
     public PackageItemInfo() {}
     public PackageItemInfo(PackageItemInfo p0) {}

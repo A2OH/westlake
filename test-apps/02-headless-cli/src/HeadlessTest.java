@@ -82,6 +82,10 @@ public class HeadlessTest {
         testTelephonyManager();
         testGraphics();
         testMiniServer();
+        testMiniPackageManager();
+        testLayoutInflater();
+        testContextStartActivity();
+        testMiniServiceManager();
         testMatrixCursor();
         testMergeCursor();
         testMatrix();
@@ -2816,5 +2820,303 @@ public class HeadlessTest {
         check("getContentResolver() non-null", ctx.getContentResolver() != null);
         check("getClassLoader() non-null", ctx.getClassLoader() != null);
         check("getMainExecutor() non-null", ctx.getMainExecutor() != null);
+    }
+
+    // ── MiniPackageManager tests ────────────────────────────────────────────
+
+    // Activity for implicit intent resolution tests
+    public static class ImplicitActivity extends android.app.Activity {
+        static boolean created = false;
+        @Override protected void onCreate(android.os.Bundle b) {
+            super.onCreate(b);
+            created = true;
+        }
+    }
+
+    static void testMiniPackageManager() {
+        section("MiniPackageManager");
+
+        android.content.pm.MiniPackageManager pm =
+                new android.content.pm.MiniPackageManager("com.test.pkg");
+
+        // Register activities with intent filters
+        android.content.IntentFilter launcherFilter = new android.content.IntentFilter(
+                android.content.Intent.ACTION_MAIN);
+        launcherFilter.addCategory(android.content.Intent.CATEGORY_LAUNCHER);
+
+        pm.addActivity("HeadlessTest$TestActivity", launcherFilter);
+
+        android.content.IntentFilter viewFilter = new android.content.IntentFilter(
+                android.content.Intent.ACTION_VIEW);
+        viewFilter.addCategory(android.content.Intent.CATEGORY_DEFAULT);
+
+        pm.addActivity("HeadlessTest$ImplicitActivity", viewFilter);
+
+        // Test: activity count
+        check("2 activities registered", pm.getActivityCount() == 2);
+
+        // Test: getLauncherActivity
+        android.content.ComponentName launcher = pm.getLauncherActivity();
+        check("launcher not null", launcher != null);
+        check("launcher class is TestActivity",
+                launcher != null && "HeadlessTest$TestActivity".equals(launcher.getClassName()));
+        check("launcher package", launcher != null && "com.test.pkg".equals(launcher.getPackageName()));
+
+        // Test: resolve explicit intent
+        android.content.Intent explicit = new android.content.Intent();
+        explicit.setComponent(new android.content.ComponentName(
+                "com.test.pkg", "HeadlessTest$TestActivity"));
+        android.content.pm.ResolveInfo ri = pm.resolveActivity(explicit);
+        check("resolve explicit not null", ri != null);
+        check("resolve explicit has activityInfo",
+                ri != null && ri.activityInfoObj != null);
+
+        // Test: resolve implicit intent by action
+        android.content.Intent viewIntent = new android.content.Intent();
+        viewIntent.setAction(android.content.Intent.ACTION_VIEW);
+        viewIntent.addCategory(android.content.Intent.CATEGORY_DEFAULT);
+        android.content.pm.ResolveInfo ri2 = pm.resolveActivity(viewIntent);
+        check("resolve implicit VIEW not null", ri2 != null);
+        check("resolve implicit VIEW component",
+                ri2 != null && ri2.resolvedComponentName != null
+                && "HeadlessTest$ImplicitActivity".equals(
+                        ri2.resolvedComponentName.getClassName()));
+
+        // Test: resolve non-matching intent
+        android.content.Intent noMatch = new android.content.Intent();
+        noMatch.setAction("com.nonexistent.ACTION");
+        android.content.pm.ResolveInfo ri3 = pm.resolveActivity(noMatch);
+        check("resolve non-matching returns null", ri3 == null);
+
+        // Test: queryIntentActivities
+        java.util.List<android.content.pm.ResolveInfo> results =
+                pm.queryIntentActivities(viewIntent);
+        check("query VIEW returns 1 result", results.size() == 1);
+
+        // Test: service registration and resolution
+        android.content.IntentFilter svcFilter = new android.content.IntentFilter("com.test.SVC");
+        pm.addService("HeadlessTest$TestService", svcFilter);
+        check("1 service registered", pm.getServiceCount() == 1);
+
+        android.content.Intent svcIntent = new android.content.Intent();
+        svcIntent.setAction("com.test.SVC");
+        android.content.pm.ResolveInfo svcRi = pm.resolveService(svcIntent);
+        check("resolve service not null", svcRi != null);
+    }
+
+    // ── LayoutInflater tests ────────────────────────────────────────────────
+
+    static void testLayoutInflater() {
+        section("LayoutInflater");
+
+        android.content.Context ctx = new android.content.Context();
+        android.view.LayoutInflater inflater = android.view.LayoutInflater.from(ctx);
+        check("from() returns non-null", inflater != null);
+        check("getContext()", inflater.getContext() == ctx);
+
+        // inflate with null root
+        android.view.View view = inflater.inflate(0x7f040001, null);
+        check("inflate returns non-null View", view != null);
+        check("inflated view has resource ID", view != null && view.getId() == 0x7f040001);
+
+        // inflate with root, attachToRoot=false
+        android.widget.FrameLayout root = new android.widget.FrameLayout(ctx);
+        android.view.View view2 = inflater.inflate(0x7f040002, root, false);
+        check("inflate !attach returns child", view2 != null && view2 != root);
+        check("root has no children after !attach", root.getChildCount() == 0);
+
+        // inflate with root, attachToRoot=true
+        android.view.View view3 = inflater.inflate(0x7f040003, root, true);
+        check("inflate attach returns root", view3 == root);
+        check("root has 1 child after attach", root.getChildCount() == 1);
+
+        // cloneInContext
+        android.content.Context ctx2 = new android.content.Context();
+        android.view.LayoutInflater cloned = inflater.cloneInContext(ctx2);
+        check("cloned not null", cloned != null);
+        check("cloned has new context", cloned.getContext() == ctx2);
+    }
+
+    // ── Context.startActivity tests ─────────────────────────────────────────
+
+    // Track Activity for Context.startActivity test
+    public static class ContextLaunchedActivity extends android.app.Activity {
+        static boolean wasCreated = false;
+        @Override protected void onCreate(android.os.Bundle b) {
+            super.onCreate(b);
+            wasCreated = true;
+        }
+    }
+
+    static void testContextStartActivity() {
+        section("Context.startActivity wiring");
+
+        android.app.MiniServer.init("com.test.ctx");
+        android.app.MiniServer server = android.app.MiniServer.get();
+        android.app.MiniActivityManager am = server.getActivityManager();
+
+        // Test: Context.startActivity with explicit intent
+        ContextLaunchedActivity.wasCreated = false;
+        android.content.Context ctx = new android.content.Context();
+        android.content.Intent intent = new android.content.Intent();
+        intent.setComponent(new android.content.ComponentName(
+                "com.test.ctx", "HeadlessTest$ContextLaunchedActivity"));
+        ctx.startActivity(intent);
+
+        check("Context.startActivity launched activity",
+                ContextLaunchedActivity.wasCreated);
+        check("stack size after Context.startActivity", am.getStackSize() == 1);
+        check("resumed is ContextLaunchedActivity",
+                am.getResumedActivity() instanceof ContextLaunchedActivity);
+
+        // Test: implicit intent resolution via MiniPackageManager
+        ImplicitActivity.created = false;
+        android.content.pm.MiniPackageManager pm = server.getPackageManager();
+        android.content.IntentFilter viewFilter = new android.content.IntentFilter(
+                android.content.Intent.ACTION_VIEW);
+        viewFilter.addCategory(android.content.Intent.CATEGORY_DEFAULT);
+        pm.addActivity("HeadlessTest$ImplicitActivity", viewFilter);
+
+        android.content.Intent implicitIntent = new android.content.Intent();
+        implicitIntent.setAction(android.content.Intent.ACTION_VIEW);
+        implicitIntent.addCategory(android.content.Intent.CATEGORY_DEFAULT);
+        ctx.startActivity(implicitIntent);
+
+        check("implicit intent resolved and launched",
+                ImplicitActivity.created);
+        check("stack size after implicit launch", am.getStackSize() == 2);
+
+        server.shutdown();
+        check("stack empty after shutdown", am.getStackSize() == 0);
+    }
+
+    // ── MiniServiceManager tests ────────────────────────────────────────────
+
+    public static class TestService extends android.app.Service {
+        static boolean created = false;
+        static boolean destroyed = false;
+        static int startCount = 0;
+        static android.content.Intent lastIntent;
+
+        static void reset() {
+            created = false;
+            destroyed = false;
+            startCount = 0;
+            lastIntent = null;
+        }
+
+        @Override public void onCreate() {
+            super.onCreate();
+            created = true;
+        }
+
+        @Override public int onStartCommand(android.content.Intent intent, int flags, int startId) {
+            startCount++;
+            lastIntent = intent;
+            return super.onStartCommand(intent, flags, startId);
+        }
+
+        @Override public void onDestroy() {
+            super.onDestroy();
+            destroyed = true;
+        }
+
+        @Override public android.os.IBinder onBind(android.content.Intent intent) {
+            return null; // return null binder for testing
+        }
+    }
+
+    static void testMiniServiceManager() {
+        section("MiniServiceManager");
+
+        android.app.MiniServer.init("com.test.svc");
+        android.app.MiniServer server = android.app.MiniServer.get();
+        android.app.MiniServiceManager sm = server.getServiceManager();
+
+        // Test: startService
+        TestService.reset();
+        android.content.Intent svcIntent = new android.content.Intent();
+        svcIntent.setComponent(new android.content.ComponentName(
+                "com.test.svc", "HeadlessTest$TestService"));
+        android.content.ComponentName cn = sm.startService(svcIntent);
+
+        check("startService returns component", cn != null);
+        check("service was created", TestService.created);
+        check("service startCount == 1", TestService.startCount == 1);
+        check("1 running service", sm.getRunningCount() == 1);
+
+        // Test: startService again (same service, increments startCount)
+        sm.startService(svcIntent);
+        check("service startCount == 2", TestService.startCount == 2);
+        check("still 1 running service", sm.getRunningCount() == 1);
+
+        // Test: stopService
+        TestService.destroyed = false;
+        boolean stopped = sm.stopService(svcIntent);
+        check("stopService returns true", stopped);
+        check("service was destroyed", TestService.destroyed);
+        check("0 running services", sm.getRunningCount() == 0);
+
+        // Test: bindService
+        TestService.reset();
+        final boolean[] connected = {false};
+        final boolean[] disconnected = {false};
+        android.content.ServiceConnection conn = new android.content.ServiceConnection() {
+            public void onServiceConnected(android.content.ComponentName name, android.os.IBinder binder) {
+                connected[0] = true;
+            }
+            public void onServiceDisconnected(android.content.ComponentName name) {
+                disconnected[0] = true;
+            }
+            public void onBindingDied(android.content.ComponentName name) {}
+            public void onNullBinding(android.content.ComponentName name) {}
+        };
+
+        boolean bound = sm.bindService(svcIntent, conn);
+        check("bindService returns true", bound);
+        check("service created for bind", TestService.created);
+        check("onServiceConnected called", connected[0]);
+        check("1 running service after bind", sm.getRunningCount() == 1);
+
+        // Test: unbindService
+        sm.unbindService(conn);
+        check("onServiceDisconnected called", disconnected[0]);
+        check("service destroyed after unbind (not started)", TestService.destroyed);
+        check("0 running after unbind", sm.getRunningCount() == 0);
+
+        // Test: startService + bindService + stopService (service stays until unbound)
+        TestService.reset();
+        sm.startService(svcIntent);
+        connected[0] = false;
+        sm.bindService(svcIntent, conn);
+        check("service running (started+bound)", sm.getRunningCount() == 1);
+
+        TestService.destroyed = false;
+        sm.stopService(svcIntent);
+        check("service NOT destroyed while bound", !TestService.destroyed);
+        check("still 1 running (bound)", sm.getRunningCount() == 1);
+
+        disconnected[0] = false;
+        sm.unbindService(conn);
+        check("service destroyed after last unbind", TestService.destroyed);
+        check("0 running after final unbind", sm.getRunningCount() == 0);
+
+        // Test: Context wiring for startService/stopService
+        TestService.reset();
+        android.content.Context ctx = new android.content.Context();
+        android.content.ComponentName cn2 = ctx.startService(svcIntent);
+        check("Context.startService returns component", cn2 != null);
+        check("service created via Context", TestService.created);
+
+        TestService.destroyed = false;
+        ctx.stopService(svcIntent);
+        check("Context.stopService destroys service", TestService.destroyed);
+
+        // Test: stopAll (shutdown)
+        TestService.reset();
+        sm.startService(svcIntent);
+        server.shutdown();
+        check("service destroyed on shutdown", TestService.destroyed);
+        check("0 running after shutdown", sm.getRunningCount() == 0);
     }
 }
