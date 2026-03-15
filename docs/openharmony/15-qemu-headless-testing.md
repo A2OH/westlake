@@ -153,21 +153,55 @@ The ability_runtime framework declares many functions inside `#ifdef SUPPORT_GRA
 | Misc stubs | 6 | RenderContext, CmdList, UIContent, MissionDataStorage |
 | **Total** | **~75** | |
 
-## Test Capabilities
+## Feature Completeness
 
-### Currently Working
-- Boot to shell with 11+ services
-- IPC/binder communication
-- System parameter get/set
-- Service registration via samgr
-- Ability manager service loaded (SA 180)
-- Bundle manager service loaded (SA 401)
+### OHOS on QEMU — NOT feature complete
+
+**What's working:**
+- Headless build boots with 12+ services running
+- Foundation with ability_manager (SA 180), bundle_manager (SA 401), app_manager (SA 501)
+- 466 .so libraries on system
+- samgr, hilogd, hdcd, softbus_server, accesstoken_service all running
+- `bm install` / `aa start` commands available
+- IPC/binder communication, system parameter get/set
+
+**What's missing:**
+- Graphics subsystem disabled (`ability_runtime_graphics=false`, `bundle_framework_graphics=false`)
+- No display/render pipeline — no SurfaceFlinger equivalent
+- No window compositor
+- 1 linker failure: `libui_extension.z.so` (UI extension, not needed for headless)
+- Build at 98% (4757/4851 targets)
+
+### ACE (ArkUI) Completeness — PARTIAL
+
+**What's built:**
+- `libace_napi.z.so` — NAPI bindings (JavaScript/ArkTS <-> C++)
+- `libace_xcomponent_controller.z.so` — XComponent native interface
+- `libace_uicontent.z.so` — UI content framework
+- `libace_forward_compatibility.z.so`
+- `libace_container_scope.z.so`
+
+**What's NOT built (because graphics=false):**
+- `libace_ndk.z.so` — the full ArkUI Native Node API (create/layout/render nodes)
+- `libnative_drawing.so` — OH_Drawing (Canvas, Pen, Brush, Path, Bitmap)
+- `libnative_window.so` — NativeWindow buffer ops
+- No GPU rendering pipeline
+- No display output
+
+**Bottom line:** The headless QEMU is good for testing ability lifecycle, IPC, bundle management, and system services. But it **cannot render any UI** — no ArkUI rendering, no OH_Drawing, no display. For the Android-as-Engine rendering pipeline to work on QEMU, we'd need to rebuild with `graphics=true`, which pulls in the graphic_2d subsystem, window_manager, and the full ACE engine — significantly more build targets and potentially more build fixes.
+
+### Test Capabilities (Current)
+- Boot to shell with 12+ services
+- Ability lifecycle management (start/stop/terminate)
+- HAP install via `bm` tool
+- Ability launch via `aa` tool
+- IPC between system abilities
+- System parameter management
 
 ### Next Steps
-- `bm install -p /path/to/test.hap` — Install test HAP
-- `aa start -a TestAbility -b com.example.test` — Launch ability
-- Validate ability lifecycle callbacks
-- Test IPC between abilities
+- Validate `bm install -p /path/to/test.hap` end-to-end
+- Validate `aa start -a TestAbility -b com.example.test` end-to-end
+- Build with `graphics=true` for full ACE/ArkUI testing
 - CI/CD integration
 
 ## File Locations
