@@ -21,6 +21,9 @@ public class OHBridge {
 
     // No native library load — all mock
 
+    /** Mock always returns true so Canvas/Bitmap/Path create native handles. */
+    public static boolean isNativeAvailable() { return true; }
+
     // ── Handle counter ──
     private static final AtomicLong sNextHandle = new AtomicLong(1);
 
@@ -329,6 +332,191 @@ public class OHBridge {
 
     public static void mediaPlayerSetLooping(long h, boolean looping) {
         System.out.println("[MOCK] MediaPlayer[" + h + "] setLooping=" + looping);
+    }
+
+    // ── OH_Drawing: Canvas mock ──
+
+    public static class DrawRecord {
+        public final String op;
+        public final float[] args;
+        public final String text;
+        public final int color;
+        public DrawRecord(String op, float[] args, String text, int color) {
+            this.op = op; this.args = args; this.text = text; this.color = color;
+        }
+    }
+
+    private static final ConcurrentHashMap<Long, java.util.List<DrawRecord>> sCanvasDrawLog = new ConcurrentHashMap<>();
+    private static final ConcurrentHashMap<Long, Integer> sHandleColors = new ConcurrentHashMap<>();
+    private static final ConcurrentHashMap<Long, Float> sHandleWidths = new ConcurrentHashMap<>();
+
+    public static long canvasCreate(long bitmapHandle) {
+        long h = sNextHandle.getAndIncrement();
+        sCanvasDrawLog.put(h, java.util.Collections.synchronizedList(new java.util.ArrayList<>()));
+        return h;
+    }
+    public static void canvasDestroy(long canvas) { sCanvasDrawLog.remove(canvas); }
+    public static void canvasDrawRect(long canvas, float l, float t, float r, float b, long pen, long brush) {
+        record(canvas, "drawRect", new float[]{l, t, r, b}, null, getColor(brush != 0 ? brush : pen));
+    }
+    public static void canvasDrawCircle(long canvas, float cx, float cy, float r, long pen, long brush) {
+        record(canvas, "drawCircle", new float[]{cx, cy, r}, null, getColor(brush != 0 ? brush : pen));
+    }
+    public static void canvasDrawLine(long canvas, float x1, float y1, float x2, float y2, long pen) {
+        record(canvas, "drawLine", new float[]{x1, y1, x2, y2}, null, getColor(pen));
+    }
+    public static void canvasDrawText(long canvas, String text, float x, float y, long font, long pen, long brush) {
+        record(canvas, "drawText", new float[]{x, y}, text, getColor(brush != 0 ? brush : pen));
+    }
+    public static void canvasDrawPath(long canvas, long path, long pen, long brush) {
+        record(canvas, "drawPath", new float[]{}, null, getColor(brush != 0 ? brush : pen));
+    }
+    public static void canvasDrawBitmap(long canvas, long bitmap, float x, float y) {
+        record(canvas, "drawBitmap", new float[]{x, y}, null, 0);
+    }
+    public static void canvasDrawColor(long canvas, int argb) {
+        record(canvas, "drawColor", new float[]{}, null, argb);
+    }
+    public static void canvasDrawArc(long canvas, float l, float t, float r, float b, float startAngle, float sweepAngle, boolean useCenter, long pen, long brush) {
+        record(canvas, "drawArc", new float[]{l, t, r, b, startAngle, sweepAngle, useCenter ? 1 : 0}, null, getColor(brush != 0 ? brush : pen));
+    }
+    public static void canvasDrawOval(long canvas, float l, float t, float r, float b, long pen, long brush) {
+        record(canvas, "drawOval", new float[]{l, t, r, b}, null, getColor(brush != 0 ? brush : pen));
+    }
+    public static void canvasDrawRoundRect(long canvas, float l, float t, float r, float b, float rx, float ry, long pen, long brush) {
+        record(canvas, "drawRoundRect", new float[]{l, t, r, b, rx, ry}, null, getColor(brush != 0 ? brush : pen));
+    }
+    public static void canvasConcat(long canvas, float[] matrix9) {
+        record(canvas, "concat", matrix9 != null ? matrix9 : new float[0], null, 0);
+    }
+    public static void canvasSave(long canvas) { record(canvas, "save", new float[]{}, null, 0); }
+    public static void canvasRestore(long canvas) { record(canvas, "restore", new float[]{}, null, 0); }
+    public static void canvasTranslate(long canvas, float dx, float dy) {
+        record(canvas, "translate", new float[]{dx, dy}, null, 0);
+    }
+    public static void canvasScale(long canvas, float sx, float sy) {
+        record(canvas, "scale", new float[]{sx, sy}, null, 0);
+    }
+    public static void canvasRotate(long canvas, float degrees, float px, float py) {
+        record(canvas, "rotate", new float[]{degrees, px, py}, null, 0);
+    }
+    public static void canvasClipRect(long canvas, float l, float t, float r, float b) {
+        record(canvas, "clipRect", new float[]{l, t, r, b}, null, 0);
+    }
+    public static void canvasClipPath(long canvas, long path) {
+        record(canvas, "clipPath", new float[]{}, null, 0);
+    }
+
+    // ── OH_Drawing: Pen mock ──
+
+    public static long penCreate() { long h = sNextHandle.getAndIncrement(); sHandleColors.put(h, 0xFF000000); return h; }
+    public static void penDestroy(long pen) { sHandleColors.remove(pen); sHandleWidths.remove(pen); }
+    public static void penSetColor(long pen, int argb) { sHandleColors.put(pen, argb); }
+    public static void penSetWidth(long pen, float w) { sHandleWidths.put(pen, w); }
+    public static void penSetAntiAlias(long pen, boolean aa) {}
+    public static void penSetCap(long pen, int cap) {}
+    public static void penSetJoin(long pen, int join) {}
+
+    // ── OH_Drawing: Brush mock ──
+
+    public static long brushCreate() { long h = sNextHandle.getAndIncrement(); sHandleColors.put(h, 0xFF000000); return h; }
+    public static void brushDestroy(long brush) { sHandleColors.remove(brush); }
+    public static void brushSetColor(long brush, int argb) { sHandleColors.put(brush, argb); }
+
+    // ── OH_Drawing: Path mock ──
+
+    public static long pathCreate() { return sNextHandle.getAndIncrement(); }
+    public static void pathDestroy(long path) {}
+    public static void pathMoveTo(long path, float x, float y) {}
+    public static void pathLineTo(long path, float x, float y) {}
+    public static void pathQuadTo(long path, float x1, float y1, float x2, float y2) {}
+    public static void pathCubicTo(long path, float x1, float y1, float x2, float y2, float x3, float y3) {}
+    public static void pathClose(long path) {}
+    public static void pathReset(long path) {}
+    public static void pathAddRect(long path, float l, float t, float r, float b, int dir) {}
+    public static void pathAddCircle(long path, float cx, float cy, float r, int dir) {}
+
+    // ── OH_Drawing: Bitmap mock ──
+
+    private static final ConcurrentHashMap<Long, int[]> sBitmapDims = new ConcurrentHashMap<>();
+    public static long bitmapCreate(int w, int h, int fmt) {
+        long bh = sNextHandle.getAndIncrement(); sBitmapDims.put(bh, new int[]{w, h}); return bh;
+    }
+    public static void bitmapDestroy(long bmp) { sBitmapDims.remove(bmp); }
+    public static int bitmapGetWidth(long bmp) { int[] d = sBitmapDims.get(bmp); return d != null ? d[0] : 0; }
+    public static int bitmapGetHeight(long bmp) { int[] d = sBitmapDims.get(bmp); return d != null ? d[1] : 0; }
+    public static void bitmapSetPixel(long bmp, int x, int y, int argb) {}
+    public static int bitmapGetPixel(long bmp, int x, int y) { return 0; }
+
+    // ── OH_Drawing: Font mock ──
+
+    public static long fontCreate() { return sNextHandle.getAndIncrement(); }
+    public static void fontDestroy(long font) {}
+    public static void fontSetSize(long font, float size) {}
+
+    // ── Surface mock ──
+
+    private static final ConcurrentHashMap<Long, long[]> sSurfaces = new ConcurrentHashMap<>();
+
+    public static long surfaceCreate(long xcomponentHandle, int width, int height) {
+        long h = sNextHandle.getAndIncrement();
+        // Create a backing bitmap + canvas for this surface
+        long bitmapH = bitmapCreate(width, height, 0);
+        long canvasH = canvasCreate(bitmapH);
+        sSurfaces.put(h, new long[]{canvasH, bitmapH, width, height});
+        return h;
+    }
+
+    public static void surfaceDestroy(long surfaceCtx) {
+        long[] ctx = sSurfaces.remove(surfaceCtx);
+        if (ctx != null) {
+            canvasDestroy(ctx[0]);
+            bitmapDestroy(ctx[1]);
+        }
+    }
+
+    public static void surfaceResize(long surfaceCtx, int width, int height) {
+        long[] ctx = sSurfaces.get(surfaceCtx);
+        if (ctx != null) {
+            canvasDestroy(ctx[0]);
+            bitmapDestroy(ctx[1]);
+            long bitmapH = bitmapCreate(width, height, 0);
+            long canvasH = canvasCreate(bitmapH);
+            ctx[0] = canvasH;
+            ctx[1] = bitmapH;
+            ctx[2] = width;
+            ctx[3] = height;
+        }
+    }
+
+    public static long surfaceGetCanvas(long surfaceCtx) {
+        long[] ctx = sSurfaces.get(surfaceCtx);
+        return ctx != null ? ctx[0] : 0;
+    }
+
+    public static int surfaceFlush(long surfaceCtx) {
+        // Mock: no-op (no real display)
+        return 0;
+    }
+
+    // ── Drawing test helpers ──
+
+    public static java.util.List<DrawRecord> getDrawLog(long canvasHandle) {
+        java.util.List<DrawRecord> log = sCanvasDrawLog.get(canvasHandle);
+        return log != null ? log : java.util.Collections.emptyList();
+    }
+    public static void clearDrawLog(long canvasHandle) {
+        java.util.List<DrawRecord> log = sCanvasDrawLog.get(canvasHandle);
+        if (log != null) log.clear();
+    }
+
+    private static void record(long canvas, String op, float[] args, String text, int color) {
+        java.util.List<DrawRecord> log = sCanvasDrawLog.get(canvas);
+        if (log != null) log.add(new DrawRecord(op, args, text, color));
+    }
+    private static int getColor(long handle) {
+        Integer c = sHandleColors.get(handle);
+        return c != null ? c : 0;
     }
 
     // ── Event dispatch ──

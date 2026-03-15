@@ -626,3 +626,49 @@ extern "C" int shim_xcomponent_attach_root(void* xcomponent, long long root_node
         static_cast<OH_NativeXComponent*>(xcomponent),
         reinterpret_cast<ArkUI_NodeHandle>(root_node));
 }
+
+// ── XComponent Surface Lifecycle ──────────────────────────────────────────
+
+// Forward declaration — implemented in Rust (surface.rs)
+extern "C" void shim_surface_set_native_window(long long surface_id, void* native_window);
+
+// Global surface ID counter (assigned per-XComponent)
+static std::atomic<long long> g_next_surface_id{1};
+
+// Map XComponent pointer → surface_id for callback routing
+static std::unordered_map<OH_NativeXComponent*, long long> g_xcomp_surface_map;
+
+static void on_surface_created(OH_NativeXComponent* xcomp, void* window) {
+    auto it = g_xcomp_surface_map.find(xcomp);
+    if (it != g_xcomp_surface_map.end()) {
+        shim_surface_set_native_window(it->second, window);
+    }
+}
+
+static void on_surface_changed(OH_NativeXComponent* xcomp, void* window) {
+    // Surface resize — NativeWindow handle stays the same
+    // The Java side will call surfaceResize() separately
+}
+
+static void on_surface_destroyed(OH_NativeXComponent* xcomp, void* window) {
+    auto it = g_xcomp_surface_map.find(xcomp);
+    if (it != g_xcomp_surface_map.end()) {
+        shim_surface_set_native_window(it->second, nullptr);
+        g_xcomp_surface_map.erase(it);
+    }
+}
+
+extern "C" int shim_xcomponent_register_callbacks(void* xcomp) {
+    if (!xcomp) return -1;
+
+    auto* nxc = static_cast<OH_NativeXComponent*>(xcomp);
+    long long surface_id = g_next_surface_id.fetch_add(1);
+    g_xcomp_surface_map[nxc] = surface_id;
+
+    OH_NativeXComponent_Callback cb{};
+    cb.OnSurfaceCreated = on_surface_created;
+    cb.OnSurfaceChanged = on_surface_changed;
+    cb.OnSurfaceDestroyed = on_surface_destroyed;
+
+    return OH_NativeXComponent_RegisterCallback(nxc, &cb);
+}

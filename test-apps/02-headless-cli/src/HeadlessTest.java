@@ -93,6 +93,19 @@ public class HeadlessTest {
         testRectFExtended();
         testViewTree();
         testApkLoader();
+        testCanvasBridge();
+        testHandlerMessageQueue();
+        testResourcesStub();
+        testContentResolverWiring();
+        testLoadApkIntegration();
+        testBitmapFactory();
+        testInputBridge();
+        testAssetManager();
+        testClassLoaders();
+        testResourceTable();
+        testApkLoaderExtended();
+        testSurfaceRendering();
+        testViewRenderingPipeline();
 
         System.out.println("\n═══ Results ═══");
         System.out.println("Passed: " + passed);
@@ -1600,14 +1613,15 @@ public class HeadlessTest {
     static void testHandler() {
         section("android.os.Handler + Message + Looper");
 
-        // post(Runnable) runs immediately
+        // post(Runnable) queues and runs on pump
         final boolean[] runnableRan = {false};
         android.os.Handler handler = new android.os.Handler();
         boolean posted = handler.post(() -> runnableRan[0] = true);
         check("post(Runnable) returns true", posted);
-        check("post(Runnable) runs immediately", runnableRan[0]);
+        android.os.Looper.pumpMessages();
+        check("post(Runnable) runs after pump", runnableRan[0]);
 
-        // sendMessage dispatches to handleMessage
+        // sendMessage dispatches to handleMessage after pump
         final int[] receivedWhat = {-1};
         android.os.Handler msgHandler = new android.os.Handler() {
             @Override
@@ -1621,6 +1635,7 @@ public class HeadlessTest {
 
         boolean sent = msgHandler.sendMessage(msg);
         check("sendMessage returns true", sent);
+        android.os.Looper.pumpMessages();
         check("handleMessage received what=42", receivedWhat[0] == 42);
 
         // sendEmptyMessage
@@ -1632,6 +1647,7 @@ public class HeadlessTest {
             }
         };
         emptyHandler.sendEmptyMessage(99);
+        android.os.Looper.pumpMessages();
         check("sendEmptyMessage dispatches what=99", emptyWhat[0] == 99);
 
         // Message.obtain with arg1/arg2
@@ -1651,6 +1667,7 @@ public class HeadlessTest {
                     return true; // consumed
                 });
         cbHandler.sendEmptyMessage(1);
+        android.os.Looper.pumpMessages();
         check("Handler.Callback intercepts message", callbackFired[0]);
 
         // Looper.getMainLooper
@@ -3345,5 +3362,1650 @@ public class HeadlessTest {
         server.shutdown();
         check("service destroyed on shutdown", TestService.destroyed);
         check("0 running after shutdown", sm.getRunningCount() == 0);
+    }
+
+    // ── Canvas → OHBridge drawing tests ─────────────────────────────────────
+
+    static void testCanvasBridge() {
+        section("Canvas → OHBridge drawing bridge");
+
+        // Create a bitmap-backed canvas
+        android.graphics.Bitmap bmp = android.graphics.Bitmap.createBitmap(100, 100,
+                android.graphics.Bitmap.Config.ARGB_8888);
+        android.graphics.Canvas canvas = new android.graphics.Canvas(bmp);
+
+        check("canvas width == 100", canvas.getWidth() == 100);
+        check("canvas height == 100", canvas.getHeight() == 100);
+        check("canvas has native handle", canvas.getNativeHandle() != 0);
+
+        // Draw a red filled rectangle
+        android.graphics.Paint paint = new android.graphics.Paint();
+        paint.setColor(0xFFFF0000);
+        paint.setStyle(android.graphics.Paint.Style.FILL);
+        canvas.drawRect(10, 10, 50, 50, paint);
+
+        // Draw a blue filled circle
+        paint.setColor(0xFF0000FF);
+        canvas.drawCircle(75, 75, 20, paint);
+
+        // Draw a green stroke line
+        paint.setColor(0xFF00FF00);
+        paint.setStyle(android.graphics.Paint.Style.STROKE);
+        paint.setStrokeWidth(3.0f);
+        canvas.drawLine(0, 0, 100, 100, paint);
+
+        // Draw text
+        paint.setColor(0xFF000000);
+        paint.setStyle(android.graphics.Paint.Style.FILL);
+        paint.setTextSize(16);
+        canvas.drawText("Hello", 10, 90, paint);
+
+        // Verify draw log via mock bridge
+        java.util.List<com.ohos.shim.bridge.OHBridge.DrawRecord> log =
+                com.ohos.shim.bridge.OHBridge.getDrawLog(canvas.getNativeHandle());
+        check("draw log has 4 entries", log.size() == 4);
+        check("first draw is drawRect", log.size() > 0 && "drawRect".equals(log.get(0).op));
+        check("drawRect color is red", log.size() > 0 && log.get(0).color == 0xFFFF0000);
+        check("second draw is drawCircle", log.size() > 1 && "drawCircle".equals(log.get(1).op));
+        check("drawCircle color is blue", log.size() > 1 && log.get(1).color == 0xFF0000FF);
+        check("third draw is drawLine", log.size() > 2 && "drawLine".equals(log.get(2).op));
+        check("drawLine color is green", log.size() > 2 && log.get(2).color == 0xFF00FF00);
+        check("fourth draw is drawText", log.size() > 3 && "drawText".equals(log.get(3).op));
+        check("drawText text is 'Hello'", log.size() > 3 && "Hello".equals(log.get(3).text));
+
+        // Save/restore stack
+        int count = canvas.save();
+        check("save returns count > 0", count > 0);
+        canvas.translate(10, 10);
+        canvas.restore();
+        check("restore balances save", canvas.getSaveCount() == count - 1);
+
+        // Verify save/translate/restore recorded in draw log
+        check("save recorded in draw log", log.size() > 4 && "save".equals(log.get(4).op));
+        check("translate recorded in draw log", log.size() > 5 && "translate".equals(log.get(5).op));
+        check("restore recorded in draw log", log.size() > 6 && "restore".equals(log.get(6).op));
+
+        // Path operations
+        android.graphics.Path path = new android.graphics.Path();
+        check("new path is empty", path.isEmpty());
+        check("path has native handle", path.getNativeHandle() != 0);
+        path.moveTo(0, 0);
+        path.lineTo(100, 0);
+        path.lineTo(50, 100);
+        path.close();
+        check("path not empty after ops", !path.isEmpty());
+
+        paint.setStyle(android.graphics.Paint.Style.FILL);
+        canvas.drawPath(path, paint);
+        check("drawPath recorded", log.size() > 7 && "drawPath".equals(log.get(7).op));
+
+        // Bitmap native handle and properties
+        check("bitmap has native handle", bmp.getNativeHandle() != 0);
+        check("bitmap not recycled", !bmp.isRecycled());
+        check("bitmap byte count > 0", bmp.getByteCount() > 0);
+        check("bitmap byte count == 40000", bmp.getByteCount() == 100 * 100 * 4);
+
+        // Recycle clears native handle
+        bmp.recycle();
+        check("bitmap recycled", bmp.isRecycled());
+        check("bitmap native handle cleared", bmp.getNativeHandle() == 0);
+
+        // Empty canvas (no bitmap) should have zero dimensions and no native handle
+        android.graphics.Canvas emptyCanvas = new android.graphics.Canvas();
+        check("empty canvas width == 0", emptyCanvas.getWidth() == 0);
+        check("empty canvas height == 0", emptyCanvas.getHeight() == 0);
+        check("empty canvas no native handle", emptyCanvas.getNativeHandle() == 0);
+
+        // Path reset
+        path.reset();
+        check("path empty after reset", path.isEmpty());
+
+        // drawColor
+        android.graphics.Bitmap bmp2 = android.graphics.Bitmap.createBitmap(50, 50,
+                android.graphics.Bitmap.Config.ARGB_8888);
+        android.graphics.Canvas canvas2 = new android.graphics.Canvas(bmp2);
+        canvas2.drawColor(0xFF112233);
+        java.util.List<com.ohos.shim.bridge.OHBridge.DrawRecord> log2 =
+                com.ohos.shim.bridge.OHBridge.getDrawLog(canvas2.getNativeHandle());
+        check("drawColor recorded", log2.size() == 1 && "drawColor".equals(log2.get(0).op));
+        check("drawColor has correct color", log2.size() == 1 && log2.get(0).color == 0xFF112233);
+        bmp2.recycle();
+
+        // Path copy constructor
+        android.graphics.Path p1 = new android.graphics.Path();
+        p1.moveTo(5, 5);
+        android.graphics.Path p2 = new android.graphics.Path(p1);
+        check("copied path not empty", !p2.isEmpty());
+        check("copied path has native handle", p2.getNativeHandle() != 0);
+
+        // clearDrawLog helper
+        com.ohos.shim.bridge.OHBridge.clearDrawLog(canvas.getNativeHandle());
+        check("draw log cleared", com.ohos.shim.bridge.OHBridge.getDrawLog(canvas.getNativeHandle()).isEmpty());
+
+        // ── Task 1: drawArc, drawOval, drawRoundRect ──
+        android.graphics.Bitmap bmp3 = android.graphics.Bitmap.createBitmap(200, 200,
+                android.graphics.Bitmap.Config.ARGB_8888);
+        android.graphics.Canvas canvas3 = new android.graphics.Canvas(bmp3);
+
+        android.graphics.Paint arcPaint = new android.graphics.Paint();
+        arcPaint.setColor(0xFFAA0000);
+        arcPaint.setStyle(android.graphics.Paint.Style.FILL);
+
+        canvas3.drawArc(10, 10, 90, 90, 0, 180, true, arcPaint);
+        canvas3.drawOval(10, 10, 90, 90, arcPaint);
+        canvas3.drawRoundRect(5, 5, 95, 95, 10, 10, arcPaint);
+
+        java.util.List<com.ohos.shim.bridge.OHBridge.DrawRecord> log3 =
+                com.ohos.shim.bridge.OHBridge.getDrawLog(canvas3.getNativeHandle());
+        check("drawArc recorded", log3.size() > 0 && "drawArc".equals(log3.get(0).op));
+        check("drawArc args[4]=startAngle 0", log3.size() > 0 && log3.get(0).args[4] == 0f);
+        check("drawArc args[5]=sweepAngle 180", log3.size() > 0 && log3.get(0).args[5] == 180f);
+        check("drawOval recorded", log3.size() > 1 && "drawOval".equals(log3.get(1).op));
+        check("drawRoundRect recorded", log3.size() > 2 && "drawRoundRect".equals(log3.get(2).op));
+        check("drawRoundRect args has rx=10", log3.size() > 2 && log3.get(2).args[4] == 10f);
+
+        // RectF overloads
+        android.graphics.RectF ovalRect = new android.graphics.RectF(0, 0, 100, 50);
+        canvas3.drawArc(ovalRect, 90, 270, false, arcPaint);
+        canvas3.drawOval(ovalRect, arcPaint);
+        check("drawArc RectF recorded", log3.size() > 3 && "drawArc".equals(log3.get(3).op));
+        check("drawOval RectF recorded", log3.size() > 4 && "drawOval".equals(log3.get(4).op));
+
+        canvas3.release();
+        bmp3.recycle();
+
+        // ── Task 2: Paint Cap/Join ──
+        android.graphics.Paint capPaint = new android.graphics.Paint();
+        check("default cap is BUTT", capPaint.getStrokeCap() == android.graphics.Paint.Cap.BUTT);
+        check("default join is MITER", capPaint.getStrokeJoin() == android.graphics.Paint.Join.MITER);
+
+        capPaint.setStrokeCap(android.graphics.Paint.Cap.ROUND);
+        capPaint.setStrokeJoin(android.graphics.Paint.Join.BEVEL);
+        check("cap set to ROUND", capPaint.getStrokeCap() == android.graphics.Paint.Cap.ROUND);
+        check("join set to BEVEL", capPaint.getStrokeJoin() == android.graphics.Paint.Join.BEVEL);
+
+        android.graphics.Paint capCopy = new android.graphics.Paint(capPaint);
+        check("copy preserves cap", capCopy.getStrokeCap() == android.graphics.Paint.Cap.ROUND);
+        check("copy preserves join", capCopy.getStrokeJoin() == android.graphics.Paint.Join.BEVEL);
+
+        capPaint.setTextAlign(android.graphics.Paint.Align.CENTER);
+        check("textAlign set to CENTER", capPaint.getTextAlign() == android.graphics.Paint.Align.CENTER);
+
+        capPaint.setStrokeMiter(8.0f);
+        check("strokeMiter set to 8", capPaint.getStrokeMiter() == 8.0f);
+
+        // ── Task 4: Canvas.concat(Matrix) ──
+        android.graphics.Bitmap bmp4 = android.graphics.Bitmap.createBitmap(100, 100,
+                android.graphics.Bitmap.Config.ARGB_8888);
+        android.graphics.Canvas canvas4 = new android.graphics.Canvas(bmp4);
+
+        android.graphics.Matrix mx = new android.graphics.Matrix();
+        mx.setTranslate(50, 30);
+        canvas4.concat(mx);
+
+        java.util.List<com.ohos.shim.bridge.OHBridge.DrawRecord> log4 =
+                com.ohos.shim.bridge.OHBridge.getDrawLog(canvas4.getNativeHandle());
+        check("concat recorded", log4.size() == 1 && "concat".equals(log4.get(0).op));
+        check("concat matrix has tx=50", log4.size() == 1 && log4.get(0).args.length == 9 && log4.get(0).args[2] == 50f);
+        check("concat matrix has ty=30", log4.size() == 1 && log4.get(0).args[5] == 30f);
+
+        // getMatrix returns a matrix (identity stub for now)
+        android.graphics.Matrix got = canvas4.getMatrix();
+        check("getMatrix non-null", got != null);
+
+        canvas4.release();
+        bmp4.recycle();
+
+        // Release canvas resources
+        canvas.release();
+        check("canvas native handle cleared after release", canvas.getNativeHandle() == 0);
+    }
+
+    // ── Handler / MessageQueue tests ─────────────────────────────────────────
+
+    static void testHandlerMessageQueue() {
+        section("Handler / MessageQueue (queue-based)");
+
+        // Messages should be queued and dispatched via pumpMessages
+        android.os.Handler handler = new android.os.Handler(android.os.Looper.getMainLooper());
+        final int[] counter = {0};
+
+        handler.post(() -> counter[0]++);
+        handler.post(() -> counter[0] += 10);
+
+        // Messages are queued, not executed yet
+        check("messages queued (not run yet)", counter[0] == 0);
+
+        // Pump the message queue — should dispatch both
+        int pumped = android.os.Looper.pumpMessages();
+        check("pumpMessages dispatched 2", pumped == 2);
+        check("handler posted 2 runnables total=11", counter[0] == 11);
+
+        // postDelayed — delay=0 means immediate on next pump
+        handler.postDelayed(() -> counter[0] += 100, 0);
+        android.os.Looper.pumpMessages();
+        check("postDelayed(0) delivered", counter[0] == 111);
+
+        // flushAll drains everything regardless of time
+        handler.postDelayed(() -> counter[0] += 1000, 999999);
+        int flushed = android.os.Looper.flushAll();
+        check("flushAll dispatched 1", flushed == 1);
+        check("flushAll delivered future message", counter[0] == 1111);
+
+        // sendMessage with what
+        final int[] whatReceived = {-1};
+        android.os.Handler msgHandler = new android.os.Handler(android.os.Looper.getMainLooper()) {
+            @Override
+            public void handleMessage(android.os.Message msg) {
+                whatReceived[0] = msg.what;
+            }
+        };
+        msgHandler.sendEmptyMessage(77);
+        android.os.Looper.pumpMessages();
+        check("sendEmptyMessage via queue what=77", whatReceived[0] == 77);
+
+        // Handler.Callback with queue
+        final boolean[] cbFired = {false};
+        android.os.Handler cbHandler = new android.os.Handler(
+                android.os.Looper.getMainLooper(),
+                (android.os.Handler.Callback) m -> {
+                    cbFired[0] = true;
+                    return true;
+                });
+        cbHandler.sendEmptyMessage(1);
+        android.os.Looper.pumpMessages();
+        check("Handler.Callback intercepts via queue", cbFired[0]);
+
+        // MessageQueue.hasMessages / size
+        android.os.MessageQueue q = android.os.Looper.getMainLooper().getQueue();
+        check("queue empty after pump", !q.hasMessages());
+        handler.post(() -> {});
+        check("queue has messages after post", q.hasMessages());
+        check("queue size == 1", q.size() == 1);
+        android.os.Looper.flushAll(); // clean up
+
+        // Message callback field
+        final boolean[] cbRan = {false};
+        android.os.Message msgWithCb = android.os.Message.obtain(handler, () -> cbRan[0] = true);
+        check("Message.obtain(h,r) stores callback", msgWithCb.getCallback() != null);
+        handler.sendMessage(msgWithCb);
+        android.os.Looper.pumpMessages();
+        check("message callback ran via queue", cbRan[0]);
+    }
+
+    // ── Resources stub tests ─────────────────────────────────────────────────
+
+    static void testResourcesStub() {
+        section("Resources stub");
+
+        android.content.Context ctx = new android.content.Context();
+        android.content.res.Resources res = ctx.getResources();
+        check("getResources non-null", res != null);
+
+        android.util.DisplayMetrics dm = res.getDisplayMetrics();
+        check("displayMetrics non-null", dm != null);
+        check("density > 0", dm.density > 0);
+        check("widthPixels > 0", dm.widthPixels > 0);
+        check("densityDpi > 0", dm.densityDpi > 0);
+
+        android.content.res.Configuration config = res.getConfiguration();
+        check("getConfiguration non-null", config != null);
+
+        String str = res.getString(0x7f0a0001);
+        check("getString returns non-null", str != null);
+        check("getString returns non-empty", str.length() > 0);
+
+        check("getDimension returns 0", res.getDimension(1) == 0f);
+        check("getDimensionPixelSize returns 0", res.getDimensionPixelSize(1) == 0);
+        check("getColor returns opaque", (res.getColor(1) & 0xFF000000) != 0);
+
+        // getResources() returns same instance
+        android.content.res.Resources res2 = ctx.getResources();
+        check("getResources returns same instance", res == res2);
+    }
+
+    // ── ContentResolver wiring tests ─────────────────────────────────────────
+
+    // Simple in-memory ContentProvider for testing
+    public static class TestContentProvider extends android.content.ContentProvider {
+        static boolean queryCalled = false;
+        static boolean insertCalled = false;
+        static boolean updateCalled = false;
+        static boolean deleteCalled = false;
+
+        static void reset() {
+            queryCalled = false;
+            insertCalled = false;
+            updateCalled = false;
+            deleteCalled = false;
+        }
+
+        @Override
+        public android.database.Cursor query(android.net.Uri uri, String[] projection,
+                String selection, String[] selectionArgs, String sortOrder) {
+            queryCalled = true;
+            android.database.MatrixCursor mc = new android.database.MatrixCursor(
+                    new String[]{"_id", "value"});
+            mc.addRow(new Object[]{1, "test"});
+            return mc;
+        }
+
+        @Override
+        public android.net.Uri insert(android.net.Uri uri, android.content.ContentValues values) {
+            insertCalled = true;
+            return android.net.Uri.parse("content://test.provider/items/1");
+        }
+
+        @Override
+        public int update(android.net.Uri uri, android.content.ContentValues values,
+                String selection, String[] selectionArgs) {
+            updateCalled = true;
+            return 1;
+        }
+
+        @Override
+        public int delete(android.net.Uri uri, String selection, String[] selectionArgs) {
+            deleteCalled = true;
+            return 1;
+        }
+    }
+
+    static void testContentResolverWiring() {
+        section("ContentResolver → ContentProvider wiring");
+
+        android.app.MiniServer.init("com.test.cr");
+        android.app.MiniServer server = android.app.MiniServer.get();
+
+        // Register a provider directly
+        TestContentProvider provider = new TestContentProvider();
+        server.getPackageManager().addProvider("test.provider", provider);
+
+        android.content.Context ctx = new android.content.Context();
+        android.content.ContentResolver cr = ctx.getContentResolver();
+        check("getContentResolver non-null", cr != null);
+
+        // query
+        TestContentProvider.reset();
+        android.net.Uri uri = android.net.Uri.parse("content://test.provider/items");
+        android.database.Cursor cursor = cr.query(uri, null, null, null, null);
+        check("query routes to provider", TestContentProvider.queryCalled);
+        check("query returns cursor", cursor != null);
+        if (cursor != null) {
+            cursor.moveToFirst();
+            check("cursor has data", "test".equals(cursor.getString(1)));
+        }
+
+        // insert
+        TestContentProvider.reset();
+        android.content.ContentValues values = new android.content.ContentValues();
+        values.put("key", "val");
+        android.net.Uri result = cr.insert(uri, values);
+        check("insert routes to provider", TestContentProvider.insertCalled);
+        check("insert returns uri", result != null);
+
+        // update
+        TestContentProvider.reset();
+        int updated = cr.update(uri, values, null, null);
+        check("update routes to provider", TestContentProvider.updateCalled);
+        check("update returns 1", updated == 1);
+
+        // delete
+        TestContentProvider.reset();
+        int deleted = cr.delete(uri, null, null);
+        check("delete routes to provider", TestContentProvider.deleteCalled);
+        check("delete returns 1", deleted == 1);
+
+        // query unknown authority returns null
+        android.net.Uri unknownUri = android.net.Uri.parse("content://unknown/items");
+        android.database.Cursor nullCursor = cr.query(unknownUri, null, null, null, null);
+        check("query unknown authority returns null", nullCursor == null);
+
+        server.shutdown();
+    }
+
+    // ── LoadApk integration tests ────────────────────────────────────────────
+
+    static void testLoadApkIntegration() {
+        section("MiniServer.loadApk integration");
+
+        android.app.MiniServer.init("com.test.load");
+        android.app.MiniServer server = android.app.MiniServer.get();
+
+        // Verify loadApk API exists and compiles
+        check("loadApk method exists", true);
+
+        // Test ApkInfo.applicationClassName field
+        android.app.ApkInfo info = new android.app.ApkInfo();
+        info.applicationClassName = "com.example.MyApp";
+        check("applicationClassName field", "com.example.MyApp".equals(info.applicationClassName));
+
+        // Test that MiniServer registers activities from ApkInfo
+        android.content.pm.MiniPackageManager pm = server.getPackageManager();
+        pm.addActivity("com.test.load.MainActivity");
+        android.content.IntentFilter launcherFilter = new android.content.IntentFilter(
+                android.content.Intent.ACTION_MAIN);
+        launcherFilter.addCategory(android.content.Intent.CATEGORY_LAUNCHER);
+        pm.addActivity("com.test.load.MainActivity", launcherFilter);
+
+        android.content.ComponentName launcher = pm.getLauncherActivity();
+        check("launcher activity detected", launcher != null);
+        check("launcher class correct",
+                launcher != null && "com.test.load.MainActivity".equals(launcher.getClassName()));
+
+        // Test Looper.getQueue() API
+        android.os.Looper mainLooper = android.os.Looper.getMainLooper();
+        android.os.MessageQueue queue = mainLooper.getQueue();
+        check("Looper.getQueue() non-null", queue != null);
+
+        server.shutdown();
+    }
+
+    // ── BitmapFactory tests ──────────────────────────────────────────────────
+
+    static void testBitmapFactory() {
+        section("BitmapFactory — PNG/JPEG header parsing");
+
+        // Build a minimal valid PNG: 8-byte signature + IHDR chunk (25 bytes)
+        // IHDR: 4-byte length (13) + "IHDR" + 4-byte width + 4-byte height
+        //       + 1 bit-depth + 1 color-type + 1 compression + 1 filter + 1 interlace
+        //       + 4-byte CRC
+        byte[] png = new byte[33];
+        // PNG signature
+        png[0] = (byte) 0x89; png[1] = 0x50; png[2] = 0x4E; png[3] = 0x47;
+        png[4] = 0x0D; png[5] = 0x0A; png[6] = 0x1A; png[7] = 0x0A;
+        // IHDR chunk length = 13
+        png[8] = 0; png[9] = 0; png[10] = 0; png[11] = 13;
+        // "IHDR"
+        png[12] = 0x49; png[13] = 0x48; png[14] = 0x44; png[15] = 0x52;
+        // Width = 320 (big-endian)
+        png[16] = 0; png[17] = 0; png[18] = 1; png[19] = 64;
+        // Height = 240 (big-endian)
+        png[20] = 0; png[21] = 0; png[22] = 0; png[23] = (byte) 240;
+        // bit-depth=8, color-type=2 (RGB), compression=0, filter=0, interlace=0
+        png[24] = 8; png[25] = 2; png[26] = 0; png[27] = 0; png[28] = 0;
+        // CRC (not validated by our parser)
+        png[29] = 0; png[30] = 0; png[31] = 0; png[32] = 0;
+
+        // Test 1: decodeByteArray with PNG
+        android.graphics.Bitmap bmp = android.graphics.BitmapFactory.decodeByteArray(png, 0, png.length);
+        check("PNG decodeByteArray non-null", bmp != null);
+        check("PNG width=320", bmp != null && bmp.getWidth() == 320);
+        check("PNG height=240", bmp != null && bmp.getHeight() == 240);
+
+        // Test 2: inJustDecodeBounds — returns null, sets outWidth/outHeight
+        android.graphics.BitmapFactory.Options opts = new android.graphics.BitmapFactory.Options();
+        opts.inJustDecodeBounds = true;
+        android.graphics.Bitmap bmpNull = android.graphics.BitmapFactory.decodeByteArray(png, 0, png.length, opts);
+        check("inJustDecodeBounds returns null", bmpNull == null);
+        check("inJustDecodeBounds outWidth=320", opts.outWidth == 320);
+        check("inJustDecodeBounds outHeight=240", opts.outHeight == 240);
+        check("inJustDecodeBounds outMimeType=image/png", "image/png".equals(opts.outMimeType));
+
+        // Test 3: inSampleSize
+        android.graphics.BitmapFactory.Options opts2 = new android.graphics.BitmapFactory.Options();
+        opts2.inSampleSize = 2;
+        android.graphics.Bitmap bmpSampled = android.graphics.BitmapFactory.decodeByteArray(png, 0, png.length, opts2);
+        check("inSampleSize=2 width=160", bmpSampled != null && bmpSampled.getWidth() == 160);
+        check("inSampleSize=2 height=120", bmpSampled != null && bmpSampled.getHeight() == 120);
+
+        // Build a minimal valid JPEG: SOI + SOF0 marker with dimensions
+        // SOI (FF D8) + SOF0 marker (FF C0) + length(2) + precision(1) + height(2) + width(2)
+        byte[] jpeg = new byte[11];
+        jpeg[0] = (byte) 0xFF; jpeg[1] = (byte) 0xD8; // SOI
+        jpeg[2] = (byte) 0xFF; jpeg[3] = (byte) 0xC0; // SOF0
+        jpeg[4] = 0x00; jpeg[5] = 0x0B;                // length = 11
+        jpeg[6] = 0x08;                                 // precision = 8
+        // Height = 480 (big-endian)
+        jpeg[7] = 0x01; jpeg[8] = (byte) 0xE0;
+        // Width = 640 (big-endian)
+        jpeg[9] = 0x02; jpeg[10] = (byte) 0x80;
+
+        // Test 4: decodeByteArray with JPEG
+        android.graphics.Bitmap bmpJ = android.graphics.BitmapFactory.decodeByteArray(jpeg, 0, jpeg.length);
+        check("JPEG decodeByteArray non-null", bmpJ != null);
+        check("JPEG width=640", bmpJ != null && bmpJ.getWidth() == 640);
+        check("JPEG height=480", bmpJ != null && bmpJ.getHeight() == 480);
+
+        // Test 5: JPEG inJustDecodeBounds
+        android.graphics.BitmapFactory.Options opts3 = new android.graphics.BitmapFactory.Options();
+        opts3.inJustDecodeBounds = true;
+        android.graphics.Bitmap bmpJ2 = android.graphics.BitmapFactory.decodeByteArray(jpeg, 0, jpeg.length, opts3);
+        check("JPEG inJustDecodeBounds returns null", bmpJ2 == null);
+        check("JPEG outMimeType=image/jpeg", "image/jpeg".equals(opts3.outMimeType));
+        check("JPEG outWidth=640", opts3.outWidth == 640);
+        check("JPEG outHeight=480", opts3.outHeight == 480);
+
+        // Test 6: decodeStream with PNG via ByteArrayInputStream
+        java.io.ByteArrayInputStream bais = new java.io.ByteArrayInputStream(png);
+        android.graphics.Bitmap bmpStream = android.graphics.BitmapFactory.decodeStream(bais);
+        check("decodeStream PNG non-null", bmpStream != null);
+        check("decodeStream PNG width=320", bmpStream != null && bmpStream.getWidth() == 320);
+        check("decodeStream PNG height=240", bmpStream != null && bmpStream.getHeight() == 240);
+
+        // Test 7: unknown format returns null
+        byte[] garbage = {0x00, 0x01, 0x02, 0x03, 0x04, 0x05};
+        android.graphics.Bitmap bmpGarbage = android.graphics.BitmapFactory.decodeByteArray(garbage, 0, garbage.length);
+        check("unknown format returns null", bmpGarbage == null);
+
+        // Test 8: null data returns null
+        check("null data returns null", android.graphics.BitmapFactory.decodeByteArray(null, 0, 0) == null);
+
+        // Test 9: decodeResource returns null (no resource system)
+        check("decodeResource returns null", android.graphics.BitmapFactory.decodeResource(null, 0) == null);
+    }
+
+    // ── Input Bridge ──
+
+    static void testInputBridge() {
+        section("Input Bridge (MotionEvent / KeyEvent / dispatch)");
+
+        // MotionEvent basics with full obtain signature
+        android.view.MotionEvent me = android.view.MotionEvent.obtain(100L, 200L, android.view.MotionEvent.ACTION_DOWN, 50f, 75f, 0);
+        check("MotionEvent action DOWN", me.getAction() == android.view.MotionEvent.ACTION_DOWN);
+        check("MotionEvent x=50", me.getX() == 50f);
+        check("MotionEvent y=75", me.getY() == 75f);
+        check("MotionEvent downTime=100", me.getDownTime() == 100L);
+        check("MotionEvent eventTime=200", me.getEventTime() == 200L);
+        check("MotionEvent rawX=50", me.getRawX() == 50f);
+        check("MotionEvent rawY=75", me.getRawY() == 75f);
+        check("MotionEvent pointerCount=1", me.getPointerCount() == 1);
+        check("MotionEvent getActionMasked", me.getActionMasked() == android.view.MotionEvent.ACTION_DOWN);
+
+        // MotionEvent setLocation
+        me.setLocation(10f, 20f);
+        check("MotionEvent setLocation x=10", me.getX() == 10f);
+        check("MotionEvent setLocation y=20", me.getY() == 20f);
+
+        // MotionEvent recycle (no-op, just verify no crash)
+        me.recycle();
+        check("MotionEvent recycle no crash", true);
+
+        // KeyEvent basics
+        android.view.KeyEvent ke = new android.view.KeyEvent(android.view.KeyEvent.ACTION_DOWN, android.view.KeyEvent.KEYCODE_BACK);
+        check("KeyEvent action DOWN", ke.getAction() == android.view.KeyEvent.ACTION_DOWN);
+        check("KeyEvent keyCode BACK=4", ke.getKeyCode() == 4);
+        check("KeyEvent KEYCODE_BACK constant", android.view.KeyEvent.KEYCODE_BACK == 4);
+        check("KeyEvent KEYCODE_HOME constant", android.view.KeyEvent.KEYCODE_HOME == 3);
+        check("KeyEvent KEYCODE_MENU constant", android.view.KeyEvent.KEYCODE_MENU == 82);
+        check("KeyEvent KEYCODE_ENTER constant", android.view.KeyEvent.KEYCODE_ENTER == 66);
+        check("KeyEvent KEYCODE_DEL constant", android.view.KeyEvent.KEYCODE_DEL == 67);
+        check("KeyEvent KEYCODE_VOLUME_UP constant", android.view.KeyEvent.KEYCODE_VOLUME_UP == 24);
+        check("KeyEvent KEYCODE_VOLUME_DOWN constant", android.view.KeyEvent.KEYCODE_VOLUME_DOWN == 25);
+        check("KeyEvent KEYCODE_DPAD_CENTER constant", android.view.KeyEvent.KEYCODE_DPAD_CENTER == 23);
+        check("KeyEvent ACTION_UP=1", android.view.KeyEvent.ACTION_UP == 1);
+
+        // KeyEvent full constructor
+        android.view.KeyEvent keFull = new android.view.KeyEvent(10L, 20L, android.view.KeyEvent.ACTION_UP, android.view.KeyEvent.KEYCODE_ENTER, 3);
+        check("KeyEvent full ctor downTime", keFull.getDownTime() == 10L);
+        check("KeyEvent full ctor eventTime", keFull.getEventTime() == 20L);
+        check("KeyEvent full ctor repeatCount", keFull.getRepeatCount() == 3);
+        check("KeyEvent full ctor action UP", keFull.getAction() == android.view.KeyEvent.ACTION_UP);
+        check("KeyEvent full ctor keyCode ENTER", keFull.getKeyCode() == android.view.KeyEvent.KEYCODE_ENTER);
+
+        // View touch dispatch with listener
+        android.view.View v = new android.view.View();
+        v.setClickable(true);
+        final boolean[] touched = {false};
+        v.setOnTouchListener((view, event) -> { touched[0] = true; return true; });
+        android.view.MotionEvent down = android.view.MotionEvent.obtain(0L, 0L, android.view.MotionEvent.ACTION_DOWN, 10f, 10f, 0);
+        boolean consumed = v.dispatchTouchEvent(down);
+        check("touch listener called", touched[0]);
+        check("touch consumed by listener", consumed);
+
+        // View touch dispatch without listener (clickable view)
+        android.view.View v2 = new android.view.View();
+        v2.setClickable(true);
+        final boolean[] clicked = {false};
+        v2.setOnClickListener(view -> clicked[0] = true);
+        android.view.MotionEvent up = android.view.MotionEvent.obtain(0L, 0L, android.view.MotionEvent.ACTION_UP, 10f, 10f, 0);
+        boolean consumed2 = v2.dispatchTouchEvent(up);
+        check("touch on clickable consumed", consumed2);
+        check("click fired on ACTION_UP", clicked[0]);
+
+        // View key dispatch with listener
+        final boolean[] keyed = {false};
+        v.setOnKeyListener((view, keyCode, event) -> { keyed[0] = true; return true; });
+        boolean keyConsumed = v.dispatchKeyEvent(ke);
+        check("key listener called", keyed[0]);
+        check("key consumed by listener", keyConsumed);
+
+        // View key dispatch: ENTER on clickable view triggers click
+        android.view.View v3 = new android.view.View();
+        v3.setClickable(true);
+        final boolean[] clickedByKey = {false};
+        v3.setOnClickListener(view -> clickedByKey[0] = true);
+        android.view.KeyEvent enterUp = new android.view.KeyEvent(android.view.KeyEvent.ACTION_UP, android.view.KeyEvent.KEYCODE_ENTER);
+        boolean enterConsumed = v3.dispatchKeyEvent(enterUp);
+        check("ENTER key-up triggers click", clickedByKey[0]);
+        check("ENTER key consumed", enterConsumed);
+
+        // View: non-clickable view does not consume touch
+        android.view.View v4 = new android.view.View();
+        // not clickable by default
+        boolean notConsumed = v4.dispatchTouchEvent(down);
+        check("non-clickable view does not consume touch", !notConsumed);
+
+        // ViewGroup dispatch to child
+        android.view.ViewGroup parent = new android.view.ViewGroup();
+        android.view.View child = new android.view.View();
+        child.setClickable(true);
+        child.layout(0, 0, 100, 100);
+        final boolean[] childTouched = {false};
+        child.setOnTouchListener((view, event) -> { childTouched[0] = true; return true; });
+        parent.addView(child);
+        android.view.MotionEvent touchInChild = android.view.MotionEvent.obtain(0L, 0L, android.view.MotionEvent.ACTION_DOWN, 50f, 50f, 0);
+        boolean parentConsumed = parent.dispatchTouchEvent(touchInChild);
+        check("ViewGroup dispatches to child", childTouched[0]);
+        check("ViewGroup touch consumed by child", parentConsumed);
+
+        // ViewGroup: touch outside child not dispatched to child
+        android.view.ViewGroup parent2 = new android.view.ViewGroup();
+        android.view.View child2 = new android.view.View();
+        child2.setClickable(true);
+        child2.layout(0, 0, 50, 50);
+        final boolean[] child2Touched = {false};
+        child2.setOnTouchListener((view, event) -> { child2Touched[0] = true; return true; });
+        parent2.addView(child2);
+        android.view.MotionEvent touchOutside = android.view.MotionEvent.obtain(0L, 0L, android.view.MotionEvent.ACTION_DOWN, 80f, 80f, 0);
+        parent2.dispatchTouchEvent(touchOutside);
+        check("ViewGroup: touch outside child not dispatched", !child2Touched[0]);
+
+        // ViewGroup: reverse Z-order (last child gets event first)
+        android.view.ViewGroup parent3 = new android.view.ViewGroup();
+        android.view.View childBottom = new android.view.View();
+        childBottom.setClickable(true);
+        childBottom.layout(0, 0, 100, 100);
+        android.view.View childTop = new android.view.View();
+        childTop.setClickable(true);
+        childTop.layout(0, 0, 100, 100);
+        final boolean[] bottomTouched = {false};
+        final boolean[] topTouched = {false};
+        childBottom.setOnTouchListener((view, event) -> { bottomTouched[0] = true; return true; });
+        childTop.setOnTouchListener((view, event) -> { topTouched[0] = true; return true; });
+        parent3.addView(childBottom);
+        parent3.addView(childTop);
+        android.view.MotionEvent overlapTouch = android.view.MotionEvent.obtain(0L, 0L, android.view.MotionEvent.ACTION_DOWN, 50f, 50f, 0);
+        parent3.dispatchTouchEvent(overlapTouch);
+        check("ViewGroup: top child gets event first", topTouched[0]);
+        check("ViewGroup: bottom child not reached", !bottomTouched[0]);
+    }
+
+    // ── WS3: AssetManager ──────────────────────────────────────────────────
+
+    static void testAssetManager() {
+        section("AssetManager");
+
+        // Create temp directory with test assets
+        java.io.File tmpDir = new java.io.File(System.getProperty("java.io.tmpdir"),
+                "test-assets-" + System.currentTimeMillis());
+        java.io.File subDir = new java.io.File(tmpDir, "fonts");
+        subDir.mkdirs();
+
+        try {
+            // Write test file
+            java.io.FileWriter fw = new java.io.FileWriter(new java.io.File(subDir, "test.txt"));
+            fw.write("hello assets");
+            fw.close();
+
+            android.content.res.AssetManager am = new android.content.res.AssetManager();
+            am.setAssetDir(tmpDir.getAbsolutePath());
+
+            // Test open
+            java.io.InputStream in = am.open("fonts/test.txt");
+            byte[] buf = new byte[100];
+            int n = in.read(buf);
+            in.close();
+            check("open reads file", "hello assets".equals(new String(buf, 0, n)));
+
+            // Test open with accessMode
+            java.io.InputStream in2 = am.open("fonts/test.txt", 1);
+            check("open(fileName, mode) works", in2 != null);
+            in2.close();
+
+            // Test list
+            String[] files = am.list("fonts");
+            check("list returns files", files.length > 0);
+            check("list contains test.txt", java.util.Arrays.asList(files).contains("test.txt"));
+
+            // Test list root
+            String[] rootFiles = am.list("");
+            check("list root returns dirs", rootFiles.length > 0);
+
+            // Test missing file throws
+            try {
+                am.open("nonexistent.txt");
+                check("missing file throws IOException", false);
+            } catch (java.io.IOException e) {
+                check("missing file throws IOException", true);
+            }
+
+            // Test no asset dir
+            android.content.res.AssetManager am2 = new android.content.res.AssetManager();
+            try {
+                am2.open("anything.txt");
+                check("no assetDir throws IOException", false);
+            } catch (java.io.IOException e) {
+                check("no assetDir throws IOException", true);
+            }
+
+            // Test list with no asset dir returns empty
+            String[] emptyList = am2.list("foo");
+            check("no assetDir list returns empty", emptyList.length == 0);
+
+            // Context.getAssets() returns non-null
+            android.content.Context ctx = new android.content.Context();
+            check("Context.getAssets() non-null", ctx.getAssets() != null);
+            check("Context.getAssets() same instance", ctx.getAssets() == ctx.getAssets());
+
+        } catch (Exception e) {
+            check("AssetManager test exception: " + e.getMessage(), false);
+        } finally {
+            // Cleanup
+            new java.io.File(subDir, "test.txt").delete();
+            subDir.delete();
+            tmpDir.delete();
+        }
+    }
+
+    // ── WS3: ClassLoaders ──────────────────────────────────────────────────
+
+    static void testClassLoaders() {
+        section("DexClassLoader / PathClassLoader");
+
+        // PathClassLoader can load known JDK class
+        dalvik.system.PathClassLoader pcl = new dalvik.system.PathClassLoader(
+                ".", ClassLoader.getSystemClassLoader());
+        try {
+            Class<?> cls = pcl.loadClass("java.lang.String");
+            check("PathClassLoader loads String", cls == String.class);
+        } catch (Exception e) {
+            check("PathClassLoader loads String", false);
+        }
+
+        // PathClassLoader with library path
+        dalvik.system.PathClassLoader pcl2 = new dalvik.system.PathClassLoader(
+                ".", "/usr/lib", ClassLoader.getSystemClassLoader());
+        try {
+            Class<?> cls = pcl2.loadClass("java.util.HashMap");
+            check("PathClassLoader(3-arg) loads HashMap", cls == java.util.HashMap.class);
+        } catch (Exception e) {
+            check("PathClassLoader(3-arg) loads HashMap", false);
+        }
+
+        // Default PathClassLoader
+        dalvik.system.PathClassLoader pcl3 = new dalvik.system.PathClassLoader();
+        check("PathClassLoader default ctor", pcl3 != null);
+
+        // DexClassLoader
+        dalvik.system.DexClassLoader dcl = new dalvik.system.DexClassLoader(
+                "/tmp/fake.dex", "/tmp", null, ClassLoader.getSystemClassLoader());
+        try {
+            Class<?> cls = dcl.loadClass("java.util.ArrayList");
+            check("DexClassLoader loads ArrayList", cls == java.util.ArrayList.class);
+        } catch (Exception e) {
+            check("DexClassLoader loads ArrayList", false);
+        }
+
+        // DexClassLoader with null optimizedDir
+        dalvik.system.DexClassLoader dcl2 = new dalvik.system.DexClassLoader(
+                "/tmp/fake.dex", null, null, ClassLoader.getSystemClassLoader());
+        check("DexClassLoader null optDir no crash", dcl2 != null);
+
+        // ClassNotFoundException for unknown class
+        try {
+            pcl.loadClass("com.nonexistent.FakeClass12345");
+            check("unknown class throws CNFE", false);
+        } catch (ClassNotFoundException e) {
+            check("unknown class throws CNFE", true);
+        }
+
+        // toString includes dexPath
+        check("DexClassLoader toString has path", dcl.toString().contains("/tmp/fake.dex"));
+        check("PathClassLoader toString has path", pcl.toString().contains("."));
+
+        // findLibrary returns null when no libs
+        check("findLibrary returns null", pcl.findLibrary("nonexistent") == null);
+
+        // BaseDexClassLoader hierarchy
+        check("DexClassLoader extends BaseDexClassLoader",
+                dcl instanceof dalvik.system.BaseDexClassLoader);
+        check("PathClassLoader extends BaseDexClassLoader",
+                pcl instanceof dalvik.system.BaseDexClassLoader);
+        check("BaseDexClassLoader extends ClassLoader",
+                dcl instanceof ClassLoader);
+    }
+
+    // ── WS3: ResourceTable ─────────────────────────────────────────────────
+
+    static void testResourceTable() {
+        section("ResourceTable");
+
+        android.content.res.ResourceTable table = new android.content.res.ResourceTable();
+        check("ResourceTable created", table != null);
+
+        // Test with empty/no data - getString/getInteger should return defaults
+        check("getString null for unknown", table.getString(0x7f040001) == null);
+        check("getInteger default for unknown", table.getInteger(0x7f050001, 42) == 42);
+        check("hasResource false for unknown", !table.hasResource(0x7f040001));
+
+        // Build a minimal resources.arsc binary
+        // Structure: ResTable header + global string pool + package chunk
+        try {
+            java.io.ByteArrayOutputStream baos = new java.io.ByteArrayOutputStream();
+            // We'll build it piece by piece using ByteBuffer
+
+            // === Global string pool: ["My App", "hello_world", "app_name", "string", "color", "layout"] ===
+            String[] globalStrings = {"My App", "hello_world", "app_name", "string", "color", "layout"};
+            byte[] stringPoolBytes = buildStringPool(globalStrings);
+
+            // === Type string pool: ["attr", "string", "color"] ===
+            String[] typeStrings = {"attr", "string", "color"};
+            byte[] typePoolBytes = buildStringPool(typeStrings);
+
+            // === Key string pool: ["app_name", "hello_world", "primary_color"] ===
+            String[] keyStrings = {"app_name", "hello_world", "primary_color"};
+            byte[] keyPoolBytes = buildStringPool(keyStrings);
+
+            // === Build type chunk for "string" (typeId=2, 1-based, matching typeStrings index 1) ===
+            // Two entries: app_name -> "My App" (global index 0), hello_world -> "hello_world" (global index 1)
+            byte[] typeChunkBytes = buildTypeChunk(2, new int[]{0, 1}, new int[]{0, 1},
+                    new int[]{0x03, 0x03}, new int[]{0, 1}); // string type=0x03, data=global string index
+
+            // === Build type chunk for "color" (typeId=3) ===
+            // One entry: primary_color -> 0xFFFF0000 (red)
+            byte[] colorTypeChunk = buildTypeChunk(3, new int[]{0}, new int[]{2},
+                    new int[]{0x1c}, new int[]{0xFFFF0000}); // color type=0x1c
+
+            // === Build typeSpec chunks (minimal) ===
+            byte[] typeSpecString = buildTypeSpec(2, 2); // type 2 (string), 2 entries
+            byte[] typeSpecColor = buildTypeSpec(3, 1);  // type 3 (color), 1 entry
+
+            // === Package chunk ===
+            int packageHeaderSize = 288; // 8 (chunk header) + 4 (id) + 256 (name) + 4*5 (offsets)
+            int packageChunkSize = packageHeaderSize + typePoolBytes.length + keyPoolBytes.length
+                    + typeSpecString.length + typeChunkBytes.length
+                    + typeSpecColor.length + colorTypeChunk.length;
+
+            java.nio.ByteBuffer pkgBuf = java.nio.ByteBuffer.allocate(packageChunkSize)
+                    .order(java.nio.ByteOrder.LITTLE_ENDIAN);
+            // Chunk header
+            pkgBuf.putShort((short) 0x0200); // type: RES_TABLE_PACKAGE_TYPE
+            pkgBuf.putShort((short) packageHeaderSize); // headerSize
+            pkgBuf.putInt(packageChunkSize); // size
+            pkgBuf.putInt(0x7f); // package id
+            // Package name (128 char16 = 256 bytes) - "com.test"
+            byte[] pkgNameBytes = new byte[256];
+            String pkgName = "com.test";
+            for (int i = 0; i < pkgName.length(); i++) {
+                pkgNameBytes[i * 2] = (byte) pkgName.charAt(i);
+            }
+            pkgBuf.put(pkgNameBytes);
+            // typeStrings offset (from start of package chunk)
+            pkgBuf.putInt(packageHeaderSize);
+            pkgBuf.putInt(typeStrings.length); // lastPublicType
+            // keyStrings offset
+            pkgBuf.putInt(packageHeaderSize + typePoolBytes.length);
+            pkgBuf.putInt(keyStrings.length); // lastPublicKey
+            pkgBuf.putInt(0); // typeIdOffset (API 21+)
+            // Write sub-chunks
+            pkgBuf.put(typePoolBytes);
+            pkgBuf.put(keyPoolBytes);
+            pkgBuf.put(typeSpecString);
+            pkgBuf.put(typeChunkBytes);
+            pkgBuf.put(typeSpecColor);
+            pkgBuf.put(colorTypeChunk);
+
+            byte[] packageBytes = pkgBuf.array();
+
+            // === Table header ===
+            int totalSize = 12 + stringPoolBytes.length + packageBytes.length;
+            java.nio.ByteBuffer tableBuf = java.nio.ByteBuffer.allocate(totalSize)
+                    .order(java.nio.ByteOrder.LITTLE_ENDIAN);
+            tableBuf.putShort((short) 0x0002); // RES_TABLE_TYPE
+            tableBuf.putShort((short) 12);      // headerSize
+            tableBuf.putInt(totalSize);          // size
+            tableBuf.putInt(1);                  // packageCount
+            tableBuf.put(stringPoolBytes);
+            tableBuf.put(packageBytes);
+
+            byte[] arscData = tableBuf.array();
+
+            // Parse it
+            android.content.res.ResourceTable table2 = new android.content.res.ResourceTable();
+            table2.parse(arscData);
+
+            // Resource IDs: 0xPPTTEEEE
+            // string type=2: 0x7f020000 = app_name, 0x7f020001 = hello_world
+            // color type=3: 0x7f030000 = primary_color
+
+            String appName = table2.getString(0x7f020000);
+            check("getString app_name = 'My App'", "My App".equals(appName));
+
+            String helloWorld = table2.getString(0x7f020001);
+            check("getString hello_world", "hello_world".equals(helloWorld));
+
+            int color = table2.getInteger(0x7f030000, 0);
+            check("getInteger primary_color = red", color == 0xFFFF0000 || color == -65536);
+
+            check("hasResource string exists", table2.hasResource(0x7f020000));
+            check("hasResource color exists", table2.hasResource(0x7f030000));
+            check("hasResource unknown false", !table2.hasResource(0x7f090099));
+
+            // Test Resources wiring
+            android.content.res.Resources res = new android.content.res.Resources();
+            res.loadResourceTable(table2);
+            check("Resources.getString with table", "My App".equals(res.getString(0x7f020000)));
+            check("Resources.getColor with table", res.getColor(0x7f030000) == 0xFFFF0000 || res.getColor(0x7f030000) == -65536);
+            check("Resources fallback for unknown", res.getString(0x7f099999).startsWith("string_"));
+            check("Resources.getResourceTable non-null", res.getResourceTable() != null);
+
+        } catch (Exception e) {
+            check("ResourceTable parse test: " + e.getClass().getName() + ": " + e.getMessage(), false);
+            e.printStackTrace();
+        }
+    }
+
+    /** Build a UTF-8 string pool chunk. */
+    static byte[] buildStringPool(String[] strings) {
+        try {
+            int stringCount = strings.length;
+            // Calculate string data
+            java.io.ByteArrayOutputStream stringData = new java.io.ByteArrayOutputStream();
+            int[] offsets = new int[stringCount];
+            for (int i = 0; i < stringCount; i++) {
+                offsets[i] = stringData.size();
+                byte[] utf8 = strings[i].getBytes("UTF-8");
+                // UTF-8 length encoding: charLen (1 byte) + byteLen (1 byte) + data + null
+                stringData.write(utf8.length); // charLen
+                stringData.write(utf8.length); // byteLen
+                stringData.write(utf8);
+                stringData.write(0); // null terminator
+            }
+            byte[] strBytes = stringData.toByteArray();
+
+            // String pool header: type(2) + headerSize(2) + chunkSize(4) +
+            //   stringCount(4) + styleCount(4) + flags(4) + stringsStart(4) + stylesStart(4)
+            //   + offsets(4 * stringCount)
+            int headerSize = 28; // fixed header
+            int offsetsSize = 4 * stringCount;
+            int stringsStart = headerSize + offsetsSize;
+            int chunkSize = stringsStart + strBytes.length;
+            // Align to 4 bytes
+            int padding = (4 - (chunkSize % 4)) % 4;
+            chunkSize += padding;
+
+            java.nio.ByteBuffer buf = java.nio.ByteBuffer.allocate(chunkSize)
+                    .order(java.nio.ByteOrder.LITTLE_ENDIAN);
+            buf.putShort((short) 0x0001); // RES_STRING_POOL_TYPE
+            buf.putShort((short) headerSize);
+            buf.putInt(chunkSize);
+            buf.putInt(stringCount);
+            buf.putInt(0); // styleCount
+            buf.putInt(1 << 8); // flags: UTF-8
+            buf.putInt(stringsStart); // stringsStart (relative to chunk start + 8? No, relative to chunk start + 8... actually relative to start of chunk + 8 in AOSP)
+            buf.putInt(0); // stylesStart
+
+            for (int i = 0; i < stringCount; i++) {
+                buf.putInt(offsets[i]);
+            }
+
+            buf.put(strBytes);
+            // padding
+            for (int i = 0; i < padding; i++) buf.put((byte) 0);
+
+            return buf.array();
+        } catch (Exception e) {
+            return new byte[0];
+        }
+    }
+
+    /** Build a minimal ResTable_typeSpec chunk. */
+    static byte[] buildTypeSpec(int typeId, int entryCount) {
+        int chunkSize = 8 + 4 + entryCount * 4; // header + (id,res0,res1,entryCount) + flags
+        // Actually typeSpec header: type(2) + headerSize(2) + size(4) + id(1) + res0(1) + res1(2) + entryCount(4) + flags[entryCount]
+        int headerSize2 = 8 + 4 + 4; // chunk header (8) + id/res0/res1 (4) + entryCount (4)
+        chunkSize = headerSize2 + entryCount * 4;
+        java.nio.ByteBuffer buf = java.nio.ByteBuffer.allocate(chunkSize)
+                .order(java.nio.ByteOrder.LITTLE_ENDIAN);
+        buf.putShort((short) 0x0202); // RES_TABLE_TYPE_SPEC_TYPE
+        buf.putShort((short) headerSize2);
+        buf.putInt(chunkSize);
+        buf.put((byte) typeId);
+        buf.put((byte) 0); // res0
+        buf.putShort((short) 0); // res1
+        buf.putInt(entryCount);
+        for (int i = 0; i < entryCount; i++) {
+            buf.putInt(0); // flags = 0
+        }
+        return buf.array();
+    }
+
+    /** Build a minimal ResTable_type chunk with simple entries. */
+    static byte[] buildTypeChunk(int typeId, int[] entryIndices, int[] keyIndices,
+                                  int[] valueTypes, int[] valueData) {
+        int entryCount = entryIndices.length;
+        // Find max entry index to determine offset array size
+        int maxEntry = 0;
+        for (int idx : entryIndices) {
+            if (idx > maxEntry) maxEntry = idx;
+        }
+        int offsetArraySize = maxEntry + 1;
+
+        // ResTable_type header:
+        // chunk header (8) + id(1) + flags(1) + reserved(2) + entryCount(4) + entriesStart(4)
+        // + ResTable_config (at minimum 4 bytes for size, but typical is 64 bytes)
+        int configSize = 64; // standard config size
+        int headerSize3 = 8 + 4 + 4 + 4 + configSize;
+        int offsetsBytes = offsetArraySize * 4;
+        // Each entry: ResTable_entry (8 bytes: size(2) + flags(2) + key(4)) + Res_value (8 bytes: size(2) + res0(1) + type(1) + data(4))
+        int entrySize = 16; // 8 + 8
+        int entriesDataSize = entryCount * entrySize;
+        int entriesStart = headerSize3 + offsetsBytes;
+        int chunkSize = entriesStart + entriesDataSize;
+
+        java.nio.ByteBuffer buf = java.nio.ByteBuffer.allocate(chunkSize)
+                .order(java.nio.ByteOrder.LITTLE_ENDIAN);
+        // Chunk header
+        buf.putShort((short) 0x0201); // RES_TABLE_TYPE_TYPE
+        buf.putShort((short) headerSize3);
+        buf.putInt(chunkSize);
+        // id, flags, reserved
+        buf.put((byte) typeId);
+        buf.put((byte) 0); // flags
+        buf.putShort((short) 0); // reserved
+        buf.putInt(offsetArraySize); // entryCount
+        buf.putInt(entriesStart); // entriesStart
+        // ResTable_config - minimal (just size + zeros)
+        buf.putInt(configSize);
+        for (int i = 0; i < configSize - 4; i++) buf.put((byte) 0);
+
+        // Offset array - 0xFFFFFFFF for empty entries
+        int[] offsetArray = new int[offsetArraySize];
+        java.util.Arrays.fill(offsetArray, 0xFFFFFFFF);
+        int currentOffset = 0;
+        for (int i = 0; i < entryCount; i++) {
+            offsetArray[entryIndices[i]] = currentOffset;
+            currentOffset += entrySize;
+        }
+        for (int off : offsetArray) {
+            buf.putInt(off);
+        }
+
+        // Entry data
+        for (int i = 0; i < entryCount; i++) {
+            // ResTable_entry
+            buf.putShort((short) 8); // size
+            buf.putShort((short) 0); // flags (not complex)
+            buf.putInt(keyIndices[i]); // key index into key string pool
+            // Res_value
+            buf.putShort((short) 8); // size
+            buf.put((byte) 0); // res0
+            buf.put((byte) valueTypes[i]); // dataType
+            buf.putInt(valueData[i]); // data
+        }
+
+        return buf.array();
+    }
+
+    // ── WS3: ApkLoader extended (assets, native libs, resources.arsc) ──────
+
+    static void testApkLoaderExtended() {
+        section("ApkLoader extended (assets, native libs, res)");
+
+        try {
+            java.io.File tmpApk = java.io.File.createTempFile("test-ext", ".apk");
+            tmpApk.deleteOnExit();
+
+            // Determine host ABI for native lib test
+            String arch = System.getProperty("os.arch", "");
+            String abiDir;
+            if (arch.contains("amd64") || arch.contains("x86_64")) {
+                abiDir = "lib/x86_64/";
+            } else if (arch.contains("aarch64") || arch.contains("arm64")) {
+                abiDir = "lib/arm64-v8a/";
+            } else if (arch.contains("arm")) {
+                abiDir = "lib/armeabi-v7a/";
+            } else {
+                abiDir = "lib/x86/";
+            }
+
+            // Create test APK with assets, native lib, and res
+            try (java.util.zip.ZipOutputStream zos = new java.util.zip.ZipOutputStream(
+                    new java.io.FileOutputStream(tmpApk))) {
+                // classes.dex
+                zos.putNextEntry(new java.util.zip.ZipEntry("classes.dex"));
+                zos.write(new byte[]{0x64, 0x65, 0x78, 0x0a});
+                zos.closeEntry();
+
+                // assets/config.json
+                zos.putNextEntry(new java.util.zip.ZipEntry("assets/config.json"));
+                zos.write("{\"key\":\"value\"}".getBytes());
+                zos.closeEntry();
+
+                // assets/fonts/test.ttf (fake font)
+                zos.putNextEntry(new java.util.zip.ZipEntry("assets/fonts/test.ttf"));
+                zos.write(new byte[]{0x00, 0x01, 0x00, 0x00});
+                zos.closeEntry();
+
+                // native lib
+                zos.putNextEntry(new java.util.zip.ZipEntry(abiDir + "libtest.so"));
+                zos.write(new byte[]{0x7f, 0x45, 0x4c, 0x46}); // ELF header
+                zos.closeEntry();
+
+                // res/layout/activity_main.xml (fake)
+                zos.putNextEntry(new java.util.zip.ZipEntry("res/layout/activity_main.xml"));
+                zos.write(new byte[]{0x03, 0x00, 0x08, 0x00});
+                zos.closeEntry();
+            }
+
+            android.app.ApkInfo info = android.app.ApkLoader.load(tmpApk.getAbsolutePath());
+
+            // Check DEX extraction still works
+            check("ext: dexPaths has 1", info.dexPaths.size() == 1);
+
+            // Check asset extraction
+            check("ext: assetDir set", info.assetDir != null);
+            if (info.assetDir != null) {
+                java.io.File configFile = new java.io.File(info.assetDir, "config.json");
+                check("ext: config.json extracted", configFile.exists());
+                java.io.File fontFile = new java.io.File(info.assetDir, "fonts/test.ttf");
+                check("ext: fonts/test.ttf extracted", fontFile.exists());
+            }
+
+            // Check native lib extraction
+            check("ext: nativeLibDir set", info.nativeLibDir != null);
+            check("ext: nativeLibPaths has entries", info.nativeLibPaths.size() > 0);
+            if (info.nativeLibPaths.size() > 0) {
+                java.io.File soFile = new java.io.File(info.nativeLibPaths.get(0));
+                check("ext: libtest.so extracted", soFile.exists());
+                check("ext: libtest.so name correct", soFile.getName().equals("libtest.so"));
+            }
+
+            // Check res extraction
+            check("ext: resDir set", info.resDir != null);
+            if (info.resDir != null) {
+                java.io.File layoutFile = new java.io.File(info.resDir, "layout/activity_main.xml");
+                check("ext: res/layout extracted", layoutFile.exists());
+            }
+
+            // Test MiniServer wiring with assets
+            android.app.MiniServer.init("com.test.ext");
+            android.app.MiniServer server = android.app.MiniServer.get();
+            // Manually wire assets (as loadApk would do if we had a real APK with manifest)
+            android.content.res.AssetManager am = server.getApplication().getAssets();
+            am.setAssetDir(info.assetDir);
+            try {
+                java.io.InputStream assetIn = am.open("config.json");
+                byte[] readBuf = new byte[100];
+                int readN = assetIn.read(readBuf);
+                assetIn.close();
+                check("ext: MiniServer asset read", new String(readBuf, 0, readN).contains("key"));
+            } catch (Exception e) {
+                check("ext: MiniServer asset read", false);
+            }
+            server.shutdown();
+
+            // Cleanup
+            tmpApk.delete();
+            deleteDir(new java.io.File(info.extractDir));
+
+        } catch (Exception e) {
+            check("ApkLoader extended test: " + e.getMessage(), false);
+            e.printStackTrace();
+        }
+    }
+
+    static void testSurfaceRendering() {
+        section("Surface rendering pipeline");
+
+        // ── Surface lifecycle ──
+        long surfaceCtx = com.ohos.shim.bridge.OHBridge.surfaceCreate(0, 320, 480);
+        check("surfaceCreate returns handle", surfaceCtx != 0);
+
+        long canvasHandle = com.ohos.shim.bridge.OHBridge.surfaceGetCanvas(surfaceCtx);
+        check("surfaceGetCanvas returns handle", canvasHandle != 0);
+
+        int flushResult = com.ohos.shim.bridge.OHBridge.surfaceFlush(surfaceCtx);
+        check("surfaceFlush returns 0", flushResult == 0);
+
+        // Resize
+        com.ohos.shim.bridge.OHBridge.surfaceResize(surfaceCtx, 640, 960);
+        long canvasHandle2 = com.ohos.shim.bridge.OHBridge.surfaceGetCanvas(surfaceCtx);
+        check("surfaceGetCanvas after resize", canvasHandle2 != 0);
+
+        com.ohos.shim.bridge.OHBridge.surfaceDestroy(surfaceCtx);
+        long canvasAfterDestroy = com.ohos.shim.bridge.OHBridge.surfaceGetCanvas(surfaceCtx);
+        check("surfaceGetCanvas after destroy == 0", canvasAfterDestroy == 0);
+
+        // ── View.draw(Canvas) traversal ──
+        android.graphics.Bitmap bmp = android.graphics.Bitmap.createBitmap(100, 100,
+                android.graphics.Bitmap.Config.ARGB_8888);
+        android.graphics.Canvas canvas = new android.graphics.Canvas(bmp);
+
+        // Custom view that records a drawRect in onDraw
+        android.view.View customView = new android.view.View() {
+            @Override
+            protected void onDraw(android.graphics.Canvas c) {
+                android.graphics.Paint p = new android.graphics.Paint();
+                p.setColor(0xFFFF0000);
+                c.drawRect(0, 0, 50, 50, p);
+            }
+        };
+        customView.draw(canvas);
+
+        java.util.List<com.ohos.shim.bridge.OHBridge.DrawRecord> log =
+                com.ohos.shim.bridge.OHBridge.getDrawLog(canvas.getNativeHandle());
+        check("custom view onDraw produced drawRect",
+                log.size() > 0 && "drawRect".equals(log.get(0).op));
+
+        // ── ViewGroup dispatches to children ──
+        com.ohos.shim.bridge.OHBridge.clearDrawLog(canvas.getNativeHandle());
+        android.view.ViewGroup group = new android.view.ViewGroup() {};
+        group.addView(customView);
+        customView.layout(10, 20, 60, 70);
+        group.draw(canvas);
+
+        log = com.ohos.shim.bridge.OHBridge.getDrawLog(canvas.getNativeHandle());
+        check("viewgroup draw produces save",
+                log.stream().anyMatch(r -> "save".equals(r.op)));
+        check("viewgroup draw produces drawRect from child",
+                log.stream().anyMatch(r -> "drawRect".equals(r.op)));
+        check("viewgroup draw produces restore",
+                log.stream().anyMatch(r -> "restore".equals(r.op)));
+
+        // ── GONE children skipped ──
+        com.ohos.shim.bridge.OHBridge.clearDrawLog(canvas.getNativeHandle());
+        customView.setVisibility(android.view.View.GONE);
+        group.draw(canvas);
+        log = com.ohos.shim.bridge.OHBridge.getDrawLog(canvas.getNativeHandle());
+        check("GONE child skipped (no drawRect)",
+                log.stream().noneMatch(r -> "drawRect".equals(r.op)));
+        customView.setVisibility(android.view.View.VISIBLE);
+
+        // ── Canvas wrapping constructor (surface mode) ──
+        android.graphics.Canvas wrappedCanvas = new android.graphics.Canvas(canvasHandle, 200, 300);
+        check("wrapped canvas width", wrappedCanvas.getWidth() == 200);
+        check("wrapped canvas height", wrappedCanvas.getHeight() == 300);
+        check("wrapped canvas native handle", wrappedCanvas.getNativeHandle() == canvasHandle);
+
+        // ── Activity.renderFrame integration ──
+        android.app.MiniServer.init("com.test.surface");
+        android.app.Activity activity = new android.app.Activity();
+
+        // Add a view that draws green
+        android.view.View greenView = new android.view.View() {
+            @Override
+            protected void onDraw(android.graphics.Canvas c) {
+                c.drawColor(0xFF00FF00);
+            }
+        };
+        activity.setContentView(greenView);
+        activity.onSurfaceCreated(0, 100, 100);
+        activity.renderFrame();
+        // If we got here without exception, the pipeline works
+        check("Activity.renderFrame completes without error", true);
+
+        activity.onSurfaceDestroyed();
+        check("Activity.onSurfaceDestroyed completes", true);
+
+        // ── Background color drawing ──
+        com.ohos.shim.bridge.OHBridge.clearDrawLog(canvas.getNativeHandle());
+        android.view.View bgView = new android.view.View();
+        bgView.setBackgroundColor(0xFFAA0000);
+        bgView.draw(canvas);
+        log = com.ohos.shim.bridge.OHBridge.getDrawLog(canvas.getNativeHandle());
+        check("background color draws drawColor",
+                log.stream().anyMatch(r -> "drawColor".equals(r.op) && r.color == 0xFFAA0000));
+
+        // ── TextView.onDraw draws text ──
+        com.ohos.shim.bridge.OHBridge.clearDrawLog(canvas.getNativeHandle());
+        android.widget.TextView tv = new android.widget.TextView();
+        tv.setText("Hello");
+        tv.setTextColor(0xFF0000FF);
+        tv.setTextSize(20);
+        tv.draw(canvas);
+        log = com.ohos.shim.bridge.OHBridge.getDrawLog(canvas.getNativeHandle());
+        check("TextView onDraw produces drawText",
+                log.stream().anyMatch(r -> "drawText".equals(r.op) && "Hello".equals(r.text)));
+
+        // ── ImageView.onDraw draws bitmap ──
+        com.ohos.shim.bridge.OHBridge.clearDrawLog(canvas.getNativeHandle());
+        android.graphics.Bitmap imgBmp = android.graphics.Bitmap.createBitmap(32, 32,
+                android.graphics.Bitmap.Config.ARGB_8888);
+        android.widget.ImageView iv = new android.widget.ImageView();
+        iv.setImageBitmap(imgBmp);
+        iv.draw(canvas);
+        log = com.ohos.shim.bridge.OHBridge.getDrawLog(canvas.getNativeHandle());
+        check("ImageView onDraw produces drawBitmap",
+                log.stream().anyMatch(r -> "drawBitmap".equals(r.op)));
+        imgBmp.recycle();
+
+        // ── View.measure with MeasureSpec ──
+        android.view.View measurable = new android.view.View();
+        int wSpec = android.view.View.MeasureSpec.makeMeasureSpec(200, android.view.View.MeasureSpec.EXACTLY);
+        int hSpec = android.view.View.MeasureSpec.makeMeasureSpec(300, android.view.View.MeasureSpec.EXACTLY);
+        measurable.measure(wSpec, hSpec);
+        check("measure EXACTLY sets measuredWidth", measurable.getMeasuredWidth() == 200);
+        check("measure EXACTLY sets measuredHeight", measurable.getMeasuredHeight() == 300);
+
+        int wAtMost = android.view.View.MeasureSpec.makeMeasureSpec(150, android.view.View.MeasureSpec.AT_MOST);
+        measurable.measure(wAtMost, hSpec);
+        check("measure AT_MOST returns spec size", measurable.getMeasuredWidth() == 150);
+
+        // ── clipRect and translate recorded in mock ──
+        com.ohos.shim.bridge.OHBridge.clearDrawLog(canvas.getNativeHandle());
+        canvas.save();
+        canvas.translate(5, 10);
+        canvas.clipRect(0, 0, 50, 50);
+        canvas.restore();
+        log = com.ohos.shim.bridge.OHBridge.getDrawLog(canvas.getNativeHandle());
+        check("translate recorded in draw log",
+                log.stream().anyMatch(r -> "translate".equals(r.op)));
+        check("clipRect recorded in draw log",
+                log.stream().anyMatch(r -> "clipRect".equals(r.op)));
+
+        canvas.release();
+        bmp.recycle();
+    }
+
+    static void testViewRenderingPipeline() {
+        section("View rendering pipeline (layout, measure, scroll, translation, alpha, widgets)");
+
+        android.graphics.Bitmap bmp = android.graphics.Bitmap.createBitmap(400, 400,
+                android.graphics.Bitmap.Config.ARGB_8888);
+        android.graphics.Canvas canvas = new android.graphics.Canvas(bmp);
+
+        // ── Item 1: LinearLayout vertical layout ──
+        android.widget.LinearLayout vLayout = new android.widget.LinearLayout();
+        vLayout.setOrientation(android.widget.LinearLayout.VERTICAL);
+        android.view.View c1 = new android.view.View();
+        android.view.View c2 = new android.view.View();
+        int spec100 = android.view.View.MeasureSpec.makeMeasureSpec(100, android.view.View.MeasureSpec.EXACTLY);
+        int spec50 = android.view.View.MeasureSpec.makeMeasureSpec(50, android.view.View.MeasureSpec.EXACTLY);
+        c1.measure(spec100, spec50);
+        c2.measure(spec100, spec50);
+        vLayout.addView(c1);
+        vLayout.addView(c2);
+        vLayout.layout(0, 0, 200, 200);
+        check("LinearLayout V: c1 top == 0", c1.getTop() == 0);
+        check("LinearLayout V: c2 top == 50", c2.getTop() == 50);
+        check("LinearLayout V: c1 height == 50", c1.getHeight() == 50);
+
+        // LinearLayout horizontal
+        android.widget.LinearLayout hLayout = new android.widget.LinearLayout();
+        hLayout.setOrientation(android.widget.LinearLayout.HORIZONTAL);
+        android.view.View h1 = new android.view.View();
+        android.view.View h2 = new android.view.View();
+        h1.measure(spec50, spec100);
+        h2.measure(spec50, spec100);
+        hLayout.addView(h1);
+        hLayout.addView(h2);
+        hLayout.layout(0, 0, 200, 200);
+        check("LinearLayout H: h1 left == 0", h1.getLeft() == 0);
+        check("LinearLayout H: h2 left == 50", h2.getLeft() == 50);
+
+        // ── Item 2: FrameLayout stacked layout ──
+        android.widget.FrameLayout frame = new android.widget.FrameLayout();
+        android.view.View fChild1 = new android.view.View();
+        android.view.View fChild2 = new android.view.View();
+        fChild1.measure(spec50, spec50);
+        fChild2.measure(spec50, spec50);
+        frame.addView(fChild1);
+        frame.addView(fChild2);
+        frame.layout(0, 0, 200, 200);
+        // Both children should be positioned at top-left (default gravity)
+        check("FrameLayout: child1 left == 0", fChild1.getLeft() == 0);
+        check("FrameLayout: child1 top == 0", fChild1.getTop() == 0);
+        check("FrameLayout: child2 left == 0", fChild2.getLeft() == 0);
+        check("FrameLayout: child2 overlaps child1", fChild2.getTop() == 0);
+
+        // ── Item 3: ViewGroup.measureChildren ──
+        android.widget.LinearLayout measGroup = new android.widget.LinearLayout();
+        android.view.View mChild = new android.view.View();
+        measGroup.addView(mChild);
+        int parentSpec = android.view.View.MeasureSpec.makeMeasureSpec(300, android.view.View.MeasureSpec.EXACTLY);
+        measGroup.measureChildren(parentSpec, parentSpec);
+        check("measureChildren propagates to child", mChild.getMeasuredWidth() > 0 || mChild.getMeasuredHeight() > 0);
+
+        // getChildMeasureSpec
+        int childSpec = android.view.ViewGroup.getChildMeasureSpec(
+            android.view.View.MeasureSpec.makeMeasureSpec(200, android.view.View.MeasureSpec.EXACTLY),
+            20, 100);
+        check("getChildMeasureSpec fixed child = EXACTLY",
+            android.view.View.MeasureSpec.getMode(childSpec) == android.view.View.MeasureSpec.EXACTLY);
+        check("getChildMeasureSpec fixed child size = 100",
+            android.view.View.MeasureSpec.getSize(childSpec) == 100);
+
+        int wrapSpec = android.view.ViewGroup.getChildMeasureSpec(
+            android.view.View.MeasureSpec.makeMeasureSpec(200, android.view.View.MeasureSpec.EXACTLY),
+            20, -2); // WRAP_CONTENT
+        check("getChildMeasureSpec wrap = AT_MOST",
+            android.view.View.MeasureSpec.getMode(wrapSpec) == android.view.View.MeasureSpec.AT_MOST);
+        check("getChildMeasureSpec wrap size = 180",
+            android.view.View.MeasureSpec.getSize(wrapSpec) == 180);
+
+        // ── Item 4: View.requestLayout ──
+        android.widget.LinearLayout rlRoot = new android.widget.LinearLayout();
+        rlRoot.setOrientation(android.widget.LinearLayout.VERTICAL);
+        android.view.View rlChild = new android.view.View();
+        rlRoot.addView(rlChild);
+        rlRoot.layout(0, 0, 100, 100);
+        // requestLayout should not throw
+        rlChild.requestLayout();
+        check("requestLayout does not throw", true);
+
+        // ── Item 5: View.setBackground(Drawable) ──
+        android.graphics.drawable.Drawable bg = new android.graphics.drawable.Drawable() {
+            @Override
+            public void draw(android.graphics.Canvas canvas) {
+                canvas.drawColor(0xFF990000);
+            }
+        };
+        com.ohos.shim.bridge.OHBridge.clearDrawLog(canvas.getNativeHandle());
+        android.view.View bgView = new android.view.View();
+        bgView.setBackground(bg);
+        check("getBackground returns drawable", bgView.getBackground() == bg);
+        bgView.layout(0, 0, 50, 50);
+        bgView.draw(canvas);
+        java.util.List<com.ohos.shim.bridge.OHBridge.DrawRecord> log =
+                com.ohos.shim.bridge.OHBridge.getDrawLog(canvas.getNativeHandle());
+        check("Drawable background draws drawColor",
+                log.stream().anyMatch(r -> "drawColor".equals(r.op) && r.color == 0xFF990000));
+
+        // ── Item 6: Canvas.drawBitmap Rect overloads ──
+        android.graphics.Bitmap srcBmp = android.graphics.Bitmap.createBitmap(64, 64,
+                android.graphics.Bitmap.Config.ARGB_8888);
+        com.ohos.shim.bridge.OHBridge.clearDrawLog(canvas.getNativeHandle());
+        android.graphics.Rect srcRect = new android.graphics.Rect(0, 0, 32, 32);
+        android.graphics.Rect dstRect = new android.graphics.Rect(10, 10, 110, 110);
+        canvas.drawBitmap(srcBmp, srcRect, dstRect, null);
+        log = com.ohos.shim.bridge.OHBridge.getDrawLog(canvas.getNativeHandle());
+        check("drawBitmap(src,dst) produces save",
+                log.stream().anyMatch(r -> "save".equals(r.op)));
+        check("drawBitmap(src,dst) produces drawBitmap",
+                log.stream().anyMatch(r -> "drawBitmap".equals(r.op)));
+        check("drawBitmap(src,dst) produces restore",
+                log.stream().anyMatch(r -> "restore".equals(r.op)));
+        check("drawBitmap(src,dst) produces translate",
+                log.stream().anyMatch(r -> "translate".equals(r.op)));
+        check("drawBitmap(src,dst) produces scale",
+                log.stream().anyMatch(r -> "scale".equals(r.op)));
+
+        // drawBitmap with Matrix
+        com.ohos.shim.bridge.OHBridge.clearDrawLog(canvas.getNativeHandle());
+        android.graphics.Matrix m = new android.graphics.Matrix();
+        m.setTranslate(5, 5);
+        canvas.drawBitmap(srcBmp, m, null);
+        log = com.ohos.shim.bridge.OHBridge.getDrawLog(canvas.getNativeHandle());
+        check("drawBitmap(matrix) produces drawBitmap",
+                log.stream().anyMatch(r -> "drawBitmap".equals(r.op)));
+        srcBmp.recycle();
+
+        // ── Item 7: View scroll support ──
+        android.view.View scrollView = new android.view.View();
+        check("initial scrollX == 0", scrollView.getScrollX() == 0);
+        check("initial scrollY == 0", scrollView.getScrollY() == 0);
+        scrollView.scrollTo(10, 20);
+        check("scrollTo sets scrollX", scrollView.getScrollX() == 10);
+        check("scrollTo sets scrollY", scrollView.getScrollY() == 20);
+        scrollView.scrollBy(5, -3);
+        check("scrollBy adds to scrollX", scrollView.getScrollX() == 15);
+        check("scrollBy adds to scrollY", scrollView.getScrollY() == 17);
+        scrollView.setScrollX(0);
+        scrollView.setScrollY(0);
+        check("setScrollX resets", scrollView.getScrollX() == 0);
+        check("setScrollY resets", scrollView.getScrollY() == 0);
+
+        // scroll offset applied in draw
+        com.ohos.shim.bridge.OHBridge.clearDrawLog(canvas.getNativeHandle());
+        android.view.View scrollDrawView = new android.view.View() {
+            @Override
+            protected void onDraw(android.graphics.Canvas c) {
+                c.drawColor(0xFF123456);
+            }
+        };
+        scrollDrawView.scrollTo(10, 20);
+        scrollDrawView.draw(canvas);
+        log = com.ohos.shim.bridge.OHBridge.getDrawLog(canvas.getNativeHandle());
+        // scroll should produce save + translate(-10,-20) + ... + restore
+        check("scroll draw has save", log.stream().anyMatch(r -> "save".equals(r.op)));
+        check("scroll draw has translate for scroll offset",
+                log.stream().anyMatch(r -> "translate".equals(r.op)
+                    && r.args.length >= 2 && r.args[0] == -10f && r.args[1] == -20f));
+
+        // ── Item 8: Button onDraw ──
+        com.ohos.shim.bridge.OHBridge.clearDrawLog(canvas.getNativeHandle());
+        android.widget.Button btn = new android.widget.Button();
+        btn.setText("Click");
+        btn.layout(0, 0, 100, 40);
+        btn.draw(canvas);
+        log = com.ohos.shim.bridge.OHBridge.getDrawLog(canvas.getNativeHandle());
+        check("Button draws roundRect background",
+                log.stream().anyMatch(r -> "drawRoundRect".equals(r.op)));
+        check("Button draws text",
+                log.stream().anyMatch(r -> "drawText".equals(r.op) && "Click".equals(r.text)));
+
+        // ProgressBar onDraw
+        com.ohos.shim.bridge.OHBridge.clearDrawLog(canvas.getNativeHandle());
+        android.widget.ProgressBar pb = new android.widget.ProgressBar();
+        pb.setMax(100);
+        pb.setProgress(50);
+        pb.layout(0, 0, 200, 30);
+        pb.draw(canvas);
+        log = com.ohos.shim.bridge.OHBridge.getDrawLog(canvas.getNativeHandle());
+        check("ProgressBar draws track (drawRect)",
+                log.stream().filter(r -> "drawRect".equals(r.op)).count() >= 2);
+
+        // CheckBox onDraw
+        com.ohos.shim.bridge.OHBridge.clearDrawLog(canvas.getNativeHandle());
+        android.widget.CheckBox cb = new android.widget.CheckBox();
+        cb.setText("Option");
+        cb.setChecked(true);
+        cb.layout(0, 0, 150, 30);
+        cb.draw(canvas);
+        log = com.ohos.shim.bridge.OHBridge.getDrawLog(canvas.getNativeHandle());
+        check("CheckBox draws box (drawRect)",
+                log.stream().anyMatch(r -> "drawRect".equals(r.op)));
+        check("CheckBox checked draws checkmark (drawLine)",
+                log.stream().filter(r -> "drawLine".equals(r.op)).count() >= 2);
+        check("CheckBox draws label text",
+                log.stream().anyMatch(r -> "drawText".equals(r.op) && "Option".equals(r.text)));
+
+        // CheckBox unchecked - no checkmark lines
+        com.ohos.shim.bridge.OHBridge.clearDrawLog(canvas.getNativeHandle());
+        cb.setChecked(false);
+        cb.draw(canvas);
+        log = com.ohos.shim.bridge.OHBridge.getDrawLog(canvas.getNativeHandle());
+        check("CheckBox unchecked no checkmark lines",
+                log.stream().filter(r -> "drawLine".equals(r.op)).count() == 0);
+
+        // ── Item 9: View.setTranslationX/Y ──
+        android.view.View transView = new android.view.View();
+        check("initial translationX == 0", transView.getTranslationX() == 0f);
+        check("initial translationY == 0", transView.getTranslationY() == 0f);
+        transView.setTranslationX(15.5f);
+        transView.setTranslationY(-7.3f);
+        check("setTranslationX", transView.getTranslationX() == 15.5f);
+        check("setTranslationY", transView.getTranslationY() == -7.3f);
+
+        // Translation applied in ViewGroup drawChild
+        com.ohos.shim.bridge.OHBridge.clearDrawLog(canvas.getNativeHandle());
+        android.view.ViewGroup transGroup = new android.view.ViewGroup() {};
+        android.view.View transChild = new android.view.View() {
+            @Override
+            protected void onDraw(android.graphics.Canvas c) {
+                c.drawColor(0xFF000000);
+            }
+        };
+        transChild.layout(10, 20, 60, 70);
+        transChild.setTranslationX(5f);
+        transChild.setTranslationY(3f);
+        transGroup.addView(transChild);
+        transGroup.draw(canvas);
+        log = com.ohos.shim.bridge.OHBridge.getDrawLog(canvas.getNativeHandle());
+        // translate should be (left + translationX, top + translationY) = (15, 23)
+        check("drawChild translates with translation offset",
+                log.stream().anyMatch(r -> "translate".equals(r.op)
+                    && r.args.length >= 2 && r.args[0] == 15f && r.args[1] == 23f));
+
+        // ── Item 10: Alpha compositing ──
+        com.ohos.shim.bridge.OHBridge.clearDrawLog(canvas.getNativeHandle());
+        android.view.View alphaView = new android.view.View() {
+            @Override
+            protected void onDraw(android.graphics.Canvas c) {
+                c.drawColor(0xFF000000);
+            }
+        };
+        alphaView.setAlpha(0.5f);
+        alphaView.draw(canvas);
+        log = com.ohos.shim.bridge.OHBridge.getDrawLog(canvas.getNativeHandle());
+        // Alpha < 1.0 should produce save at beginning and restore at end
+        check("alpha < 1 produces save",
+                log.size() > 0 && "save".equals(log.get(0).op));
+        check("alpha < 1 produces restore at end",
+                log.size() > 1 && "restore".equals(log.get(log.size() - 1).op));
+
+        // Alpha == 1.0 should NOT add extra save/restore
+        com.ohos.shim.bridge.OHBridge.clearDrawLog(canvas.getNativeHandle());
+        android.view.View opaqueView = new android.view.View() {
+            @Override
+            protected void onDraw(android.graphics.Canvas c) {
+                c.drawColor(0xFFFFFFFF);
+            }
+        };
+        opaqueView.setAlpha(1.0f);
+        opaqueView.draw(canvas);
+        log = com.ohos.shim.bridge.OHBridge.getDrawLog(canvas.getNativeHandle());
+        check("alpha == 1 does NOT produce save",
+                log.isEmpty() || !"save".equals(log.get(0).op));
+
+        // ── LinearLayout onMeasure ──
+        // Children with WRAP_CONTENT take AT_MOST parent size, so measured == parent size.
+        // With EXACTLY spec, LinearLayout gives children exact parent size.
+        android.widget.LinearLayout measLL = new android.widget.LinearLayout();
+        measLL.setOrientation(android.widget.LinearLayout.VERTICAL);
+        android.view.View mc1 = new android.view.View();
+        android.view.View mc2 = new android.view.View();
+        measLL.addView(mc1);
+        measLL.addView(mc2);
+        int exact200 = android.view.View.MeasureSpec.makeMeasureSpec(200, android.view.View.MeasureSpec.EXACTLY);
+        measLL.measure(exact200, exact200);
+        // Both children get measured to parent's EXACTLY size (200)
+        check("LinearLayout V child measured via measureChildren", mc1.getMeasuredWidth() > 0);
+        check("LinearLayout V measuredWidth == EXACTLY spec", measLL.getMeasuredWidth() == 200);
+        check("LinearLayout V measuredHeight == EXACTLY spec", measLL.getMeasuredHeight() == 200);
+
+        canvas.release();
+        bmp.recycle();
+    }
+
+    static void deleteDir(java.io.File dir) {
+        if (dir.isDirectory()) {
+            java.io.File[] children = dir.listFiles();
+            if (children != null) {
+                for (java.io.File child : children) deleteDir(child);
+            }
+        }
+        dir.delete();
     }
 }

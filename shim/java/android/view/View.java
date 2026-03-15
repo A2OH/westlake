@@ -10,22 +10,46 @@ public class View {
     // OHBridge native handle for OHOS ArkUI node
     protected long nativeHandle;
     public long getNativeHandle() { return nativeHandle; }
-    public View findViewByHandle(long handle) { return null; }
+    public View findViewByHandle(long handle) {
+        if (nativeHandle == handle) return this;
+        return null;
+    }
     public void onNativeEvent(int eventType, int eventCode, String data) {}
 
     // ── State storage for properly-typed API ──
     private int mId = NO_ID;
     private int mVisibility = VISIBLE;
     private boolean mEnabled = true;
+    private boolean mClickable;
+    private boolean mLongClickable;
     private int mPaddingLeft, mPaddingTop, mPaddingRight, mPaddingBottom;
+    private int mLeft, mTop, mRight, mBottom;
     private float mAlpha = 1.0f;
     private Object mTag;
     private OnClickListener mClickListener;
+    private OnTouchListener mTouchListener;
+    private OnKeyListener mKeyListener;
     ViewGroup mParent;
     private Object mLayoutParams;
+    private int mBackgroundColor = 0; // 0 = transparent (no background)
+    private android.graphics.drawable.Drawable mBackground;
+    private int mMeasuredWidth;
+    private int mMeasuredHeight;
+    private int mScrollX;
+    private int mScrollY;
+    private float mTranslationX;
+    private float mTranslationY;
 
     public interface OnClickListener {
         void onClick(View v);
+    }
+
+    public interface OnTouchListener {
+        boolean onTouch(View v, MotionEvent event);
+    }
+
+    public interface OnKeyListener {
+        boolean onKey(View v, int keyCode, KeyEvent event);
     }
 
     public void destroy() {
@@ -49,12 +73,32 @@ public class View {
     public void setAlpha(float alpha) { mAlpha = alpha; }
     public float getAlpha() { return mAlpha; }
 
-    public void setBackgroundColor(int color) {}
+    public void setBackgroundColor(int color) { mBackgroundColor = color; }
+    public int getBackgroundColor() { return mBackgroundColor; }
 
     public void setTag(Object tag) { mTag = tag; }
     public Object getTag() { return mTag; }
 
-    public void setOnClickListener(OnClickListener listener) { mClickListener = listener; }
+    public void setOnClickListener(OnClickListener listener) {
+        mClickListener = listener;
+        if (!mClickable) mClickable = true;
+    }
+
+    public void setOnTouchListener(OnTouchListener listener) { mTouchListener = listener; }
+    public void setOnKeyListener(OnKeyListener listener) { mKeyListener = listener; }
+
+    public void setClickable(boolean clickable) { mClickable = clickable; }
+    public boolean isClickable() { return mClickable; }
+
+    public void setLongClickable(boolean longClickable) { mLongClickable = longClickable; }
+
+    // ── Layout position ──
+    public int getLeft() { return mLeft; }
+    public int getTop() { return mTop; }
+    public int getRight() { return mRight; }
+    public int getBottom() { return mBottom; }
+    public int getWidth() { return mRight - mLeft; }
+    public int getHeight() { return mBottom - mTop; }
 
     public static final int WRAP_CONTENT = -2;
     public static final int MATCH_PARENT = -1;
@@ -264,7 +308,25 @@ public class View {
     public boolean dispatchGenericMotionEvent(Object p0) { return false; }
     public boolean dispatchGenericPointerEvent(Object p0) { return false; }
     public boolean dispatchHoverEvent(Object p0) { return false; }
-    public boolean dispatchKeyEvent(Object p0) { return false; }
+    public boolean dispatchKeyEvent(KeyEvent event) {
+        // Key listener gets first shot
+        if (mKeyListener != null) {
+            if (mKeyListener.onKey(this, event.getKeyCode(), event)) {
+                return true;
+            }
+        }
+        // Then delegate to onKeyDown/onKeyUp
+        if (event.getAction() == KeyEvent.ACTION_DOWN) {
+            return onKeyDown(event.getKeyCode(), event);
+        } else if (event.getAction() == KeyEvent.ACTION_UP) {
+            return onKeyUp(event.getKeyCode(), event);
+        }
+        return false;
+    }
+    public boolean dispatchKeyEvent(Object p0) {
+        if (p0 instanceof KeyEvent) return dispatchKeyEvent((KeyEvent) p0);
+        return false;
+    }
     public boolean dispatchKeyEventPreIme(Object p0) { return false; }
     public boolean dispatchKeyShortcutEvent(Object p0) { return false; }
     public boolean dispatchNestedFling(Object p0, Object p1, Object p2) { return false; }
@@ -281,7 +343,19 @@ public class View {
     public void dispatchSetActivated(Object p0) {}
     public void dispatchSetPressed(Object p0) {}
     public void dispatchSetSelected(Object p0) {}
-    public boolean dispatchTouchEvent(Object p0) { return false; }
+    public boolean dispatchTouchEvent(MotionEvent event) {
+        // Touch listener gets first shot
+        if (mTouchListener != null) {
+            if (mTouchListener.onTouch(this, event)) {
+                return true;
+            }
+        }
+        return onTouchEvent(event);
+    }
+    public boolean dispatchTouchEvent(Object p0) {
+        if (p0 instanceof MotionEvent) return dispatchTouchEvent((MotionEvent) p0);
+        return false;
+    }
     public boolean dispatchTrackballEvent(Object p0) { return false; }
     public boolean dispatchUnhandledMove(Object p0, Object p1) { return false; }
     public void dispatchVisibilityChanged(Object p0, Object p1) {}
@@ -303,6 +377,18 @@ public class View {
     public void findViewsWithText(Object p0, Object p1, Object p2) {}
     public Object focusSearch(Object p0) { return null; }
     public void forceHasOverlappingRendering(Object p0) {}
+    public void requestLayout() {
+        // Walk up to root and trigger measure + layout + draw
+        View root = this;
+        while (root.mParent != null) root = root.mParent;
+        if (root.getWidth() > 0 || root.getHeight() > 0) {
+            int wSpec = MeasureSpec.makeMeasureSpec(root.getWidth(), MeasureSpec.EXACTLY);
+            int hSpec = MeasureSpec.makeMeasureSpec(root.getHeight(), MeasureSpec.EXACTLY);
+            root.measure(wSpec, hSpec);
+            root.layout(root.getLeft(), root.getTop(), root.getRight(), root.getBottom());
+        }
+        invalidate();
+    }
     public void forceLayout() {}
     public int getId() { return mId; }
     public void setId(int id) { mId = id; }
@@ -315,7 +401,7 @@ public class View {
     public Object getApplicationWindowToken() { return null; }
     public Object getAutofillId() { return null; }
     public int getAutofillType() { return 0; }
-    public Object getBackground() { return null; }
+    public Object getBackground() { return mBackground; }
     public float getBottomFadingEdgeStrength() { return 0f; }
     public int getBottomPaddingOffset() { return 0; }
     public float getCameraDistance() { return 0f; }
@@ -323,7 +409,11 @@ public class View {
     public boolean getClipBounds(Object p0) { return false; }
     public boolean getClipToOutline() { return false; }
     public Object getContextMenuInfo() { return null; }
-    public static int getDefaultSize(Object p0, Object p1) { return 0; }
+    public static int getDefaultSize(Object p0, Object p1) {
+        if (p0 instanceof Integer && p1 instanceof Integer)
+            return getDefaultSize((int)(Integer)p0, (int)(Integer)p1);
+        return 0;
+    }
     public Object getDisplay() { return null; }
     public int getDrawableState() { return 0; }
     public void getDrawingRect(Object p0) {}
@@ -349,9 +439,9 @@ public class View {
     public void getLocationInWindow(Object p0) {}
     public void getLocationOnScreen(Object p0) {}
     public Object getMatrix() { return null; }
-    public int getMeasuredHeight() { return 0; }
+    public int getMeasuredHeight() { return mMeasuredHeight; }
     public int getMeasuredState() { return 0; }
-    public int getMeasuredWidth() { return 0; }
+    public int getMeasuredWidth() { return mMeasuredWidth; }
     public int getMinimumHeight() { return 0; }
     public int getMinimumWidth() { return 0; }
     public Object getOnFocusChangeListener() { return null; }
@@ -381,8 +471,8 @@ public class View {
     public int getScrollBarFadeDuration() { return 0; }
     public int getScrollBarSize() { return 0; }
     public int getScrollIndicators() { return 0; }
-    public int getScrollX() { return 0; }
-    public int getScrollY() { return 0; }
+    public int getScrollX() { return mScrollX; }
+    public int getScrollY() { return mScrollY; }
     public Object getStateListAnimator() { return null; }
     public int getSuggestedMinimumHeight() { return 0; }
     public int getSuggestedMinimumWidth() { return 0; }
@@ -404,12 +494,21 @@ public class View {
     public boolean hasExplicitFocusable() { return false; }
     public boolean hasFocusable() { return false; }
     public boolean hasNestedScrollingParent() { return false; }
-    public boolean hasOnClickListeners() { return false; }
+    public boolean hasOnClickListeners() { return mClickListener != null; }
     public boolean hasOnLongClickListeners() { return false; }
     public boolean hasPointerCapture() { return false; }
     public boolean hasWindowFocus() { return false; }
     public static Object inflate(Object p0, Object p1, Object p2) { return null; }
-    public void invalidate() {}
+    public void invalidate() {
+        // Walk up to the root and find the hosting Activity to trigger a frame render
+        View root = this;
+        while (root.mParent != null) root = root.mParent;
+        // The root's tag may hold the Activity reference (set by Window.setContentView)
+        Object tag = root.getTag();
+        if (tag instanceof android.app.Activity) {
+            ((android.app.Activity) tag).renderFrame();
+        }
+    }
     public void invalidateDrawable(Object p0) {}
     public void invalidateOutline() {}
     public boolean isAccessibilityFocused() { return false; }
@@ -428,7 +527,7 @@ public class View {
     public boolean isLaidOut() { return false; }
     public boolean isLayoutDirectionResolved() { return false; }
     public boolean isLayoutRequested() { return false; }
-    public boolean isLongClickable() { return false; }
+    public boolean isLongClickable() { return mLongClickable; }
     public boolean isNestedScrollingEnabled() { return false; }
     public boolean isPaddingOffsetRequired() { return false; }
     public boolean isPaddingRelative() { return false; }
@@ -447,8 +546,56 @@ public class View {
     public boolean isVerticalScrollBarEnabled() { return false; }
     public boolean isVisibleToUserForAutofill(Object p0) { return false; }
     public Object keyboardNavigationClusterSearch(Object p0, Object p1) { return null; }
-    public void layout(Object p0, Object p1, Object p2, Object p3) {}
-    public void measure(Object p0, Object p1) {}
+    public void layout(int l, int t, int r, int b) {
+        mLeft = l; mTop = t; mRight = r; mBottom = b;
+    }
+    public void layout(Object p0, Object p1, Object p2, Object p3) {
+        if (p0 instanceof Integer && p1 instanceof Integer && p2 instanceof Integer && p3 instanceof Integer) {
+            layout((int)(Integer)p0, (int)(Integer)p1, (int)(Integer)p2, (int)(Integer)p3);
+        }
+    }
+    // ── MeasureSpec ──
+    public static class MeasureSpec {
+        public static final int UNSPECIFIED = 0;
+        public static final int EXACTLY = 1 << 30;
+        public static final int AT_MOST = 2 << 30;
+        private static final int MODE_MASK = 0x3 << 30;
+
+        public static int makeMeasureSpec(int size, int mode) { return (size & ~MODE_MASK) | (mode & MODE_MASK); }
+        public static int getMode(int measureSpec) { return measureSpec & MODE_MASK; }
+        public static int getSize(int measureSpec) { return measureSpec & ~MODE_MASK; }
+    }
+
+    public void measure(int widthMeasureSpec, int heightMeasureSpec) {
+        onMeasure(widthMeasureSpec, heightMeasureSpec);
+    }
+    public void measure(Object p0, Object p1) {
+        if (p0 instanceof Integer && p1 instanceof Integer) {
+            measure((int)(Integer)p0, (int)(Integer)p1);
+        }
+    }
+
+    protected void onMeasure(int widthMeasureSpec, int heightMeasureSpec) {
+        setMeasuredDimension(
+            getDefaultSize(getSuggestedMinimumWidth(), widthMeasureSpec),
+            getDefaultSize(getSuggestedMinimumHeight(), heightMeasureSpec));
+    }
+
+    public static int getDefaultSize(int size, int measureSpec) {
+        int mode = MeasureSpec.getMode(measureSpec);
+        int specSize = MeasureSpec.getSize(measureSpec);
+        switch (mode) {
+            case MeasureSpec.UNSPECIFIED: return size;
+            case MeasureSpec.AT_MOST:
+            case MeasureSpec.EXACTLY: return specSize;
+            default: return size;
+        }
+    }
+
+    protected void setMeasuredDimension(int measuredWidth, int measuredHeight) {
+        mMeasuredWidth = measuredWidth;
+        mMeasuredHeight = measuredHeight;
+    }
     public static int mergeDrawableStates(Object p0, Object p1) { return 0; }
     public void offsetLeftAndRight(Object p0) {}
     public void offsetTopAndBottom(Object p0) {}
@@ -462,6 +609,46 @@ public class View {
     public Object onCreateInputConnection(Object p0) { return null; }
     public void onDisplayHint(Object p0) {}
     public boolean onDragEvent(Object p0) { return false; }
+    // ── Canvas-based draw traversal (AOSP pattern) ──
+    public void draw(android.graphics.Canvas canvas) {
+        // Step 0: Apply alpha via save layer if not fully opaque
+        boolean needsAlphaRestore = false;
+        if (mAlpha < 1.0f) {
+            canvas.save();
+            // OH_Drawing doesn't have saveLayerAlpha — approximate with scale trick
+            // For proper alpha, real impl would use saveLayerAlpha.
+            // For now, we save and will restore after draw.
+            needsAlphaRestore = true;
+        }
+        // Step 1: Draw background
+        if (mBackgroundColor != 0) {
+            canvas.drawColor(mBackgroundColor);
+        }
+        if (mBackground != null) {
+            mBackground.setBounds(0, 0, getWidth(), getHeight());
+            mBackground.draw(canvas);
+        }
+        // Step 2: Apply scroll offset
+        if (mScrollX != 0 || mScrollY != 0) {
+            canvas.save();
+            canvas.translate(-mScrollX, -mScrollY);
+        }
+        // Step 3: Draw content
+        onDraw(canvas);
+        // Step 4: Dispatch to children (ViewGroup overrides)
+        dispatchDraw(canvas);
+        // Restore scroll
+        if (mScrollX != 0 || mScrollY != 0) {
+            canvas.restore();
+        }
+        // Restore alpha
+        if (needsAlphaRestore) {
+            canvas.restore();
+        }
+    }
+    protected void onDraw(android.graphics.Canvas canvas) {}
+    protected void dispatchDraw(android.graphics.Canvas canvas) {}
+
     public void onDraw(Object p0) {}
     public void onDrawForeground(Object p0) {}
     public void onDrawScrollBars(Object p0) {}
@@ -470,14 +657,32 @@ public class View {
     public boolean onGenericMotionEvent(Object p0) { return false; }
     public void onHoverChanged(Object p0) {}
     public boolean onHoverEvent(Object p0) { return false; }
-    public boolean onKeyDown(Object p0, Object p1) { return false; }
+    public boolean onKeyDown(int keyCode, KeyEvent event) { return false; }
+    public boolean onKeyDown(Object p0, Object p1) {
+        if (p0 instanceof Integer && p1 instanceof KeyEvent) return onKeyDown((Integer) p0, (KeyEvent) p1);
+        return false;
+    }
     public boolean onKeyLongPress(Object p0, Object p1) { return false; }
     public boolean onKeyMultiple(Object p0, Object p1, Object p2) { return false; }
     public boolean onKeyPreIme(Object p0, Object p1) { return false; }
     public boolean onKeyShortcut(Object p0, Object p1) { return false; }
-    public boolean onKeyUp(Object p0, Object p1) { return false; }
+    public boolean onKeyUp(int keyCode, KeyEvent event) {
+        if (mClickable && (keyCode == KeyEvent.KEYCODE_ENTER || keyCode == KeyEvent.KEYCODE_DPAD_CENTER)) {
+            performClick();
+            return true;
+        }
+        return false;
+    }
+    public boolean onKeyUp(Object p0, Object p1) {
+        if (p0 instanceof Integer && p1 instanceof KeyEvent) return onKeyUp((Integer) p0, (KeyEvent) p1);
+        return false;
+    }
     public void onLayout(Object p0, Object p1, Object p2, Object p3, Object p4) {}
-    public void onMeasure(Object p0, Object p1) {}
+    public void onMeasure(Object p0, Object p1) {
+        if (p0 instanceof Integer && p1 instanceof Integer) {
+            onMeasure((int)(Integer)p0, (int)(Integer)p1);
+        }
+    }
     public void onOverScrolled(Object p0, Object p1, Object p2, Object p3) {}
     public void onProvideAutofillStructure(Object p0, Object p1) {}
     public void onProvideAutofillVirtualStructure(Object p0, Object p1) {}
@@ -491,14 +696,32 @@ public class View {
     public boolean onSetAlpha(Object p0) { return false; }
     public void onSizeChanged(Object p0, Object p1, Object p2, Object p3) {}
     public void onStartTemporaryDetach() {}
-    public boolean onTouchEvent(Object p0) { return false; }
+    public boolean onTouchEvent(MotionEvent event) {
+        if (mClickable || mLongClickable) {
+            if (event.getActionMasked() == MotionEvent.ACTION_UP) {
+                performClick();
+            }
+            return true;
+        }
+        return false;
+    }
+    public boolean onTouchEvent(Object p0) {
+        if (p0 instanceof MotionEvent) return onTouchEvent((MotionEvent) p0);
+        return false;
+    }
     public boolean onTrackballEvent(Object p0) { return false; }
     public void onVisibilityChanged(Object p0, Object p1) {}
     public void onWindowFocusChanged(Object p0) {}
     public void onWindowVisibilityChanged(Object p0) {}
     public boolean overScrollBy(Object p0, Object p1, Object p2, Object p3, Object p4, Object p5, Object p6, Object p7, Object p8) { return false; }
     public boolean performAccessibilityAction(Object p0, Object p1) { return false; }
-    public boolean performClick() { return false; }
+    public boolean performClick() {
+        if (mClickListener != null) {
+            mClickListener.onClick(this);
+            return true;
+        }
+        return false;
+    }
     public boolean performContextClick(Object p0, Object p1) { return false; }
     public boolean performContextClick() { return false; }
     public boolean performHapticFeedback(Object p0) { return false; }
@@ -539,8 +762,14 @@ public class View {
     public void saveAttributeDataForStyleable(Object p0, Object p1, Object p2, Object p3, Object p4, Object p5) {}
     public void saveHierarchyState(Object p0) {}
     public void scheduleDrawable(Object p0, Object p1, Object p2) {}
-    public void scrollBy(Object p0, Object p1) {}
-    public void scrollTo(Object p0, Object p1) {}
+    public void scrollTo(int x, int y) { mScrollX = x; mScrollY = y; }
+    public void scrollBy(int dx, int dy) { scrollTo(mScrollX + dx, mScrollY + dy); }
+    public void scrollBy(Object p0, Object p1) {
+        if (p0 instanceof Integer && p1 instanceof Integer) scrollBy((int)(Integer)p0, (int)(Integer)p1);
+    }
+    public void scrollTo(Object p0, Object p1) {
+        if (p0 instanceof Integer && p1 instanceof Integer) scrollTo((int)(Integer)p0, (int)(Integer)p1);
+    }
     public void sendAccessibilityEvent(Object p0) {}
     public void sendAccessibilityEventUnchecked(Object p0) {}
     public void setAccessibilityDelegate(Object p0) {}
@@ -555,7 +784,12 @@ public class View {
     public void setAnimationMatrix(Object p0) {}
     public void setAutofillHints(Object p0) {}
     public void setAutofillId(Object p0) {}
-    public void setBackground(Object p0) {}
+    public void setBackground(Object p0) {
+        if (p0 instanceof android.graphics.drawable.Drawable) {
+            mBackground = (android.graphics.drawable.Drawable) p0;
+        }
+    }
+    public android.graphics.drawable.Drawable getBackgroundDrawable() { return mBackground; }
     // setBackgroundColor(Object) removed — use setBackgroundColor(int)
     public void setBackgroundResource(Object p0) {}
     public void setBackgroundTintBlendMode(Object p0) {}
@@ -563,7 +797,9 @@ public class View {
     public void setBackgroundTintMode(Object p0) {}
     public void setBottom(Object p0) {}
     public void setCameraDistance(Object p0) {}
-    public void setClickable(Object p0) {}
+    public void setClickable(Object p0) {
+        if (p0 instanceof Boolean) mClickable = (Boolean) p0;
+    }
     public void setClipBounds(Object p0) {}
     public void setClipToOutline(Object p0) {}
     public void setContentCaptureSession(Object p0) {}
@@ -606,8 +842,14 @@ public class View {
     public Object getLayoutParams() { return mLayoutParams; }
     public void setLeft(Object p0) {}
     public void setLeftTopRightBottom(Object p0, Object p1, Object p2, Object p3) {}
-    public void setLongClickable(Object p0) {}
-    public void setMeasuredDimension(Object p0, Object p1) {}
+    public void setLongClickable(Object p0) {
+        if (p0 instanceof Boolean) mLongClickable = (Boolean) p0;
+    }
+    public void setMeasuredDimension(Object p0, Object p1) {
+        if (p0 instanceof Integer && p1 instanceof Integer) {
+            setMeasuredDimension((int)(Integer)p0, (int)(Integer)p1);
+        }
+    }
     public void setMinimumHeight(Object p0) {}
     public void setMinimumWidth(Object p0) {}
     public void setNestedScrollingEnabled(Object p0) {}
@@ -626,10 +868,14 @@ public class View {
     public void setOnFocusChangeListener(Object p0) {}
     public void setOnGenericMotionListener(Object p0) {}
     public void setOnHoverListener(Object p0) {}
-    public void setOnKeyListener(Object p0) {}
+    public void setOnKeyListener(Object p0) {
+        if (p0 instanceof OnKeyListener) mKeyListener = (OnKeyListener) p0;
+    }
     public void setOnLongClickListener(Object p0) {}
     public void setOnScrollChangeListener(Object p0) {}
-    public void setOnTouchListener(Object p0) {}
+    public void setOnTouchListener(Object p0) {
+        if (p0 instanceof OnTouchListener) mTouchListener = (OnTouchListener) p0;
+    }
     public void setOutlineAmbientShadowColor(Object p0) {}
     public void setOutlineProvider(Object p0) {}
     public void setOutlineSpotShadowColor(Object p0) {}
@@ -657,8 +903,10 @@ public class View {
     public void setScrollContainer(Object p0) {}
     public void setScrollIndicators(Object p0) {}
     public void setScrollIndicators(Object p0, Object p1) {}
-    public void setScrollX(Object p0) {}
-    public void setScrollY(Object p0) {}
+    public void setScrollX(int x) { mScrollX = x; }
+    public void setScrollY(int y) { mScrollY = y; }
+    public void setScrollX(Object p0) { if (p0 instanceof Integer) mScrollX = (Integer) p0; }
+    public void setScrollY(Object p0) { if (p0 instanceof Integer) mScrollY = (Integer) p0; }
     public void setScrollbarFadingEnabled(Object p0) {}
     public void setSelected(Object p0) {}
     public void setSoundEffectsEnabled(Object p0) {}
@@ -675,8 +923,12 @@ public class View {
     public void setTransitionAlpha(Object p0) {}
     public void setTransitionName(Object p0) {}
     public void setTransitionVisibility(Object p0) {}
-    public void setTranslationX(Object p0) {}
-    public void setTranslationY(Object p0) {}
+    public float getTranslationX() { return mTranslationX; }
+    public float getTranslationY() { return mTranslationY; }
+    public void setTranslationX(float tx) { mTranslationX = tx; }
+    public void setTranslationY(float ty) { mTranslationY = ty; }
+    public void setTranslationX(Object p0) { if (p0 instanceof Number) mTranslationX = ((Number) p0).floatValue(); }
+    public void setTranslationY(Object p0) { if (p0 instanceof Number) mTranslationY = ((Number) p0).floatValue(); }
     public void setTranslationZ(Object p0) {}
     public void setVerticalFadingEdgeEnabled(Object p0) {}
     public void setVerticalScrollBarEnabled(Object p0) {}

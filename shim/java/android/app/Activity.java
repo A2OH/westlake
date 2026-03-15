@@ -118,6 +118,42 @@ public class Activity extends Context {
         return mApplication;
     }
 
+    /* ── Surface rendering ── */
+    private long mSurfaceCtx;
+    private int mSurfaceWidth;
+    private int mSurfaceHeight;
+
+    public void onSurfaceCreated(long xcomponentHandle, int width, int height) {
+        mSurfaceWidth = width;
+        mSurfaceHeight = height;
+        mSurfaceCtx = com.ohos.shim.bridge.OHBridge.surfaceCreate(xcomponentHandle, width, height);
+    }
+
+    public void onSurfaceDestroyed() {
+        if (mSurfaceCtx != 0) {
+            com.ohos.shim.bridge.OHBridge.surfaceDestroy(mSurfaceCtx);
+            mSurfaceCtx = 0;
+        }
+    }
+
+    public void renderFrame() {
+        if (mSurfaceCtx == 0 || mWindow == null) return;
+
+        android.view.View decorView = mWindow.getDecorView();
+        if (decorView == null) return;
+
+        decorView.layout(0, 0, mSurfaceWidth, mSurfaceHeight);
+
+        long canvasHandle = com.ohos.shim.bridge.OHBridge.surfaceGetCanvas(mSurfaceCtx);
+        if (canvasHandle == 0) return;
+
+        android.graphics.Canvas canvas = new android.graphics.Canvas(canvasHandle, mSurfaceWidth, mSurfaceHeight);
+        canvas.drawColor(0xFFFFFFFF);
+        decorView.draw(canvas);
+
+        com.ohos.shim.bridge.OHBridge.surfaceFlush(mSurfaceCtx);
+    }
+
     /* ── Remaining stubs ── */
 
     public void addContentView(Object p0, Object p1) {}

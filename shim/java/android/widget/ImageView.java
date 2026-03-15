@@ -14,6 +14,7 @@ public class ImageView extends View {
 
     private int imageResource;
     private String imageUri;
+    private android.graphics.Bitmap mBitmap;
 
     public ImageView() {
         super(NODE_TYPE_IMAGE);
@@ -24,12 +25,23 @@ public class ImageView extends View {
         // Resource lookup would resolve resId → file path
     }
 
+    public void setImageBitmap(android.graphics.Bitmap bm) {
+        mBitmap = bm;
+    }
+
     public void setImageURI(Object uri) {
         if (uri != null) {
             this.imageUri = uri.toString();
             if (nativeHandle != 0) {
                 OHBridge.nodeSetAttrString(nativeHandle, ATTR_IMAGE_SRC, imageUri);
             }
+        }
+    }
+
+    @Override
+    protected void onDraw(android.graphics.Canvas canvas) {
+        if (mBitmap != null && !mBitmap.isRecycled()) {
+            canvas.drawBitmap(mBitmap, 0, 0, null);
         }
     }
 

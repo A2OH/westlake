@@ -139,6 +139,10 @@ public class Window {
             decor.removeAllViews();
             decor.addView(p0);
         }
+        // Tag decor with the owning Activity so View.invalidate() can trigger renderFrame()
+        if (mContext instanceof android.app.Activity) {
+            mDecorView.setTag(mContext);
+        }
     }
     public void setDecorCaptionShade(int p0) {}
     public void setDecorFitsSystemWindows(boolean p0) {}

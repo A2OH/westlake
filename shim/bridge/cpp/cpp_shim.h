@@ -134,6 +134,16 @@ void shim_node_mark_dirty(long long node, int flag);
 /** Attach a native root node to an XComponent surface */
 int shim_xcomponent_attach_root(void* xcomponent, long long root_node);
 
+/* ── XComponent Surface Lifecycle ─────────────────────────────── */
+
+/** Register surface lifecycle callbacks on an XComponent.
+ *  When the surface is created/changed/destroyed, the callbacks
+ *  forward to Rust via shim_surface_set_native_window(). */
+int shim_xcomponent_register_callbacks(void* xcomponent);
+
+/* Rust-side function for associating a NativeWindow with a surface context */
+void shim_surface_set_native_window(long long surface_id, void* native_window);
+
 #ifdef __cplusplus
 }
 #endif
