@@ -38,11 +38,13 @@ public class TextView extends android.view.View {
         if (mText != null && mText.length() > 0) {
             android.graphics.Paint paint = new android.graphics.Paint();
             paint.setColor(mTextColor != 0 ? mTextColor : 0xFF000000);
-            if (mTextSize > 0) paint.setTextSize(mTextSize);
+            float ts = mTextSize > 0 ? mTextSize : 14;
+            paint.setTextSize(ts);
             paint.setStyle(android.graphics.Paint.Style.FILL);
-            // Draw at baseline offset (approximated as textSize from top + padding)
+            // Use FontMetrics for proper baseline positioning
+            android.graphics.Paint.FontMetrics fm = paint.getFontMetrics();
             float x = getPaddingLeft();
-            float y = getPaddingTop() + (mTextSize > 0 ? mTextSize : 14);
+            float y = getPaddingTop() + (-fm.ascent); // baseline = padding + |ascent|
             canvas.drawText(mText.toString(), x, y, paint);
         }
     }

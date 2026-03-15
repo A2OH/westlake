@@ -221,6 +221,26 @@ public class Canvas {
         return ++saveDepth;
     }
 
+    public int saveLayerAlpha(float left, float top, float right, float bottom, int alpha) {
+        // OH_Drawing doesn't have native saveLayerAlpha.
+        // We approximate by doing a save + clipRect. The alpha parameter is stored
+        // for potential use but true blending requires OH_Drawing_CanvasSaveLayer.
+        if (nativeCanvas != 0) {
+            OHBridge.canvasSave(nativeCanvas);
+            if (left != 0 || top != 0 || right != 0 || bottom != 0) {
+                OHBridge.canvasClipRect(nativeCanvas, left, top, right, bottom);
+            }
+        }
+        return ++saveDepth;
+    }
+
+    public int saveLayerAlpha(RectF bounds, int alpha) {
+        if (bounds != null) {
+            return saveLayerAlpha(bounds.left, bounds.top, bounds.right, bounds.bottom, alpha);
+        }
+        return saveLayerAlpha(0, 0, 0, 0, alpha);
+    }
+
     public void restore() {
         if (saveDepth > 0) {
             saveDepth--;

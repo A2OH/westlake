@@ -21,6 +21,30 @@ public class Paint {
         FILL_AND_STROKE
     }
 
+    // ── Cap ──────────────────────────────────────────────────────────────────
+
+    public enum Cap {
+        BUTT,   // 0 — OH_Drawing: LINE_FLAT_CAP
+        ROUND,  // 1 — OH_Drawing: LINE_ROUND_CAP
+        SQUARE  // 2 — OH_Drawing: LINE_SQUARE_CAP
+    }
+
+    // ── Join ─────────────────────────────────────────────────────────────────
+
+    public enum Join {
+        MITER,  // 0 — OH_Drawing: LINE_MITER_JOIN
+        ROUND,  // 1 — OH_Drawing: LINE_ROUND_JOIN
+        BEVEL   // 2 — OH_Drawing: LINE_BEVEL_JOIN
+    }
+
+    // ── Align ────────────────────────────────────────────────────────────────
+
+    public enum Align {
+        LEFT,
+        CENTER,
+        RIGHT
+    }
+
     // ── State ────────────────────────────────────────────────────────────────
 
     private int   flags;
@@ -28,6 +52,10 @@ public class Paint {
     private Style style     = Style.FILL;
     private float strokeWidth = 0f;
     private float textSize    = 12f;
+    private Cap   strokeCap   = Cap.BUTT;
+    private Join  strokeJoin  = Join.MITER;
+    private Align textAlign   = Align.LEFT;
+    private float strokeMiter = 4f;
 
     // ── Constructors ─────────────────────────────────────────────────────────
 
@@ -46,6 +74,10 @@ public class Paint {
             this.style       = paint.style;
             this.strokeWidth = paint.strokeWidth;
             this.textSize    = paint.textSize;
+            this.strokeCap   = paint.strokeCap;
+            this.strokeJoin  = paint.strokeJoin;
+            this.textAlign   = paint.textAlign;
+            this.strokeMiter = paint.strokeMiter;
         }
     }
 
@@ -72,10 +104,22 @@ public class Paint {
     public void  setStrokeWidth(float width) { this.strokeWidth = width; }
     public float getStrokeWidth()            { return strokeWidth; }
 
+    public void setStrokeCap(Cap cap) { this.strokeCap = (cap != null) ? cap : Cap.BUTT; }
+    public Cap  getStrokeCap()        { return strokeCap; }
+
+    public void setStrokeJoin(Join join) { this.strokeJoin = (join != null) ? join : Join.MITER; }
+    public Join getStrokeJoin()          { return strokeJoin; }
+
+    public void  setStrokeMiter(float miter) { this.strokeMiter = miter; }
+    public float getStrokeMiter()            { return strokeMiter; }
+
     // ── Text ─────────────────────────────────────────────────────────────────
 
     public void  setTextSize(float size) { this.textSize = size; }
     public float getTextSize()           { return textSize; }
+
+    public void  setTextAlign(Align align) { this.textAlign = (align != null) ? align : Align.LEFT; }
+    public Align getTextAlign()            { return textAlign; }
 
     /**
      * Rough width estimate: each character is ~0.6 em wide.
@@ -83,6 +127,68 @@ public class Paint {
     public float measureText(String text) {
         if (text == null) return 0f;
         return text.length() * textSize * 0.6f;
+    }
+
+    public float measureText(char[] text, int index, int count) {
+        if (text == null || count <= 0) return 0f;
+        return count * textSize * 0.6f;
+    }
+
+    public float measureText(String text, int start, int end) {
+        if (text == null) return 0f;
+        return (end - start) * textSize * 0.6f;
+    }
+
+    // ── FontMetrics ──────────────────────────────────────────────────────────
+
+    public static class FontMetrics {
+        public float top;
+        public float ascent;
+        public float descent;
+        public float bottom;
+        public float leading;
+    }
+
+    public static class FontMetricsInt {
+        public int top;
+        public int ascent;
+        public int descent;
+        public int bottom;
+        public int leading;
+    }
+
+    public FontMetrics getFontMetrics() {
+        FontMetrics fm = new FontMetrics();
+        fm.top     = -textSize * 1.08f;
+        fm.ascent  = -textSize * 0.93f;
+        fm.descent =  textSize * 0.24f;
+        fm.bottom  =  textSize * 0.28f;
+        fm.leading = 0;
+        return fm;
+    }
+
+    public float getFontMetrics(FontMetrics metrics) {
+        if (metrics == null) metrics = new FontMetrics();
+        metrics.top     = -textSize * 1.08f;
+        metrics.ascent  = -textSize * 0.93f;
+        metrics.descent =  textSize * 0.24f;
+        metrics.bottom  =  textSize * 0.28f;
+        metrics.leading = 0;
+        return metrics.descent - metrics.ascent;
+    }
+
+    public FontMetricsInt getFontMetricsInt() {
+        FontMetricsInt fm = new FontMetricsInt();
+        fm.top     = Math.round(-textSize * 1.08f);
+        fm.ascent  = Math.round(-textSize * 0.93f);
+        fm.descent = Math.round(textSize * 0.24f);
+        fm.bottom  = Math.round(textSize * 0.28f);
+        fm.leading = 0;
+        return fm;
+    }
+
+    public float getFontSpacing() {
+        return textSize * 0.93f + textSize * 0.24f;
     }
 
     // ── Anti-alias ───────────────────────────────────────────────────────────

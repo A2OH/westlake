@@ -80,7 +80,20 @@ public class LayerDrawable extends Drawable {
     // ── Draw (no-op stub) ────────────────────────────────────────────────────
 
     @Override
-    public void draw(Canvas canvas) { /* no-op */ }
+    public void draw(Canvas canvas) {
+        if (canvas == null) return;
+        android.graphics.Rect b = getBounds();
+        for (Layer layer : layers) {
+            if (layer.drawable != null) {
+                layer.drawable.setBounds(
+                    b.left + layer.insetLeft,
+                    b.top + layer.insetTop,
+                    b.right - layer.insetRight,
+                    b.bottom - layer.insetBottom);
+                layer.drawable.draw(canvas);
+            }
+        }
+    }
 
     // ── Helpers ──────────────────────────────────────────────────────────────
 

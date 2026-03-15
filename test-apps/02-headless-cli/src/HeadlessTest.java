@@ -106,6 +106,7 @@ public class HeadlessTest {
         testApkLoaderExtended();
         testSurfaceRendering();
         testViewRenderingPipeline();
+        testDrawablesAndFontMetrics();
 
         System.out.println("\n═══ Results ═══");
         System.out.println("Passed: " + passed);
@@ -4994,6 +4995,180 @@ public class HeadlessTest {
         check("LinearLayout V child measured via measureChildren", mc1.getMeasuredWidth() > 0);
         check("LinearLayout V measuredWidth == EXACTLY spec", measLL.getMeasuredWidth() == 200);
         check("LinearLayout V measuredHeight == EXACTLY spec", measLL.getMeasuredHeight() == 200);
+
+        canvas.release();
+        bmp.recycle();
+    }
+
+    static void testDrawablesAndFontMetrics() {
+        section("Drawables, FontMetrics, saveLayerAlpha, padding");
+
+        android.graphics.Bitmap bmp = android.graphics.Bitmap.createBitmap(200, 200,
+                android.graphics.Bitmap.Config.ARGB_8888);
+        android.graphics.Canvas canvas = new android.graphics.Canvas(bmp);
+
+        // ── B.3: ColorDrawable.draw ──
+        com.ohos.shim.bridge.OHBridge.clearDrawLog(canvas.getNativeHandle());
+        android.graphics.drawable.ColorDrawable cd = new android.graphics.drawable.ColorDrawable(0xFFFF0000);
+        cd.setBounds(10, 10, 90, 90);
+        cd.draw(canvas);
+        java.util.List<com.ohos.shim.bridge.OHBridge.DrawRecord> log =
+                com.ohos.shim.bridge.OHBridge.getDrawLog(canvas.getNativeHandle());
+        check("ColorDrawable draws drawRect", log.stream().anyMatch(r -> "drawRect".equals(r.op)));
+        check("ColorDrawable color is red", log.stream().anyMatch(r -> r.color == 0xFFFF0000));
+
+        // ColorDrawable with no bounds → drawColor
+        com.ohos.shim.bridge.OHBridge.clearDrawLog(canvas.getNativeHandle());
+        android.graphics.drawable.ColorDrawable cd2 = new android.graphics.drawable.ColorDrawable(0xFF00FF00);
+        cd2.draw(canvas);
+        log = com.ohos.shim.bridge.OHBridge.getDrawLog(canvas.getNativeHandle());
+        check("ColorDrawable no bounds draws drawColor", log.stream().anyMatch(r -> "drawColor".equals(r.op)));
+
+        // Transparent ColorDrawable draws nothing
+        com.ohos.shim.bridge.OHBridge.clearDrawLog(canvas.getNativeHandle());
+        android.graphics.drawable.ColorDrawable cdTransparent = new android.graphics.drawable.ColorDrawable(0x00000000);
+        cdTransparent.draw(canvas);
+        log = com.ohos.shim.bridge.OHBridge.getDrawLog(canvas.getNativeHandle());
+        check("transparent ColorDrawable draws nothing", log.isEmpty());
+
+        // View.setBackgroundDrawable
+        android.view.View bgdView = new android.view.View();
+        android.graphics.drawable.ColorDrawable bgd = new android.graphics.drawable.ColorDrawable(0xFFABCDEF);
+        bgdView.setBackgroundDrawable(bgd);
+        check("setBackgroundDrawable stores drawable", bgdView.getBackground() == bgd);
+
+        // ── B.4: GradientDrawable.draw ──
+        com.ohos.shim.bridge.OHBridge.clearDrawLog(canvas.getNativeHandle());
+        android.graphics.drawable.GradientDrawable gd = new android.graphics.drawable.GradientDrawable();
+        gd.setColor(0xFF0000FF);
+        gd.setCornerRadius(10);
+        gd.setBounds(0, 0, 100, 100);
+        gd.draw(canvas);
+        log = com.ohos.shim.bridge.OHBridge.getDrawLog(canvas.getNativeHandle());
+        check("GradientDrawable rect+corner draws drawRoundRect",
+                log.stream().anyMatch(r -> "drawRoundRect".equals(r.op)));
+
+        // GradientDrawable oval
+        com.ohos.shim.bridge.OHBridge.clearDrawLog(canvas.getNativeHandle());
+        android.graphics.drawable.GradientDrawable gdOval = new android.graphics.drawable.GradientDrawable();
+        gdOval.setShape(android.graphics.drawable.GradientDrawable.OVAL);
+        gdOval.setColor(0xFF00FF00);
+        gdOval.setBounds(0, 0, 80, 80);
+        gdOval.draw(canvas);
+        log = com.ohos.shim.bridge.OHBridge.getDrawLog(canvas.getNativeHandle());
+        check("GradientDrawable oval draws drawOval",
+                log.stream().anyMatch(r -> "drawOval".equals(r.op)));
+
+        // GradientDrawable with stroke
+        com.ohos.shim.bridge.OHBridge.clearDrawLog(canvas.getNativeHandle());
+        android.graphics.drawable.GradientDrawable gdStroke = new android.graphics.drawable.GradientDrawable();
+        gdStroke.setColor(0xFFFFFF00);
+        gdStroke.setStroke(2, 0xFF000000);
+        gdStroke.setBounds(0, 0, 50, 50);
+        gdStroke.draw(canvas);
+        log = com.ohos.shim.bridge.OHBridge.getDrawLog(canvas.getNativeHandle());
+        check("GradientDrawable with stroke draws 2 rects",
+                log.stream().filter(r -> "drawRect".equals(r.op)).count() >= 2);
+
+        // LayerDrawable.draw
+        com.ohos.shim.bridge.OHBridge.clearDrawLog(canvas.getNativeHandle());
+        android.graphics.drawable.ColorDrawable layer1 = new android.graphics.drawable.ColorDrawable(0xFFAA0000);
+        android.graphics.drawable.ColorDrawable layer2 = new android.graphics.drawable.ColorDrawable(0xFF00AA00);
+        android.graphics.drawable.LayerDrawable ld = new android.graphics.drawable.LayerDrawable(
+                new android.graphics.drawable.Drawable[]{layer1, layer2});
+        ld.setLayerInset(1, 10, 10, 10, 10);
+        ld.setBounds(0, 0, 100, 100);
+        ld.draw(canvas);
+        log = com.ohos.shim.bridge.OHBridge.getDrawLog(canvas.getNativeHandle());
+        check("LayerDrawable draws both layers",
+                log.stream().filter(r -> "drawRect".equals(r.op)).count() >= 2);
+        // Layer 2 should have inset bounds
+        check("layer2 bounds has inset", layer2.getBounds().left == 10 && layer2.getBounds().top == 10);
+
+        // StateListDrawable
+        android.graphics.drawable.StateListDrawable sld = new android.graphics.drawable.StateListDrawable();
+        android.graphics.drawable.ColorDrawable pressedD = new android.graphics.drawable.ColorDrawable(0xFFFF0000);
+        android.graphics.drawable.ColorDrawable normalD = new android.graphics.drawable.ColorDrawable(0xFF00FF00);
+        sld.addState(new int[]{16842919}, pressedD); // state_pressed
+        sld.addState(new int[]{}, normalD); // default
+        sld.setState(new int[]{});
+        check("StateListDrawable default → normalD", sld.getCurrent() == normalD);
+        sld.setState(new int[]{16842919});
+        check("StateListDrawable pressed → pressedD", sld.getCurrent() == pressedD);
+
+        // ── B.5: Paint.FontMetrics ──
+        android.graphics.Paint paint = new android.graphics.Paint();
+        paint.setTextSize(20);
+
+        android.graphics.Paint.FontMetrics fm = paint.getFontMetrics();
+        check("FontMetrics ascent < 0", fm.ascent < 0);
+        check("FontMetrics descent > 0", fm.descent > 0);
+        check("FontMetrics top < ascent", fm.top < fm.ascent);
+        check("FontMetrics bottom > descent", fm.bottom > fm.descent);
+
+        android.graphics.Paint.FontMetricsInt fmi = paint.getFontMetricsInt();
+        check("FontMetricsInt ascent < 0", fmi.ascent < 0);
+        check("FontMetricsInt descent > 0", fmi.descent > 0);
+
+        float spacing = paint.getFontSpacing();
+        check("getFontSpacing > 0", spacing > 0);
+        check("getFontSpacing ~ textSize", spacing > 15 && spacing < 30);
+
+        // measureText overloads
+        float w1 = paint.measureText("Hello");
+        check("measureText(String) > 0", w1 > 0);
+        float w2 = paint.measureText("Hello World", 0, 5);
+        check("measureText(String,start,end) matches", Math.abs(w1 - w2) < 0.01f);
+        float w3 = paint.measureText("Hello".toCharArray(), 0, 5);
+        check("measureText(char[],idx,count) matches", Math.abs(w1 - w3) < 0.01f);
+
+        // ── B.6: Canvas.saveLayerAlpha ──
+        com.ohos.shim.bridge.OHBridge.clearDrawLog(canvas.getNativeHandle());
+        int saveCount = canvas.saveLayerAlpha(0, 0, 100, 100, 128);
+        check("saveLayerAlpha returns count > 0", saveCount > 0);
+        canvas.drawColor(0xFF000000);
+        canvas.restore();
+        log = com.ohos.shim.bridge.OHBridge.getDrawLog(canvas.getNativeHandle());
+        check("saveLayerAlpha produces save", log.stream().anyMatch(r -> "save".equals(r.op)));
+        check("saveLayerAlpha produces clipRect", log.stream().anyMatch(r -> "clipRect".equals(r.op)));
+        check("saveLayerAlpha restores", log.stream().anyMatch(r -> "restore".equals(r.op)));
+
+        // View.draw with alpha uses saveLayerAlpha
+        com.ohos.shim.bridge.OHBridge.clearDrawLog(canvas.getNativeHandle());
+        android.view.View alphaView = new android.view.View();
+        alphaView.setAlpha(0.5f);
+        alphaView.layout(0, 0, 50, 50);
+        alphaView.draw(canvas);
+        log = com.ohos.shim.bridge.OHBridge.getDrawLog(canvas.getNativeHandle());
+        check("alpha View draws save+clipRect",
+                log.stream().anyMatch(r -> "save".equals(r.op))
+                && log.stream().anyMatch(r -> "clipRect".equals(r.op)));
+
+        // ── B.7: Padding in widget onDraw ──
+        // TextView with padding
+        com.ohos.shim.bridge.OHBridge.clearDrawLog(canvas.getNativeHandle());
+        android.widget.TextView tv = new android.widget.TextView();
+        tv.setText("Padded");
+        tv.setTextSize(20);
+        tv.setPadding(10, 5, 10, 5);
+        tv.layout(0, 0, 200, 40);
+        tv.draw(canvas);
+        log = com.ohos.shim.bridge.OHBridge.getDrawLog(canvas.getNativeHandle());
+        check("padded TextView draws text",
+                log.stream().anyMatch(r -> "drawText".equals(r.op) && "Padded".equals(r.text)));
+
+        // Button with padding draws centered text
+        com.ohos.shim.bridge.OHBridge.clearDrawLog(canvas.getNativeHandle());
+        android.widget.Button btn = new android.widget.Button();
+        btn.setText("OK");
+        btn.setPadding(20, 10, 20, 10);
+        btn.layout(0, 0, 100, 40);
+        btn.draw(canvas);
+        log = com.ohos.shim.bridge.OHBridge.getDrawLog(canvas.getNativeHandle());
+        check("padded Button draws text",
+                log.stream().anyMatch(r -> "drawText".equals(r.op) && "OK".equals(r.text)));
+        check("padded Button draws roundRect bg",
+                log.stream().anyMatch(r -> "drawRoundRect".equals(r.op)));
 
         canvas.release();
         bmp.recycle();

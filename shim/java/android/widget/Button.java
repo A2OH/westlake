@@ -30,7 +30,7 @@ public class Button extends TextView {
         canvas.drawRoundRect(0, 0, getWidth(), getHeight(),
                 DEFAULT_CORNER_RADIUS, DEFAULT_CORNER_RADIUS, bgPaint);
 
-        // Draw text centered
+        // Draw text centered, respecting padding
         CharSequence text = getText();
         if (text != null && text.length() > 0) {
             android.graphics.Paint textPaint = new android.graphics.Paint();
@@ -38,8 +38,17 @@ public class Button extends TextView {
             float ts = getTextSize() > 0 ? getTextSize() : 14;
             textPaint.setTextSize(ts);
             textPaint.setStyle(android.graphics.Paint.Style.FILL);
-            float x = DEFAULT_PADDING;
-            float y = (getHeight() + ts) / 2;
+            android.graphics.Paint.FontMetrics fm = textPaint.getFontMetrics();
+            int padL = getPaddingLeft() > 0 ? getPaddingLeft() : DEFAULT_PADDING;
+            int padR = getPaddingRight() > 0 ? getPaddingRight() : DEFAULT_PADDING;
+            float textWidth = textPaint.measureText(text.toString());
+            // Center horizontally within padded area
+            float availWidth = getWidth() - padL - padR;
+            float x = padL + Math.max(0, (availWidth - textWidth) / 2);
+            // Center vertically using font metrics
+            float y = (getHeight() - fm.ascent - fm.descent) / 2 - fm.ascent;
+            // Clamp to padded top
+            y = Math.max(getPaddingTop() - fm.ascent, y);
             canvas.drawText(text.toString(), x, y, textPaint);
         }
     }

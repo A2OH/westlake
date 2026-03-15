@@ -45,7 +45,18 @@ public class ColorDrawable extends Drawable {
     // ── Draw (no-op stub) ────────────────────────────────────────────────────
 
     @Override
-    public void draw(Canvas canvas) { /* no-op */ }
+    public void draw(Canvas canvas) {
+        if (canvas == null || (color >>> 24) == 0) return;
+        android.graphics.Rect b = getBounds();
+        if (b.width() > 0 && b.height() > 0) {
+            android.graphics.Paint paint = new android.graphics.Paint();
+            paint.setColor(color);
+            paint.setStyle(android.graphics.Paint.Style.FILL);
+            canvas.drawRect(b.left, b.top, b.right, b.bottom, paint);
+        } else {
+            canvas.drawColor(color);
+        }
+    }
 
     // ── Object overrides ─────────────────────────────────────────────────────
 

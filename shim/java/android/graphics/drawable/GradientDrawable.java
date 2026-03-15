@@ -112,7 +112,7 @@ public class GradientDrawable extends Drawable {
     // ── Stroke ───────────────────────────────────────────────────────────────
 
     public void setStroke(int width, int color) {
-// FIXME:         setStroke(width, color, 0f);
+        setStroke(width, color, 0f, 0f);
     }
 
     public void setStroke(int width, int color, float dashWidth, float dashGap) {
@@ -133,7 +133,52 @@ public class GradientDrawable extends Drawable {
     // ── Draw (no-op stub) ────────────────────────────────────────────────────
 
     @Override
-    public void draw(Canvas canvas) { /* no-op */ }
+    public void draw(Canvas canvas) {
+        if (canvas == null) return;
+        android.graphics.Rect b = getBounds();
+        if (b.width() <= 0 || b.height() <= 0) return;
+
+        android.graphics.Paint paint = new android.graphics.Paint();
+        int fillColor = (colors != null && colors.length > 0) ? colors[0] : solidColor;
+        paint.setColor(fillColor);
+        paint.setStyle(android.graphics.Paint.Style.FILL);
+
+        float l = b.left, t = b.top, r = b.right, bt = b.bottom;
+        float rad = cornerRadius;
+        if (cornerRadii != null && cornerRadii.length >= 2) rad = cornerRadii[0];
+
+        switch (shape) {
+            case OVAL:
+                canvas.drawOval(l, t, r, bt, paint);
+                break;
+            default:
+                if (rad > 0) {
+                    canvas.drawRoundRect(l, t, r, bt, rad, rad, paint);
+                } else {
+                    canvas.drawRect(l, t, r, bt, paint);
+                }
+                break;
+        }
+
+        if (strokeWidth > 0) {
+            android.graphics.Paint sp = new android.graphics.Paint();
+            sp.setColor(strokeColor);
+            sp.setStyle(android.graphics.Paint.Style.STROKE);
+            sp.setStrokeWidth(strokeWidth);
+            switch (shape) {
+                case OVAL:
+                    canvas.drawOval(l, t, r, bt, sp);
+                    break;
+                default:
+                    if (rad > 0) {
+                        canvas.drawRoundRect(l, t, r, bt, rad, rad, sp);
+                    } else {
+                        canvas.drawRect(l, t, r, bt, sp);
+                    }
+                    break;
+            }
+        }
+    }
 
     // ── Object overrides ─────────────────────────────────────────────────────
 

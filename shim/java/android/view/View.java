@@ -611,13 +611,11 @@ public class View {
     public boolean onDragEvent(Object p0) { return false; }
     // ── Canvas-based draw traversal (AOSP pattern) ──
     public void draw(android.graphics.Canvas canvas) {
-        // Step 0: Apply alpha via save layer if not fully opaque
+        // Step 0: Apply alpha via saveLayerAlpha if not fully opaque
         boolean needsAlphaRestore = false;
         if (mAlpha < 1.0f) {
-            canvas.save();
-            // OH_Drawing doesn't have saveLayerAlpha — approximate with scale trick
-            // For proper alpha, real impl would use saveLayerAlpha.
-            // For now, we save and will restore after draw.
+            int alphaInt = Math.round(mAlpha * 255);
+            canvas.saveLayerAlpha(0, 0, getWidth(), getHeight(), alphaInt);
             needsAlphaRestore = true;
         }
         // Step 1: Draw background
@@ -790,7 +788,7 @@ public class View {
         }
     }
     public android.graphics.drawable.Drawable getBackgroundDrawable() { return mBackground; }
-    // setBackgroundColor(Object) removed — use setBackgroundColor(int)
+    public void setBackgroundDrawable(android.graphics.drawable.Drawable d) { mBackground = d; }
     public void setBackgroundResource(Object p0) {}
     public void setBackgroundTintBlendMode(Object p0) {}
     public void setBackgroundTintList(Object p0) {}
