@@ -154,3 +154,53 @@ JNIEXPORT jint JNICALL JNI_OnLoad(JavaVM* vm, void* reserved) {
 JNIEXPORT jobject JNICALL Java_java_lang_System_initSystemProperties(JNIEnv* e, jclass c, jobject p) {
     return Java_java_lang_System_initProperties(e, c, p);
 }
+#define _GNU_SOURCE
+#include <jni.h>
+#include <unistd.h>
+#include <stddef.h>
+
+/* StdoutFix$NativeOutputStream.write(int) */
+JNIEXPORT void JNICALL Java_StdoutFix_00024NativeOutputStream_write__I(JNIEnv* e, jobject self, jint b) {
+    jclass cls = (*e)->GetObjectClass(e, self);
+    jfieldID fid = (*e)->GetFieldID(e, cls, "fd", "I");
+    int fd = fid ? (*e)->GetIntField(e, self, fid) : 1;
+    char c = (char)b;
+    write(fd, &c, 1);
+}
+
+/* StdoutFix$NativeOutputStream.write(byte[], int, int) */
+JNIEXPORT void JNICALL Java_StdoutFix_00024NativeOutputStream_write___3BII(JNIEnv* e, jobject self, jbyteArray arr, jint off, jint len) {
+    jclass cls = (*e)->GetObjectClass(e, self);
+    jfieldID fid = (*e)->GetFieldID(e, cls, "fd", "I");
+    int fd = fid ? (*e)->GetIntField(e, self, fid) : 1;
+    jbyte* data = (*e)->GetByteArrayElements(e, arr, NULL);
+    if (data) {
+        write(fd, data + off, len);
+        (*e)->ReleaseByteArrayElements(e, arr, data, JNI_ABORT);
+    }
+}
+
+/* HelloNative.print/println — direct stdout output */
+JNIEXPORT void JNICALL Java_HelloNative_print(JNIEnv* e, jclass c, jstring msg) {
+    if (!msg) return;
+    const char* s = (*e)->GetStringUTFChars(e, msg, NULL);
+    if (s) { write(1, s, strlen(s)); (*e)->ReleaseStringUTFChars(e, msg, s); }
+}
+JNIEXPORT void JNICALL Java_HelloNative_println(JNIEnv* e, jclass c, jstring msg) {
+    Java_HelloNative_print(e, c, msg);
+    write(1, "\n", 1);
+}
+JNIEXPORT void JNICALL Java_HelloSimple_println(JNIEnv* e, jclass c, jstring msg) {
+    if (!msg) return;
+    const char* s = (*e)->GetStringUTFChars(e, msg, NULL);
+    if (s) { write(1, s, strlen(s)); write(1, "\n", 1); (*e)->ReleaseStringUTFChars(e, msg, s); }
+}
+JNIEXPORT void JNICALL Java_HelloLoad_println(JNIEnv* e, jclass c, jstring msg) {
+    if (!msg) return;
+    const char* s = (*e)->GetStringUTFChars(e, msg, NULL);
+    if (s) { write(1, s, strlen(s)); write(1, "\n", 1); (*e)->ReleaseStringUTFChars(e, msg, s); }
+}
+JNIEXPORT void JNICALL Java_BootInit_00024DirectOutputStream_nativeWrite(JNIEnv* e, jclass c, jint fd, jbyteArray arr, jint off, jint len) {
+    jbyte* data = (*e)->GetByteArrayElements(e, arr, NULL);
+    if (data) { write(fd, data + off, len); (*e)->ReleaseByteArrayElements(e, arr, data, JNI_ABORT); }
+}
