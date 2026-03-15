@@ -37,6 +37,11 @@ use crate::oh_ffi;
 /// Stored JVM reference for calling back into Java from the event thread
 static EVENT_JVM: once_cell::sync::OnceCell<jni::JavaVM> = once_cell::sync::OnceCell::new();
 
+/// Public accessor for the stored JVM reference (used by input.rs)
+pub fn get_jvm() -> Option<&'static jni::JavaVM> {
+    EVENT_JVM.get()
+}
+
 /// Maps event_id → (java View class name, callback type) for dispatch
 /// We use a simple approach: event_id encodes the native node handle's lower bits
 /// The Java side holds the mapping from handle → View object

@@ -154,6 +154,34 @@ public class Activity extends Context {
         com.ohos.shim.bridge.OHBridge.surfaceFlush(mSurfaceCtx);
     }
 
+    /* ── Input dispatch ── */
+
+    public boolean dispatchTouchEvent(android.view.MotionEvent event) {
+        if (mWindow != null) {
+            android.view.View decor = mWindow.getDecorView();
+            if (decor != null) {
+                return decor.dispatchTouchEvent(event);
+            }
+        }
+        return false;
+    }
+
+    public boolean dispatchKeyEvent(android.view.KeyEvent event) {
+        if (mWindow != null) {
+            android.view.View decor = mWindow.getDecorView();
+            if (decor != null && decor.dispatchKeyEvent(event)) {
+                return true;
+            }
+        }
+        // BACK key fallback — fire onBackPressed on ACTION_UP
+        if (event.getAction() == android.view.KeyEvent.ACTION_UP
+                && event.getKeyCode() == android.view.KeyEvent.KEYCODE_BACK) {
+            onBackPressed();
+            return true;
+        }
+        return false;
+    }
+
     /* ── Remaining stubs ── */
 
     public void addContentView(Object p0, Object p1) {}
@@ -162,10 +190,16 @@ public class Activity extends Context {
     public Object createPendingResult(Object p0, Object p1, Object p2) { return null; }
     public void dismissKeyboardShortcutsHelper() {}
     public boolean dispatchGenericMotionEvent(Object p0) { return false; }
-    public boolean dispatchKeyEvent(Object p0) { return false; }
+    public boolean dispatchKeyEvent(Object p0) {
+        if (p0 instanceof android.view.KeyEvent) return dispatchKeyEvent((android.view.KeyEvent) p0);
+        return false;
+    }
     public boolean dispatchKeyShortcutEvent(Object p0) { return false; }
     public boolean dispatchPopulateAccessibilityEvent(Object p0) { return false; }
-    public boolean dispatchTouchEvent(Object p0) { return false; }
+    public boolean dispatchTouchEvent(Object p0) {
+        if (p0 instanceof android.view.MotionEvent) return dispatchTouchEvent((android.view.MotionEvent) p0);
+        return false;
+    }
     public boolean dispatchTrackballEvent(Object p0) { return false; }
     public void dump(Object p0, Object p1, Object p2, Object p3) {}
     public boolean enterPictureInPictureMode(Object p0) { return false; }

@@ -19,6 +19,7 @@ mod device_info;
 mod view;
 mod oh_drawing;
 mod surface;
+mod input;
 
 use jni::JNIEnv;
 use jni::objects::JClass;

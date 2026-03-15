@@ -293,6 +293,54 @@ public class OHBridge {
     public static native void fontDestroy(long font);
     public static native void fontSetSize(long font, float size);
 
+    // ── Input dispatch (called from native) ────────────────────────
+
+    /**
+     * Called from native (Rust/C++) when the XComponent receives a touch event.
+     * Creates a MotionEvent and dispatches through the active Activity's decor view.
+     *
+     * @param action   MotionEvent action (0=DOWN, 1=UP, 2=MOVE, 3=CANCEL)
+     * @param x        X coordinate in surface pixels
+     * @param y        Y coordinate in surface pixels
+     * @param timestamp Monotonic timestamp in milliseconds
+     */
+    public static void dispatchTouchEvent(int action, float x, float y, long timestamp) {
+        android.view.MotionEvent event = android.view.MotionEvent.obtain(action, x, y, timestamp);
+        android.app.Activity activity = getResumedActivity();
+        if (activity != null) {
+            activity.dispatchTouchEvent(event);
+        }
+        event.recycle();
+    }
+
+    /**
+     * Called from native when a key event is received.
+     *
+     * @param action   KeyEvent action (0=DOWN, 1=UP)
+     * @param keyCode  Android keycode value
+     * @param timestamp Monotonic timestamp in milliseconds
+     */
+    public static void dispatchKeyEvent(int action, int keyCode, long timestamp) {
+        android.view.KeyEvent event = new android.view.KeyEvent(action, keyCode);
+        android.app.Activity activity = getResumedActivity();
+        if (activity != null) {
+            activity.dispatchKeyEvent(event);
+        }
+    }
+
+    /** Returns the currently resumed Activity, or null. */
+    private static android.app.Activity getResumedActivity() {
+        try {
+            android.app.MiniServer server = android.app.MiniServer.get();
+            if (server != null) {
+                return server.getActivityManager().getResumedActivity();
+            }
+        } catch (Exception e) {
+            // MiniServer may not be initialized
+        }
+        return null;
+    }
+
     // ── Event dispatch (called from native) ──────────────────────
 
     /** Called from native code when an ArkUI node event fires.

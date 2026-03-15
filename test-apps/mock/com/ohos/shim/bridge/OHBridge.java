@@ -519,6 +519,37 @@ public class OHBridge {
         return c != null ? c : 0;
     }
 
+    // ── Input dispatch ──
+
+    public static void dispatchTouchEvent(int action, float x, float y, long timestamp) {
+        android.view.MotionEvent event = android.view.MotionEvent.obtain(action, x, y, timestamp);
+        android.app.Activity activity = getResumedActivity();
+        if (activity != null) {
+            activity.dispatchTouchEvent(event);
+        }
+        event.recycle();
+    }
+
+    public static void dispatchKeyEvent(int action, int keyCode, long timestamp) {
+        android.view.KeyEvent event = new android.view.KeyEvent(action, keyCode);
+        android.app.Activity activity = getResumedActivity();
+        if (activity != null) {
+            activity.dispatchKeyEvent(event);
+        }
+    }
+
+    private static android.app.Activity getResumedActivity() {
+        try {
+            android.app.MiniServer server = android.app.MiniServer.get();
+            if (server != null) {
+                return server.getActivityManager().getResumedActivity();
+            }
+        } catch (Exception e) {
+            // ignore
+        }
+        return null;
+    }
+
     // ── Event dispatch ──
 
     public static void dispatchNodeEvent(int eventId, long nodeHandle, int eventKind, String stringData) {

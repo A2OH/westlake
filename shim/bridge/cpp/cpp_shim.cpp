@@ -669,8 +669,40 @@ extern "C" int shim_xcomponent_register_callbacks(void* xcomp) {
     cb.OnSurfaceCreated = on_surface_created;
     cb.OnSurfaceChanged = on_surface_changed;
     cb.OnSurfaceDestroyed = on_surface_destroyed;
+    cb.DispatchTouchEvent = on_touch_event;
 
     return OH_NativeXComponent_RegisterCallback(nxc, &cb);
+}
+
+// ── XComponent Touch/Key Input Dispatch ───────────────────────────────────
+
+// Forward declarations — implemented in Rust (input.rs or surface.rs)
+extern "C" void shim_dispatch_touch(int action, float x, float y, long long timestamp);
+extern "C" void shim_dispatch_key(int action, int key_code, long long timestamp);
+
+static void on_touch_event(OH_NativeXComponent* xcomp, void* window) {
+    OH_NativeXComponent_TouchEvent touchEvent;
+    int32_t ret = OH_NativeXComponent_GetTouchEvent(xcomp, window, &touchEvent);
+    if (ret != 0) return;
+
+    // Map OH touch type → Android MotionEvent action
+    int action;
+    switch (touchEvent.type) {
+        case OH_NATIVEXCOMPONENT_DOWN:   action = 0; break; // ACTION_DOWN
+        case OH_NATIVEXCOMPONENT_UP:     action = 1; break; // ACTION_UP
+        case OH_NATIVEXCOMPONENT_MOVE:   action = 2; break; // ACTION_MOVE
+        case OH_NATIVEXCOMPONENT_CANCEL: action = 3; break; // ACTION_CANCEL
+        default: return;
+    }
+
+    shim_dispatch_touch(action, touchEvent.x, touchEvent.y,
+                        static_cast<long long>(touchEvent.timeStamp / 1000000)); // ns → ms
+}
+
+static void on_key_event(OH_NativeXComponent* xcomp, void* window) {
+    // OH XComponent doesn't have a direct key event callback in the same way.
+    // Key events come through the ArkUI node event system instead.
+    // This is a placeholder for when OH_NativeXComponent adds key support.
 }
 
 // ── NAPI Module Registration (XComponent libraryname hook) ────────────────

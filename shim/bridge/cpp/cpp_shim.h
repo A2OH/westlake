@@ -144,6 +144,14 @@ int shim_xcomponent_register_callbacks(void* xcomponent);
 /* Rust-side function for associating a NativeWindow with a surface context */
 void shim_surface_set_native_window(long long surface_id, void* native_window);
 
+/* ── Input dispatch (Rust-side) ───────────────────────────────── */
+
+/** Called from C++ when a touch event is received from the XComponent. */
+void shim_dispatch_touch(int action, float x, float y, long long timestamp);
+
+/** Called from C++ when a key event is received. */
+void shim_dispatch_key(int action, int key_code, long long timestamp);
+
 #ifdef __cplusplus
 }
 #endif
