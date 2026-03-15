@@ -49,6 +49,44 @@ public class CheckBox extends Button {
     }
 
     
+    @Override
+    protected void onDraw(android.graphics.Canvas canvas) {
+        int boxSize = Math.min(getWidth(), getHeight());
+        if (boxSize <= 0) boxSize = 20;
+        int margin = 4;
+
+        // Draw checkbox box
+        android.graphics.Paint boxPaint = new android.graphics.Paint();
+        boxPaint.setColor(checked ? 0xFF2196F3 : 0xFF757575); // Blue when checked, gray otherwise
+        boxPaint.setStyle(checked ? android.graphics.Paint.Style.FILL : android.graphics.Paint.Style.STROKE);
+        boxPaint.setStrokeWidth(2);
+        canvas.drawRect(margin, margin, margin + boxSize - 2 * margin, margin + boxSize - 2 * margin, boxPaint);
+
+        // Draw checkmark when checked
+        if (checked) {
+            android.graphics.Paint checkPaint = new android.graphics.Paint();
+            checkPaint.setColor(0xFFFFFFFF);
+            checkPaint.setStyle(android.graphics.Paint.Style.STROKE);
+            checkPaint.setStrokeWidth(3);
+            float cx = boxSize / 2f;
+            float cy = boxSize / 2f;
+            float s = boxSize / 4f;
+            canvas.drawLine(cx - s, cy, cx - s / 3, cy + s * 0.7f, checkPaint);
+            canvas.drawLine(cx - s / 3, cy + s * 0.7f, cx + s, cy - s * 0.6f, checkPaint);
+        }
+
+        // Draw label text to the right of the box
+        CharSequence text = getText();
+        if (text != null && text.length() > 0) {
+            android.graphics.Paint textPaint = new android.graphics.Paint();
+            textPaint.setColor(getCurrentTextColor() != 0 ? getCurrentTextColor() : 0xFF000000);
+            float ts = getTextSize() > 0 ? getTextSize() : 14;
+            textPaint.setTextSize(ts);
+            textPaint.setStyle(android.graphics.Paint.Style.FILL);
+            canvas.drawText(text.toString(), boxSize + margin * 2, (boxSize + ts) / 2, textPaint);
+        }
+    }
+
     public void onNativeEvent(int eventId, int eventKind, String stringData) {
         if (eventKind == EVENT_CHECKBOX_ON_CHANGE) {
             // data[0].i32: 1=checked, 0=unchecked

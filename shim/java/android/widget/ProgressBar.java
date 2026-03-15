@@ -49,4 +49,28 @@ public class ProgressBar extends View {
     public void incrementProgressBy(int diff) {
         setProgress(progress + diff);
     }
+
+    @Override
+    protected void onDraw(android.graphics.Canvas canvas) {
+        int w = getWidth();
+        int h = getHeight();
+        if (w <= 0 || h <= 0) return;
+
+        // Draw track background
+        android.graphics.Paint trackPaint = new android.graphics.Paint();
+        trackPaint.setColor(0xFFE0E0E0);
+        trackPaint.setStyle(android.graphics.Paint.Style.FILL);
+        float barHeight = Math.max(4, h / 3f);
+        float barTop = (h - barHeight) / 2;
+        canvas.drawRect(0, barTop, w, barTop + barHeight, trackPaint);
+
+        // Draw progress fill
+        if (max > 0 && progress > 0) {
+            android.graphics.Paint fillPaint = new android.graphics.Paint();
+            fillPaint.setColor(0xFF4CAF50); // Material green
+            fillPaint.setStyle(android.graphics.Paint.Style.FILL);
+            float fillWidth = (float) w * Math.min(progress, max) / max;
+            canvas.drawRect(0, barTop, fillWidth, barTop + barHeight, fillPaint);
+        }
+    }
 }

@@ -444,3 +444,158 @@ pub unsafe fn static_cstr_to_string(ptr: *const c_char) -> String {
         .to_string_lossy()
         .into_owned()
 }
+
+// ═══════════════════════════════════════════════════════════════════
+// OH_Drawing — native_drawing NDK (libnative_drawing.z.so)
+// ═══════════════════════════════════════════════════════════════════
+
+pub type OH_Drawing_Canvas = c_void;
+pub type OH_Drawing_Pen = c_void;
+pub type OH_Drawing_Brush = c_void;
+pub type OH_Drawing_Path = c_void;
+pub type OH_Drawing_Bitmap = c_void;
+pub type OH_Drawing_Font = c_void;
+pub type OH_Drawing_TextBlob = c_void;
+pub type OH_Drawing_Rect = c_void;
+pub type OH_Drawing_RoundRect = c_void;
+pub type OH_Drawing_Point = c_void;
+pub type OH_Drawing_Matrix = c_void;
+
+#[repr(C)]
+pub struct OH_Drawing_BitmapFormat {
+    pub color_type: c_int,
+    pub alpha_type: c_int,
+}
+
+extern "C" {
+    // Bitmap
+    pub fn OH_Drawing_BitmapCreate() -> *mut OH_Drawing_Bitmap;
+    pub fn OH_Drawing_BitmapDestroy(bitmap: *mut OH_Drawing_Bitmap);
+    pub fn OH_Drawing_BitmapBuild(bitmap: *mut OH_Drawing_Bitmap, width: u32, height: u32, format: *const OH_Drawing_BitmapFormat) -> bool;
+    pub fn OH_Drawing_BitmapGetWidth(bitmap: *mut OH_Drawing_Bitmap) -> u32;
+    pub fn OH_Drawing_BitmapGetHeight(bitmap: *mut OH_Drawing_Bitmap) -> u32;
+    pub fn OH_Drawing_BitmapGetPixels(bitmap: *mut OH_Drawing_Bitmap) -> *mut c_void;
+
+    // Canvas
+    pub fn OH_Drawing_CanvasCreate() -> *mut OH_Drawing_Canvas;
+    pub fn OH_Drawing_CanvasDestroy(canvas: *mut OH_Drawing_Canvas);
+    pub fn OH_Drawing_CanvasBind(canvas: *mut OH_Drawing_Canvas, bitmap: *mut OH_Drawing_Bitmap);
+    pub fn OH_Drawing_CanvasAttachPen(canvas: *mut OH_Drawing_Canvas, pen: *const OH_Drawing_Pen);
+    pub fn OH_Drawing_CanvasDetachPen(canvas: *mut OH_Drawing_Canvas);
+    pub fn OH_Drawing_CanvasAttachBrush(canvas: *mut OH_Drawing_Canvas, brush: *const OH_Drawing_Brush);
+    pub fn OH_Drawing_CanvasDetachBrush(canvas: *mut OH_Drawing_Canvas);
+    pub fn OH_Drawing_CanvasDrawRect(canvas: *mut OH_Drawing_Canvas, rect: *const OH_Drawing_Rect);
+    pub fn OH_Drawing_CanvasDrawCircle(canvas: *mut OH_Drawing_Canvas, cx: f32, cy: f32, radius: f32);
+    pub fn OH_Drawing_CanvasDrawLine(canvas: *mut OH_Drawing_Canvas, x1: f32, y1: f32, x2: f32, y2: f32);
+    pub fn OH_Drawing_CanvasDrawPath(canvas: *mut OH_Drawing_Canvas, path: *const OH_Drawing_Path);
+    pub fn OH_Drawing_CanvasDrawBitmap(canvas: *mut OH_Drawing_Canvas, bitmap: *const OH_Drawing_Bitmap, x: f32, y: f32);
+    pub fn OH_Drawing_CanvasDrawTextBlob(canvas: *mut OH_Drawing_Canvas, blob: *const OH_Drawing_TextBlob, x: f32, y: f32);
+    pub fn OH_Drawing_CanvasSave(canvas: *mut OH_Drawing_Canvas);
+    pub fn OH_Drawing_CanvasRestore(canvas: *mut OH_Drawing_Canvas);
+    pub fn OH_Drawing_CanvasTranslate(canvas: *mut OH_Drawing_Canvas, dx: f32, dy: f32);
+    pub fn OH_Drawing_CanvasScale(canvas: *mut OH_Drawing_Canvas, sx: f32, sy: f32);
+    pub fn OH_Drawing_CanvasRotate(canvas: *mut OH_Drawing_Canvas, degrees: f32, px: f32, py: f32);
+    pub fn OH_Drawing_CanvasClipRect(canvas: *mut OH_Drawing_Canvas, rect: *const OH_Drawing_Rect, op: c_int, aa: bool);
+    pub fn OH_Drawing_CanvasClipPath(canvas: *mut OH_Drawing_Canvas, path: *const OH_Drawing_Path, op: c_int, aa: bool);
+    pub fn OH_Drawing_CanvasClear(canvas: *mut OH_Drawing_Canvas, color: u32);
+    pub fn OH_Drawing_CanvasConcatMatrix(canvas: *mut OH_Drawing_Canvas, matrix: *const OH_Drawing_Matrix);
+    pub fn OH_Drawing_CanvasDrawArc(canvas: *mut OH_Drawing_Canvas, rect: *const OH_Drawing_Rect, start_angle: f32, sweep_angle: f32);
+    pub fn OH_Drawing_CanvasDrawOval(canvas: *mut OH_Drawing_Canvas, rect: *const OH_Drawing_Rect);
+    pub fn OH_Drawing_CanvasDrawRoundRect(canvas: *mut OH_Drawing_Canvas, round_rect: *const OH_Drawing_RoundRect);
+
+    // Pen
+    pub fn OH_Drawing_PenCreate() -> *mut OH_Drawing_Pen;
+    pub fn OH_Drawing_PenDestroy(pen: *mut OH_Drawing_Pen);
+    pub fn OH_Drawing_PenSetColor(pen: *mut OH_Drawing_Pen, color: u32);
+    pub fn OH_Drawing_PenSetWidth(pen: *mut OH_Drawing_Pen, width: f32);
+    pub fn OH_Drawing_PenSetAntiAlias(pen: *mut OH_Drawing_Pen, aa: bool);
+    pub fn OH_Drawing_PenSetCap(pen: *mut OH_Drawing_Pen, cap: c_int);
+    pub fn OH_Drawing_PenSetJoin(pen: *mut OH_Drawing_Pen, join: c_int);
+
+    // Brush
+    pub fn OH_Drawing_BrushCreate() -> *mut OH_Drawing_Brush;
+    pub fn OH_Drawing_BrushDestroy(brush: *mut OH_Drawing_Brush);
+    pub fn OH_Drawing_BrushSetColor(brush: *mut OH_Drawing_Brush, color: u32);
+    pub fn OH_Drawing_BrushSetAntiAlias(brush: *mut OH_Drawing_Brush, aa: bool);
+
+    // Path
+    pub fn OH_Drawing_PathCreate() -> *mut OH_Drawing_Path;
+    pub fn OH_Drawing_PathDestroy(path: *mut OH_Drawing_Path);
+    pub fn OH_Drawing_PathMoveTo(path: *mut OH_Drawing_Path, x: f32, y: f32);
+    pub fn OH_Drawing_PathLineTo(path: *mut OH_Drawing_Path, x: f32, y: f32);
+    pub fn OH_Drawing_PathQuadTo(path: *mut OH_Drawing_Path, cx: f32, cy: f32, x: f32, y: f32);
+    pub fn OH_Drawing_PathCubicTo(path: *mut OH_Drawing_Path, cx1: f32, cy1: f32, cx2: f32, cy2: f32, x: f32, y: f32);
+    pub fn OH_Drawing_PathClose(path: *mut OH_Drawing_Path);
+    pub fn OH_Drawing_PathReset(path: *mut OH_Drawing_Path);
+    pub fn OH_Drawing_PathAddRect(path: *mut OH_Drawing_Path, l: f32, t: f32, r: f32, b: f32, dir: c_int);
+    pub fn OH_Drawing_PathAddCircle(path: *mut OH_Drawing_Path, cx: f32, cy: f32, radius: f32, dir: c_int);
+
+    // Rect
+    pub fn OH_Drawing_RectCreate(l: f32, t: f32, r: f32, b: f32) -> *mut OH_Drawing_Rect;
+    pub fn OH_Drawing_RectDestroy(rect: *mut OH_Drawing_Rect);
+
+    // RoundRect
+    pub fn OH_Drawing_RoundRectCreate(rect: *const OH_Drawing_Rect, x_rad: f32, y_rad: f32) -> *mut OH_Drawing_RoundRect;
+    pub fn OH_Drawing_RoundRectDestroy(round_rect: *mut OH_Drawing_RoundRect);
+
+    // Matrix
+    pub fn OH_Drawing_MatrixCreate() -> *mut OH_Drawing_Matrix;
+    pub fn OH_Drawing_MatrixDestroy(matrix: *mut OH_Drawing_Matrix);
+    pub fn OH_Drawing_MatrixSetMatrix(matrix: *mut OH_Drawing_Matrix,
+        scale_x: f32, skew_x: f32, trans_x: f32,
+        skew_y: f32, scale_y: f32, trans_y: f32,
+        persp0: f32, persp1: f32, persp2: f32);
+
+    // Font + TextBlob
+    pub fn OH_Drawing_FontCreate() -> *mut OH_Drawing_Font;
+    pub fn OH_Drawing_FontDestroy(font: *mut OH_Drawing_Font);
+    pub fn OH_Drawing_FontSetSize(font: *mut OH_Drawing_Font, size: f32);
+    pub fn OH_Drawing_TextBlobCreateFromString(text: *const c_char, font: *const OH_Drawing_Font, encoding: c_int) -> *mut OH_Drawing_TextBlob;
+    pub fn OH_Drawing_TextBlobDestroy(blob: *mut OH_Drawing_TextBlob);
+
+    // Bitmap pixel access
+    pub fn OH_Drawing_BitmapGetPixels(bitmap: *mut OH_Drawing_Bitmap) -> *mut c_void;
+}
+
+// ═══════════════════════════════════════════════════════════════════
+// NativeWindow — buffer operations (libnative_window.z.so)
+// ═══════════════════════════════════════════════════════════════════
+
+pub type OHNativeWindow = c_void;
+pub type OHNativeWindowBuffer = c_void;
+
+#[repr(C)]
+pub struct BufferHandle {
+    pub fd: c_int,
+    pub width: c_int,
+    pub height: c_int,
+    pub stride: c_int,
+    pub format: c_int,
+    pub usage: u64,
+    pub virAddr: *mut c_void,
+}
+
+extern "C" {
+    pub fn OH_NativeWindow_NativeWindowRequestBuffer(
+        window: *mut OHNativeWindow,
+        buffer: *mut *mut OHNativeWindowBuffer,
+        fence_fd: *mut c_int,
+    ) -> c_int;
+
+    pub fn OH_NativeWindow_NativeWindowFlushBuffer(
+        window: *mut OHNativeWindow,
+        buffer: *mut OHNativeWindowBuffer,
+        fence_fd: c_int,
+        region: *mut c_void,
+    ) -> c_int;
+
+    pub fn OH_NativeWindow_NativeWindowHandleOpt(
+        window: *mut OHNativeWindow,
+        code: c_int,
+        ...
+    ) -> c_int;
+
+    pub fn OH_NativeWindow_GetBufferHandleFromNative(
+        buffer: *mut OHNativeWindowBuffer,
+    ) -> *mut BufferHandle;
+}

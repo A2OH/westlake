@@ -20,6 +20,9 @@ fn main() {
     println!("cargo:rustc-link-lib=dylib=net_connection");     // Net Connection
     println!("cargo:rustc-link-lib=dylib=ace_ndk.z");          // ArkUI Native Node API
 
+    println!("cargo:rustc-link-lib=dylib=native_drawing");     // OH_Drawing (Canvas/Pen/Brush/Path/Bitmap/Font)
+    println!("cargo:rustc-link-lib=dylib=native_window");      // NativeWindow (buffer ops for surface rendering)
+
     // Our C++ shim (must be built separately and placed in lib path)
     // Links: libpreferences, libans_innerkits, libability_runtime, libwant, libcurl, libace_napi, libace_ndk.z
     println!("cargo:rustc-link-lib=dylib=oh_cpp_shim");

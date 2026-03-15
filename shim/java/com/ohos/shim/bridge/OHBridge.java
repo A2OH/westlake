@@ -219,6 +219,80 @@ public class OHBridge {
     public static native void mediaPlayerSetVolume(long handle, float left, float right);
     public static native void mediaPlayerSetLooping(long handle, boolean looping);
 
+    // ── OH_Drawing: Canvas ─────────────────────────────────────
+
+    public static native long canvasCreate(long bitmapHandle);
+    public static native void canvasDestroy(long canvas);
+    public static native void canvasDrawRect(long canvas, float l, float t, float r, float b, long pen, long brush);
+    public static native void canvasDrawCircle(long canvas, float cx, float cy, float r, long pen, long brush);
+    public static native void canvasDrawLine(long canvas, float x1, float y1, float x2, float y2, long pen);
+    public static native void canvasDrawPath(long canvas, long path, long pen, long brush);
+    public static native void canvasDrawBitmap(long canvas, long bitmap, float x, float y);
+    public static native void canvasDrawText(long canvas, String text, float x, float y, long font, long pen, long brush);
+    public static native void canvasSave(long canvas);
+    public static native void canvasRestore(long canvas);
+    public static native void canvasTranslate(long canvas, float dx, float dy);
+    public static native void canvasScale(long canvas, float sx, float sy);
+    public static native void canvasRotate(long canvas, float degrees, float px, float py);
+    public static native void canvasClipRect(long canvas, float l, float t, float r, float b);
+    public static native void canvasClipPath(long canvas, long path);
+    public static native void canvasDrawColor(long canvas, int argb);
+    public static native void canvasDrawArc(long canvas, float l, float t, float r, float b, float startAngle, float sweepAngle, boolean useCenter, long pen, long brush);
+    public static native void canvasDrawOval(long canvas, float l, float t, float r, float b, long pen, long brush);
+    public static native void canvasDrawRoundRect(long canvas, float l, float t, float r, float b, float rx, float ry, long pen, long brush);
+    public static native void canvasConcat(long canvas, float[] matrix9);
+
+    // ── Surface / XComponent ──────────────────────────────────
+    public static native long surfaceCreate(long xcomponentHandle, int width, int height);
+    public static native void surfaceDestroy(long surfaceCtx);
+    public static native void surfaceResize(long surfaceCtx, int width, int height);
+    public static native long surfaceGetCanvas(long surfaceCtx);
+    public static native int surfaceFlush(long surfaceCtx);
+
+    // ── OH_Drawing: Pen (stroke) ────────────────────────────────
+
+    public static native long penCreate();
+    public static native void penDestroy(long pen);
+    public static native void penSetColor(long pen, int argb);
+    public static native void penSetWidth(long pen, float width);
+    public static native void penSetAntiAlias(long pen, boolean aa);
+    public static native void penSetCap(long pen, int cap);
+    public static native void penSetJoin(long pen, int join);
+
+    // ── OH_Drawing: Brush (fill) ────────────────────────────────
+
+    public static native long brushCreate();
+    public static native void brushDestroy(long brush);
+    public static native void brushSetColor(long brush, int argb);
+
+    // ── OH_Drawing: Path ────────────────────────────────────────
+
+    public static native long pathCreate();
+    public static native void pathDestroy(long path);
+    public static native void pathMoveTo(long path, float x, float y);
+    public static native void pathLineTo(long path, float x, float y);
+    public static native void pathQuadTo(long path, float x1, float y1, float x2, float y2);
+    public static native void pathCubicTo(long path, float x1, float y1, float x2, float y2, float x3, float y3);
+    public static native void pathClose(long path);
+    public static native void pathReset(long path);
+    public static native void pathAddRect(long path, float l, float t, float r, float b, int dir);
+    public static native void pathAddCircle(long path, float cx, float cy, float r, int dir);
+
+    // ── OH_Drawing: Bitmap ──────────────────────────────────────
+
+    public static native long bitmapCreate(int width, int height, int format);
+    public static native void bitmapDestroy(long bitmap);
+    public static native int bitmapGetWidth(long bitmap);
+    public static native int bitmapGetHeight(long bitmap);
+    public static native void bitmapSetPixel(long bitmap, int x, int y, int argb);
+    public static native int bitmapGetPixel(long bitmap, int x, int y);
+
+    // ── OH_Drawing: Font / TextBlob ─────────────────────────────
+
+    public static native long fontCreate();
+    public static native void fontDestroy(long font);
+    public static native void fontSetSize(long font, float size);
+
     // ── Event dispatch (called from native) ──────────────────────
 
     /** Called from native code when an ArkUI node event fires.

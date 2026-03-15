@@ -37,6 +37,64 @@ public class LinearLayout extends ViewGroup {
 
     public int getOrientation() { return orientation; }
 
+    @Override
+    protected void onMeasure(int widthMeasureSpec, int heightMeasureSpec) {
+        measureChildren(widthMeasureSpec, heightMeasureSpec);
+        // Sum children sizes along orientation axis
+        int totalWidth = 0, totalHeight = 0;
+        int maxWidth = 0, maxHeight = 0;
+        for (int i = 0; i < getChildCount(); i++) {
+            android.view.View child = getChildAt(i);
+            if (child.getVisibility() == GONE) continue;
+            if (orientation == VERTICAL) {
+                totalHeight += child.getMeasuredHeight();
+                maxWidth = Math.max(maxWidth, child.getMeasuredWidth());
+            } else {
+                totalWidth += child.getMeasuredWidth();
+                maxHeight = Math.max(maxHeight, child.getMeasuredHeight());
+            }
+        }
+        if (orientation == VERTICAL) {
+            setMeasuredDimension(
+                resolveSize(maxWidth + getPaddingLeft() + getPaddingRight(), widthMeasureSpec),
+                resolveSize(totalHeight + getPaddingTop() + getPaddingBottom(), heightMeasureSpec));
+        } else {
+            setMeasuredDimension(
+                resolveSize(totalWidth + getPaddingLeft() + getPaddingRight(), widthMeasureSpec),
+                resolveSize(maxHeight + getPaddingTop() + getPaddingBottom(), heightMeasureSpec));
+        }
+    }
+
+    private static int resolveSize(int size, int measureSpec) {
+        int specMode = android.view.View.MeasureSpec.getMode(measureSpec);
+        int specSize = android.view.View.MeasureSpec.getSize(measureSpec);
+        switch (specMode) {
+            case android.view.View.MeasureSpec.EXACTLY: return specSize;
+            case android.view.View.MeasureSpec.AT_MOST: return Math.min(size, specSize);
+            default: return size;
+        }
+    }
+
+    @Override
+    public void layout(int l, int t, int r, int b) {
+        super.layout(l, t, r, b);
+        int childLeft = getPaddingLeft();
+        int childTop = getPaddingTop();
+        for (int i = 0; i < getChildCount(); i++) {
+            android.view.View child = getChildAt(i);
+            if (child.getVisibility() == GONE) continue;
+            int cw = child.getMeasuredWidth() > 0 ? child.getMeasuredWidth() : (r - l);
+            int ch = child.getMeasuredHeight() > 0 ? child.getMeasuredHeight() : 0;
+            if (orientation == VERTICAL) {
+                child.layout(childLeft, childTop, childLeft + cw, childTop + ch);
+                childTop += ch;
+            } else {
+                child.layout(childLeft, childTop, childLeft + cw, childTop + ch);
+                childLeft += cw;
+            }
+        }
+    }
+
     // ── LayoutParams with weight support ──
 
     public static class LayoutParams extends ViewGroup.MarginLayoutParams {

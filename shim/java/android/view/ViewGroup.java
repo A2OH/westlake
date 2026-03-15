@@ -39,6 +39,82 @@ public class ViewGroup extends View {
         }
     }
 
+    // ── Touch dispatch ──
+
+    @Override
+    public boolean dispatchTouchEvent(MotionEvent event) {
+        // Check if we intercept
+        if (onInterceptTouchEvent(event)) {
+            return super.dispatchTouchEvent(event);
+        }
+        // Iterate children in reverse Z-order (last added = on top)
+        float x = event.getX();
+        float y = event.getY();
+        for (int i = mChildren.size() - 1; i >= 0; i--) {
+            View child = mChildren.get(i);
+            if (child.getVisibility() != VISIBLE) continue;
+            // Check if event falls within child bounds
+            int cl = child.getLeft();
+            int ct = child.getTop();
+            int cr = child.getRight();
+            int cb = child.getBottom();
+            if (x >= cl && x <= cr && y >= ct && y <= cb) {
+                // Offset coordinates into child's coordinate space
+                float oldX = event.getX();
+                float oldY = event.getY();
+                event.setLocation(oldX - cl, oldY - ct);
+                boolean consumed = child.dispatchTouchEvent(event);
+                // Restore coordinates
+                event.setLocation(oldX, oldY);
+                if (consumed) return true;
+            }
+        }
+        // No child consumed — handle ourselves
+        return super.dispatchTouchEvent(event);
+    }
+
+    public boolean onInterceptTouchEvent(MotionEvent event) { return false; }
+
+    @Override
+    public View findViewByHandle(long handle) {
+        if (getNativeHandle() == handle) return this;
+        for (int i = 0; i < mChildren.size(); i++) {
+            View found = mChildren.get(i).findViewByHandle(handle);
+            if (found != null) return found;
+        }
+        return null;
+    }
+
+    // ── Canvas draw traversal ──
+
+    @Override
+    protected void dispatchDraw(android.graphics.Canvas canvas) {
+        for (int i = 0; i < mChildren.size(); i++) {
+            View child = mChildren.get(i);
+            if (child.getVisibility() != GONE) {
+                drawChild(canvas, child);
+            }
+        }
+    }
+
+    protected void drawChild(android.graphics.Canvas canvas, View child) {
+        int save = canvas.save();
+        // Apply child position + translationX/Y
+        float tx = child.getLeft() + child.getTranslationX();
+        float ty = child.getTop() + child.getTranslationY();
+        canvas.translate(tx, ty);
+        canvas.clipRect(0, 0, child.getWidth(), child.getHeight());
+        child.draw(canvas);
+        canvas.restore();
+    }
+
+    // ── Layout override ──
+
+    @Override
+    public void layout(int l, int t, int r, int b) {
+        super.layout(l, t, r, b);
+    }
+
     public static final int CLIP_TO_PADDING_MASK = 0;
     public static final int FOCUS_AFTER_DESCENDANTS = 0;
     public static final int FOCUS_BEFORE_DESCENDANTS = 0;
@@ -113,7 +189,11 @@ public class ViewGroup extends View {
     public int getChildCount() { return mChildren.size(); }
     public int getChildDrawingOrder(Object p0, Object p1) { return 0; }
     public int getChildDrawingOrder(Object p0) { return 0; }
-    public static int getChildMeasureSpec(Object p0, Object p1, Object p2) { return 0; }
+    public static int getChildMeasureSpec(Object p0, Object p1, Object p2) {
+        if (p0 instanceof Integer && p1 instanceof Integer && p2 instanceof Integer)
+            return getChildMeasureSpec((int)(Integer)p0, (int)(Integer)p1, (int)(Integer)p2);
+        return 0;
+    }
     public boolean getChildStaticTransformation(Object p0, Object p1) { return false; }
     public boolean getChildVisibleRect(Object p0, Object p1, Object p2) { return false; }
     public Object getFocusedChild() { return null; }
@@ -130,15 +210,51 @@ public class ViewGroup extends View {
     public boolean isLayoutSuppressed() { return false; }
     public boolean isMotionEventSplittingEnabled() { return false; }
     public boolean isTransitionGroup() { return false; }
-    public void layout(Object p0, Object p1, Object p2, Object p3) {}
-    public void measureChild(Object p0, Object p1, Object p2) {}
+    protected void measureChild(View child, int parentWidthMeasureSpec, int parentHeightMeasureSpec) {
+        int childWidthSpec = getChildMeasureSpec(parentWidthMeasureSpec, getPaddingLeft() + getPaddingRight(), -2);
+        int childHeightSpec = getChildMeasureSpec(parentHeightMeasureSpec, getPaddingTop() + getPaddingBottom(), -2);
+        child.measure(childWidthSpec, childHeightSpec);
+    }
+    protected void measureChildren(int widthMeasureSpec, int heightMeasureSpec) {
+        for (int i = 0; i < mChildren.size(); i++) {
+            View child = mChildren.get(i);
+            if (child.getVisibility() != GONE) {
+                measureChild(child, widthMeasureSpec, heightMeasureSpec);
+            }
+        }
+    }
+    public static int getChildMeasureSpec(int spec, int padding, int childDimension) {
+        int specMode = View.MeasureSpec.getMode(spec);
+        int specSize = View.MeasureSpec.getSize(spec);
+        int size = Math.max(0, specSize - padding);
+        if (childDimension >= 0) {
+            return View.MeasureSpec.makeMeasureSpec(childDimension, View.MeasureSpec.EXACTLY);
+        } else if (childDimension == MATCH_PARENT) {
+            return View.MeasureSpec.makeMeasureSpec(size, specMode);
+        } else { // WRAP_CONTENT
+            if (specMode == View.MeasureSpec.EXACTLY || specMode == View.MeasureSpec.AT_MOST) {
+                return View.MeasureSpec.makeMeasureSpec(size, View.MeasureSpec.AT_MOST);
+            }
+            return View.MeasureSpec.makeMeasureSpec(0, View.MeasureSpec.UNSPECIFIED);
+        }
+    }
+    public void measureChild(Object p0, Object p1, Object p2) {
+        if (p0 instanceof View && p1 instanceof Integer && p2 instanceof Integer)
+            measureChild((View) p0, ((Integer) p1).intValue(), ((Integer) p2).intValue());
+    }
     public void measureChildWithMargins(Object p0, Object p1, Object p2, Object p3, Object p4) {}
-    public void measureChildren(Object p0, Object p1) {}
+    public void measureChildren(Object p0, Object p1) {
+        if (p0 instanceof Integer && p1 instanceof Integer)
+            measureChildren(((Integer) p0).intValue(), ((Integer) p1).intValue());
+    }
     public void notifySubtreeAccessibilityStateChanged(Object p0, Object p1, Object p2) {}
     public void offsetDescendantRectToMyCoords(Object p0, Object p1) {}
     public void offsetRectIntoDescendantCoords(Object p0, Object p1) {}
     public boolean onInterceptHoverEvent(Object p0) { return false; }
-    public boolean onInterceptTouchEvent(Object p0) { return false; }
+    public boolean onInterceptTouchEvent(Object p0) {
+        if (p0 instanceof MotionEvent) return onInterceptTouchEvent((MotionEvent) p0);
+        return false;
+    }
     public void onLayout(Object p0, Object p1, Object p2, Object p3, Object p4) {}
     public boolean onNestedFling(Object p0, Object p1, Object p2, Object p3) { return false; }
     public boolean onNestedPreFling(Object p0, Object p1, Object p2) { return false; }

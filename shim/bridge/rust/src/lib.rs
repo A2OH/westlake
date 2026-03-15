@@ -17,6 +17,8 @@ mod toast;
 mod network;
 mod device_info;
 mod view;
+mod oh_drawing;
+mod surface;
 
 use jni::JNIEnv;
 use jni::objects::JClass;

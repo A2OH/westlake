@@ -33,6 +33,20 @@ public class TextView extends android.view.View {
     public void setInputType(int type) { mInputType = type; }
     public int getInputType() { return mInputType; }
 
+    @Override
+    protected void onDraw(android.graphics.Canvas canvas) {
+        if (mText != null && mText.length() > 0) {
+            android.graphics.Paint paint = new android.graphics.Paint();
+            paint.setColor(mTextColor != 0 ? mTextColor : 0xFF000000);
+            if (mTextSize > 0) paint.setTextSize(mTextSize);
+            paint.setStyle(android.graphics.Paint.Style.FILL);
+            // Draw at baseline offset (approximated as textSize from top + padding)
+            float x = getPaddingLeft();
+            float y = getPaddingTop() + (mTextSize > 0 ? mTextSize : 14);
+            canvas.drawText(mText.toString(), x, y, paint);
+        }
+    }
+
     public void setGravity(int gravity) {}
 
     public interface TextWatcher {
