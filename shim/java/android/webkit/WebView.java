@@ -52,6 +52,7 @@ public class WebView {
             mWebChromeClient.onProgressChanged(this, 100);
         }
         if (mWebViewClient != null) {
+            mWebViewClient.onPageStarted(this, url, null);
             mWebViewClient.onPageFinished(this, url);
         }
     }

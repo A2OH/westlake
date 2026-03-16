@@ -93,11 +93,11 @@ public class WebSettings {
     // ── User-Agent ──
 
     public void setUserAgentString(String ua) {
-//         this.userAgentString = (ua != null) ? ua : "";
+        this.userAgent = (ua != null) ? ua : "";
     }
 
     public String getUserAgentString() {
-        return null;
+        return userAgent;
     }
 
     // ── File access ──
