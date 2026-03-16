@@ -1,6 +1,7 @@
 package android.content.pm;
 
 import android.content.ComponentName;
+import android.content.ContentProvider;
 import android.content.Intent;
 import android.content.IntentFilter;
 import java.util.ArrayList;
@@ -30,6 +31,9 @@ public class MiniPackageManager {
     // Intent filters per component class name
     private final Map<String, List<IntentFilter>> mActivityFilters = new HashMap<>();
     private final Map<String, List<IntentFilter>> mServiceFilters = new HashMap<>();
+
+    // ContentProvider registry: authority → provider instance
+    private final Map<String, ContentProvider> mProvidersByAuthority = new HashMap<>();
 
     public MiniPackageManager(String packageName) {
         mPackageName = packageName;
@@ -77,13 +81,39 @@ public class MiniPackageManager {
     }
 
     /**
-     * Register a ContentProvider.
+     * Register a ContentProvider by class name and authority.
      */
     public void addProvider(String className, String authority) {
         ProviderInfo info = new ProviderInfo();
         info.name = className;
         info.packageName = mPackageName;
         mProviders.add(info);
+
+        // Instantiate and register the provider
+        if (authority != null) {
+            try {
+                Class<?> cls = Class.forName(className);
+                ContentProvider provider = (ContentProvider) cls.newInstance();
+                provider.attachInfo(null, new ContentProvider.ProviderInfo(authority));
+                mProvidersByAuthority.put(authority, provider);
+            } catch (Exception e) {
+                // Provider class not found or can't be instantiated — skip
+            }
+        }
+    }
+
+    /**
+     * Register a ContentProvider instance directly.
+     */
+    public void addProvider(String authority, ContentProvider provider) {
+        mProvidersByAuthority.put(authority, provider);
+    }
+
+    /**
+     * Resolve a ContentProvider by authority string.
+     */
+    public ContentProvider resolveProvider(String authority) {
+        return mProvidersByAuthority.get(authority);
     }
 
     // ── Resolution API ──────────────────────────────────────────────────────

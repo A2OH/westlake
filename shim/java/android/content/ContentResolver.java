@@ -1,6 +1,7 @@
 package android.content;
 import android.accounts.Account;
 import android.database.ContentObserver;
+import android.database.Cursor;
 import android.net.Uri;
 import android.os.Bundle;
 import android.os.CancellationSignal;
@@ -51,15 +52,49 @@ public class ContentResolver {
     public static final int SYNC_OBSERVER_TYPE_PENDING = 0;
     public static final int SYNC_OBSERVER_TYPE_SETTINGS = 0;
 
-    public ContentResolver(Context p0) {}
+    private final Context mContext;
+
+    public ContentResolver(Context context) {
+        mContext = context;
+    }
+
+    private ContentProvider acquireProvider(Uri uri) {
+        if (uri == null) return null;
+        String authority = uri.getAuthority();
+        if (authority == null) return null;
+        return android.app.MiniServer.get().getPackageManager().resolveProvider(authority);
+    }
+
+    public Cursor query(Uri uri, String[] projection, String selection,
+                        String[] selectionArgs, String sortOrder) {
+        ContentProvider provider = acquireProvider(uri);
+        if (provider != null) {
+            return provider.query(uri, projection, selection, selectionArgs, sortOrder);
+        }
+        return null;
+    }
+
+    public Uri insert(Uri uri, ContentValues values) {
+        ContentProvider provider = acquireProvider(uri);
+        if (provider != null) return provider.insert(uri, values);
+        return null;
+    }
 
     public static void addPeriodicSync(Account p0, String p1, Bundle p2, long p3) {}
     public static Object addStatusChangeListener(int p0, SyncStatusObserver p1) { return null; }
     public int bulkInsert(Uri p0, ContentValues[] p1) { return 0; }
     public static void cancelSync(Account p0, String p1) {}
     public static void cancelSync(SyncRequest p0) {}
-    public int delete(Uri p0, String p1, String[] p2) { return 0; }
-    public int delete(Uri p0, Bundle p1) { return 0; }
+    public int delete(Uri uri, String selection, String[] selectionArgs) {
+        ContentProvider provider = acquireProvider(uri);
+        if (provider != null) return provider.delete(uri, selection, selectionArgs);
+        return 0;
+    }
+    public int delete(Uri uri, Bundle extras) {
+        ContentProvider provider = acquireProvider(uri);
+        if (provider != null) return provider.delete(uri, extras);
+        return 0;
+    }
     public String getType(Uri p0) { return null; }
     public static List<?> getCurrentSyncs() { return null; }
     public static int getIsSyncable(Account p0, String p1) { return 0; }
@@ -83,7 +118,15 @@ public class ContentResolver {
     public static void setSyncAutomatically(Account p0, String p1, boolean p2) {}
     public void takePersistableUriPermission(Uri p0, int p1) {}
     public void unregisterContentObserver(ContentObserver p0) {}
-    public int update(Uri p0, ContentValues p1, String p2, String[] p3) { return 0; }
-    public int update(Uri p0, ContentValues p1, Bundle p2) { return 0; }
+    public int update(Uri uri, ContentValues values, String selection, String[] selectionArgs) {
+        ContentProvider provider = acquireProvider(uri);
+        if (provider != null) return provider.update(uri, values, selection, selectionArgs);
+        return 0;
+    }
+    public int update(Uri uri, ContentValues values, Bundle extras) {
+        ContentProvider provider = acquireProvider(uri);
+        if (provider != null) return provider.update(uri, values, extras);
+        return 0;
+    }
     public static void validateSyncExtrasBundle(Bundle p0) {}
 }
