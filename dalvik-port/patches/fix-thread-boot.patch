@@ -1,5 +1,5 @@
 diff --git a/vm/Thread.cpp b/vm/Thread.cpp
-index 1ebfca7..ef09039 100644
+index 1ebfca7..c2f6b2a 100644
 --- a/vm/Thread.cpp
 +++ b/vm/Thread.cpp
 @@ -702,12 +702,20 @@ bool dvmPrepMainThread()
@@ -98,7 +98,7 @@ index 1ebfca7..ef09039 100644
 +    {
 +        // Try to get system class loader, but don't abort on failure
 +        Thread* self2 = dvmThreadSelf();
-+        ALOGW("Skipping system class loader"); systemLoader = NULL; // dvmGetSystemClassLoader();
++        systemLoader = dvmGetSystemClassLoader(); if (dvmCheckException(dvmThreadSelf())) { ALOGW("System class loader init failed - continuing without"); dvmClearException(dvmThreadSelf()); systemLoader = NULL; }
 +        if (dvmCheckException(self2)) {
 +            ALOGW("System class loader failed - clearing exception");
 +            dvmClearException(self2);

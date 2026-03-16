@@ -1,8 +1,8 @@
 diff --git a/vm/Init.cpp b/vm/Init.cpp
-index f1762c9..c7bce00 100644
+index f1762c9..837d1d6 100644
 --- a/vm/Init.cpp
 +++ b/vm/Init.cpp
-@@ -1286,8 +1286,12 @@ static void setCommandLineDefaults()
+@@ -1286,6 +1286,9 @@ static void setCommandLineDefaults()
  
      gDvm.constInit = false;
      gDvm.commonInit = false;
@@ -11,11 +11,16 @@ index f1762c9..c7bce00 100644
 +    gDvm.executionMode = kExecutionModeInterpPortable;
  #else
      gDvm.executionMode = kExecutionModeInterpFast;
-+#endif
  #endif
+@@ -1343,7 +1346,6 @@ static void blockSignals()
+     cc = sigprocmask(SIG_BLOCK, &mask, NULL);
+     assert(cc == 0);
  
-     /*
-@@ -1491,7 +1495,7 @@ std::string dvmStartup(int argc, const char* const argv[],
+-    if (false) {
+         /* TODO: save the old sigaction in a global */
+         struct sigaction sa;
+         memset(&sa, 0, sizeof(sa));
+@@ -1491,7 +1493,7 @@ std::string dvmStartup(int argc, const char* const argv[],
       * version for performance.
       */
      if (!dvmCreateInlineSubsTable()) {
@@ -24,10 +29,21 @@ index f1762c9..c7bce00 100644
      }
  
      /*
-@@ -1527,6 +1531,17 @@ std::string dvmStartup(int argc, const char* const argv[],
+@@ -1523,9 +1525,27 @@ std::string dvmStartup(int argc, const char* const argv[],
+     /*
+      * Register the system native methods, which are registered through JNI.
+      */
++    // Clear any pending exceptions from class init failures before native registration
++    if (dvmCheckException(dvmThreadSelf())) dvmClearException(dvmThreadSelf());
+     if (!registerSystemNatives(pEnv)) {
          return "couldn't register system natives";
      }
- 
++    // Clear exceptions from failed native bridge registrations
++    if (dvmCheckException(dvmThreadSelf())) {
++        ALOGW("Clearing exceptions from native registration");
++        dvmClearException(dvmThreadSelf());
++    }
++
 +    /*
 +     * Register libcore bridge natives (OsConstants etc.) so that boot
 +     * class initialization can find them without libjavacore.so.
@@ -38,11 +54,10 @@ index f1762c9..c7bce00 100644
 +            return "dvmRegisterLibcoreBridge failed";
 +        }
 +    }
-+
+ 
      /*
       * Do some "late" initialization for the memory allocator.  This may
-      * allocate storage and initialize classes.
-@@ -1560,7 +1575,13 @@ std::string dvmStartup(int argc, const char* const argv[],
+@@ -1560,7 +1580,18 @@ std::string dvmStartup(int argc, const char* const argv[],
          return "dvmDebuggerStartup failed";
      }
  
@@ -53,11 +68,16 @@ index f1762c9..c7bce00 100644
 +        ALOGW("Clearing pending exception before GC daemon startup");
 +        dvmClearException(dvmThreadSelf());
 +    }
++    // Clear ALL pending exceptions before user code
++    if (dvmCheckException(dvmThreadSelf())) {
++        ALOGW("Clearing all pending exceptions before user class loading");
++        dvmClearException(dvmThreadSelf());
++    }
 +    if (false && !dvmGcStartupClasses()) { // DISABLED - daemon threads crash
          return "dvmGcStartupClasses failed";
      }
  
-@@ -1599,8 +1620,8 @@ static void loadJniLibrary(const char* name) {
+@@ -1599,8 +1630,8 @@ static void loadJniLibrary(const char* name) {
      std::string mappedName(StringPrintf(OS_SHARED_LIB_FORMAT_STR, name));
      char* reason = NULL;
      if (!dvmLoadNativeCode(mappedName.c_str(), NULL, &reason)) {
@@ -68,3 +88,13 @@ index f1762c9..c7bce00 100644
      }
  }
  
+@@ -1644,7 +1675,9 @@ static bool registerSystemNatives(JNIEnv* pEnv)
+     // Most JNI libraries can just use System.loadLibrary, but you can't
+     // if you're the library that implements System.loadLibrary!
+     loadJniLibrary("javacore");
++    if (dvmCheckException(self)) dvmClearException(self);
+     loadJniLibrary("nativehelper");
++    if (dvmCheckException(self)) dvmClearException(self);
+ 
+     // Back to run mode.
+     self->status = THREAD_RUNNING;

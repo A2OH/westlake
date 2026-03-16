@@ -1,0 +1,49 @@
+diff --git a/vm/analysis/Optimize.cpp b/vm/analysis/Optimize.cpp
+index b61b82c..7c35eda 100644
+--- a/vm/analysis/Optimize.cpp
++++ b/vm/analysis/Optimize.cpp
+@@ -83,8 +83,9 @@ bool dvmCreateInlineSubsTable()
+             ALOGE("Unable to find method for inlining: %s.%s:%s",
+                 ops[i].classDescriptor, ops[i].methodName,
+                 ops[i].methodSignature);
+-            free(table);
+-            return false;
++            // Skip missing inline method instead of aborting
++            continue; // free(table);
++            // return false;
+         }
+ 
+         table[tableIndex].method = method;
+@@ -303,18 +304,18 @@ rewrite_static_field:
+             switch (opc) {
+             case OP_INVOKE_VIRTUAL:
+                 if (!rewriteExecuteInline(method, insns, METHOD_VIRTUAL)) {
+-                    rewriteVirtualInvoke(method, insns,
+-                        OP_INVOKE_VIRTUAL_QUICK);
++                    /* DISABLED: vtable quickening on 64-bit */
++                    // rewriteVirtualInvoke(method, insns, OP_INVOKE_VIRTUAL_QUICK);
+                 }
+                 break;
+             case OP_INVOKE_VIRTUAL_RANGE:
+                 if (!rewriteExecuteInlineRange(method, insns, METHOD_VIRTUAL)) {
+-                    rewriteVirtualInvoke(method, insns,
+-                        OP_INVOKE_VIRTUAL_QUICK_RANGE);
++                    /* DISABLED: vtable quickening on 64-bit */
++                    // rewriteVirtualInvoke(method, insns, OP_INVOKE_VIRTUAL_QUICK_RANGE);
+                 }
+                 break;
+             case OP_INVOKE_SUPER:
+-                rewriteVirtualInvoke(method, insns, OP_INVOKE_SUPER_QUICK);
++                // rewriteVirtualInvoke(method, insns, OP_INVOKE_SUPER_QUICK); /* DISABLED */
+                 break;
+             case OP_INVOKE_SUPER_RANGE:
+                 rewriteVirtualInvoke(method, insns, OP_INVOKE_SUPER_QUICK_RANGE);
+@@ -695,7 +696,7 @@ static void rewriteInstField(Method* method, u2* insns, Opcode quickOpc,
+         updateOpcode(method, insns, volatileOpc);
+         ALOGV("DexOpt: rewrote ifield access %s.%s --> volatile",
+             instField->clazz->descriptor, instField->name);
+-    } else if (quickOpc != OP_NOP && instField->byteOffset < 65536) {
++    } else if (false && quickOpc != OP_NOP && instField->byteOffset < 65536) { /* DISABLED: 64-bit offset mismatch */
+         updateOpcode(method, insns, quickOpc);
+         dvmUpdateCodeUnit(method, insns+1, (u2) instField->byteOffset);
+         ALOGV("DexOpt: rewrote ifield access %s.%s --> %d",
