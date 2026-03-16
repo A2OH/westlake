@@ -37,10 +37,13 @@ public class Handler {
     public Looper getLooper() { return mLooper; }
 
     public void dispatchMessage(Message msg) {
-        if (mCallback != null) {
+        if (msg.callback != null) {
+            msg.callback.run();
+        } else if (mCallback != null) {
             if (mCallback.handleMessage(msg)) return;
+        } else {
+            handleMessage(msg);
         }
-        handleMessage(msg);
     }
 
     public void dump(Printer p0, String p1) {}
@@ -52,15 +55,32 @@ public class Handler {
     public boolean hasMessages(int p0, Object p1) { return false; }
 
     public boolean post(Runnable r) {
-        if (r != null) r.run();
-        return true;
+        return sendMessageDelayed(Message.obtain(this, r), 0);
     }
 
-    public boolean postAtFrontOfQueue(Runnable p0) { return false; }
-    public boolean postAtTime(Runnable p0, long p1) { return false; }
-    public boolean postAtTime(Runnable p0, Object p1, long p2) { return false; }
-    public boolean postDelayed(Runnable p0, long p1) { return false; }
-    public boolean postDelayed(Runnable p0, Object p1, long p2) { return false; }
+    public boolean postAtFrontOfQueue(Runnable r) {
+        return sendMessageDelayed(Message.obtain(this, r), 0);
+    }
+
+    public boolean postAtTime(Runnable r, long uptimeMillis) {
+        Message msg = Message.obtain(this, r);
+        msg.target = this;
+        Looper looper = mLooper != null ? mLooper : Looper.getMainLooper();
+        return looper.getQueue().enqueueMessage(msg, uptimeMillis);
+    }
+
+    public boolean postAtTime(Runnable r, Object token, long uptimeMillis) {
+        return postAtTime(r, uptimeMillis);
+    }
+
+    public boolean postDelayed(Runnable r, long delayMillis) {
+        return sendMessageDelayed(Message.obtain(this, r), delayMillis);
+    }
+
+    public boolean postDelayed(Runnable r, Object token, long delayMillis) {
+        return postDelayed(r, delayMillis);
+    }
+
     public void removeCallbacks(Runnable p0) {}
     public void removeCallbacks(Runnable p0, Object p1) {}
     public void removeCallbacksAndMessages(Object p0) {}
@@ -74,17 +94,39 @@ public class Handler {
         return sendMessage(msg);
     }
 
-    public boolean sendEmptyMessageAtTime(int p0, long p1) { return false; }
-    public boolean sendEmptyMessageDelayed(int p0, long p1) { return false; }
-
-    public boolean sendMessage(Message msg) {
-        if (msg != null) {
-            dispatchMessage(msg);
-        }
-        return true;
+    public boolean sendEmptyMessageAtTime(int what, long uptimeMillis) {
+        Message msg = Message.obtain();
+        msg.what = what;
+        msg.target = this;
+        Looper looper = mLooper != null ? mLooper : Looper.getMainLooper();
+        return looper.getQueue().enqueueMessage(msg, uptimeMillis);
     }
 
-    public boolean sendMessageAtFrontOfQueue(Message p0) { return false; }
-    public boolean sendMessageAtTime(Message p0, long p1) { return false; }
-    public boolean sendMessageDelayed(Message p0, long p1) { return false; }
+    public boolean sendEmptyMessageDelayed(int what, long delayMillis) {
+        Message msg = Message.obtain();
+        msg.what = what;
+        msg.target = this;
+        return sendMessageDelayed(msg, delayMillis);
+    }
+
+    public boolean sendMessage(Message msg) {
+        return sendMessageDelayed(msg, 0);
+    }
+
+    public boolean sendMessageAtFrontOfQueue(Message msg) {
+        return sendMessageDelayed(msg, 0);
+    }
+
+    public boolean sendMessageAtTime(Message msg, long uptimeMillis) {
+        msg.target = this;
+        Looper looper = mLooper != null ? mLooper : Looper.getMainLooper();
+        return looper.getQueue().enqueueMessage(msg, uptimeMillis);
+    }
+
+    public boolean sendMessageDelayed(Message msg, long delayMillis) {
+        msg.target = this;
+        long when = SystemClock.uptimeMillis() + delayMillis;
+        Looper looper = mLooper != null ? mLooper : Looper.getMainLooper();
+        return looper.getQueue().enqueueMessage(msg, when);
+    }
 }

@@ -8,6 +8,8 @@ public final class Message implements Parcelable {
     public int sendingUid = 0;
     public int what = 0;
     public Handler target = null;
+    Runnable callback;
+    long when;
 
     private static final int POOL_SIZE = 10;
     private static final Message[] sPool = new Message[POOL_SIZE];
@@ -22,14 +24,15 @@ public final class Message implements Parcelable {
             this.arg2 = o.arg2;
             this.obj = o.obj;
             this.target = o.target;
+            this.callback = o.callback;
         }
     }
 
     public int describeContents() { return 0; }
-    public Runnable getCallback() { return null; }
+    public Runnable getCallback() { return callback; }
     public Bundle getData() { return null; }
     public Handler getTarget() { return target; }
-    public long getWhen() { return 0L; }
+    public long getWhen() { return when; }
     public boolean isAsynchronous() { return false; }
 
     public static Message obtain() {
@@ -42,6 +45,8 @@ public final class Message implements Parcelable {
                 m.arg2 = 0;
                 m.obj = null;
                 m.target = null;
+                m.callback = null;
+                m.when = 0;
                 return m;
             }
         }
@@ -70,6 +75,7 @@ public final class Message implements Parcelable {
     public static Message obtain(Handler h, Runnable callback) {
         Message m = obtain();
         m.target = h;
+        m.callback = callback;
         return m;
     }
 
@@ -108,6 +114,8 @@ public final class Message implements Parcelable {
         arg2 = 0;
         obj = null;
         target = null;
+        callback = null;
+        when = 0;
         synchronized (sPool) {
             if (sPoolSize < POOL_SIZE) {
                 sPool[sPoolSize++] = this;

@@ -1,18 +1,12 @@
 package android.os;
 
 /**
- * Shim: android.os.Looper — stub implementation.
+ * Looper — message loop with MessageQueue for the engine runtime.
  *
- * In the shim layer there is no real message-loop infrastructure.
- * Handler dispatches messages synchronously (or via a ScheduledExecutor for
- * delayed posts), so Looper exists only to satisfy API references.
- *
- * {@link #getMainLooper()} returns a singleton stub tied to the main thread.
- * {@link #myLooper()} returns a per-thread stub via a ThreadLocal.
+ * In single-threaded engine mode, messages are queued and dispatched
+ * via pumpMessages() / flushAll() rather than blocking in loop().
  */
 public final class Looper {
-
-    // ── Singleton / thread-local stubs ───────────────────────────────────────
 
     private static final Looper sMainLooper = new Looper(Thread.currentThread());
 
@@ -24,47 +18,42 @@ public final class Looper {
     };
 
     private final Thread mThread;
+    private final MessageQueue mQueue;
 
     private Looper(Thread thread) {
         mThread = thread;
+        mQueue = new MessageQueue();
     }
 
-    // ── Public API ───────────────────────────────────────────────────────────
-
-    /**
-     * Return the main-thread Looper stub.
-     * Always non-null; the associated thread is the thread that first loaded
-     * this class (typically the JVM main thread).
-     */
+    /** Return the main-thread Looper. Always non-null. */
     public static Looper getMainLooper() {
         return sMainLooper;
     }
 
-    /**
-     * Return the Looper stub for the calling thread.
-     * Creates a new stub on first call for each thread.
-     */
+    /** Return the Looper for the calling thread. Returns main looper for the main thread. */
     public static Looper myLooper() {
+        if (Thread.currentThread() == sMainLooper.mThread) {
+            return sMainLooper;
+        }
         return sThreadLocal.get();
     }
 
-    /**
-     * Prepare a Looper for the current thread (no-op in the shim;
-     * present so code that calls {@code Looper.prepare()} compiles).
-     */
+    /** No-op — present so code that calls Looper.prepare() compiles. */
     public static void prepare() {
         // no-op
     }
 
-    /**
-     * Start the message loop (no-op in the shim; present for API
-     * compatibility with code that calls {@code Looper.loop()}).
-     */
+    /** No-op — present for API compatibility. */
     public static void loop() {
         // no-op
     }
 
-    /** Return the thread that this Looper is attached to. */
+    /** Return this Looper's MessageQueue. */
+    public MessageQueue getQueue() {
+        return mQueue;
+    }
+
+    /** Return the thread this Looper is attached to. */
     public Thread getThread() {
         return mThread;
     }
@@ -72,6 +61,20 @@ public final class Looper {
     /** Return true if this is the main-thread Looper. */
     public boolean isCurrentThread() {
         return mThread == Thread.currentThread();
+    }
+
+    /** Process all ready messages. Call from the engine's main loop. */
+    public static int pumpMessages() {
+        Looper main = getMainLooper();
+        if (main != null) return main.mQueue.drainReady();
+        return 0;
+    }
+
+    /** Process ALL queued messages regardless of time (for testing). */
+    public static int flushAll() {
+        Looper main = getMainLooper();
+        if (main != null) return main.mQueue.drainAll();
+        return 0;
     }
 
     @Override
