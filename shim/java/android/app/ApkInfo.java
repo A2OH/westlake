@@ -14,6 +14,7 @@ public class ApkInfo {
     public int minSdkVersion;
     public int targetSdkVersion;
     public String launcherActivity;
+    public String applicationClassName;
 
     /** Fully-qualified Activity class names declared in the manifest */
     public final List<String> activities = new ArrayList<>();
@@ -29,6 +30,21 @@ public class ApkInfo {
 
     /** Path to extracted APK directory */
     public String extractDir;
+
+    /** Path to extracted assets/ directory */
+    public String assetDir;
+
+    /** Path to extracted native libs */
+    public String nativeLibDir;
+
+    /** Paths to individual .so files */
+    public final List<String> nativeLibPaths = new ArrayList<>();
+
+    /** Path to extracted res/ directory */
+    public String resDir;
+
+    /** ResourceTable (not serializable) */
+    public transient Object resourceTable;
 
     @Override
     public String toString() {

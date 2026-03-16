@@ -216,6 +216,10 @@ public class BinaryXmlParser {
             if (!info.services.contains(fullName)) {
                 info.services.add(fullName);
             }
+        } else if ("application".equals(element) && "name".equals(attrName)) {
+            if (rawValue != null) {
+                info.applicationClassName = resolveClassName(rawValue, info.packageName);
+            }
         } else if ("uses-permission".equals(element) && "name".equals(attrName)) {
             if (rawValue != null && !info.permissions.contains(rawValue)) {
                 info.permissions.add(rawValue);
