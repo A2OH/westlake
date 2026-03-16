@@ -33,11 +33,13 @@ public final class MotionEvent {
     // ── Fields ──
 
     private int    action;
+    private long   downTime;
     private long   eventTime;
     private float  x;
     private float  y;
     private float  rawX;
     private float  rawY;
+    private int    metaState;
 
     // Per-pointer data (up to MAX_POINTERS)
     private static final int MAX_POINTERS = 10;
@@ -66,7 +68,29 @@ public final class MotionEvent {
         ev.y           = y;
         ev.rawX        = x;
         ev.rawY        = y;
+        ev.downTime    = eventTime;
         ev.eventTime   = eventTime;
+        ev.pointerCount = 1;
+        ev.pointerIds[0] = 0;
+        ev.pointerX[0]   = x;
+        ev.pointerY[0]   = y;
+        return ev;
+    }
+
+    /**
+     * Obtain an event with full timing parameters (matches AOSP signature).
+     */
+    public static MotionEvent obtain(long downTime, long eventTime, int action,
+                                     float x, float y, int metaState) {
+        MotionEvent ev = new MotionEvent();
+        ev.action      = action;
+        ev.x           = x;
+        ev.y           = y;
+        ev.rawX        = x;
+        ev.rawY        = y;
+        ev.downTime    = downTime;
+        ev.eventTime   = eventTime;
+        ev.metaState   = metaState;
         ev.pointerCount = 1;
         ev.pointerIds[0] = 0;
         ev.pointerX[0]   = x;
@@ -155,7 +179,27 @@ public final class MotionEvent {
         return -1;
     }
 
+    public long  getDownTime() { return downTime; }
+
     public long  getEventTime() { return eventTime; }
+
+    public int   getMetaState() { return metaState; }
+
+    /**
+     * Offset the location of this event. Used during dispatch to translate
+     * coordinates into a child view's coordinate space.
+     */
+    public void setLocation(float newX, float newY) {
+        float dx = newX - x;
+        float dy = newY - y;
+        x = newX;
+        y = newY;
+        // Also offset per-pointer data for pointer 0
+        if (pointerCount > 0) {
+            pointerX[0] = newX;
+            pointerY[0] = newY;
+        }
+    }
 
     /** No-op: preserved for Android API compatibility. */
     public void recycle() {}
