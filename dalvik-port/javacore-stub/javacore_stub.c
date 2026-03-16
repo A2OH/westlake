@@ -59,3 +59,9 @@ JNIEXPORT void JNICALL Java_NativePrint_print(JNIEnv* e,jclass c,jstring s){
 JNIEXPORT void JNICALL Java_PrintTest_nprintln(JNIEnv* e,jclass c,jstring s){dprintln(e,s);}
 
 JNIEXPORT jint JNICALL JNI_OnLoad(JavaVM* vm,void* reserved){return JNI_VERSION_1_6;}
+
+
+/* Native println — writes directly to stdout fd 1 */
+JNIEXPORT void JNICALL Java_HelloNative_nativePrintln(JNIEnv* e, jclass c, jstring msg) {
+    dprintln(e, msg);
+}
