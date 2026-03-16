@@ -1,5 +1,8 @@
 package android.app;
 
+import android.content.res.ResourceTable;
+
+import java.io.ByteArrayOutputStream;
 import java.io.File;
 import java.io.FileOutputStream;
 import java.io.IOException;
@@ -75,6 +78,102 @@ public class ApkLoader {
                     parser.parse(in, info);
                 }
             }
+
+            // Second pass: extract assets, native libs, resources.arsc, res/
+            String preferredAbi = System.getProperty("os.arch", "");
+            // Map Java arch names to Android ABI names
+            String[] abiPriority;
+            if (preferredAbi.contains("aarch64") || preferredAbi.contains("arm64")) {
+                abiPriority = new String[]{"arm64-v8a", "armeabi-v7a", "armeabi"};
+            } else if (preferredAbi.contains("arm")) {
+                abiPriority = new String[]{"armeabi-v7a", "armeabi", "arm64-v8a"};
+            } else if (preferredAbi.contains("amd64") || preferredAbi.contains("x86_64")) {
+                abiPriority = new String[]{"x86_64", "x86", "arm64-v8a", "armeabi-v7a"};
+            } else {
+                abiPriority = new String[]{"x86", "x86_64", "armeabi-v7a", "arm64-v8a"};
+            }
+
+            // Find which ABI dir the APK has
+            String matchedAbi = null;
+            for (String abi : abiPriority) {
+                if (zip.getEntry("lib/" + abi + "/") != null) {
+                    matchedAbi = abi;
+                    break;
+                }
+            }
+            // Fallback: scan entries if directory entry doesn't exist
+            if (matchedAbi == null) {
+                for (String abi : abiPriority) {
+                    String prefix = "lib/" + abi + "/";
+                    Enumeration<? extends ZipEntry> scan = zip.entries();
+                    while (scan.hasMoreElements()) {
+                        if (scan.nextElement().getName().startsWith(prefix)) {
+                            matchedAbi = abi;
+                            break;
+                        }
+                    }
+                    if (matchedAbi != null) break;
+                }
+            }
+
+            File assetOutDir = new File(extractDir, "assets");
+            File nativeOutDir = new File(extractDir, "native-libs");
+            File resOutDir = new File(extractDir, "res");
+
+            Enumeration<? extends ZipEntry> entries2 = zip.entries();
+            while (entries2.hasMoreElements()) {
+                ZipEntry entry = entries2.nextElement();
+                String name = entry.getName();
+
+                // Extract assets/**
+                if (name.startsWith("assets/") && !entry.isDirectory()) {
+                    // Strip "assets/" prefix and keep sub-path
+                    File assetOut = new File(assetOutDir, name.substring("assets/".length()));
+                    extractEntry(zip, entry, assetOut);
+                    if (info.assetDir == null) {
+                        info.assetDir = assetOutDir.getAbsolutePath();
+                    }
+                }
+
+                // Extract native libs for matching ABI
+                if (matchedAbi != null && name.startsWith("lib/" + matchedAbi + "/")
+                        && name.endsWith(".so") && !entry.isDirectory()) {
+                    String soName = name.substring(name.lastIndexOf('/') + 1);
+                    File soOut = new File(nativeOutDir, soName);
+                    extractEntry(zip, entry, soOut);
+                    info.nativeLibPaths.add(soOut.getAbsolutePath());
+                    if (info.nativeLibDir == null) {
+                        info.nativeLibDir = nativeOutDir.getAbsolutePath();
+                    }
+                }
+
+                // Extract res/** files
+                if (name.startsWith("res/") && !entry.isDirectory()) {
+                    File resOut = new File(resOutDir, name.substring("res/".length()));
+                    extractEntry(zip, entry, resOut);
+                    if (info.resDir == null) {
+                        info.resDir = resOutDir.getAbsolutePath();
+                    }
+                }
+            }
+
+            // Parse resources.arsc
+            ZipEntry arscEntry = zip.getEntry("resources.arsc");
+            if (arscEntry != null) {
+                try (InputStream in = zip.getInputStream(arscEntry)) {
+                    byte[] arscData = readAllBytes(in);
+                    ResourceTable resTable = new ResourceTable();
+                    resTable.parse(arscData);
+                    info.resourceTable = resTable;
+                } catch (Exception e) {
+                    // Non-fatal: some APKs may have malformed resources
+                }
+            }
+
+            // Set the native lib dir system property for ClassLoader.findLibrary
+            if (info.nativeLibDir != null) {
+                System.setProperty("app.native.lib.dir", info.nativeLibDir);
+            }
         }
 
         return info;
@@ -94,6 +193,19 @@ public class ApkLoader {
                 out.write(buf, 0, n);
             }
         }
+    }
+
+    /**
+     * Read all bytes from an InputStream into a byte array.
+     */
+    private static byte[] readAllBytes(InputStream in) throws IOException {
+        ByteArrayOutputStream baos = new ByteArrayOutputStream();
+        byte[] buf = new byte[8192];
+        int n;
+        while ((n = in.read(buf)) != -1) {
+            baos.write(buf, 0, n);
+        }
+        return baos.toByteArray();
     }
 
     /**
