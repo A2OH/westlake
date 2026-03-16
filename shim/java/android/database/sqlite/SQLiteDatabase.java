@@ -782,6 +782,27 @@ public final class SQLiteDatabase extends SQLiteClosable {
             whereClause = afterFrom.substring(whereIdx + 7, endOfWhere).trim();
         }
 
+        // Handle aggregate: SELECT COUNT(*) FROM table [WHERE ...]
+        if (colPart.toUpperCase(Locale.US).equals("COUNT(*)")) {
+            String key = tableName.toLowerCase(Locale.US);
+            Table t = tables.get(key);
+            int rowCount = 0;
+            if (t != null) {
+                if (whereClause != null && !whereClause.isEmpty()) {
+                    for (Map<String, Object> row : t.rows) {
+                        if (matchesWhere(row, whereClause, selectionArgs)) {
+                            rowCount++;
+                        }
+                    }
+                } else {
+                    rowCount = t.rows.size();
+                }
+            }
+            MatrixCursor mc = new MatrixCursor(new String[]{"COUNT(*)"});
+            mc.addRow(new Object[]{rowCount});
+            return mc;
+        }
+
         // Determine columns
         String[] columns = null;
         if (!colPart.equals("*")) {
