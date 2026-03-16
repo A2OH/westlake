@@ -1,5 +1,5 @@
 diff --git a/vm/Thread.cpp b/vm/Thread.cpp
-index 1ebfca7..05587c4 100644
+index 1ebfca7..ad01905 100644
 --- a/vm/Thread.cpp
 +++ b/vm/Thread.cpp
 @@ -702,12 +702,20 @@ bool dvmPrepMainThread()
@@ -56,7 +56,12 @@ index 1ebfca7..05587c4 100644
  
      /*
       * Allocate and construct a VMThread.
-@@ -752,15 +767,18 @@ bool dvmPrepMainThread()
+@@ -748,19 +763,24 @@ bool dvmPrepMainThread()
+         ALOGE("unable to allocate main vmthread object");
+         return false;
+     }
+-    dvmReleaseTrackedAlloc(vmThreadObj, NULL);
++    // NOTE: do NOT release vmThreadObj until after all field sets
  
      init = dvmFindDirectMethodByDescriptor(gDvm.classJavaLangVMThread, "<init>",
              "(Ljava/lang/Thread;)V");
@@ -76,12 +81,14 @@ index 1ebfca7..05587c4 100644
 -    assert(gDvm.offJavaLangVMThread_vmData != 0);
 -    dvmSetFieldInt(vmThreadObj, gDvm.offJavaLangVMThread_vmData, (u4)thread);
 +    if (gDvm.offJavaLangVMThread_vmData != 0) {
-+        dvmSetFieldInt(vmThreadObj, gDvm.offJavaLangVMThread_vmData, (u4)thread);
++        // Use long for 64-bit pointer safety
++        dvmSetFieldLong(vmThreadObj, gDvm.offJavaLangVMThread_vmData, (s8)(uintptr_t)thread);
 +    }
++    dvmReleaseTrackedAlloc(vmThreadObj, NULL);
  
      /*
       * Stuff the VMThread back into the Thread.  From this point on, other
-@@ -780,7 +798,8 @@ bool dvmPrepMainThread()
+@@ -780,7 +800,8 @@ bool dvmPrepMainThread()
       * Thread.currentThread(), so we want the Thread to be fully configured
       * before we do this.
       */
@@ -91,7 +98,7 @@ index 1ebfca7..05587c4 100644
      if (systemLoader == NULL) {
          ALOGW("WARNING: system class loader is NULL (setting main ctxt)");
          /* keep going? */
-@@ -790,6 +809,39 @@ bool dvmPrepMainThread()
+@@ -790,6 +811,76 @@ bool dvmPrepMainThread()
          dvmReleaseTrackedAlloc(systemLoader, NULL);
      }
  
@@ -122,6 +129,43 @@ index 1ebfca7..05587c4 100644
 +        } else {
 +            ALOGW("DirectPrintStream not found in boot classpath");
 +        }
++        // Initialize System.props with a Properties object
++        ClassObject* propsCls = dvmFindSystemClassNoInit("Ljava/util/Properties;");
++        if (propsCls) {
++            if (!dvmIsClassInitialized(propsCls)) dvmInitClass(propsCls);
++            if (dvmCheckException(dvmThreadSelf())) dvmClearException(dvmThreadSelf());
++            Object* props = dvmAllocObject(propsCls, ALLOC_DEFAULT);
++            if (props) {
++                // Call Properties.<init>()
++                Method* propsInit = dvmFindDirectMethodByDescriptor(propsCls, "<init>", "()V");
++                if (propsInit) {
++                    JValue unused;
++                    dvmCallMethod(dvmThreadSelf(), propsInit, props, &unused);
++                    if (dvmCheckException(dvmThreadSelf())) dvmClearException(dvmThreadSelf());
++                }
++                // Call initSystemProperties to populate it
++                Method* initProps = dvmFindDirectMethodByDescriptor(gDvm.classJavaLangSystem, 
++                    "initSystemProperties", "(Ljava/util/Properties;)Ljava/util/Properties;");
++                if (initProps) {
++                    JValue result;
++                    dvmCallMethod(dvmThreadSelf(), initProps, NULL, &result, props);
++                    if (dvmCheckException(dvmThreadSelf())) dvmClearException(dvmThreadSelf());
++                    if (result.l) props = (Object*) result.l;
++                }
++                // Set System.systemProperties field
++                StaticField* propsField = dvmFindStaticField(gDvm.classJavaLangSystem, 
++                    "systemProperties", "Ljava/util/Properties;");
++                if (!propsField) propsField = dvmFindStaticField(gDvm.classJavaLangSystem,
++                    "props", "Ljava/util/Properties;");
++                if (propsField) {
++                    dvmSetStaticFieldObject(propsField, props);
++                    ALOGW("Initialized System.props");
++                }
++                dvmReleaseTrackedAlloc(props, NULL);
++            }
++        }
++        if (dvmCheckException(dvmThreadSelf())) dvmClearException(dvmThreadSelf());
++
 +        // Force System to INITIALIZED
 +        gDvm.classJavaLangSystem->status = CLASS_INITIALIZED;
 +        ALOGW("Forced System to INITIALIZED");
@@ -131,7 +175,7 @@ index 1ebfca7..05587c4 100644
      /* include self in non-daemon threads (mainly for AttachCurrentThread) */
      gDvm.nonDaemonThreadCount++;
  
-@@ -3008,9 +3060,18 @@ static Object* getStaticThreadGroup(const char* fieldName)
+@@ -3008,9 +3099,40 @@ static Object* getStaticThreadGroup(const char* fieldName)
      }
      groupObj = dvmGetStaticFieldObject(groupField);
      if (groupObj == NULL) {
@@ -149,6 +193,28 @@ index 1ebfca7..05587c4 100644
 +                   dvmReleaseTrackedAlloc((Object*)s, NULL); }
 +        InstField* mp = dvmFindInstanceField(gDvm.classJavaLangThreadGroup, "maxPriority", "I");
 +        if (mp) dvmSetFieldInt(groupObj, mp->byteOffset, 10);
++        // Init threadRefs (Harmony ArrayList) — needed for Thread.<init>/addThread
++        InstField* tr = dvmFindInstanceFieldHier(gDvm.classJavaLangThreadGroup, "threadRefs", "Ljava/util/List;");
++        if (tr) {
++            ClassObject* alCls = dvmFindSystemClassNoInit("Ljava/util/ArrayList;");
++            if (alCls) {
++                Object* list = dvmAllocObject(alCls, ALLOC_DEFAULT);
++                if (list) {
++                    dvmSetFieldObject(groupObj, tr->byteOffset, list);
++                    // Init ArrayList.array field at offset 8 (Harmony internal)
++                    ClassObject* objCls = dvmFindSystemClassNoInit("Ljava/lang/Object;");
++                    if (objCls) {
++                        ArrayObject* arr = dvmAllocArrayByClass(
++                            dvmFindArrayClassForElement(objCls), 12, ALLOC_DEFAULT);
++                        if (arr) {
++                            dvmSetFieldObject(list, 8, (Object*)arr);
++                            dvmReleaseTrackedAlloc((Object*)arr, NULL);
++                        }
++                    }
++                    dvmReleaseTrackedAlloc(list, NULL);
++                }
++            }
++        }
 +        dvmReleaseTrackedAlloc(groupObj, NULL);
      }
  
