@@ -17,8 +17,23 @@ public class Resources {
 
     private final DisplayMetrics mDisplayMetrics = new DisplayMetrics();
     private final Configuration  mConfiguration  = new Configuration();
+    private ResourceTable mTable;
+
+    /** Load a parsed ResourceTable for resource ID resolution. */
+    public void loadResourceTable(ResourceTable table) {
+        mTable = table;
+    }
+
+    /** Get the loaded ResourceTable, or null if none loaded. */
+    public ResourceTable getResourceTable() {
+        return mTable;
+    }
 
     public String getString(int id) {
+        if (mTable != null) {
+            String s = mTable.getString(id);
+            if (s != null) return s;
+        }
         return "string_" + id;
     }
 
@@ -31,18 +46,30 @@ public class Resources {
     }
 
     public int getInteger(int id) {
+        if (mTable != null) {
+            return mTable.getInteger(id, 0);
+        }
         return 0;
     }
 
     public boolean getBoolean(int id) {
+        if (mTable != null) {
+            return mTable.getInteger(id, 0) != 0;
+        }
         return false;
     }
 
     public float getDimension(int id) {
+        if (mTable != null) {
+            return (float) mTable.getInteger(id, 0);
+        }
         return 0f;
     }
 
     public int getColor(int id) {
+        if (mTable != null) {
+            return mTable.getInteger(id, 0xFF000000);
+        }
         return 0xFF000000;
     }
 
@@ -51,6 +78,9 @@ public class Resources {
     }
 
     public int getDimensionPixelSize(int id) {
+        if (mTable != null) {
+            return mTable.getInteger(id, 0);
+        }
         return 0;
     }
 
@@ -68,5 +98,16 @@ public class Resources {
 
     public Configuration getConfiguration() {
         return mConfiguration;
+    }
+
+    /**
+     * Get a resource name by ID (e.g., "string/app_name").
+     * Returns null if not found or no ResourceTable loaded.
+     */
+    public String getResourceName(int id) {
+        if (mTable != null) {
+            return mTable.getResourceName(id);
+        }
+        return null;
     }
 }
