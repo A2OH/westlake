@@ -3248,8 +3248,21 @@ index eaea607..1ae6e15 100644
  #include <netinet/in.h>
  #include <netinet/tcp.h>
  #include <arpa/inet.h>
+diff --git a/vm/mterp/cstubs/stubdefs.cpp b/vm/mterp/cstubs/stubdefs.cpp
+index 58b4559..7af66c3 100644
+--- a/vm/mterp/cstubs/stubdefs.cpp
++++ b/vm/mterp/cstubs/stubdefs.cpp
+@@ -24,7 +24,7 @@
+  */
+ #define retval                  self->interpSave.retval
+ #define pc                      self->interpSave.pc
+-#define fp                      self->interpSave.curFrame
++#define fp                      ((dreg_t*)self->interpSave.curFrame)
+ #define curMethod               self->interpSave.method
+ #define methodClassDex          self->interpSave.methodClassDex
+ #define debugTrackedRefStart    self->interpSave.debugTrackedRefStart
 diff --git a/vm/mterp/out/InterpC-portable.cpp b/vm/mterp/out/InterpC-portable.cpp
-index 0328aa8..1f36895 100644
+index 0328aa8..29f5387 100644
 --- a/vm/mterp/out/InterpC-portable.cpp
 +++ b/vm/mterp/out/InterpC-portable.cpp
 @@ -142,7 +142,7 @@
@@ -3355,7 +3368,7 @@ index 0328aa8..1f36895 100644
                  GOTO_exceptionThrown();
          }
 -        SET_REGISTER(vdst, (u4) strObj);
-+        ALOGW("CONST_STRING v%d = %p ("%s")", vdst, strObj, dvmGetStringData(strObj)); SET_REGISTER(vdst, (dreg_t)(uintptr_t) strObj);
++        SET_REGISTER(vdst, (dreg_t)(uintptr_t) strObj);
      }
      FINISH(2);
  OP_END
@@ -3364,7 +3377,7 @@ index 0328aa8..1f36895 100644
                  GOTO_exceptionThrown();
          }
 -        SET_REGISTER(vdst, (u4) strObj);
-+        ALOGW("CONST_STRING v%d = %p ("%s")", vdst, strObj, dvmGetStringData(strObj)); SET_REGISTER(vdst, (dreg_t)(uintptr_t) strObj);
++        SET_REGISTER(vdst, (dreg_t)(uintptr_t) strObj);
      }
      FINISH(3);
  OP_END
@@ -3395,6 +3408,15 @@ index 0328aa8..1f36895 100644
      }
      FINISH(2);
  OP_END
+@@ -2054,7 +2054,7 @@ HANDLE_OPCODE(OP_APUT_OBJECT /*vAA, vBB, vCC*/)
+                 arrayObj->length, GET_REGISTER(vsrc2));
+             GOTO_exceptionThrown();
+         }
+-        obj = (Object*) GET_REGISTER(vdst);
++        obj = (Object*)(uintptr_t) GET_REGISTER(vdst);
+         if (obj != NULL) {
+             if (!checkForNull(obj))
+                 GOTO_exceptionThrown();
 @@ -3584,7 +3584,7 @@ GOTO_TARGET(returnFromMethod)
  #endif
  
