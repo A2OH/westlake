@@ -1,5 +1,5 @@
 diff --git a/vm/Thread.cpp b/vm/Thread.cpp
-index 1ebfca7..0433ea2 100644
+index 1ebfca7..05587c4 100644
 --- a/vm/Thread.cpp
 +++ b/vm/Thread.cpp
 @@ -702,12 +702,20 @@ bool dvmPrepMainThread()
@@ -91,63 +91,47 @@ index 1ebfca7..0433ea2 100644
      if (systemLoader == NULL) {
          ALOGW("WARNING: system class loader is NULL (setting main ctxt)");
          /* keep going? */
-@@ -790,6 +809,55 @@ bool dvmPrepMainThread()
+@@ -790,6 +809,39 @@ bool dvmPrepMainThread()
          dvmReleaseTrackedAlloc(systemLoader, NULL);
      }
  
-+    /* Initialize System.out/err with native print streams */
++    /* Initialize System.out/err with DirectPrintStream (native I/O) */
 +    {
-+        // Create a minimal FileOutputStream for fd 1 (stdout)
-+        // Then wrap in PrintStream and set as System.out
-+        ClassObject* fosCls = dvmFindSystemClassNoInit("Ljava/io/FileOutputStream;");
-+        ClassObject* psCls = dvmFindSystemClassNoInit("Ljava/io/PrintStream;");
-+        ClassObject* fdCls = dvmFindSystemClassNoInit("Ljava/io/FileDescriptor;");
-+        
-+        if (fosCls && psCls && fdCls) {
-+            // Create FileDescriptor for stdout (fd=1)
-+            Object* fdOut = dvmAllocObject(fdCls, ALLOC_DEFAULT);
-+            if (fdOut) {
-+                InstField* descField = dvmFindInstanceFieldHier(fdCls, "descriptor", "I");
-+                if (descField) dvmSetFieldInt(fdOut, descField->byteOffset, 1);
++        ClassObject* dpsCls = dvmFindSystemClassNoInit("Ljava/io/DirectPrintStream;");
++        if (dpsCls) {
++            // Create DirectPrintStream(1) for stdout
++            Object* psOut = dvmAllocObject(dpsCls, ALLOC_DEFAULT);
++            if (psOut) {
++                InstField* fdField = dvmFindInstanceFieldHier(dpsCls, "fd", "I");
++                if (fdField) dvmSetFieldInt(psOut, fdField->byteOffset, 1);
 +                
-+                // Create FileOutputStream wrapping the fd
-+                Object* fos = dvmAllocObject(fosCls, ALLOC_DEFAULT);
-+                if (fos) {
-+                    InstField* fosField = dvmFindInstanceFieldHier(fosCls, "fd", "Ljava/io/FileDescriptor;");
-+                    if (fosField) dvmSetFieldObject(fos, fosField->byteOffset, fdOut);
-+                    
-+                    // Create PrintStream wrapping the FileOutputStream
-+                    Object* ps = dvmAllocObject(psCls, ALLOC_DEFAULT);
-+                    if (ps) {
-+                        InstField* psOut = dvmFindInstanceFieldHier(psCls, "out", "Ljava/io/OutputStream;");
-+                        if (psOut) dvmSetFieldObject(ps, psOut->byteOffset, fos);
-+                        
-+                        // Set System.out
-+                        StaticField* sysOut = dvmFindStaticField(gDvm.classJavaLangSystem, "out", "Ljava/io/PrintStream;");
-+                        if (sysOut) {
-+                            dvmSetStaticFieldObject(sysOut, ps);
-+                            ALOGW("Initialized System.out");
-+                        }
-+                        // Set System.err (same stream for now)
-+                        StaticField* sysErr = dvmFindStaticField(gDvm.classJavaLangSystem, "err", "Ljava/io/PrintStream;");
-+                        if (sysErr) {
-+                            dvmSetStaticFieldObject(sysErr, ps);
-+                            ALOGW("Initialized System.err");
-+                        }
-+                        dvmReleaseTrackedAlloc(ps, NULL);
-+                    }
-+                    dvmReleaseTrackedAlloc(fos, NULL);
-+                }
-+                dvmReleaseTrackedAlloc(fdOut, NULL);
++                StaticField* sysOut = dvmFindStaticField(gDvm.classJavaLangSystem, "out", "Ljava/io/PrintStream;");
++                if (sysOut) { dvmSetStaticFieldObject(sysOut, psOut); ALOGW("System.out = DirectPrintStream(1)"); }
++                dvmReleaseTrackedAlloc(psOut, NULL);
 +            }
++            // Create DirectPrintStream(2) for stderr
++            Object* psErr = dvmAllocObject(dpsCls, ALLOC_DEFAULT);
++            if (psErr) {
++                InstField* fdField = dvmFindInstanceFieldHier(dpsCls, "fd", "I");
++                if (fdField) dvmSetFieldInt(psErr, fdField->byteOffset, 2);
++                
++                StaticField* sysErr = dvmFindStaticField(gDvm.classJavaLangSystem, "err", "Ljava/io/PrintStream;");
++                if (sysErr) { dvmSetStaticFieldObject(sysErr, psErr); ALOGW("System.err = DirectPrintStream(2)"); }
++                dvmReleaseTrackedAlloc(psErr, NULL);
++            }
++        } else {
++            ALOGW("DirectPrintStream not found in boot classpath");
 +        }
++        // Force System to INITIALIZED
++        gDvm.classJavaLangSystem->status = CLASS_INITIALIZED;
++        ALOGW("Forced System to INITIALIZED");
 +        if (dvmCheckException(dvmThreadSelf())) dvmClearException(dvmThreadSelf());
 +    }
 +
      /* include self in non-daemon threads (mainly for AttachCurrentThread) */
      gDvm.nonDaemonThreadCount++;
  
-@@ -3008,9 +3076,18 @@ static Object* getStaticThreadGroup(const char* fieldName)
+@@ -3008,9 +3060,18 @@ static Object* getStaticThreadGroup(const char* fieldName)
      }
      groupObj = dvmGetStaticFieldObject(groupField);
      if (groupObj == NULL) {
