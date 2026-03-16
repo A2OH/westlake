@@ -65,3 +65,7 @@ JNIEXPORT jint JNICALL JNI_OnLoad(JavaVM* vm,void* reserved){return JNI_VERSION_
 JNIEXPORT void JNICALL Java_HelloNative_nativePrintln(JNIEnv* e, jclass c, jstring msg) {
     dprintln(e, msg);
 }
+
+JNIEXPORT void JNICALL Java_HelloOHOS_nativePrintln(JNIEnv* e, jclass c, jstring msg) {
+    dprintln(e, msg);
+}
