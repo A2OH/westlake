@@ -57,7 +57,24 @@ public class VibrationEffect {
 
     // ── Inner stub implementations ──
 
-    private static final class OneShotEffect extends VibrationEffect {
+    /** Returns the duration in ms for one-shot effects, or total waveform duration, or 100 for predefined. */
+    public long getDuration() {
+        if (this instanceof OneShotEffect) return ((OneShotEffect) this).milliseconds;
+        if (this instanceof WaveformEffect) {
+            long total = 0;
+            for (long t : ((WaveformEffect) this).timings) total += t;
+            return total;
+        }
+        return 100; // predefined: nominal 100ms
+    }
+
+    /** Returns the amplitude (1-255 or DEFAULT_AMPLITUDE) for one-shot effects, or DEFAULT_AMPLITUDE. */
+    public int getAmplitude() {
+        if (this instanceof OneShotEffect) return ((OneShotEffect) this).amplitude;
+        return DEFAULT_AMPLITUDE;
+    }
+
+    static final class OneShotEffect extends VibrationEffect {
         final long milliseconds;
         final int amplitude;
         OneShotEffect(long milliseconds, int amplitude) {
@@ -66,7 +83,7 @@ public class VibrationEffect {
         }
     }
 
-    private static final class WaveformEffect extends VibrationEffect {
+    static final class WaveformEffect extends VibrationEffect {
         final long[] timings;
         final int[] amplitudes;
         final int repeat;
@@ -77,7 +94,7 @@ public class VibrationEffect {
         }
     }
 
-    private static final class PredefinedEffect extends VibrationEffect {
+    static final class PredefinedEffect extends VibrationEffect {
         final int effectId;
         PredefinedEffect(int effectId) {
             this.effectId = effectId;

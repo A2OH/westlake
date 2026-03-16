@@ -230,6 +230,19 @@ public class OHBridge {
     public static void nodeUnregisterEvent(long node, int eventType) { }
     public static void nodeMarkDirty(long node, int flag) { }
 
+    // ── Clipboard mock ──
+
+    private static String sClipboardText = null;
+
+    public static void clipboardSet(String text) {
+        sClipboardText = text;
+        System.out.println("[MOCK] Clipboard set: " + text);
+    }
+
+    public static String clipboardGet() {
+        return sClipboardText;
+    }
+
     // ── AudioManager mock ──
 
     // Per-stream volumes (indices 0..5), max volume = 15, default = 7
@@ -499,6 +512,22 @@ public class OHBridge {
         return 0;
     }
 
+    // ── Sensor mock ──
+
+    public static boolean sensorIsAvailable(int sensorType) {
+        // Mock: accelerometer(1), gyroscope(4), light(5) are available
+        return sensorType == 1 || sensorType == 4 || sensorType == 5;
+    }
+
+    public static float[] sensorGetData(int sensorType) {
+        switch (sensorType) {
+            case 1: return new float[]{0.0f, 0.0f, 9.8f};   // accelerometer
+            case 4: return new float[]{0.0f, 0.0f, 0.0f};   // gyroscope
+            case 5: return new float[]{250.0f};               // light (lux)
+            default: return null;
+        }
+    }
+
     // ── Drawing test helpers ──
 
     public static java.util.List<DrawRecord> getDrawLog(long canvasHandle) {
@@ -518,6 +547,34 @@ public class OHBridge {
         Integer c = sHandleColors.get(handle);
         return c != null ? c : 0;
     }
+
+    // ── Permissions mock ──
+
+    public static int checkPermission(String permission) { return 0; } // GRANTED
+
+    // ── Vibrator mock ──
+
+    private static volatile boolean sVibrating = false;
+    private static volatile long sLastVibrateDuration = 0;
+
+    public static boolean vibratorHasVibrator() { return true; }
+
+    public static void vibratorVibrate(long milliseconds) {
+        sLastVibrateDuration = milliseconds;
+        sVibrating = true;
+        System.out.println("[MOCK] Vibrator vibrate " + milliseconds + "ms");
+    }
+
+    public static void vibratorCancel() {
+        sVibrating = false;
+        System.out.println("[MOCK] Vibrator cancel");
+    }
+
+    /** Test helper: returns the last vibrate duration passed to vibratorVibrate(). */
+    public static long getLastVibrateDuration() { return sLastVibrateDuration; }
+
+    /** Test helper: returns true if vibrating (vibratorVibrate called, not yet cancelled). */
+    public static boolean isVibrating() { return sVibrating; }
 
     // ── Input dispatch ──
 

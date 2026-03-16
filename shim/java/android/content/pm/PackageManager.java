@@ -159,7 +159,7 @@ public class PackageManager {
     public static final int MATCH_SYSTEM_ONLY = 0;
     public static final int MATCH_UNINSTALLED_PACKAGES = 0;
     public static final int MAXIMUM_VERIFICATION_TIMEOUT = 0;
-    public static final int PERMISSION_DENIED = 0;
+    public static final int PERMISSION_DENIED = -1;
     public static final int PERMISSION_GRANTED = 0;
     public static final int SIGNATURE_FIRST_NOT_SIGNED = 0;
     public static final int SIGNATURE_MATCH = 0;
@@ -204,4 +204,5 @@ public class PackageManager {
     public void setMimeGroup(Object p0, Object p1) {}
     public void updateInstantAppCookie(Object p0) {}
     public void verifyPendingInstall(Object p0, Object p1) {}
+    public int checkPermission(String permission, String packageName) { return PERMISSION_GRANTED; }
 }

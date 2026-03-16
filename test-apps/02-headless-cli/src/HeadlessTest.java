@@ -119,6 +119,10 @@ public class HeadlessTest {
         testPairShim();
         testRectShim();
         testRectFShim();
+        testPermissionsBridge();
+        testClipboardBridge();
+        testVibratorBridge();
+        testSensorsBridge();
 
         System.out.println("\n═══ Results ═══");
         System.out.println("Passed: " + passed);
@@ -805,6 +809,48 @@ public class HeadlessTest {
         } catch (Exception e) {
             check("vibrate+cancel no throw", false);
         }
+    }
+
+    // ── Vibrator Bridge ──
+
+    static void testVibratorBridge() {
+        section("android.os.Vibrator (OHBridge)");
+
+        android.os.Vibrator v = new android.os.Vibrator();
+
+        // hasVibrator returns true (mock always says yes)
+        check("hasVibrator returns true", v.hasVibrator());
+
+        // vibrate(100) sets vibrating state
+        v.vibrate(100);
+        check("vibrate(100) sets vibrating", com.ohos.shim.bridge.OHBridge.isVibrating());
+        check("vibrate(100) duration", com.ohos.shim.bridge.OHBridge.getLastVibrateDuration() == 100);
+
+        // cancel() clears vibrating state
+        v.cancel();
+        check("cancel clears vibrating", !com.ohos.shim.bridge.OHBridge.isVibrating());
+
+        // vibrate(VibrationEffect.createOneShot(200, -1)) works
+        android.os.VibrationEffect oneShot = android.os.VibrationEffect.createOneShot(200, android.os.VibrationEffect.DEFAULT_AMPLITUDE);
+        v.vibrate(oneShot);
+        check("VibrationEffect oneShot vibrating", com.ohos.shim.bridge.OHBridge.isVibrating());
+        check("VibrationEffect oneShot duration", com.ohos.shim.bridge.OHBridge.getLastVibrateDuration() == 200);
+        v.cancel();
+
+        // VibrationEffect data classes preserve values
+        check("oneShot getDuration", oneShot.getDuration() == 200);
+        check("oneShot getAmplitude", oneShot.getAmplitude() == android.os.VibrationEffect.DEFAULT_AMPLITUDE);
+
+        android.os.VibrationEffect waveform = android.os.VibrationEffect.createWaveform(new long[]{0, 100, 50, 150}, -1);
+        check("waveform getDuration", waveform.getDuration() == 300); // 0+100+50+150
+
+        android.os.VibrationEffect predefined = android.os.VibrationEffect.createPredefined(android.os.VibrationEffect.EFFECT_CLICK);
+        check("predefined getDuration", predefined.getDuration() == 100);
+
+        // vibrate with VibrationAttributes overload
+        v.vibrate(oneShot, new android.os.VibrationAttributes());
+        check("vibrate with attrs", com.ohos.shim.bridge.OHBridge.isVibrating());
+        v.cancel();
     }
 
     // ── DropBoxManager ──
@@ -6472,6 +6518,73 @@ public class HeadlessTest {
         check("clear size 0", clearMe.size() == 0);
     }
 
+    // ── Clipboard Bridge ────────────────────────────────────────────────
+
+    static void testClipboardBridge() {
+        section("ClipboardBridge");
+
+        // ClipData.newPlainText creates valid ClipData
+        android.content.ClipData clip = android.content.ClipData.newPlainText("test", "hello clipboard");
+        check("newPlainText not null", clip != null);
+        check("newPlainText itemCount=1", clip.getItemCount() == 1);
+        check("newPlainText description label", "test".equals(clip.getDescription().getLabel().toString()));
+        check("newPlainText description mimeType", clip.getDescription().hasMimeType("text/plain"));
+
+        // getItemAt(0).getText() returns the text
+        android.content.ClipData.Item item = clip.getItemAt(0);
+        check("getItemAt(0) not null", item != null);
+        check("getItemAt(0).getText()", "hello clipboard".equals(item.getText().toString()));
+
+        // addItem increases count
+        clip.addItem(new android.content.ClipData.Item("second"));
+        check("addItem increases count", clip.getItemCount() == 2);
+        check("addItem text correct", "second".equals(clip.getItemAt(1).getText().toString()));
+
+        // ClipData.newHtmlText
+        android.content.ClipData htmlClip = android.content.ClipData.newHtmlText("html", "plain", "<b>bold</b>");
+        check("newHtmlText getText", "plain".equals(htmlClip.getItemAt(0).getText().toString()));
+        check("newHtmlText getHtmlText", "<b>bold</b>".equals(htmlClip.getItemAt(0).getHtmlText()));
+
+        // ClipboardManager set/get/has round-trip
+        android.content.ClipboardManager mgr = new android.content.ClipboardManager();
+        check("initial hasPrimaryClip false", !mgr.hasPrimaryClip());
+        check("initial getPrimaryClip null", mgr.getPrimaryClip() == null);
+        check("initial getDescription null", mgr.getPrimaryClipDescription() == null);
+
+        android.content.ClipData clip2 = android.content.ClipData.newPlainText("label", "world");
+        mgr.setPrimaryClip(clip2);
+        check("hasPrimaryClip after set", mgr.hasPrimaryClip());
+        check("getPrimaryClip not null", mgr.getPrimaryClip() != null);
+        check("getPrimaryClip text", "world".equals(mgr.getPrimaryClip().getItemAt(0).getText().toString()));
+        check("getPrimaryClipDescription", "label".equals(mgr.getPrimaryClipDescription().getLabel().toString()));
+
+        // clearPrimaryClip clears
+        mgr.clearPrimaryClip();
+        check("clearPrimaryClip hasPrimaryClip false", !mgr.hasPrimaryClip());
+        check("clearPrimaryClip getPrimaryClip null", mgr.getPrimaryClip() == null);
+
+        // listener notification on setPrimaryClip
+        final int[] notifyCount = {0};
+        android.content.ClipboardManager.OnPrimaryClipChangedListener listener =
+            new android.content.ClipboardManager.OnPrimaryClipChangedListener() {
+                public void onPrimaryClipChanged() { notifyCount[0]++; }
+            };
+        mgr.addPrimaryClipChangedListener(listener);
+        mgr.setPrimaryClip(android.content.ClipData.newPlainText("a", "b"));
+        check("listener notified once", notifyCount[0] == 1);
+        mgr.setPrimaryClip(android.content.ClipData.newPlainText("c", "d"));
+        check("listener notified twice", notifyCount[0] == 2);
+        mgr.removePrimaryClipChangedListener(listener);
+        mgr.setPrimaryClip(android.content.ClipData.newPlainText("e", "f"));
+        check("listener not notified after remove", notifyCount[0] == 2);
+
+        // Copy constructor
+        android.content.ClipData original = android.content.ClipData.newPlainText("orig", "data");
+        android.content.ClipData copy = new android.content.ClipData(original);
+        check("copy constructor itemCount", copy.getItemCount() == 1);
+        check("copy constructor text", "data".equals(copy.getItemAt(0).getText().toString()));
+    }
+
     // ── Rect Shim ──────────────────────────────────────────────────────
 
     static void testRectShim() {
@@ -6623,5 +6736,244 @@ public class HeadlessTest {
         android.graphics.Rect unsorted = new android.graphics.Rect(100, 200, 10, 20);
         unsorted.sort();
         check("sort", unsorted.equals(new android.graphics.Rect(10, 20, 100, 200)));
+    }
+
+    // ── Permissions Bridge ──
+
+    static void testPermissionsBridge() {
+        section("Permissions Bridge");
+
+        // PackageManager constants
+        check("PERMISSION_GRANTED == 0",
+            android.content.pm.PackageManager.PERMISSION_GRANTED == 0);
+        check("PERMISSION_DENIED == -1",
+            android.content.pm.PackageManager.PERMISSION_DENIED == -1);
+
+        // PackageManager.checkPermission
+        android.content.pm.PackageManager pm = new android.content.pm.PackageManager();
+        check("PM.checkPermission returns GRANTED",
+            pm.checkPermission("android.permission.INTERNET", "com.test") == android.content.pm.PackageManager.PERMISSION_GRANTED);
+
+        // Context permission checks
+        android.content.Context ctx = new android.content.Context();
+        check("checkSelfPermission returns GRANTED",
+            ctx.checkSelfPermission("android.permission.CAMERA") == android.content.pm.PackageManager.PERMISSION_GRANTED);
+        check("checkCallingPermission returns GRANTED",
+            ctx.checkCallingPermission("android.permission.CAMERA") == android.content.pm.PackageManager.PERMISSION_GRANTED);
+        check("checkPermission(perm,pid,uid) returns GRANTED",
+            ctx.checkPermission("android.permission.CAMERA", 1000, 1000) == android.content.pm.PackageManager.PERMISSION_GRANTED);
+
+        // Activity.requestPermissions auto-grants
+        final boolean[] callbackFired = {false};
+        final int[] receivedResults = {-999};
+        android.app.Activity activity = new android.app.Activity() {
+            @Override
+            public void onRequestPermissionsResult(int requestCode, String[] permissions, int[] grantResults) {
+                callbackFired[0] = true;
+                if (grantResults.length > 0) receivedResults[0] = grantResults[0];
+            }
+        };
+        activity.requestPermissions(new String[]{"android.permission.CAMERA"}, 42);
+        check("requestPermissions calls onRequestPermissionsResult", callbackFired[0]);
+        check("requestPermissions grants all", receivedResults[0] == android.content.pm.PackageManager.PERMISSION_GRANTED);
+
+        // OHBridge.checkPermission mock
+        check("OHBridge.checkPermission returns 0",
+            com.ohos.shim.bridge.OHBridge.checkPermission("android.permission.INTERNET") == 0);
+    }
+
+    // ── Sensors Bridge ──────────────────────────────────────────────────────
+
+    static void testSensorsBridge() {
+        section("Sensors Bridge");
+
+        // ── Sensor type constants ────────────────────────────────────────────
+        check("TYPE_ACCELEROMETER == 1",
+                android.hardware.Sensor.TYPE_ACCELEROMETER == 1);
+        check("TYPE_MAGNETIC_FIELD == 2",
+                android.hardware.Sensor.TYPE_MAGNETIC_FIELD == 2);
+        check("TYPE_ORIENTATION == 3",
+                android.hardware.Sensor.TYPE_ORIENTATION == 3);
+        check("TYPE_GYROSCOPE == 4",
+                android.hardware.Sensor.TYPE_GYROSCOPE == 4);
+        check("TYPE_LIGHT == 5",
+                android.hardware.Sensor.TYPE_LIGHT == 5);
+        check("TYPE_PRESSURE == 6",
+                android.hardware.Sensor.TYPE_PRESSURE == 6);
+        check("TYPE_TEMPERATURE == 7",
+                android.hardware.Sensor.TYPE_TEMPERATURE == 7);
+        check("TYPE_PROXIMITY == 8",
+                android.hardware.Sensor.TYPE_PROXIMITY == 8);
+        check("TYPE_GRAVITY == 9",
+                android.hardware.Sensor.TYPE_GRAVITY == 9);
+        check("TYPE_LINEAR_ACCELERATION == 10",
+                android.hardware.Sensor.TYPE_LINEAR_ACCELERATION == 10);
+        check("TYPE_ROTATION_VECTOR == 11",
+                android.hardware.Sensor.TYPE_ROTATION_VECTOR == 11);
+        check("TYPE_STEP_DETECTOR == 18",
+                android.hardware.Sensor.TYPE_STEP_DETECTOR == 18);
+        check("TYPE_STEP_COUNTER == 19",
+                android.hardware.Sensor.TYPE_STEP_COUNTER == 19);
+
+        // ── Sensor getters return sensible values ───────────────────────────
+        android.hardware.Sensor s = new android.hardware.Sensor(1, "TestAccel");
+        check("Sensor getName()", "TestAccel".equals(s.getName()));
+        check("Sensor getType()", s.getType() == 1);
+        check("Sensor getVendor() non-null", s.getVendor() != null);
+        check("Sensor getVersion() >= 1", s.getVersion() >= 1);
+        check("Sensor getMaximumRange() >= 0", s.getMaximumRange() >= 0f);
+        check("Sensor getResolution() >= 0", s.getResolution() >= 0f);
+        check("Sensor getPower() >= 0", s.getPower() >= 0f);
+        check("Sensor getMinDelay() >= 0", s.getMinDelay() >= 0);
+        check("Sensor toString() non-null", s.toString() != null);
+        check("Sensor toString() contains name", s.toString().contains("TestAccel"));
+
+        // ── Sensor setters ──────────────────────────────────────────────────
+        s.setVendor("TestVendor");
+        s.setVersion(3);
+        s.setMaximumRange(39.2f);
+        s.setResolution(0.01f);
+        s.setPower(0.5f);
+        s.setMinDelay(10000);
+        check("Sensor setVendor/getVendor", "TestVendor".equals(s.getVendor()));
+        check("Sensor setVersion/getVersion", s.getVersion() == 3);
+        check("Sensor setMaximumRange/getMaximumRange",
+                Math.abs(s.getMaximumRange() - 39.2f) < 0.01f);
+        check("Sensor setResolution/getResolution",
+                Math.abs(s.getResolution() - 0.01f) < 0.001f);
+        check("Sensor setPower/getPower",
+                Math.abs(s.getPower() - 0.5f) < 0.01f);
+        check("Sensor setMinDelay/getMinDelay", s.getMinDelay() == 10000);
+
+        // ── SensorManager.getDefaultSensor for ACCELEROMETER ────────────────
+        android.hardware.SensorManager sm = new android.hardware.SensorManager();
+        android.hardware.Sensor accel =
+                sm.getDefaultSensor(android.hardware.Sensor.TYPE_ACCELEROMETER);
+        check("getDefaultSensor(ACCELEROMETER) non-null", accel != null);
+        check("getDefaultSensor(ACCELEROMETER) correct type",
+                accel != null && accel.getType() == android.hardware.Sensor.TYPE_ACCELEROMETER);
+
+        // New sensor types should also resolve
+        android.hardware.Sensor gravity =
+                sm.getDefaultSensor(android.hardware.Sensor.TYPE_GRAVITY);
+        check("getDefaultSensor(GRAVITY) non-null", gravity != null);
+        android.hardware.Sensor rotation =
+                sm.getDefaultSensor(android.hardware.Sensor.TYPE_ROTATION_VECTOR);
+        check("getDefaultSensor(ROTATION_VECTOR) non-null", rotation != null);
+
+        // ── registerListener / unregisterListener lifecycle ─────────────────
+        final boolean[] called = {false};
+        android.hardware.SensorEventListener listener =
+                new android.hardware.SensorEventListener() {
+            @Override
+            public void onSensorChanged(android.hardware.SensorEvent e) {
+                called[0] = true;
+            }
+            @Override
+            public void onAccuracyChanged(android.hardware.Sensor sensor, int acc) {}
+        };
+
+        check("listener not registered initially", !sm.hasListener(listener));
+        boolean reg = sm.registerListener(listener, accel,
+                android.hardware.SensorManager.SENSOR_DELAY_NORMAL);
+        check("registerListener returns true", reg);
+        check("listener registered", sm.hasListener(listener));
+        check("listenerCount == 1", sm.getListenerCount() == 1);
+
+        sm.unregisterListener(listener);
+        check("listener unregistered", !sm.hasListener(listener));
+        check("listenerCount == 0", sm.getListenerCount() == 0);
+
+        // ── getRotationMatrix basic case ────────────────────────────────────
+        float[] R = new float[9];
+        float[] I = new float[9];
+        float[] grav = {0f, 0f, 9.8f};        // device flat, screen up
+        float[] mag  = {0f, 25f, -45f};        // typical geomagnetic field
+        boolean gotR = android.hardware.SensorManager.getRotationMatrix(R, I, grav, mag);
+        check("getRotationMatrix returns true", gotR);
+
+        // R should be a valid rotation matrix: rows are unit vectors
+        float dot00 = R[0]*R[0] + R[1]*R[1] + R[2]*R[2];
+        check("getRotationMatrix row0 unit vector",
+                Math.abs(dot00 - 1.0f) < 0.01f);
+        float dot11 = R[3]*R[3] + R[4]*R[4] + R[5]*R[5];
+        check("getRotationMatrix row1 unit vector",
+                Math.abs(dot11 - 1.0f) < 0.01f);
+        float dot22 = R[6]*R[6] + R[7]*R[7] + R[8]*R[8];
+        check("getRotationMatrix row2 unit vector",
+                Math.abs(dot22 - 1.0f) < 0.01f);
+
+        // Null/invalid inputs
+        check("getRotationMatrix null gravity",
+                !android.hardware.SensorManager.getRotationMatrix(R, I, null, mag));
+        check("getRotationMatrix null geomagnetic",
+                !android.hardware.SensorManager.getRotationMatrix(R, I, grav, null));
+        check("getRotationMatrix short gravity",
+                !android.hardware.SensorManager.getRotationMatrix(R, I, new float[]{0}, mag));
+
+        // 16-element matrix
+        float[] R16 = new float[16];
+        boolean gotR16 = android.hardware.SensorManager.getRotationMatrix(R16, null, grav, mag);
+        check("getRotationMatrix 16-element works", gotR16);
+        check("getRotationMatrix 16-element R[15]==1",
+                Math.abs(R16[15] - 1.0f) < 0.001f);
+
+        // ── getOrientation basic case ───────────────────────────────────────
+        float[] orientation = new float[3];
+        android.hardware.SensorManager.getOrientation(R, orientation);
+        check("getOrientation azimuth finite",
+                !Float.isNaN(orientation[0]) && !Float.isInfinite(orientation[0]));
+        check("getOrientation pitch finite",
+                !Float.isNaN(orientation[1]) && !Float.isInfinite(orientation[1]));
+        check("getOrientation roll finite",
+                !Float.isNaN(orientation[2]) && !Float.isInfinite(orientation[2]));
+        check("getOrientation azimuth in [-PI,PI]",
+                orientation[0] >= -(float)Math.PI && orientation[0] <= (float)Math.PI);
+        check("getOrientation pitch in [-PI/2,PI/2]",
+                orientation[1] >= -(float)Math.PI/2 - 0.01f
+                && orientation[1] <= (float)Math.PI/2 + 0.01f);
+
+        // Null safety
+        float[] nullResult = android.hardware.SensorManager.getOrientation(null, orientation);
+        check("getOrientation null R returns values array", nullResult == orientation);
+
+        // ── OHBridge.sensorIsAvailable ──────────────────────────────────────
+        check("sensorIsAvailable(ACCELEROMETER)",
+                com.ohos.shim.bridge.OHBridge.sensorIsAvailable(
+                        android.hardware.Sensor.TYPE_ACCELEROMETER));
+        check("sensorIsAvailable(GYROSCOPE)",
+                com.ohos.shim.bridge.OHBridge.sensorIsAvailable(
+                        android.hardware.Sensor.TYPE_GYROSCOPE));
+        check("sensorIsAvailable(LIGHT)",
+                com.ohos.shim.bridge.OHBridge.sensorIsAvailable(
+                        android.hardware.Sensor.TYPE_LIGHT));
+        check("sensorIsAvailable(unknown type) false",
+                !com.ohos.shim.bridge.OHBridge.sensorIsAvailable(9999));
+
+        // ── OHBridge.sensorGetData ──────────────────────────────────────────
+        float[] accelData = com.ohos.shim.bridge.OHBridge.sensorGetData(
+                android.hardware.Sensor.TYPE_ACCELEROMETER);
+        check("sensorGetData(ACCEL) non-null", accelData != null);
+        check("sensorGetData(ACCEL) length==3",
+                accelData != null && accelData.length == 3);
+        check("sensorGetData(ACCEL) z ~9.8",
+                accelData != null && Math.abs(accelData[2] - 9.8f) < 0.1f);
+
+        float[] gyroData = com.ohos.shim.bridge.OHBridge.sensorGetData(
+                android.hardware.Sensor.TYPE_GYROSCOPE);
+        check("sensorGetData(GYRO) non-null", gyroData != null);
+        check("sensorGetData(GYRO) length==3",
+                gyroData != null && gyroData.length == 3);
+
+        float[] lightData = com.ohos.shim.bridge.OHBridge.sensorGetData(
+                android.hardware.Sensor.TYPE_LIGHT);
+        check("sensorGetData(LIGHT) non-null", lightData != null);
+        check("sensorGetData(LIGHT) length==1",
+                lightData != null && lightData.length == 1);
+        check("sensorGetData(LIGHT) positive",
+                lightData != null && lightData[0] > 0f);
+
+        float[] unknownData = com.ohos.shim.bridge.OHBridge.sensorGetData(9999);
+        check("sensorGetData(unknown) null", unknownData == null);
     }
 }

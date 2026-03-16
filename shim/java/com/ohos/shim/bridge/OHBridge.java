@@ -193,6 +193,11 @@ public class OHBridge {
     public static native void nodeUnregisterEvent(long node, int eventType);
     public static native void nodeMarkDirty(long node, int flag);
 
+    // ── Clipboard ─────────────────────────────────────────────────
+
+    public static native void clipboardSet(String text);
+    public static native String clipboardGet();
+
     // ── AudioManager ──────────────────────────────────────────────
 
     public static native int audioGetStreamVolume(int streamType);
@@ -293,6 +298,12 @@ public class OHBridge {
     public static native void fontDestroy(long font);
     public static native void fontSetSize(long font, float size);
 
+    // ── Vibrator ──────────────────────────────────────────────────
+
+    public static native boolean vibratorHasVibrator();
+    public static native void vibratorVibrate(long milliseconds);
+    public static native void vibratorCancel();
+
     // ── Input dispatch (called from native) ────────────────────────
 
     /**
@@ -340,6 +351,18 @@ public class OHBridge {
         }
         return null;
     }
+
+    // ── Permissions ────────────────────────────────────────────────
+
+    public static native int checkPermission(String permission);
+
+    // ── Sensor ────────────────────────────────────────────────────
+
+    /** Returns true if the given sensor type is available on this device. */
+    public static native boolean sensorIsAvailable(int sensorType);
+
+    /** Returns the latest sensor data for the given type, or null. */
+    public static native float[] sensorGetData(int sensorType);
 
     // ── Event dispatch (called from native) ──────────────────────
 

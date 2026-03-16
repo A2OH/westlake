@@ -287,6 +287,7 @@ public class Activity extends Context {
     public void onProvideAssistContent(Object p0) {}
     public void onProvideAssistData(Object p0) {}
     public Object onProvideReferrer() { return null; }
+    public void onRequestPermissionsResult(int requestCode, String[] permissions, int[] grantResults) {}
     public void onRequestPermissionsResult(Object p0, Object p1, Object p2) {}
     public Object onRetainNonConfigurationInstance() { return null; }
     public boolean onSearchRequested(Object p0) { return false; }
@@ -310,6 +311,12 @@ public class Activity extends Context {
     public boolean releaseInstance() { return false; }
     public void reportFullyDrawn() {}
     public Object requestDragAndDropPermissions(Object p0) { return null; }
+    public void requestPermissions(String[] permissions, int requestCode) {
+        // Auto-grant all permissions for the engine
+        int[] grantResults = new int[permissions.length];
+        java.util.Arrays.fill(grantResults, android.content.pm.PackageManager.PERMISSION_GRANTED);
+        onRequestPermissionsResult(requestCode, permissions, grantResults);
+    }
     public void requestPermissions(Object p0, Object p1) {}
     public void requestShowKeyboardShortcuts() {}
     public boolean requestWindowFeature(Object p0) { return false; }

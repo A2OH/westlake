@@ -107,7 +107,9 @@ public class Context {
     public boolean bindService(Intent p0, int p1, Executor p2, ServiceConnection p3) {
         return bindService(p0, p3, p1);
     }
-    public int checkSelfPermission(String p0) { return 0; }
+    public int checkSelfPermission(String p0) { return PackageManager.PERMISSION_GRANTED; }
+    public int checkCallingPermission(String p0) { return PackageManager.PERMISSION_GRANTED; }
+    public int checkPermission(String p0, int p1, int p2) { return PackageManager.PERMISSION_GRANTED; }
     public Context createConfigurationContext(Configuration p0) { return null; }
     public Context createContextForSplit(String p0) { return null; }
     public Context createDeviceProtectedStorageContext() { return null; }
@@ -127,7 +129,11 @@ public class Context {
     public String[] fileList() { return null; }
     public Context getApplicationContext() { return null; }
     public ApplicationInfo getApplicationInfo() { return null; }
-    public AssetManager getAssets() { return null; }
+    private AssetManager mAssets;
+    public AssetManager getAssets() {
+        if (mAssets == null) mAssets = new AssetManager();
+        return mAssets;
+    }
     public File getCacheDir() { return null; }
     public ClassLoader getClassLoader() { return getClass().getClassLoader(); }
     public File getCodeCacheDir() { return null; }
@@ -148,7 +154,11 @@ public class Context {
     public PackageManager getPackageManager() { return null; }
     public String getPackageName() { return null; }
     public String getPackageResourcePath() { return null; }
-    public Resources getResources() { return null; }
+    private Resources mResources;
+    public Resources getResources() {
+        if (mResources == null) mResources = new Resources();
+        return mResources;
+    }
     public SharedPreferences getSharedPreferences(String p0, int p1) { return SharedPreferences.getInstance(p0); }
     public Object getSystemService(String p0) {
         return android.app.SystemServiceRegistry.getService(p0);
