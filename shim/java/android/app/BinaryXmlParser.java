@@ -71,6 +71,7 @@ public class BinaryXmlParser {
         // Track element context for intent-filter parsing
         String currentElement = null;
         String currentActivityName = null;
+        String currentAliasTarget = null;  // for <activity-alias targetActivity="...">
         String currentPackageName = null;
         boolean inIntentFilter = false;
         boolean hasMainAction = false;
@@ -117,6 +118,10 @@ public class BinaryXmlParser {
                         hasLauncherCategory = false;
                     }
 
+                    if ("activity-alias".equals(elemName)) {
+                        currentAliasTarget = null;
+                    }
+
                     // Parse attributes
                     for (int i = 0; i < attrCount; i++) {
                         int attrNs = buf.getInt();
@@ -141,6 +146,16 @@ public class BinaryXmlParser {
                         if ("activity".equals(elemName) && "name".equals(attrNameStr)) {
                             currentActivityName = attrValueStr;
                         }
+                        // Track activity-alias: use targetActivity as the activity name
+                        // and also track the alias name via "name" attribute
+                        if ("activity-alias".equals(elemName)) {
+                            if ("targetActivity".equals(attrNameStr) && attrValueStr != null) {
+                                currentAliasTarget = attrValueStr;
+                            }
+                            if ("name".equals(attrNameStr) && attrValueStr != null) {
+                                currentActivityName = attrValueStr;
+                            }
+                        }
                         if (inIntentFilter && "action".equals(elemName)
                                 && "name".equals(attrNameStr)
                                 && ACTION_MAIN.equals(attrValueStr)) {
@@ -164,14 +179,24 @@ public class BinaryXmlParser {
                     String endName = getString(name2);
 
                     if ("intent-filter".equals(endName)) {
-                        if (hasMainAction && hasLauncherCategory && currentActivityName != null) {
-                            String fullName = resolveClassName(currentActivityName, currentPackageName);
-                            info.launcherActivity = fullName;
+                        if (hasMainAction && hasLauncherCategory) {
+                            // For activity-alias, prefer the targetActivity as the launcher
+                            // since that's the actual Activity class to instantiate
+                            String launcherName = currentAliasTarget != null
+                                    ? currentAliasTarget : currentActivityName;
+                            if (launcherName != null) {
+                                String fullName = resolveClassName(launcherName, currentPackageName);
+                                info.launcherActivity = fullName;
+                            }
                         }
                         inIntentFilter = false;
                     }
                     if ("activity".equals(endName)) {
                         currentActivityName = null;
+                    }
+                    if ("activity-alias".equals(endName)) {
+                        currentActivityName = null;
+                        currentAliasTarget = null;
                     }
                     break;
                 }
@@ -256,7 +281,9 @@ public class BinaryXmlParser {
             buf.getInt();
         }
 
-        int dataStart = chunkStart + 8 + stringsStart;
+        // stringsStart is relative to the chunk start (already includes the
+        // 8-byte chunk header), so do NOT add 8 again.
+        int dataStart = chunkStart + stringsStart;
         stringPool = new String[stringCount];
         for (int i = 0; i < stringCount; i++) {
             int pos = dataStart + offsets[i];
