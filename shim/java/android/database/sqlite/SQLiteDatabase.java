@@ -7,6 +7,8 @@ import android.os.CancellationSignal;
 import java.io.File;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -975,13 +977,16 @@ public final class SQLiteDatabase extends SQLiteClosable {
         final String sortCol = stripQuotes(parts[0]);
         final boolean ascending = !(parts.length > 1 && parts[1].toUpperCase(Locale.US).equals("DESC"));
 
-        rows.sort((a, b) -> {
-            Object va = a.get(sortCol);
-            Object vb = b.get(sortCol);
-            int cmp = compareNumeric(
-                    va != null ? va.toString() : null,
-                    vb != null ? vb.toString() : null);
-            return ascending ? cmp : -cmp;
+        Collections.sort(rows, new Comparator<Map<String, Object>>() {
+            @Override
+            public int compare(Map<String, Object> a, Map<String, Object> b) {
+                Object va = a.get(sortCol);
+                Object vb = b.get(sortCol);
+                int cmp = compareNumeric(
+                        va != null ? va.toString() : null,
+                        vb != null ? vb.toString() : null);
+                return ascending ? cmp : -cmp;
+            }
         });
     }
 

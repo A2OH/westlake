@@ -7,6 +7,8 @@ import java.io.File;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.util.Collections;
+import java.util.Comparator;
 import java.util.Enumeration;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipFile;
@@ -64,10 +66,13 @@ public class ApkLoader {
             }
 
             // Sort DEX paths so classes.dex comes first, then classes2.dex, etc.
-            info.dexPaths.sort((a, b) -> {
-                String na = new File(a).getName();
-                String nb = new File(b).getName();
-                return na.compareTo(nb);
+            Collections.sort(info.dexPaths, new Comparator<String>() {
+                @Override
+                public int compare(String a, String b) {
+                    String na = new File(a).getName();
+                    String nb = new File(b).getName();
+                    return na.compareTo(nb);
+                }
             });
 
             // Parse AndroidManifest.xml

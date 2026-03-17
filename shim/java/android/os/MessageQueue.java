@@ -1,5 +1,6 @@
 package android.os;
 
+import java.util.Comparator;
 import java.util.PriorityQueue;
 
 /**
@@ -7,8 +8,13 @@ import java.util.PriorityQueue;
  * Messages are sorted by delivery time (when). poll() returns the next ready message.
  */
 public final class MessageQueue {
-    private final PriorityQueue<Message> mQueue = new PriorityQueue<>(11,
-            (a, b) -> Long.compare(a.when, b.when));
+    private final PriorityQueue<Message> mQueue = new PriorityQueue<Message>(11,
+            new Comparator<Message>() {
+                @Override
+                public int compare(Message a, Message b) {
+                    return Long.compare(a.when, b.when);
+                }
+            });
     private boolean mQuitting;
 
     public MessageQueue() {}

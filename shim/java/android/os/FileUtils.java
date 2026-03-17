@@ -40,7 +40,12 @@ public class FileUtils {
             if (listener != null) {
                 final long progress = total;
                 if (executor != null) {
-                    executor.execute(() -> listener.onProgress(progress));
+                    executor.execute(new Runnable() {
+                        @Override
+                        public void run() {
+                            listener.onProgress(progress);
+                        }
+                    });
                 } else {
                     listener.onProgress(progress);
                 }
