@@ -66,9 +66,11 @@ public class MockDonaldsRunner {
             Activity detailAct = am.getResumedActivity();
             check("ItemDetailActivity launched", detailAct instanceof ItemDetailActivity);
             ItemDetailActivity detail = (ItemDetailActivity) detailAct;
+            double priceDiff = detail.getItemPrice() - 5.99;
+            if (priceDiff < 0) priceDiff = -priceDiff;
             check("Item name = Big Mock Burger, price = $5.99",
                     "Big Mock Burger".equals(detail.getItemName()) &&
-                    Math.abs(detail.getItemPrice() - 5.99) < 0.01);
+                    priceDiff < 0.01);
 
             // Simulate "Add to Cart" button click
             CartManager cart = new CartManager(detail);
@@ -84,10 +86,12 @@ public class MockDonaldsRunner {
             am.startActivity(menuAct, cartIntent, 200);
 
             Activity cartAct = am.getResumedActivity();
+            double totalDiff = ((CartActivity) cartAct).getCartManager().getCartTotal() - 5.99;
+            if (totalDiff < 0) totalDiff = -totalDiff;
             check("CartActivity shows 1 item, total = $5.99",
                     cartAct instanceof CartActivity &&
                     ((CartActivity) cartAct).getCartItems().size() == 1 &&
-                    Math.abs(((CartActivity) cartAct).getCartManager().getCartTotal() - 5.99) < 0.01);
+                    totalDiff < 0.01);
 
             // Checkout
             Intent checkoutIntent = new Intent();
