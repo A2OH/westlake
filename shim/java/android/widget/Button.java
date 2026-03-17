@@ -40,7 +40,7 @@ public class Button extends TextView {
         int padT = getPaddingTop() > 0 ? getPaddingTop() : DEFAULT_PADDING;
         int padB = getPaddingBottom() > 0 ? getPaddingBottom() : DEFAULT_PADDING;
 
-        float ts = getTextSize() > 0 ? getTextSize() : 14;
+        float ts = getTextSize() > 0 ? getTextSize() : 24;
         android.graphics.Paint paint = new android.graphics.Paint();
         paint.setTextSize(ts);
         android.graphics.Paint.FontMetrics fm = paint.getFontMetrics();
@@ -80,33 +80,39 @@ public class Button extends TextView {
 
     @Override
     protected void onDraw(android.graphics.Canvas canvas) {
-        // Draw button background (rounded rect)
+        // Draw button background with 2px margin gap and 1px border
         int bgColor = getBackgroundColor() != 0 ? getBackgroundColor() : DEFAULT_BG_COLOR;
+        int m = 2; // margin gap
+        float radius = Math.min(DEFAULT_CORNER_RADIUS, Math.min(getWidth() - m * 2, getHeight() - m * 2) / 4f);
+        if (radius < 2) radius = 2;
+        android.graphics.Paint borderPaint = new android.graphics.Paint();
+        borderPaint.setColor(0xFFBBBBBB);
+        borderPaint.setStyle(android.graphics.Paint.Style.FILL);
+        canvas.drawRoundRect(m, m, getWidth() - m, getHeight() - m,
+                radius, radius, borderPaint);
+
+        // Draw button background inset by 1px from border
         android.graphics.Paint bgPaint = new android.graphics.Paint();
         bgPaint.setColor(bgColor);
         bgPaint.setStyle(android.graphics.Paint.Style.FILL);
-        canvas.drawRoundRect(0, 0, getWidth(), getHeight(),
-                DEFAULT_CORNER_RADIUS, DEFAULT_CORNER_RADIUS, bgPaint);
+        canvas.drawRoundRect(m + 1, m + 1, getWidth() - m - 1, getHeight() - m - 1,
+                radius, radius, bgPaint);
 
-        // Draw text centered, respecting padding
+        // Draw text centered
         CharSequence text = getText();
         if (text != null && text.length() > 0) {
             android.graphics.Paint textPaint = new android.graphics.Paint();
             textPaint.setColor(getCurrentTextColor() != 0 ? getCurrentTextColor() : 0xFF000000);
-            float ts = getTextSize() > 0 ? getTextSize() : 14;
+            float ts = getTextSize() > 0 ? getTextSize() : 24;
             textPaint.setTextSize(ts);
             textPaint.setStyle(android.graphics.Paint.Style.FILL);
             android.graphics.Paint.FontMetrics fm = textPaint.getFontMetrics();
-            int padL = getPaddingLeft() > 0 ? getPaddingLeft() : DEFAULT_PADDING;
-            int padR = getPaddingRight() > 0 ? getPaddingRight() : DEFAULT_PADDING;
             float textWidth = textPaint.measureText(text.toString());
-            // Center horizontally within padded area
-            float availWidth = getWidth() - padL - padR;
-            float x = padL + Math.max(0, (availWidth - textWidth) / 2);
+            // Center horizontally within button bounds
+            float x = (getWidth() - textWidth) / 2f;
             // Center vertically using font metrics
-            float y = (getHeight() - fm.ascent - fm.descent) / 2 - fm.ascent;
-            // Clamp to padded top
-            y = Math.max(getPaddingTop() - fm.ascent, y);
+            float textHeight = fm.descent - fm.ascent;
+            float y = (getHeight() - textHeight) / 2f + (-fm.ascent);
             canvas.drawText(text.toString(), x, y, textPaint);
         }
     }

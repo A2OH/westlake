@@ -309,6 +309,14 @@ public class LinearLayout extends ViewGroup {
             LayoutParams lp = getLinearLayoutParams(child);
             totalWeight += lp.weight;
 
+            // In horizontal layout with EXACTLY height, promote WRAP_CONTENT children
+            // to fill the row height (common pattern: calculator rows, toolbars)
+            int savedHeight = lp.height;
+            if (heightMode == MeasureSpec.EXACTLY
+                    && lp.height == ViewGroup.LayoutParams.WRAP_CONTENT) {
+                lp.height = ViewGroup.LayoutParams.MATCH_PARENT;
+            }
+
             boolean useExcessSpace = lp.width == 0 && lp.weight > 0;
             if (widthMode == MeasureSpec.EXACTLY && useExcessSpace) {
                 int totalLength = mTotalLength;
@@ -333,6 +341,9 @@ public class LinearLayout extends ViewGroup {
                 mTotalLength = Math.max(totalLength, totalLength + childWidth
                         + lp.leftMargin + lp.rightMargin);
             }
+
+            // Restore original height after measurement
+            lp.height = savedHeight;
 
             boolean matchHeightLocally = false;
             if (heightMode != MeasureSpec.EXACTLY && lp.height == LayoutParams.MATCH_PARENT) {
@@ -391,9 +402,15 @@ public class LinearLayout extends ViewGroup {
 
                     int childWidthMeasureSpec = MeasureSpec.makeMeasureSpec(
                             Math.max(0, childWidth), MeasureSpec.EXACTLY);
+                    // Promote WRAP_CONTENT to MATCH_PARENT for height in horizontal rows
+                    int effectiveChildHeight = lp.height;
+                    if (heightMode == MeasureSpec.EXACTLY
+                            && effectiveChildHeight == ViewGroup.LayoutParams.WRAP_CONTENT) {
+                        effectiveChildHeight = ViewGroup.LayoutParams.MATCH_PARENT;
+                    }
                     int childHeightMeasureSpec = getChildMeasureSpec(heightMeasureSpec,
                             getPaddingTop() + getPaddingBottom() + lp.topMargin + lp.bottomMargin,
-                            lp.height);
+                            effectiveChildHeight);
                     child.measure(childWidthMeasureSpec, childHeightMeasureSpec);
 
                     childState = combineMeasuredStates(childState, child.getMeasuredState()
@@ -469,9 +486,15 @@ public class LinearLayout extends ViewGroup {
                     }
                     int childWidthMeasureSpec = MeasureSpec.makeMeasureSpec(
                             Math.max(0, cw), MeasureSpec.EXACTLY);
+                    // Promote WRAP_CONTENT to MATCH_PARENT for height in horizontal rows
+                    int effectiveChildHeight = lp.height;
+                    if (heightMode == MeasureSpec.EXACTLY
+                            && effectiveChildHeight == ViewGroup.LayoutParams.WRAP_CONTENT) {
+                        effectiveChildHeight = ViewGroup.LayoutParams.MATCH_PARENT;
+                    }
                     int childHeightMeasureSpec = getChildMeasureSpec(heightMeasureSpec,
                             getPaddingTop() + getPaddingBottom() + lp.topMargin + lp.bottomMargin,
-                            lp.height);
+                            effectiveChildHeight);
                     child.measure(childWidthMeasureSpec, childHeightMeasureSpec);
 
                     int margin = lp.topMargin + lp.bottomMargin;
