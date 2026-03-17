@@ -430,8 +430,64 @@ static jstring JNICALL ICU_getCldrVersion(JNIEnv* env, jclass) {
 static jstring JNICALL ICU_toLowerCase(JNIEnv*, jclass, jstring js, jstring) { return js; }
 static jstring JNICALL ICU_toUpperCase(JNIEnv*, jclass, jstring js, jstring) { return js; }
 static void JNICALL ICU_setDefaultLocale(JNIEnv*, jclass, jstring) { }
-static jboolean JNICALL ICU_initLocaleDataNative(JNIEnv*, jclass, jstring, jobject) {
-    return JNI_FALSE;
+static jboolean JNICALL ICU_initLocaleDataNative(JNIEnv* env, jclass, jstring, jobject localeData) {
+    /* Set minimal en_US locale data fields so Formatter/String.format works */
+    jclass ldClass = env->GetObjectClass(localeData);
+    if (!ldClass) return JNI_FALSE;
+
+    #define SET_LD_INT(name, val) do { \
+        jfieldID f = env->GetFieldID(ldClass, name, "I"); \
+        if (f) env->SetIntField(localeData, f, val); else env->ExceptionClear(); \
+    } while(0)
+    #define SET_LD_CHAR(name, val) do { \
+        jfieldID f = env->GetFieldID(ldClass, name, "C"); \
+        if (f) env->SetCharField(localeData, f, val); else env->ExceptionClear(); \
+    } while(0)
+    #define SET_LD_STR(name, val) do { \
+        jfieldID f = env->GetFieldID(ldClass, name, "Ljava/lang/String;"); \
+        if (f) env->SetObjectField(localeData, f, env->NewStringUTF(val)); else env->ExceptionClear(); \
+    } while(0)
+    #define SET_LD_STRARR(name, ...) do { \
+        jfieldID f = env->GetFieldID(ldClass, name, "[Ljava/lang/String;"); \
+        if (f) { \
+            const char* vals[] = { __VA_ARGS__ }; \
+            int n = sizeof(vals)/sizeof(vals[0]); \
+            jclass sc = env->FindClass("java/lang/String"); \
+            jobjectArray a = env->NewObjectArray(n, sc, NULL); \
+            for (int i = 0; i < n; i++) env->SetObjectArrayElement(a, i, env->NewStringUTF(vals[i])); \
+            env->SetObjectField(localeData, f, a); \
+        } else env->ExceptionClear(); \
+    } while(0)
+
+    SET_LD_CHAR("decimalSeparator", '.');
+    SET_LD_CHAR("groupingSeparator", ',');
+    SET_LD_CHAR("patternSeparator", ';');
+    SET_LD_CHAR("percent", '%');
+    SET_LD_CHAR("perMill", 0x2030);
+    SET_LD_CHAR("monetarySeparator", '.');
+    SET_LD_CHAR("minusSign", '-');
+    SET_LD_STR("exponentSeparator", "E");
+    SET_LD_STR("infinity", "\xe2\x88\x9e");
+    SET_LD_STR("NaN", "NaN");
+    SET_LD_STR("currencySymbol", "$");
+    SET_LD_STR("internationalCurrencySymbol", "USD");
+    SET_LD_STR("numberPattern", "#,##0.###");
+    SET_LD_STR("integerPattern", "#,##0");
+    SET_LD_STR("currencyPattern", "\xc2\xa4#,##0.00");
+    SET_LD_STR("percentPattern", "#,##0%");
+    SET_LD_CHAR('zeroDigit', '0');
+    SET_LD_STRARR("amPm", "AM", "PM");
+    SET_LD_STRARR("longMonthNames", "January","February","March","April","May","June","July","August","September","October","November","December");
+    SET_LD_STRARR("shortMonthNames", "Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec");
+    SET_LD_STRARR("longWeekdayNames", "","Sunday","Monday","Tuesday","Wednesday","Thursday","Friday","Saturday");
+    SET_LD_STRARR("shortWeekdayNames", "","Sun","Mon","Tue","Wed","Thu","Fri","Sat");
+
+    #undef SET_LD_INT
+    #undef SET_LD_CHAR
+    #undef SET_LD_STR
+    #undef SET_LD_STRARR
+    env->ExceptionClear();
+    return JNI_TRUE;
 }
 static jstring JNICALL ICU_getCurrencyCode(JNIEnv* env, jclass, jstring) {
     return env->NewStringUTF("USD");
@@ -1024,7 +1080,7 @@ static JNINativeMethod gMathMethods[] = {
 
 /* ── java.lang.StringToReal / java.lang.RealToString ── */
 static jdouble StringToReal_parseDouble(JNIEnv* env, jclass, jstring str, jint e) {
-    (void)e;
+    /* e is the starting index in the string */
     const char* s = env->GetStringUTFChars(str, NULL);
     double v = strtod(s, NULL);
     env->ReleaseStringUTFChars(str, s);
