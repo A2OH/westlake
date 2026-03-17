@@ -1395,6 +1395,79 @@ static JNINativeMethod gMatcherMethods[] = {
     { "useTransparentBoundsImpl", "(JZ)V",              (void*) Matcher_useTransparentBoundsImpl },
 };
 
+/* ── java.util.zip.Inflater / Deflater natives ── */
+#include <zlib.h>
+
+static jlong Inflater_createStream(JNIEnv*, jobject, jboolean nowrap) {
+    z_stream* strm = (z_stream*) calloc(1, sizeof(z_stream));
+    int ret = inflateInit2(strm, nowrap ? -MAX_WBITS : MAX_WBITS);
+    if (ret != Z_OK) { free(strm); return 0; }
+    return (jlong)(uintptr_t) strm;
+}
+
+static void Inflater_setInputImpl(JNIEnv* env, jobject, jbyteArray buf, jint off, jint len, jlong streamHandle) {
+    z_stream* strm = (z_stream*)(uintptr_t) streamHandle;
+    if (!strm || !buf) return;
+    /* Copy input data to a persistent buffer (z_stream needs it alive until inflate) */
+    free((void*)strm->next_in); /* free previous input copy */
+    jbyte* copy = (jbyte*) malloc(len);
+    if (!copy) return;
+    env->GetByteArrayRegion(buf, off, len, copy);
+    strm->next_in = (Bytef*) copy;
+    strm->avail_in = len;
+}
+
+static jint Inflater_inflateImpl(JNIEnv* env, jobject, jbyteArray buf, jint off, jint len, jlong streamHandle) {
+    z_stream* strm = (z_stream*)(uintptr_t) streamHandle;
+    if (!strm) return -1;
+    jbyte* bytes = env->GetByteArrayElements(buf, NULL);
+    if (!bytes) return -1;
+    strm->next_out = (Bytef*)(bytes + off);
+    strm->avail_out = len;
+    int ret = inflate(strm, Z_SYNC_FLUSH);
+    jint produced = len - strm->avail_out;
+    env->ReleaseByteArrayElements(buf, bytes, 0);
+    if (ret == Z_STREAM_END || ret == Z_OK) return produced;
+    if (ret == Z_NEED_DICT) return 0; /* needs dictionary */
+    return -1; /* error */
+}
+
+static jint Inflater_getAdlerImpl(JNIEnv*, jobject, jlong streamHandle) {
+    z_stream* strm = (z_stream*)(uintptr_t) streamHandle;
+    return strm ? (jint) strm->adler : 0;
+}
+
+static jlong Inflater_getTotalInImpl(JNIEnv*, jobject, jlong streamHandle) {
+    z_stream* strm = (z_stream*)(uintptr_t) streamHandle;
+    return strm ? (jlong) strm->total_in : 0;
+}
+
+static jlong Inflater_getTotalOutImpl(JNIEnv*, jobject, jlong streamHandle) {
+    z_stream* strm = (z_stream*)(uintptr_t) streamHandle;
+    return strm ? (jlong) strm->total_out : 0;
+}
+
+static void Inflater_resetImpl(JNIEnv*, jobject, jlong streamHandle) {
+    z_stream* strm = (z_stream*)(uintptr_t) streamHandle;
+    if (strm) inflateReset(strm);
+}
+
+static void Inflater_endImpl(JNIEnv*, jobject, jlong streamHandle) {
+    z_stream* strm = (z_stream*)(uintptr_t) streamHandle;
+    if (strm) { free((void*)strm->next_in); inflateEnd(strm); free(strm); }
+}
+
+static JNINativeMethod gInflaterMethods[] = {
+    { "createStream",   "(Z)J",     (void*) Inflater_createStream },
+    { "setInputImpl",   "([BIIJ)V", (void*) Inflater_setInputImpl },
+    { "inflateImpl",    "([BIIJ)I", (void*) Inflater_inflateImpl },
+    { "getAdlerImpl",   "(J)I",     (void*) Inflater_getAdlerImpl },
+    { "getTotalInImpl",  "(J)J",    (void*) Inflater_getTotalInImpl },
+    { "getTotalOutImpl", "(J)J",    (void*) Inflater_getTotalOutImpl },
+    { "resetImpl",      "(J)V",     (void*) Inflater_resetImpl },
+    { "endImpl",        "(J)V",     (void*) Inflater_endImpl },
+};
+
 /* ── java.lang.Thread ── */
 static void Thread_sleep(JNIEnv*, jclass, jlong ms) {
     struct timespec ts;
@@ -1459,6 +1532,10 @@ bool dvmRegisterLibcoreBridge(JNIEnv* env) {
     /* Thread.sleep */
     registerClass(env, "java/lang/Thread",
                   gThreadMethods, sizeof(gThreadMethods)/sizeof(gThreadMethods[0]));
+
+    /* Inflater (zlib) */
+    registerClass(env, "java/util/zip/Inflater",
+                  gInflaterMethods, sizeof(gInflaterMethods)/sizeof(gInflaterMethods[0]));
 
     return true;
 }

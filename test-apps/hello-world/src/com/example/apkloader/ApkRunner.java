@@ -113,10 +113,26 @@ public class ApkRunner {
                 int lnLen = rs(apk, lOfs+26);
                 int lxLen = rs(apk, lOfs+28);
                 int dStart = lOfs + 30 + lnLen + lxLen;
-                int sz = (comp == 0) ? uSz : cSz;
-                byte[] r = new byte[sz];
-                System.arraycopy(apk, dStart, r, 0, sz);
-                return r;
+                if (comp == 0) {
+                    /* STORED — direct copy */
+                    byte[] r = new byte[uSz];
+                    System.arraycopy(apk, dStart, r, 0, uSz);
+                    return r;
+                } else {
+                    /* DEFLATED — decompress using Inflater */
+                    byte[] compressed = new byte[cSz];
+                    System.arraycopy(apk, dStart, compressed, 0, cSz);
+                    java.util.zip.Inflater inf = new java.util.zip.Inflater(true);
+                    inf.setInput(compressed, 0, cSz);
+                    byte[] result = new byte[uSz];
+                    try {
+                        inf.inflate(result);
+                    } catch (java.util.zip.DataFormatException dfe) {
+                        /* ignore — return partial data */
+                    }
+                    inf.end();
+                    return result;
+                }
             }
             pos += 46 + nLen + xLen + cLen;
         }
