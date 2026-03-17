@@ -140,6 +140,8 @@ public class HeadlessTest {
         testSimpleFormatter();
         testLinearLayoutWeightAndGravity();
         testDrawableImprovements();
+        testRelativeLayout();
+        testTextViewMeasureAndRender();
 
         System.out.println("\n═══ Results ═══");
         System.out.println("Passed: " + passed);
@@ -8868,5 +8870,765 @@ public class HeadlessTest {
         float wBold = mtPaint.measureText("Hello");
         // Bold text is typically same or slightly wider
         check("bold measureText > 0", wBold > 0);
+    }
+
+    static void testDrawableImprovements() {
+        section("B28 Drawable improvements");
+
+        android.graphics.Bitmap bmp = android.graphics.Bitmap.createBitmap(200, 200,
+                android.graphics.Bitmap.Config.ARGB_8888);
+        android.graphics.Canvas canvas = new android.graphics.Canvas(bmp);
+
+        // ── GradientDrawable improvements ──
+
+        // New accessors
+        android.graphics.drawable.GradientDrawable gd = new android.graphics.drawable.GradientDrawable();
+        gd.setColor(0xFF123456);
+        check("GD getColor", gd.getColor() == 0xFF123456);
+
+        gd.setColors(new int[]{0xFFFF0000, 0xFF00FF00, 0xFF0000FF});
+        int[] gc = gd.getColors();
+        check("GD getColors length", gc != null && gc.length == 3);
+        check("GD getColors[0]", gc != null && gc[0] == 0xFFFF0000);
+
+        gd.setOrientation(android.graphics.drawable.GradientDrawable.Orientation.LEFT_RIGHT);
+        check("GD getOrientation", gd.getOrientation() == android.graphics.drawable.GradientDrawable.Orientation.LEFT_RIGHT);
+
+        gd.setGradientRadius(50f);
+        check("GD getGradientRadius", gd.getGradientRadius() == 50f);
+
+        gd.setCornerRadii(new float[]{1, 2, 3, 4, 5, 6, 7, 8});
+        float[] cr = gd.getCornerRadii();
+        check("GD getCornerRadii", cr != null && cr.length == 8 && cr[2] == 3f);
+
+        // Size
+        gd.setSize(100, 50);
+        check("GD getIntrinsicWidth", gd.getIntrinsicWidth() == 100);
+        check("GD getIntrinsicHeight", gd.getIntrinsicHeight() == 50);
+
+        // Padding
+        gd.setPadding(5, 10, 15, 20);
+        android.graphics.Rect pad = new android.graphics.Rect();
+        boolean hasPad = gd.getPadding(pad);
+        check("GD getPadding returns true", hasPad);
+        check("GD padding left", pad.left == 5);
+        check("GD padding bottom", pad.bottom == 20);
+
+        // LINE shape draws stroke
+        com.ohos.shim.bridge.OHBridge.clearDrawLog(canvas.getNativeHandle());
+        android.graphics.drawable.GradientDrawable gdLine = new android.graphics.drawable.GradientDrawable();
+        gdLine.setShape(android.graphics.drawable.GradientDrawable.LINE);
+        gdLine.setStroke(3, 0xFF000000);
+        gdLine.setBounds(0, 0, 100, 50);
+        gdLine.draw(canvas);
+        java.util.List<com.ohos.shim.bridge.OHBridge.DrawRecord> log =
+                com.ohos.shim.bridge.OHBridge.getDrawLog(canvas.getNativeHandle());
+        boolean hasLine = false;
+        for (int i = 0; i < log.size(); i++) {
+            if ("drawLine".equals(log.get(i).op)) { hasLine = true; break; }
+        }
+        check("GD LINE shape draws drawLine", hasLine);
+
+        // RING shape draws something
+        com.ohos.shim.bridge.OHBridge.clearDrawLog(canvas.getNativeHandle());
+        android.graphics.drawable.GradientDrawable gdRing = new android.graphics.drawable.GradientDrawable();
+        gdRing.setShape(android.graphics.drawable.GradientDrawable.RING);
+        gdRing.setColor(0xFFAA5500);
+        gdRing.setBounds(0, 0, 80, 80);
+        gdRing.draw(canvas);
+        log = com.ohos.shim.bridge.OHBridge.getDrawLog(canvas.getNativeHandle());
+        boolean hasCircle = false;
+        for (int i = 0; i < log.size(); i++) {
+            if ("drawCircle".equals(log.get(i).op)) { hasCircle = true; break; }
+        }
+        check("GD RING shape draws drawCircle", hasCircle);
+
+        // Alpha modulation
+        com.ohos.shim.bridge.OHBridge.clearDrawLog(canvas.getNativeHandle());
+        android.graphics.drawable.GradientDrawable gdAlpha = new android.graphics.drawable.GradientDrawable();
+        gdAlpha.setColor(0xFFFF0000);
+        gdAlpha.setAlpha(128);
+        gdAlpha.setBounds(0, 0, 50, 50);
+        gdAlpha.draw(canvas);
+        log = com.ohos.shim.bridge.OHBridge.getDrawLog(canvas.getNativeHandle());
+        boolean foundModulated = false;
+        for (int i = 0; i < log.size(); i++) {
+            // Alpha of brush should be ~128/255 * 255 = ~128
+            int a = (log.get(i).color >>> 24) & 0xFF;
+            if (a > 100 && a < 160) { foundModulated = true; break; }
+        }
+        check("GD alpha modulation", foundModulated);
+
+        // ── ShapeDrawable improvements ──
+
+        // RectShape
+        com.ohos.shim.bridge.OHBridge.clearDrawLog(canvas.getNativeHandle());
+        android.graphics.drawable.shapes.RectShape rs = new android.graphics.drawable.shapes.RectShape();
+        android.graphics.drawable.ShapeDrawable sd = new android.graphics.drawable.ShapeDrawable(rs);
+        sd.getPaint().setColor(0xFF00FF00);
+        sd.setBounds(10, 10, 90, 90);
+        sd.draw(canvas);
+        log = com.ohos.shim.bridge.OHBridge.getDrawLog(canvas.getNativeHandle());
+        boolean hasRect = false;
+        for (int i = 0; i < log.size(); i++) {
+            if ("drawRect".equals(log.get(i).op)) { hasRect = true; break; }
+        }
+        check("ShapeDrawable RectShape draws drawRect", hasRect);
+        check("RectShape resized", rs.getWidth() == 80f && rs.getHeight() == 80f);
+
+        // OvalShape
+        com.ohos.shim.bridge.OHBridge.clearDrawLog(canvas.getNativeHandle());
+        android.graphics.drawable.shapes.OvalShape os = new android.graphics.drawable.shapes.OvalShape();
+        android.graphics.drawable.ShapeDrawable sdOval = new android.graphics.drawable.ShapeDrawable(os);
+        sdOval.getPaint().setColor(0xFFFF0000);
+        sdOval.setBounds(0, 0, 60, 60);
+        sdOval.draw(canvas);
+        log = com.ohos.shim.bridge.OHBridge.getDrawLog(canvas.getNativeHandle());
+        boolean hasOval = false;
+        for (int i = 0; i < log.size(); i++) {
+            if ("drawOval".equals(log.get(i).op)) { hasOval = true; break; }
+        }
+        check("ShapeDrawable OvalShape draws drawOval", hasOval);
+
+        // RoundRectShape
+        com.ohos.shim.bridge.OHBridge.clearDrawLog(canvas.getNativeHandle());
+        float[] outerRadii = new float[]{10, 10, 10, 10, 10, 10, 10, 10};
+        android.graphics.drawable.shapes.RoundRectShape rrs =
+                new android.graphics.drawable.shapes.RoundRectShape(outerRadii, null, null);
+        android.graphics.drawable.ShapeDrawable sdRound = new android.graphics.drawable.ShapeDrawable(rrs);
+        sdRound.getPaint().setColor(0xFF0000FF);
+        sdRound.setBounds(0, 0, 80, 80);
+        sdRound.draw(canvas);
+        log = com.ohos.shim.bridge.OHBridge.getDrawLog(canvas.getNativeHandle());
+        boolean hasRoundRect = false;
+        for (int i = 0; i < log.size(); i++) {
+            if ("drawRoundRect".equals(log.get(i).op)) { hasRoundRect = true; break; }
+        }
+        check("ShapeDrawable RoundRectShape draws drawRoundRect", hasRoundRect);
+
+        // No shape fallback
+        com.ohos.shim.bridge.OHBridge.clearDrawLog(canvas.getNativeHandle());
+        android.graphics.drawable.ShapeDrawable sdNoShape = new android.graphics.drawable.ShapeDrawable();
+        sdNoShape.getPaint().setColor(0xFFABCDEF);
+        sdNoShape.setBounds(5, 5, 55, 55);
+        sdNoShape.draw(canvas);
+        log = com.ohos.shim.bridge.OHBridge.getDrawLog(canvas.getNativeHandle());
+        boolean hasFallbackRect = false;
+        for (int i = 0; i < log.size(); i++) {
+            if ("drawRect".equals(log.get(i).op)) { hasFallbackRect = true; break; }
+        }
+        check("ShapeDrawable no-shape fallback draws rect", hasFallbackRect);
+
+        // ── BitmapDrawable improvements ──
+
+        com.ohos.shim.bridge.OHBridge.clearDrawLog(canvas.getNativeHandle());
+        android.graphics.Bitmap smallBmp = android.graphics.Bitmap.createBitmap(20, 20,
+                android.graphics.Bitmap.Config.ARGB_8888);
+        android.graphics.drawable.BitmapDrawable bd = new android.graphics.drawable.BitmapDrawable(smallBmp);
+        bd.setBounds(0, 0, 100, 100);
+        bd.draw(canvas);
+        log = com.ohos.shim.bridge.OHBridge.getDrawLog(canvas.getNativeHandle());
+        boolean hasBitmap = false;
+        for (int i = 0; i < log.size(); i++) {
+            if ("drawBitmap".equals(log.get(i).op)) { hasBitmap = true; break; }
+        }
+        check("BitmapDrawable draws drawBitmap", hasBitmap);
+
+        // BitmapDrawable intrinsic size
+        check("BitmapDrawable intrinsicWidth", bd.getIntrinsicWidth() == 20);
+        check("BitmapDrawable intrinsicHeight", bd.getIntrinsicHeight() == 20);
+
+        // BitmapDrawable null bitmap draws nothing
+        com.ohos.shim.bridge.OHBridge.clearDrawLog(canvas.getNativeHandle());
+        android.graphics.drawable.BitmapDrawable bdNull = new android.graphics.drawable.BitmapDrawable();
+        bdNull.setBounds(0, 0, 50, 50);
+        bdNull.draw(canvas);
+        log = com.ohos.shim.bridge.OHBridge.getDrawLog(canvas.getNativeHandle());
+        check("BitmapDrawable null bitmap draws nothing", log.isEmpty());
+
+        // ── LayerDrawable improvements ──
+
+        android.graphics.drawable.ColorDrawable c1 = new android.graphics.drawable.ColorDrawable(0xFFFF0000);
+        android.graphics.drawable.ColorDrawable c2 = new android.graphics.drawable.ColorDrawable(0xFF00FF00);
+        android.graphics.drawable.ColorDrawable c3 = new android.graphics.drawable.ColorDrawable(0xFF0000FF);
+        android.graphics.drawable.LayerDrawable ld = new android.graphics.drawable.LayerDrawable(
+                new android.graphics.drawable.Drawable[]{c1, c2, c3});
+
+        // setId / getId / findDrawableByLayerId
+        ld.setId(0, 100);
+        ld.setId(1, 200);
+        ld.setId(2, 300);
+        check("LD getId", ld.getId(1) == 200);
+        check("LD findDrawableByLayerId", ld.findDrawableByLayerId(300) == c3);
+        check("LD findDrawableByLayerId miss", ld.findDrawableByLayerId(999) == null);
+        check("LD findIndexByLayerId", ld.findIndexByLayerId(200) == 1);
+
+        // Layer inset getters
+        ld.setLayerInset(1, 5, 10, 15, 20);
+        check("LD getLayerInsetLeft", ld.getLayerInsetLeft(1) == 5);
+        check("LD getLayerInsetTop", ld.getLayerInsetTop(1) == 10);
+        check("LD getLayerInsetRight", ld.getLayerInsetRight(1) == 15);
+        check("LD getLayerInsetBottom", ld.getLayerInsetBottom(1) == 20);
+
+        // Padding mode
+        ld.setPaddingMode(android.graphics.drawable.LayerDrawable.PADDING_MODE_STACK);
+        check("LD paddingMode stack", ld.getPaddingMode() == android.graphics.drawable.LayerDrawable.PADDING_MODE_STACK);
+
+        // ── StateListDrawable improvements ──
+
+        android.graphics.drawable.StateListDrawable sld = new android.graphics.drawable.StateListDrawable();
+        android.graphics.drawable.ColorDrawable sPressedD = new android.graphics.drawable.ColorDrawable(0xFFFF0000);
+        android.graphics.drawable.ColorDrawable sFocusedD = new android.graphics.drawable.ColorDrawable(0xFF00FF00);
+        android.graphics.drawable.ColorDrawable sDefaultD = new android.graphics.drawable.ColorDrawable(0xFF0000FF);
+        sld.addState(new int[]{16842919}, sPressedD);       // state_pressed
+        sld.addState(new int[]{16842908}, sFocusedD);       // state_focused
+        sld.addState(new int[]{}, sDefaultD);               // default
+
+        check("SLD isStateful", sld.isStateful());
+        check("SLD getStateCount", sld.getStateCount() == 3);
+        check("SLD getStateDrawable(0)", sld.getStateDrawable(0) == sPressedD);
+        check("SLD getStateDrawable(2)", sld.getStateDrawable(2) == sDefaultD);
+
+        // Negative state spec (not-pressed)
+        android.graphics.drawable.StateListDrawable sld2 = new android.graphics.drawable.StateListDrawable();
+        android.graphics.drawable.ColorDrawable sNotPressedD = new android.graphics.drawable.ColorDrawable(0xFF112233);
+        sld2.addState(new int[]{-16842919}, sNotPressedD);  // NOT pressed
+        sld2.addState(new int[]{}, sDefaultD);
+        sld2.setState(new int[]{});
+        check("SLD negative spec matches unpressed", sld2.getCurrent() == sNotPressedD);
+        sld2.setState(new int[]{16842919});
+        check("SLD negative spec rejects pressed", sld2.getCurrent() != sNotPressedD);
+
+        // StateListDrawable draw propagates bounds
+        com.ohos.shim.bridge.OHBridge.clearDrawLog(canvas.getNativeHandle());
+        sld.setBounds(0, 0, 100, 100);
+        sld.setState(new int[]{});
+        sld.draw(canvas);
+        log = com.ohos.shim.bridge.OHBridge.getDrawLog(canvas.getNativeHandle());
+        boolean sldDrawn = false;
+        for (int i = 0; i < log.size(); i++) {
+            if ("drawRect".equals(log.get(i).op) || "drawColor".equals(log.get(i).op)) {
+                sldDrawn = true; break;
+            }
+        }
+        check("SLD draw delegates to current", sldDrawn);
+        check("SLD current has bounds set", sDefaultD.getBounds().right == 100);
+
+        // ── RippleDrawable improvements ──
+
+        android.content.res.ColorStateList rippleColor =
+                android.content.res.ColorStateList.valueOf(0xFFFF0000);
+        android.graphics.drawable.ColorDrawable rippleContent =
+                new android.graphics.drawable.ColorDrawable(0xFF00FF00);
+        android.graphics.drawable.RippleDrawable rd =
+                new android.graphics.drawable.RippleDrawable(rippleColor, rippleContent, null);
+
+        // Draw without press — only content
+        com.ohos.shim.bridge.OHBridge.clearDrawLog(canvas.getNativeHandle());
+        rd.setBounds(0, 0, 100, 100);
+        rd.setState(new int[]{});
+        rd.draw(canvas);
+        log = com.ohos.shim.bridge.OHBridge.getDrawLog(canvas.getNativeHandle());
+        int drawCount = 0;
+        for (int i = 0; i < log.size(); i++) {
+            if ("drawRect".equals(log.get(i).op) || "drawColor".equals(log.get(i).op)) drawCount++;
+        }
+        check("RD unpressed draws content only", drawCount >= 1);
+
+        // Draw with press — content + ripple overlay
+        com.ohos.shim.bridge.OHBridge.clearDrawLog(canvas.getNativeHandle());
+        rd.setState(new int[]{16842919}); // pressed
+        rd.draw(canvas);
+        log = com.ohos.shim.bridge.OHBridge.getDrawLog(canvas.getNativeHandle());
+        int pressedDrawCount = 0;
+        for (int i = 0; i < log.size(); i++) {
+            if ("drawRect".equals(log.get(i).op) || "drawColor".equals(log.get(i).op)) pressedDrawCount++;
+        }
+        check("RD pressed draws content + overlay", pressedDrawCount >= 2);
+
+        canvas.release();
+        bmp.recycle();
+        smallBmp.recycle();
+    }
+
+    // -- RelativeLayout --
+
+    static void testRelativeLayout() {
+        section("RelativeLayout (AOSP constraint solver)");
+
+        // -- Rule constants match AOSP --
+        check("LEFT_OF == 0", android.widget.RelativeLayout.LEFT_OF == 0);
+        check("RIGHT_OF == 1", android.widget.RelativeLayout.RIGHT_OF == 1);
+        check("ABOVE == 2", android.widget.RelativeLayout.ABOVE == 2);
+        check("BELOW == 3", android.widget.RelativeLayout.BELOW == 3);
+        check("ALIGN_BASELINE == 4", android.widget.RelativeLayout.ALIGN_BASELINE == 4);
+        check("ALIGN_LEFT == 5", android.widget.RelativeLayout.ALIGN_LEFT == 5);
+        check("ALIGN_PARENT_LEFT == 9", android.widget.RelativeLayout.ALIGN_PARENT_LEFT == 9);
+        check("CENTER_IN_PARENT == 13", android.widget.RelativeLayout.CENTER_IN_PARENT == 13);
+        check("CENTER_HORIZONTAL == 14", android.widget.RelativeLayout.CENTER_HORIZONTAL == 14);
+        check("CENTER_VERTICAL == 15", android.widget.RelativeLayout.CENTER_VERTICAL == 15);
+        check("START_OF == 16", android.widget.RelativeLayout.START_OF == 16);
+        check("ALIGN_PARENT_END == 21", android.widget.RelativeLayout.ALIGN_PARENT_END == 21);
+        check("TRUE == -1", android.widget.RelativeLayout.TRUE == -1);
+
+        // -- LayoutParams addRule / getRule / removeRule --
+        android.widget.RelativeLayout.LayoutParams lp =
+            new android.widget.RelativeLayout.LayoutParams(100, 50);
+        lp.addRule(android.widget.RelativeLayout.CENTER_IN_PARENT);
+        check("addRule(CENTER_IN_PARENT) sets TRUE",
+            lp.getRule(android.widget.RelativeLayout.CENTER_IN_PARENT) == android.widget.RelativeLayout.TRUE);
+        lp.addRule(android.widget.RelativeLayout.BELOW, 42);
+        check("addRule(BELOW, 42) stores 42",
+            lp.getRule(android.widget.RelativeLayout.BELOW) == 42);
+        lp.removeRule(android.widget.RelativeLayout.BELOW);
+        check("removeRule clears to 0",
+            lp.getRule(android.widget.RelativeLayout.BELOW) == 0);
+        check("hasRule returns true for set rule",
+            lp.hasRule(android.widget.RelativeLayout.CENTER_IN_PARENT));
+        check("hasRule returns false for removed rule",
+            !lp.hasRule(android.widget.RelativeLayout.BELOW));
+
+        // -- getRules returns array indexed by verb --
+        int[] rules = lp.getRules();
+        check("getRules length >= 22", rules.length >= 22);
+        check("getRules[CENTER_IN_PARENT] == TRUE",
+            rules[android.widget.RelativeLayout.CENTER_IN_PARENT] == android.widget.RelativeLayout.TRUE);
+
+        // -- Copy constructor --
+        android.widget.RelativeLayout.LayoutParams lpCopy =
+            new android.widget.RelativeLayout.LayoutParams(lp);
+        check("copy width", lpCopy.width == 100);
+        check("copy height", lpCopy.height == 50);
+        check("copy preserves CENTER_IN_PARENT rule",
+            lpCopy.getRule(android.widget.RelativeLayout.CENTER_IN_PARENT) == android.widget.RelativeLayout.TRUE);
+
+        // -- Basic layout: single child with ALIGN_PARENT_LEFT + ALIGN_PARENT_TOP --
+        android.widget.RelativeLayout rl = new android.widget.RelativeLayout();
+        android.view.View child1 = new android.view.View();
+        child1.setId(1);
+        android.widget.RelativeLayout.LayoutParams lp1 =
+            new android.widget.RelativeLayout.LayoutParams(100, 50);
+        lp1.addRule(android.widget.RelativeLayout.ALIGN_PARENT_LEFT);
+        lp1.addRule(android.widget.RelativeLayout.ALIGN_PARENT_TOP);
+        child1.setLayoutParams(lp1);
+        rl.addView(child1);
+        rl.doLayout(400, 300);
+        check("ALIGN_PARENT_LEFT+TOP: left==0", child1.getLeft() == 0);
+        check("ALIGN_PARENT_LEFT+TOP: top==0", child1.getTop() == 0);
+        check("ALIGN_PARENT_LEFT+TOP: width==100", child1.getWidth() == 100);
+        check("ALIGN_PARENT_LEFT+TOP: height==50", child1.getHeight() == 50);
+
+        // -- ALIGN_PARENT_RIGHT --
+        android.widget.RelativeLayout rl2 = new android.widget.RelativeLayout();
+        android.view.View child2 = new android.view.View();
+        child2.setId(2);
+        android.widget.RelativeLayout.LayoutParams lp2 =
+            new android.widget.RelativeLayout.LayoutParams(100, 50);
+        lp2.addRule(android.widget.RelativeLayout.ALIGN_PARENT_RIGHT);
+        lp2.addRule(android.widget.RelativeLayout.ALIGN_PARENT_TOP);
+        child2.setLayoutParams(lp2);
+        rl2.addView(child2);
+        rl2.doLayout(400, 300);
+        check("ALIGN_PARENT_RIGHT: right==400", child2.getRight() == 400);
+        check("ALIGN_PARENT_RIGHT: left==300", child2.getLeft() == 300);
+
+        // -- ALIGN_PARENT_BOTTOM --
+        android.widget.RelativeLayout rl3 = new android.widget.RelativeLayout();
+        android.view.View child3 = new android.view.View();
+        child3.setId(3);
+        android.widget.RelativeLayout.LayoutParams lp3 =
+            new android.widget.RelativeLayout.LayoutParams(100, 50);
+        lp3.addRule(android.widget.RelativeLayout.ALIGN_PARENT_BOTTOM);
+        lp3.addRule(android.widget.RelativeLayout.ALIGN_PARENT_LEFT);
+        child3.setLayoutParams(lp3);
+        rl3.addView(child3);
+        rl3.doLayout(400, 300);
+        check("ALIGN_PARENT_BOTTOM: bottom==300", child3.getBottom() == 300);
+        check("ALIGN_PARENT_BOTTOM: top==250", child3.getTop() == 250);
+
+        // -- CENTER_IN_PARENT --
+        android.widget.RelativeLayout rl4 = new android.widget.RelativeLayout();
+        android.view.View child4 = new android.view.View();
+        child4.setId(4);
+        android.widget.RelativeLayout.LayoutParams lp4 =
+            new android.widget.RelativeLayout.LayoutParams(100, 50);
+        lp4.addRule(android.widget.RelativeLayout.CENTER_IN_PARENT);
+        child4.setLayoutParams(lp4);
+        rl4.addView(child4);
+        rl4.doLayout(400, 300);
+        check("CENTER_IN_PARENT: left==150", child4.getLeft() == 150);
+        check("CENTER_IN_PARENT: top==125", child4.getTop() == 125);
+        check("CENTER_IN_PARENT: right==250", child4.getRight() == 250);
+        check("CENTER_IN_PARENT: bottom==175", child4.getBottom() == 175);
+
+        // -- CENTER_HORIZONTAL only --
+        android.widget.RelativeLayout rl5 = new android.widget.RelativeLayout();
+        android.view.View child5 = new android.view.View();
+        child5.setId(5);
+        android.widget.RelativeLayout.LayoutParams lp5 =
+            new android.widget.RelativeLayout.LayoutParams(100, 50);
+        lp5.addRule(android.widget.RelativeLayout.CENTER_HORIZONTAL);
+        lp5.addRule(android.widget.RelativeLayout.ALIGN_PARENT_TOP);
+        child5.setLayoutParams(lp5);
+        rl5.addView(child5);
+        rl5.doLayout(400, 300);
+        check("CENTER_HORIZONTAL: left==150", child5.getLeft() == 150);
+        check("CENTER_HORIZONTAL: top==0", child5.getTop() == 0);
+
+        // -- CENTER_VERTICAL only --
+        android.widget.RelativeLayout rl6 = new android.widget.RelativeLayout();
+        android.view.View child6 = new android.view.View();
+        child6.setId(6);
+        android.widget.RelativeLayout.LayoutParams lp6 =
+            new android.widget.RelativeLayout.LayoutParams(100, 50);
+        lp6.addRule(android.widget.RelativeLayout.CENTER_VERTICAL);
+        lp6.addRule(android.widget.RelativeLayout.ALIGN_PARENT_LEFT);
+        child6.setLayoutParams(lp6);
+        rl6.addView(child6);
+        rl6.doLayout(400, 300);
+        check("CENTER_VERTICAL: top==125", child6.getTop() == 125);
+        check("CENTER_VERTICAL: left==0", child6.getLeft() == 0);
+
+        // -- BELOW sibling --
+        android.widget.RelativeLayout rl7 = new android.widget.RelativeLayout();
+        android.view.View topView = new android.view.View();
+        topView.setId(10);
+        android.widget.RelativeLayout.LayoutParams lpTop =
+            new android.widget.RelativeLayout.LayoutParams(200, 60);
+        lpTop.addRule(android.widget.RelativeLayout.ALIGN_PARENT_LEFT);
+        lpTop.addRule(android.widget.RelativeLayout.ALIGN_PARENT_TOP);
+        topView.setLayoutParams(lpTop);
+        rl7.addView(topView);
+
+        android.view.View belowView = new android.view.View();
+        belowView.setId(11);
+        android.widget.RelativeLayout.LayoutParams lpBelow =
+            new android.widget.RelativeLayout.LayoutParams(200, 40);
+        lpBelow.addRule(android.widget.RelativeLayout.BELOW, 10);
+        lpBelow.addRule(android.widget.RelativeLayout.ALIGN_PARENT_LEFT);
+        belowView.setLayoutParams(lpBelow);
+        rl7.addView(belowView);
+
+        rl7.doLayout(400, 300);
+        check("BELOW: topView top==0", topView.getTop() == 0);
+        check("BELOW: topView bottom==60", topView.getBottom() == 60);
+        check("BELOW: belowView top==60", belowView.getTop() == 60);
+        check("BELOW: belowView bottom==100", belowView.getBottom() == 100);
+
+        // -- RIGHT_OF sibling --
+        android.widget.RelativeLayout rl8 = new android.widget.RelativeLayout();
+        android.view.View leftView = new android.view.View();
+        leftView.setId(20);
+        android.widget.RelativeLayout.LayoutParams lpLeft =
+            new android.widget.RelativeLayout.LayoutParams(80, 50);
+        lpLeft.addRule(android.widget.RelativeLayout.ALIGN_PARENT_LEFT);
+        lpLeft.addRule(android.widget.RelativeLayout.ALIGN_PARENT_TOP);
+        leftView.setLayoutParams(lpLeft);
+        rl8.addView(leftView);
+
+        android.view.View rightView = new android.view.View();
+        rightView.setId(21);
+        android.widget.RelativeLayout.LayoutParams lpRight =
+            new android.widget.RelativeLayout.LayoutParams(120, 50);
+        lpRight.addRule(android.widget.RelativeLayout.RIGHT_OF, 20);
+        lpRight.addRule(android.widget.RelativeLayout.ALIGN_PARENT_TOP);
+        rightView.setLayoutParams(lpRight);
+        rl8.addView(rightView);
+
+        rl8.doLayout(400, 300);
+        check("RIGHT_OF: leftView right==80", leftView.getRight() == 80);
+        check("RIGHT_OF: rightView left==80", rightView.getLeft() == 80);
+        check("RIGHT_OF: rightView right==200", rightView.getRight() == 200);
+
+        // -- LEFT_OF sibling --
+        android.widget.RelativeLayout rl9 = new android.widget.RelativeLayout();
+        android.view.View anchorRight = new android.view.View();
+        anchorRight.setId(30);
+        android.widget.RelativeLayout.LayoutParams lpAnchorRight =
+            new android.widget.RelativeLayout.LayoutParams(100, 50);
+        lpAnchorRight.addRule(android.widget.RelativeLayout.ALIGN_PARENT_RIGHT);
+        lpAnchorRight.addRule(android.widget.RelativeLayout.ALIGN_PARENT_TOP);
+        anchorRight.setLayoutParams(lpAnchorRight);
+        rl9.addView(anchorRight);
+
+        android.view.View leftOfView = new android.view.View();
+        leftOfView.setId(31);
+        android.widget.RelativeLayout.LayoutParams lpLeftOf =
+            new android.widget.RelativeLayout.LayoutParams(80, 50);
+        lpLeftOf.addRule(android.widget.RelativeLayout.LEFT_OF, 30);
+        lpLeftOf.addRule(android.widget.RelativeLayout.ALIGN_PARENT_TOP);
+        leftOfView.setLayoutParams(lpLeftOf);
+        rl9.addView(leftOfView);
+
+        rl9.doLayout(400, 300);
+        check("LEFT_OF: anchor left==300", anchorRight.getLeft() == 300);
+        check("LEFT_OF: leftOfView right==300", leftOfView.getRight() == 300);
+        check("LEFT_OF: leftOfView left==220", leftOfView.getLeft() == 220);
+
+        // -- ABOVE sibling --
+        android.widget.RelativeLayout rl10 = new android.widget.RelativeLayout();
+        android.view.View bottomAnchor = new android.view.View();
+        bottomAnchor.setId(40);
+        android.widget.RelativeLayout.LayoutParams lpBotAnchor =
+            new android.widget.RelativeLayout.LayoutParams(100, 60);
+        lpBotAnchor.addRule(android.widget.RelativeLayout.ALIGN_PARENT_BOTTOM);
+        lpBotAnchor.addRule(android.widget.RelativeLayout.ALIGN_PARENT_LEFT);
+        bottomAnchor.setLayoutParams(lpBotAnchor);
+        rl10.addView(bottomAnchor);
+
+        android.view.View aboveView = new android.view.View();
+        aboveView.setId(41);
+        android.widget.RelativeLayout.LayoutParams lpAbove =
+            new android.widget.RelativeLayout.LayoutParams(100, 40);
+        lpAbove.addRule(android.widget.RelativeLayout.ABOVE, 40);
+        lpAbove.addRule(android.widget.RelativeLayout.ALIGN_PARENT_LEFT);
+        aboveView.setLayoutParams(lpAbove);
+        rl10.addView(aboveView);
+
+        rl10.doLayout(400, 300);
+        check("ABOVE: bottomAnchor bottom==300", bottomAnchor.getBottom() == 300);
+        check("ABOVE: bottomAnchor top==240", bottomAnchor.getTop() == 240);
+        check("ABOVE: aboveView bottom==240", aboveView.getBottom() == 240);
+        check("ABOVE: aboveView top==200", aboveView.getTop() == 200);
+
+        // -- ALIGN_LEFT + ALIGN_TOP with sibling --
+        android.widget.RelativeLayout rl11 = new android.widget.RelativeLayout();
+        android.view.View refView = new android.view.View();
+        refView.setId(50);
+        android.widget.RelativeLayout.LayoutParams lpRef =
+            new android.widget.RelativeLayout.LayoutParams(100, 80);
+        lpRef.addRule(android.widget.RelativeLayout.ALIGN_PARENT_LEFT);
+        lpRef.addRule(android.widget.RelativeLayout.ALIGN_PARENT_TOP);
+        lpRef.setMargins(10, 20, 0, 0);
+        refView.setLayoutParams(lpRef);
+        rl11.addView(refView);
+
+        android.view.View alignedView = new android.view.View();
+        alignedView.setId(51);
+        android.widget.RelativeLayout.LayoutParams lpAligned =
+            new android.widget.RelativeLayout.LayoutParams(60, 40);
+        lpAligned.addRule(android.widget.RelativeLayout.ALIGN_LEFT, 50);
+        lpAligned.addRule(android.widget.RelativeLayout.ALIGN_TOP, 50);
+        alignedView.setLayoutParams(lpAligned);
+        rl11.addView(alignedView);
+
+        rl11.doLayout(400, 300);
+        check("ALIGN_LEFT: refView left==10", refView.getLeft() == 10);
+        check("ALIGN_TOP: refView top==20", refView.getTop() == 20);
+        check("ALIGN_LEFT: alignedView left==refView left", alignedView.getLeft() == refView.getLeft());
+        check("ALIGN_TOP: alignedView top==refView top", alignedView.getTop() == refView.getTop());
+
+        // -- Three-level chain: A -> B -> C --
+        android.widget.RelativeLayout rl12 = new android.widget.RelativeLayout();
+        android.view.View chainA = new android.view.View();
+        chainA.setId(60);
+        android.widget.RelativeLayout.LayoutParams lpA =
+            new android.widget.RelativeLayout.LayoutParams(80, 30);
+        lpA.addRule(android.widget.RelativeLayout.ALIGN_PARENT_LEFT);
+        lpA.addRule(android.widget.RelativeLayout.ALIGN_PARENT_TOP);
+        chainA.setLayoutParams(lpA);
+        rl12.addView(chainA);
+
+        android.view.View chainB = new android.view.View();
+        chainB.setId(61);
+        android.widget.RelativeLayout.LayoutParams lpB =
+            new android.widget.RelativeLayout.LayoutParams(80, 30);
+        lpB.addRule(android.widget.RelativeLayout.BELOW, 60);
+        lpB.addRule(android.widget.RelativeLayout.ALIGN_PARENT_LEFT);
+        chainB.setLayoutParams(lpB);
+        rl12.addView(chainB);
+
+        android.view.View chainC = new android.view.View();
+        chainC.setId(62);
+        android.widget.RelativeLayout.LayoutParams lpC =
+            new android.widget.RelativeLayout.LayoutParams(80, 30);
+        lpC.addRule(android.widget.RelativeLayout.BELOW, 61);
+        lpC.addRule(android.widget.RelativeLayout.ALIGN_PARENT_LEFT);
+        chainC.setLayoutParams(lpC);
+        rl12.addView(chainC);
+
+        rl12.doLayout(400, 300);
+        check("Chain: A top==0", chainA.getTop() == 0);
+        check("Chain: B top==30 (below A)", chainB.getTop() == 30);
+        check("Chain: C top==60 (below B)", chainC.getTop() == 60);
+
+        // -- Margins with BELOW --
+        android.widget.RelativeLayout rl13 = new android.widget.RelativeLayout();
+        android.view.View mTop = new android.view.View();
+        mTop.setId(70);
+        android.widget.RelativeLayout.LayoutParams lpMTop =
+            new android.widget.RelativeLayout.LayoutParams(100, 50);
+        lpMTop.addRule(android.widget.RelativeLayout.ALIGN_PARENT_LEFT);
+        lpMTop.addRule(android.widget.RelativeLayout.ALIGN_PARENT_TOP);
+        lpMTop.setMargins(0, 0, 0, 10); // 10px bottom margin
+        mTop.setLayoutParams(lpMTop);
+        rl13.addView(mTop);
+
+        android.view.View mBot = new android.view.View();
+        mBot.setId(71);
+        android.widget.RelativeLayout.LayoutParams lpMBot =
+            new android.widget.RelativeLayout.LayoutParams(100, 50);
+        lpMBot.addRule(android.widget.RelativeLayout.BELOW, 70);
+        lpMBot.addRule(android.widget.RelativeLayout.ALIGN_PARENT_LEFT);
+        lpMBot.setMargins(0, 5, 0, 0); // 5px top margin
+        mBot.setLayoutParams(lpMBot);
+        rl13.addView(mBot);
+
+        rl13.doLayout(400, 300);
+        // BELOW uses: anchorParams.mBottom + anchorParams.bottomMargin + childParams.topMargin
+        check("Margins: mTop bottom==50", mTop.getBottom() == 50);
+        int expectedMBotTop = mTop.getBottom() + 10 + 5; // bottomMargin + topMargin
+        check("Margins: mBot top accounts for margins", mBot.getTop() == expectedMBotTop);
+    }
+
+    // ── B22: TextView text measurement and rendering ──
+
+    static void testTextViewMeasureAndRender() {
+        section("B22: TextView text measurement and rendering");
+
+        // 1. Basic setText/getText round-trip
+        android.widget.TextView tv = new android.widget.TextView();
+        tv.setText("Hello World");
+        check("B22 setText/getText", "Hello World".equals(tv.getText().toString()));
+        check("B22 length()", tv.length() == 11);
+
+        // 2. BufferType overload
+        tv.setText("Buffered", android.widget.TextView.BufferType.NORMAL);
+        check("B22 setText with BufferType", "Buffered".equals(tv.getText().toString()));
+
+        // 3. setGravity/getGravity
+        tv.setGravity(android.view.Gravity.CENTER);
+        check("B22 setGravity CENTER", tv.getGravity() == android.view.Gravity.CENTER);
+        tv.setGravity(android.view.Gravity.RIGHT | android.view.Gravity.BOTTOM);
+        check("B22 setGravity RIGHT|BOTTOM",
+            (tv.getGravity() & android.view.Gravity.RIGHT) == android.view.Gravity.RIGHT);
+
+        // 4. setSingleLine/isSingleLine
+        tv.setSingleLine(true);
+        check("B22 isSingleLine true", tv.isSingleLine());
+        check("B22 maxLines==1 after setSingleLine", tv.getMaxLines() == 1);
+        tv.setSingleLine(false);
+        check("B22 isSingleLine false", !tv.isSingleLine());
+
+        // 5. setMaxLines/setMinLines
+        tv.setMaxLines(3);
+        check("B22 getMaxLines==3", tv.getMaxLines() == 3);
+        tv.setMinLines(2);
+        check("B22 getMinLines==2", tv.getMinLines() == 2);
+
+        // 6. setEllipsize/getEllipsize
+        tv.setEllipsize(android.text.TextUtils.TruncateAt.END);
+        check("B22 getEllipsize END", tv.getEllipsize() == android.text.TextUtils.TruncateAt.END);
+        tv.setEllipsize(android.text.TextUtils.TruncateAt.MIDDLE);
+        check("B22 getEllipsize MIDDLE", tv.getEllipsize() == android.text.TextUtils.TruncateAt.MIDDLE);
+
+        // 7. setLineSpacing
+        tv.setLineSpacing(2.0f, 1.5f);
+        check("B22 getLineSpacingExtra", tv.getLineSpacingExtra() == 2.0f);
+        check("B22 getLineSpacingMultiplier", tv.getLineSpacingMultiplier() == 1.5f);
+
+        // 8. setShadowLayer
+        tv.setShadowLayer(3.0f, 1.0f, 2.0f, 0xFF000000);
+        check("B22 getShadowRadius", tv.getShadowRadius() == 3.0f);
+        check("B22 getShadowDx", tv.getShadowDx() == 1.0f);
+        check("B22 getShadowDy", tv.getShadowDy() == 2.0f);
+        check("B22 getShadowColor", tv.getShadowColor() == 0xFF000000);
+
+        // 9. getLineHeight > 0
+        tv.setTextSize(20);
+        int lh = tv.getLineHeight();
+        check("B22 getLineHeight > 0", lh > 0);
+
+        // 10. getLineCount for multi-line text
+        tv.setText("Line1\nLine2\nLine3");
+        tv.setMaxLines(Integer.MAX_VALUE);
+        check("B22 getLineCount 3 lines", tv.getLineCount() == 3);
+
+        // 11. getPaint returns non-null
+        check("B22 getPaint non-null", tv.getPaint() != null);
+
+        // 12. append
+        tv.setText("Hello");
+        tv.append(" World");
+        check("B22 append", "Hello World".equals(tv.getText().toString()));
+
+        // 13. Compound drawables
+        tv.setCompoundDrawablePadding(8);
+        check("B22 getCompoundDrawablePadding", tv.getCompoundDrawablePadding() == 8);
+        android.graphics.drawable.Drawable[] drawables = tv.getCompoundDrawables();
+        check("B22 getCompoundDrawables length==4", drawables != null && drawables.length == 4);
+
+        // 14. onMeasure with WRAP_CONTENT produces reasonable size
+        tv.setText("Test");
+        tv.setTextSize(16);
+        tv.setMaxLines(Integer.MAX_VALUE);
+        tv.setMinLines(0);
+        int wSpec = android.view.View.MeasureSpec.makeMeasureSpec(0, android.view.View.MeasureSpec.UNSPECIFIED);
+        int hSpec = android.view.View.MeasureSpec.makeMeasureSpec(0, android.view.View.MeasureSpec.UNSPECIFIED);
+        tv.measure(wSpec, hSpec);
+        check("B22 measuredWidth > 0", tv.getMeasuredWidth() > 0);
+        check("B22 measuredHeight > 0", tv.getMeasuredHeight() > 0);
+
+        // 15. onMeasure with EXACTLY constrains width
+        int exactW = 100;
+        wSpec = android.view.View.MeasureSpec.makeMeasureSpec(exactW, android.view.View.MeasureSpec.EXACTLY);
+        hSpec = android.view.View.MeasureSpec.makeMeasureSpec(0, android.view.View.MeasureSpec.UNSPECIFIED);
+        tv.measure(wSpec, hSpec);
+        check("B22 EXACTLY width==100", tv.getMeasuredWidth() == exactW);
+
+        // 16. StaticLayout word-wrapping
+        android.graphics.Paint slPaint = new android.graphics.Paint();
+        slPaint.setTextSize(16);
+        android.text.StaticLayout sl = new android.text.StaticLayout(
+            "Hello World Test", slPaint, 200,
+            android.text.Layout.Alignment.ALIGN_NORMAL, 1.0f, 0.0f);
+        check("B22 StaticLayout lineCount >= 1", sl.getLineCount() >= 1);
+        check("B22 StaticLayout getLineWidth(0) > 0", sl.getLineWidth(0) > 0);
+        check("B22 StaticLayout getHeight > 0", sl.getHeight() > 0);
+
+        // 17. StaticLayout with narrow width wraps
+        android.text.StaticLayout slNarrow = new android.text.StaticLayout(
+            "ABCDEFGHIJKLMNOP", slPaint, 50,
+            android.text.Layout.Alignment.ALIGN_NORMAL, 1.0f, 0.0f);
+        check("B22 narrow StaticLayout lineCount > 1", slNarrow.getLineCount() > 1);
+
+        // 18. StaticLayout with hard line breaks
+        android.text.StaticLayout slBreaks = new android.text.StaticLayout(
+            "Line1\nLine2\nLine3", slPaint, 500,
+            android.text.Layout.Alignment.ALIGN_NORMAL, 1.0f, 0.0f);
+        check("B22 hard breaks lineCount==3", slBreaks.getLineCount() == 3);
+
+        // 19. TextUtils.TruncateAt enum values exist
+        check("B22 TruncateAt.START", android.text.TextUtils.TruncateAt.START != null);
+        check("B22 TruncateAt.MIDDLE", android.text.TextUtils.TruncateAt.MIDDLE != null);
+        check("B22 TruncateAt.END", android.text.TextUtils.TruncateAt.END != null);
+        check("B22 TruncateAt.MARQUEE", android.text.TextUtils.TruncateAt.MARQUEE != null);
+
+        // 20. TextUtils.ellipsize END
+        android.text.TextPaint ep = new android.text.TextPaint();
+        ep.setTextSize(16);
+        String longText = "This is a very long string that should be truncated";
+        CharSequence ell = android.text.TextUtils.ellipsize(longText, ep, 100f,
+            android.text.TextUtils.TruncateAt.END);
+        check("B22 ellipsize END shorter", ell.length() < longText.length());
+        check("B22 ellipsize END ends with ...", ell.toString().endsWith("..."));
+
+        // 21. TextUtils.ellipsize START
+        CharSequence ellStart = android.text.TextUtils.ellipsize(longText, ep, 100f,
+            android.text.TextUtils.TruncateAt.START);
+        check("B22 ellipsize START starts with ...", ellStart.toString().startsWith("..."));
+
+        // 22. TextUtils.ellipsize returns original when text fits
+        CharSequence ellShort = android.text.TextUtils.ellipsize("Hi", ep, 1000f,
+            android.text.TextUtils.TruncateAt.END);
+        check("B22 ellipsize fits returns original", "Hi".equals(ellShort.toString()));
+
+        // 23. getLayout returns non-null after measure
+        tv.setText("Measured text");
+        tv.setTextSize(16);
+        wSpec = android.view.View.MeasureSpec.makeMeasureSpec(200, android.view.View.MeasureSpec.AT_MOST);
+        hSpec = android.view.View.MeasureSpec.makeMeasureSpec(0, android.view.View.MeasureSpec.UNSPECIFIED);
+        tv.measure(wSpec, hSpec);
+        check("B22 getLayout after measure", tv.getLayout() != null);
     }
 }

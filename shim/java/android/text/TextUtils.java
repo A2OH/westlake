@@ -334,10 +334,70 @@ public class TextUtils {
         }
     }
 
+    /**
+     * Truncation mode for text that overflows its bounds.
+     */
+    public enum TruncateAt {
+        START,
+        MIDDLE,
+        END,
+        MARQUEE
+    }
+
+    /**
+     * Returns the given text truncated to fit within the given width,
+     * with an ellipsis appended in the specified position.
+     */
+    public static CharSequence ellipsize(CharSequence text, android.text.TextPaint paint,
+                                          float avail, TruncateAt where) {
+        if (text == null || text.length() == 0) return text;
+        String s = text.toString();
+        float measured = paint.measureText(s);
+        if (measured <= avail) return text;
+        String ellipsis = "...";
+        float ellipsisW = paint.measureText(ellipsis);
+        if (avail <= ellipsisW) return ellipsis;
+        float remain = avail - ellipsisW;
+        if (where == TruncateAt.END) {
+            int i = s.length();
+            while (i > 0 && paint.measureText(s, 0, i) > remain) {
+                i--;
+            }
+            return s.substring(0, i) + ellipsis;
+        } else if (where == TruncateAt.START) {
+            int i = 0;
+            while (i < s.length() && paint.measureText(s, i, s.length()) > remain) {
+                i++;
+            }
+            return ellipsis + s.substring(i);
+        } else {
+            // MIDDLE or MARQUEE
+            float half = remain / 2;
+            int front = 0;
+            for (int i = 1; i <= s.length(); i++) {
+                if (paint.measureText(s, 0, i) > half) break;
+                front = i;
+            }
+            int back = s.length();
+            for (int i = s.length() - 1; i >= 0; i--) {
+                if (paint.measureText(s, i, s.length()) > half) break;
+                back = i;
+            }
+            return s.substring(0, front) + ellipsis + s.substring(back);
+        }
+    }
+
     public static void copySpansFrom(Object p0, Object p1, Object p2, Object p3, Object p4, Object p5) {}
     public static void dumpSpans(Object p0, Object p1, Object p2) {}
-    public static Object ellipsize(Object p0, Object p1, Object p2, Object p3) { return null; }
-    public static Object ellipsize(Object p0, Object p1, Object p2, Object p3, Object p4, Object p5) { return null; }
+    public static Object ellipsize(Object p0, Object p1, Object p2, Object p3) {
+        if (p0 instanceof CharSequence && p1 instanceof TextPaint && p2 instanceof Number && p3 instanceof TruncateAt) {
+            return ellipsize((CharSequence) p0, (TextPaint) p1, ((Number) p2).floatValue(), (TruncateAt) p3);
+        }
+        return p0;
+    }
+    public static Object ellipsize(Object p0, Object p1, Object p2, Object p3, Object p4, Object p5) {
+        return ellipsize(p0, p1, p2, p3);
+    }
     public static Object expandTemplate(Object p0, Object p1) { return null; }
     public static int getCapsMode(Object p0, Object p1, Object p2) { return 0; }
     public static int getLayoutDirectionFromLocale(Object p0) { return 0; }
