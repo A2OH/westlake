@@ -274,3 +274,35 @@ The Dalvik VM is the **runtime** for the shim layer:
 2. APK calls `android.util.Log.d(...)` → executes our Java shim class
 3. Shim calls `OHBridge.nativeLog(...)` → JNI into OH native API
 4. OH native API (`OH_LOG_Print`) → actual platform operation
+
+## APK Loading (NEW)
+
+Full APK loading pipeline implemented:
+1. `ApkRunner.main("hello.apk")` — entry point
+2. Manual ZIP parsing (no native `Inflater`) reads APK entries
+3. `BinaryXmlParser` parses `AndroidManifest.xml` (text + AXML)
+4. Extracts package name, launcher Activity from intent-filter
+5. `MiniServer.init(package)` → `startActivity(launcher)`
+6. Full Activity lifecycle runs
+
+### New Native Methods in libcore_bridge.cpp
+
+Session additions (libcore_bridge.cpp now ~1300 lines):
+- **Math/StrictMath** (27 methods): floor, ceil, sqrt, sin, cos, tan, exp, log, pow, etc.
+- **StringToReal**: parseDblImpl, parseFltImpl (with exponent parameter)
+- **RealToString**: doubleToStringImpl, floatToStringImpl
+- **Float/Double**: bit conversion natives
+- **Pattern**: compileImpl via POSIX regex
+- **Matcher**: openImpl, closeImpl, setInputImpl, findImpl, findNextImpl, matchesImpl (11 methods)
+- **ICU.initLocaleDataNative**: Full en_US locale data (decimal, grouping, currency, months, weekdays)
+- **Posix.open**: Returns FileDescriptor object (was int)
+- **Posix.fstat**: Creates StructStat with stat(2) data
+- **Posix.readBytes**: Object variant for IoBridge compatibility
+- **Posix.close/read/write**: Real fd operations via FileDescriptor
+- **Thread.sleep**: nanosleep
+
+### JNI Wide Argument Fix
+
+`dvmCallJNIMethod` in Jni.cpp now reconstitutes double/long values from split
+dreg_t register slots before passing to libffi. Without this fix, all double-arg
+natives (Math.floor, etc.) received 0.0.
