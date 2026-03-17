@@ -1261,12 +1261,12 @@ static jboolean LocaleData_initLocaleData(JNIEnv* env, jclass, jstring locale, j
     SET_STR("perMill",     "\u2030");
     SET_STR("zeroDigit",   "0");
 
-    SET_CHAR('decimalSeparator', '.');
-    SET_CHAR('groupingSeparator', ',');
-    SET_CHAR('zeroDigit', '0');
-    SET_CHAR('percent', '%');
-    SET_CHAR('perMill', '\u2030');
-    SET_CHAR('minusSign', '-');
+    SET_CHAR("decimalSeparator", '.');
+    SET_CHAR("groupingSeparator", ',');
+    SET_CHAR("zeroDigit", '0');
+    SET_CHAR("percent", '%');
+    SET_CHAR("perMill", 0x2030);
+    SET_CHAR("minusSign", '-');
 
     #undef SET_STR
     #undef SET_CHAR
