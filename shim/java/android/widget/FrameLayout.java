@@ -191,6 +191,12 @@ public class FrameLayout extends ViewGroup {
         }
     }
 
+    @Override
+    protected ViewGroup.LayoutParams generateDefaultLayoutParamsInternal() {
+        return new LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.MATCH_PARENT);
+    }
+
     /** Safely get FrameLayout.LayoutParams from child, creating default if needed. */
     private LayoutParams getFrameLayoutParams(View child) {
         Object lpo = child.getLayoutParams();
