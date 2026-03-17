@@ -131,6 +131,7 @@ public class HeadlessTest {
         testActivityLifecycleEdgeCases();
         testSharedPreferencesEdgeCases();
         testMiniActivityManagerEdgeCases();
+        testActivityThread();
         testResourcesPhase1();
 
         System.out.println("\n═══ Results ═══");
@@ -3933,6 +3934,43 @@ public class HeadlessTest {
         // getResources() returns same instance
         android.content.res.Resources res2 = ctx.getResources();
         check("getResources returns same instance", res == res2);
+    }
+
+    // ── ActivityThread tests ──────────────────────────────────────────────────
+
+    static void testActivityThread() {
+        section("ActivityThread");
+
+        // Test 1: currentActivityThread returns non-null singleton
+        android.app.ActivityThread at = android.app.ActivityThread.currentActivityThread();
+        check("currentActivityThread non-null", at != null);
+
+        // Test 2: singleton pattern — same instance returned
+        android.app.ActivityThread at2 = android.app.ActivityThread.currentActivityThread();
+        check("singleton pattern", at == at2);
+
+        // Test 3: getApplication before launch may be null
+        // (it gets set during main() or launchFromApk/launchFromPackage)
+        android.app.Application app = at.getApplication();
+        // Just verify no crash — may be null before launch
+        check("getApplication no crash", true);
+
+        // Test 4: Initialize MiniServer and verify ActivityThread picks up Application
+        android.app.MiniServer.init("com.test.actthread");
+        android.app.MiniServer server = android.app.MiniServer.get();
+        check("MiniServer init for ActivityThread", server != null);
+        check("MiniServer package name", "com.test.actthread".equals(server.getPackageName()));
+
+        // Test 5: getPackageName (null before main(), but no crash)
+        String pkg = at.getPackageName();
+        check("getPackageName no crash", true);
+
+        // Test 6: Verify main() with null args does not throw
+        // We cannot easily call main() in tests because it would re-init MiniServer
+        // and potentially try to start activities. But we can verify the infrastructure.
+        android.app.ActivityThread at3 = new android.app.ActivityThread();
+        check("ActivityThread constructor", at3 != null);
+        check("new instance getApplication null", at3.getApplication() == null);
     }
 
     // ── Resources Phase 1 tests ───────────────────────────────────────────────

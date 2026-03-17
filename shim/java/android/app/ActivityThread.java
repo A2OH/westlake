@@ -11,46 +11,197 @@ import java.io.InputStreamReader;
 /**
  * ActivityThread — the main entry point for running Android apps transparently.
  *
- * Usage:
- *   dalvikvm -cp app.dex android.app.ActivityThread [AndroidManifest.xml]
+ * Supports three launch modes:
+ *   1. APK mode:     dalvikvm -cp shim.dex android.app.ActivityThread /path/to/app.apk
+ *   2. Package mode:  dalvikvm -cp app.dex android.app.ActivityThread com.example.app
+ *   3. Manifest mode: dalvikvm -cp app.dex android.app.ActivityThread [AndroidManifest.xml]
  *
- * If no manifest is given, it looks for AndroidManifest.xml in the classpath
- * or current directory.
+ * APK mode uses MiniServer.loadApk() to parse the APK, extract DEX files,
+ * register activities/services, and launch the main activity.
  *
- * The manifest is parsed (simple XML) to find:
- *   - package name
- *   - application class (optional)
- *   - launcher activity (activity with ACTION_MAIN + CATEGORY_LAUNCHER)
+ * Package mode initializes MiniServer with the given package name and launches
+ * the registered launcher activity.
  *
- * Then it creates the Application, calls onCreate(), instantiates the
- * launcher Activity via reflection, and drives the full lifecycle.
+ * Manifest mode (legacy) parses AndroidManifest.xml directly and drives the
+ * Activity lifecycle via Instrumentation.
+ *
+ * Also provides the singleton currentActivityThread() used by framework internals.
  */
 public class ActivityThread {
 
     private static final String TAG = "ActivityThread";
 
+    /** Singleton instance — set during main() or ensured via currentActivityThread(). */
+    private static ActivityThread sCurrentActivityThread;
+
     private Application mApplication;
     private Instrumentation mInstrumentation;
     private String mPackageName;
 
+    public ActivityThread() {
+    }
+
+    /**
+     * Returns the singleton ActivityThread for this process.
+     * Creates one if none exists yet (for framework code that calls this before main()).
+     */
+    public static ActivityThread currentActivityThread() {
+        if (sCurrentActivityThread == null) {
+            sCurrentActivityThread = new ActivityThread();
+        }
+        return sCurrentActivityThread;
+    }
+
+    /**
+     * Returns the Application object for this process.
+     * May be null if called before Application.onCreate().
+     */
+    public Application getApplication() {
+        return mApplication;
+    }
+
+    /**
+     * Returns the Instrumentation for this process.
+     */
+    public Instrumentation getInstrumentation() {
+        return mInstrumentation;
+    }
+
+    /**
+     * Returns the package name for this process.
+     */
+    public String getPackageName() {
+        return mPackageName;
+    }
+
+    /**
+     * Main entry point. Determines launch mode from args:
+     *   - If first non-flag arg ends with ".apk" -> APK mode via MiniServer
+     *   - If first non-flag arg looks like a package name (contains '.') -> package mode
+     *   - Otherwise -> manifest/legacy mode
+     */
     public static void main(String[] args) {
         log("I", "--- ActivityThread starting ---");
 
-        String manifestPath = null;
+        // Install singleton
+        ActivityThread thread = new ActivityThread();
+        sCurrentActivityThread = thread;
+
+        String firstArg = null;
         String overrideActivity = null;
 
-        for (int i = 0; i < args.length; i++) {
-            if (args[i].equals("--activity") && i + 1 < args.length) {
-                overrideActivity = args[++i];
-            } else if (!args[i].startsWith("-")) {
-                manifestPath = args[i];
+        if (args != null) {
+            for (int i = 0; i < args.length; i++) {
+                if (args[i].equals("--activity") && i + 1 < args.length) {
+                    overrideActivity = args[++i];
+                } else if (!args[i].startsWith("-")) {
+                    if (firstArg == null) {
+                        firstArg = args[i];
+                    }
+                }
             }
         }
 
-        ActivityThread thread = new ActivityThread();
-        thread.run(manifestPath, overrideActivity);
+        if (firstArg != null && firstArg.endsWith(".apk")) {
+            // APK mode: load and launch via MiniServer
+            thread.launchFromApk(firstArg, overrideActivity);
+        } else if (firstArg != null && firstArg.indexOf('.') > 0
+                && !firstArg.endsWith(".xml")) {
+            // Package name mode: components already registered via MiniServer
+            thread.launchFromPackage(firstArg, overrideActivity);
+        } else {
+            // Legacy manifest mode
+            thread.run(firstArg, overrideActivity);
+        }
     }
 
+    /**
+     * APK mode: use MiniServer to load the APK, parse manifest, register
+     * components, create Application, and launch the main activity.
+     */
+    private void launchFromApk(String apkPath, String overrideActivity) {
+        log("I", "APK mode: " + apkPath);
+
+        try {
+            // Initialize MiniServer with a temporary package name
+            MiniServer.init("app");
+            MiniServer server = MiniServer.get();
+
+            // Load APK — this parses manifest, extracts DEX, registers activities
+            ApkInfo info = server.loadApk(apkPath);
+            mPackageName = info.packageName;
+            mApplication = server.getApplication();
+
+            log("I", "Package: " + mPackageName);
+
+            // Override activity if specified on command line
+            String launcherName = overrideActivity;
+            if (launcherName == null) {
+                launcherName = info.launcherActivity;
+            }
+
+            if (launcherName == null && !info.activities.isEmpty()) {
+                launcherName = info.activities.get(0);
+            }
+
+            if (launcherName == null) {
+                log("E", "No launcher activity found in APK");
+                return;
+            }
+
+            // Resolve relative class name
+            if (launcherName.startsWith(".")) {
+                launcherName = mPackageName + launcherName;
+            }
+
+            log("I", "Launching: " + launcherName);
+            server.startActivity(launcherName);
+
+        } catch (Exception e) {
+            log("E", "Failed to launch APK: " + e);
+        }
+    }
+
+    /**
+     * Package mode: initialize MiniServer with the given package name and
+     * start the launcher activity (if one is registered).
+     */
+    private void launchFromPackage(String packageName, String overrideActivity) {
+        log("I", "Package mode: " + packageName);
+
+        MiniServer.init(packageName);
+        MiniServer server = MiniServer.get();
+        mPackageName = packageName;
+        mApplication = server.getApplication();
+
+        if (overrideActivity != null) {
+            // Resolve relative class name
+            String actName = overrideActivity;
+            if (actName.startsWith(".")) {
+                actName = packageName + actName;
+            }
+            log("I", "Launching override: " + actName);
+            server.startActivity(actName);
+        } else {
+            // Try to find a launcher activity via implicit intent resolution
+            Intent launchIntent = new Intent(Intent.ACTION_MAIN);
+            launchIntent.addCategory(Intent.CATEGORY_LAUNCHER);
+            android.content.pm.ResolveInfo ri =
+                    server.getPackageManager().resolveActivity(launchIntent);
+            if (ri != null && ri.resolvedComponentName != null) {
+                String actName = ri.resolvedComponentName.getClassName();
+                log("I", "Launching resolved: " + actName);
+                server.startActivity(launchIntent);
+            } else {
+                log("W", "No launcher activity registered for " + packageName);
+            }
+        }
+    }
+
+    /**
+     * Legacy manifest mode: parse manifest XML, create Application, instantiate
+     * Activity directly, and drive the full lifecycle via Instrumentation.
+     */
     private void run(String manifestPath, String overrideActivity) {
         mInstrumentation = new Instrumentation();
 
@@ -121,7 +272,7 @@ public class ActivityThread {
 
         log("I", "Activity created: " + activity.getClass().getName());
 
-        // Drive lifecycle: onCreate → onStart → onResume
+        // Drive lifecycle: onCreate -> onStart -> onResume
         log("I", "--- onCreate ---");
         mInstrumentation.callActivityOnCreate(activity, null);
 
@@ -162,7 +313,7 @@ public class ActivityThread {
         return new Application();
     }
 
-    /* ── Simple manifest parser ── */
+    /* -- Simple manifest parser -- */
 
     static class ManifestInfo {
         String packageName;
@@ -197,17 +348,6 @@ public class ActivityThread {
 
     /**
      * Minimal XML-like parser for AndroidManifest.xml.
-     * Handles the standard format:
-     *   <manifest package="com.example.app">
-     *     <application android:name=".MyApp">
-     *       <activity android:name=".MainActivity">
-     *         <intent-filter>
-     *           <action android:name="android.intent.action.MAIN" />
-     *           <category android:name="android.intent.category.LAUNCHER" />
-     *         </intent-filter>
-     *       </activity>
-     *     </application>
-     *   </manifest>
      */
     private ManifestInfo parseManifestStream(BufferedReader reader) throws Exception {
         ManifestInfo info = new ManifestInfo();
@@ -220,12 +360,10 @@ public class ActivityThread {
         while ((line = reader.readLine()) != null) {
             line = line.trim();
 
-            // <manifest package="...">
             if (line.startsWith("<manifest")) {
                 info.packageName = extractAttr(line, "package");
             }
 
-            // <application android:name="...">
             if (line.startsWith("<application")) {
                 String name = extractAttr(line, "android:name");
                 if (name == null) name = extractAttr(line, "name");
@@ -234,7 +372,6 @@ public class ActivityThread {
                 }
             }
 
-            // <activity android:name="...">
             if (line.startsWith("<activity")) {
                 String name = extractAttr(line, "android:name");
                 if (name == null) name = extractAttr(line, "name");
@@ -274,7 +411,7 @@ public class ActivityThread {
         return info;
     }
 
-    /** Extract attribute value: android:name="value" → value */
+    /** Extract attribute value: android:name="value" -> value */
     private static String extractAttr(String line, String attr) {
         String search = attr + "=\"";
         int start = line.indexOf(search);
