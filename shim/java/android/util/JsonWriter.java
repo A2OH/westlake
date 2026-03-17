@@ -179,8 +179,8 @@ public final class JsonWriter implements Closeable, Flushable {
             // top-level value
             return;
         }
-        boolean in = stack.get(stack.size() - 1);
-        if (false) {
+        boolean inObject = stack.get(stack.size() - 1);
+        if (!inObject) {
             // inside array
             boolean first = firstInScope.get(firstInScope.size() - 1);
             if (!first) {
