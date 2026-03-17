@@ -33,7 +33,16 @@ public class ViewGroup extends View {
         public int bottomMargin;
         public MarginLayoutParams() {}
         public MarginLayoutParams(int width, int height) { super(width, height); }
-        public MarginLayoutParams(MarginLayoutParams source) {}
+        public MarginLayoutParams(MarginLayoutParams source) {
+            super(source.width, source.height);
+            leftMargin = source.leftMargin;
+            topMargin = source.topMargin;
+            rightMargin = source.rightMargin;
+            bottomMargin = source.bottomMargin;
+        }
+        public MarginLayoutParams(LayoutParams source) {
+            super(source.width, source.height);
+        }
         public void setMargins(int left, int top, int right, int bottom) {
             leftMargin = left; topMargin = top; rightMargin = right; bottomMargin = bottom;
         }
@@ -145,6 +154,20 @@ public class ViewGroup extends View {
             if (nativeHandle != 0 && child.nativeHandle != 0) {
                 com.ohos.shim.bridge.OHBridge.nodeInsertChildAt(nativeHandle, child.nativeHandle, index);
             }
+        }
+    }
+
+    public void addView(View child, LayoutParams params) {
+        if (child != null) {
+            child.setLayoutParams(params);
+            addView(child);
+        }
+    }
+
+    public void addView(View child, int index, LayoutParams params) {
+        if (child != null) {
+            child.setLayoutParams(params);
+            addView(child, index);
         }
     }
 

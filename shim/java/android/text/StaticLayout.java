@@ -55,15 +55,17 @@ public class StaticLayout extends Layout {
     // -----------------------------------------------------------------------
     // Instance state
     // -----------------------------------------------------------------------
-    private final int   mLineCount;
-    private final int   mLineHeight;
+    private int[] mLineStarts;
+    private float[] mLineWidths;
+    private int   mLineCount;
+    private int   mLineHeight;
 
-    /** Simple constructor (single-line stub). */
+    /** Constructor with real word-wrapping. */
     public StaticLayout(CharSequence text, Paint paint, int width,
                         Alignment align, float spacingMult, float spacingAdd) {
         super(text, paint, width, align, spacingMult, spacingAdd);
         mLineHeight = computeLineHeight(paint, spacingMult, spacingAdd);
-        mLineCount  = Math.max(1, estimateLineCount(text, paint, width));
+        breakText(text, paint, width);
     }
 
     /** Legacy constructor with includePad flag (ignored). */
@@ -89,34 +91,114 @@ public class StaticLayout extends Layout {
 
     @Override
     public int getLineStart(int line) {
-        if (mLineCount <= 1 || getText() == null) return 0;
-        int charsPerLine = Math.max(1, getText().length() / mLineCount);
-        return Math.min(line * charsPerLine, getText().length());
+        if (mLineStarts == null) return 0;
+        if (line < 0) return 0;
+        if (line >= mLineStarts.length) return mLineStarts[mLineStarts.length - 1];
+        return mLineStarts[line];
     }
 
     @Override
     public int getLineEnd(int line) {
-        if (getText() == null) return 0;
-        if (mLineCount <= 1) return getText().length();
-        int charsPerLine = Math.max(1, getText().length() / mLineCount);
-        return Math.min((line + 1) * charsPerLine, getText().length());
+        if (mLineStarts == null) return 0;
+        int idx = line + 1;
+        if (idx < 0) return 0;
+        if (idx >= mLineStarts.length) return mLineStarts[mLineStarts.length - 1];
+        return mLineStarts[idx];
     }
+
+    public float getLineWidth(int line) {
+        if (mLineWidths == null || line < 0 || line >= mLineWidths.length) return 0f;
+        return mLineWidths[line];
+    }
+
+    public int getEllipsisCount(int line) { return 0; }
+    public int getEllipsisStart(int line) { return 0; }
 
     // -----------------------------------------------------------------------
     // Helpers
     // -----------------------------------------------------------------------
 
     private static int computeLineHeight(Paint paint, float spacingMult, float spacingAdd) {
-        // Approximate: use font metrics if pa(int provides them; default to 16.
+        if (paint != null) {
+            Paint.FontMetrics fm = paint.getFontMetrics();
+            int base = (int) Math.ceil(fm.descent - fm.ascent + fm.leading);
+            if (base > 0) return Math.max(1, Math.round(base * spacingMult + spacingAdd));
+        }
         int base = 16;
         return Math.round(base * spacingMult + spacingAdd);
     }
 
-    private static int estimateLineCount(CharSequence text, Paint paint, int width) {
-        if (text == null || text.length() == 0 || width <= 0) return 1;
-        // Very rough: assume average char width of 10px
-        int avgCharWidth = 10;
-        int charsPerLine = Math.max(1, width / avgCharWidth);
-        return (text.length() + charsPerLine - 1) / charsPerLine;
+    private void breakText(CharSequence text, Paint paint, int width) {
+        if (text == null || text.length() == 0) {
+            mLineCount = 1;
+            mLineStarts = new int[] { 0, 0 };
+            mLineWidths = new float[] { 0f };
+            return;
+        }
+        String s = text.toString();
+        java.util.List startList = new java.util.ArrayList();
+        java.util.List widthList = new java.util.ArrayList();
+        // Split on hard line breaks then word-wrap each paragraph
+        int paraStart = 0;
+        while (paraStart <= s.length()) {
+            int paraEnd = s.indexOf('\n', paraStart);
+            if (paraEnd < 0) paraEnd = s.length();
+            wrapParagraph(s, paraStart, paraEnd, paint, width, startList, widthList);
+            paraStart = paraEnd + 1;
+        }
+        mLineCount = startList.size();
+        if (mLineCount == 0) {
+            mLineCount = 1;
+            mLineStarts = new int[] { 0, s.length() };
+            mLineWidths = new float[] { 0f };
+            return;
+        }
+        mLineStarts = new int[mLineCount + 1];
+        mLineWidths = new float[mLineCount];
+        for (int i = 0; i < mLineCount; i++) {
+            mLineStarts[i] = ((Integer) startList.get(i)).intValue();
+            mLineWidths[i] = ((Float) widthList.get(i)).floatValue();
+        }
+        mLineStarts[mLineCount] = s.length();
+    }
+
+    private void wrapParagraph(String s, int start, int end, Paint paint, int maxWidth,
+                                java.util.List lineStarts, java.util.List lineWidths) {
+        if (maxWidth <= 0 || start >= end) {
+            lineStarts.add(Integer.valueOf(start));
+            lineWidths.add(Float.valueOf(0f));
+            return;
+        }
+        int lineStart = start;
+        while (lineStart < end) {
+            float lineW = paint.measureText(s, lineStart, end);
+            if (lineW <= maxWidth) {
+                lineStarts.add(Integer.valueOf(lineStart));
+                lineWidths.add(Float.valueOf(lineW));
+                lineStart = end;
+                break;
+            }
+            // Binary search for break point
+            int lo = lineStart;
+            int hi = end;
+            while (lo < hi - 1) {
+                int mid = (lo + hi) / 2;
+                if (paint.measureText(s, lineStart, mid) <= maxWidth) lo = mid;
+                else hi = mid;
+            }
+            int breakAt = lo;
+            if (breakAt <= lineStart) breakAt = lineStart + 1;
+            // Try word boundary
+            int wordBreak = -1;
+            for (int i = breakAt; i > lineStart; i--) {
+                if (s.charAt(i - 1) == ' ') { wordBreak = i; break; }
+            }
+            if (wordBreak > lineStart) breakAt = wordBreak;
+            float w = paint.measureText(s, lineStart, breakAt);
+            lineStarts.add(Integer.valueOf(lineStart));
+            lineWidths.add(Float.valueOf(w));
+            lineStart = breakAt;
+            while (lineStart < end && s.charAt(lineStart) == ' ') lineStart++;
+        }
     }
 }
