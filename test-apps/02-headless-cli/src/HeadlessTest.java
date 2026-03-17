@@ -143,6 +143,10 @@ public class HeadlessTest {
         testRelativeLayout();
         testTextViewMeasureAndRender();
         testAospViewEnhancements();
+        testViewGroupAosp();
+        testScrollViewAosp();
+        testListViewAosp();
+        testCompoundButtonHierarchy();
 
         System.out.println("\n═══ Results ═══");
         System.out.println("Passed: " + passed);
@@ -9940,5 +9944,622 @@ public class HeadlessTest {
             threw = true;
         }
         check("B32 measure throws if setMeasuredDimension not called", threw);
+    }
+
+    // ══════════════════════════════════════════════════════════════════
+    //  B33: ViewGroup AOSP enhancements
+    // ══════════════════════════════════════════════════════════════════
+
+    static void testViewGroupAosp() {
+        section("B33: ViewGroup AOSP Touch Dispatch + Draw + LayoutParams");
+        android.content.Context ctx = new android.content.Context();
+
+        // ── 1. TouchTarget linked list: DOWN inside child creates target ──
+        final java.util.ArrayList<Integer> touchLog = new java.util.ArrayList<Integer>();
+        android.widget.FrameLayout parent = new android.widget.FrameLayout(ctx);
+        android.view.View child = new android.view.View(ctx) {
+            @Override
+            public boolean onTouchEvent(android.view.MotionEvent event) {
+                touchLog.add(Integer.valueOf(event.getActionMasked()));
+                return true;
+            }
+        };
+        child.setClickable(true);
+        parent.addView(child);
+        parent.layout(0, 0, 200, 200);
+        child.layout(10, 10, 100, 100);
+
+        android.view.MotionEvent down = android.view.MotionEvent.obtain(
+                0L, 0L, android.view.MotionEvent.ACTION_DOWN, 50f, 50f, 0);
+        boolean handled = parent.dispatchTouchEvent(down);
+        check("B33 touch DOWN dispatched to child", touchLog.size() == 1);
+        check("B33 touch DOWN action correct", touchLog.get(0).intValue() == 0);
+        check("B33 dispatchTouchEvent returned true", handled);
+
+        // ── 2. MOVE event goes to same touch target ──
+        android.view.MotionEvent move = android.view.MotionEvent.obtain(
+                0L, 10L, android.view.MotionEvent.ACTION_MOVE, 55f, 55f, 0);
+        parent.dispatchTouchEvent(move);
+        check("B33 MOVE dispatched to same target", touchLog.size() == 2);
+        check("B33 MOVE action correct", touchLog.get(1).intValue() == 2);
+
+        // ── 3. UP event goes to same touch target ──
+        android.view.MotionEvent up = android.view.MotionEvent.obtain(
+                0L, 20L, android.view.MotionEvent.ACTION_UP, 55f, 55f, 0);
+        parent.dispatchTouchEvent(up);
+        check("B33 UP dispatched to target", touchLog.size() == 3);
+        check("B33 UP action correct", touchLog.get(2).intValue() == 1);
+
+        // ── 4. onInterceptTouchEvent: intercept mid-gesture → child gets CANCEL ──
+        final java.util.ArrayList<Integer> interceptLog = new java.util.ArrayList<Integer>();
+        final boolean[] interceptMove = {false};
+        android.view.ViewGroup interceptParent = new android.widget.FrameLayout(ctx) {
+            @Override
+            public boolean onInterceptTouchEvent(android.view.MotionEvent event) {
+                // Intercept on MOVE
+                return interceptMove[0] && event.getActionMasked() == android.view.MotionEvent.ACTION_MOVE;
+            }
+        };
+        android.view.View interceptChild = new android.view.View(ctx) {
+            @Override
+            public boolean onTouchEvent(android.view.MotionEvent event) {
+                interceptLog.add(Integer.valueOf(event.getActionMasked()));
+                return true;
+            }
+        };
+        interceptChild.setClickable(true);
+        interceptParent.addView(interceptChild);
+        interceptParent.layout(0, 0, 200, 200);
+        interceptChild.layout(10, 10, 100, 100);
+
+        // DOWN goes to child (no intercept on DOWN)
+        android.view.MotionEvent iDown = android.view.MotionEvent.obtain(
+                0L, 0L, android.view.MotionEvent.ACTION_DOWN, 50f, 50f, 0);
+        interceptParent.dispatchTouchEvent(iDown);
+        check("B33 intercept: DOWN reaches child", interceptLog.size() == 1);
+
+        // Enable intercept on MOVE
+        interceptMove[0] = true;
+        android.view.MotionEvent iMove = android.view.MotionEvent.obtain(
+                0L, 10L, android.view.MotionEvent.ACTION_MOVE, 55f, 55f, 0);
+        interceptParent.dispatchTouchEvent(iMove);
+        // Child should get CANCEL because parent intercepted
+        check("B33 intercept: child gets CANCEL on intercept",
+                interceptLog.size() == 2 && interceptLog.get(1).intValue() == android.view.MotionEvent.ACTION_CANCEL);
+
+        // ── 5. requestDisallowInterceptTouchEvent ──
+        final boolean[] disallowLog = {false};
+        android.view.ViewGroup disallowParent = new android.widget.FrameLayout(ctx) {
+            @Override
+            public boolean onInterceptTouchEvent(android.view.MotionEvent event) {
+                disallowLog[0] = true;
+                return false;
+            }
+        };
+        android.view.View disallowChild = new android.view.View(ctx);
+        disallowChild.setClickable(true);
+        disallowParent.addView(disallowChild);
+        disallowParent.layout(0, 0, 200, 200);
+        disallowChild.layout(0, 0, 200, 200);
+
+        // First dispatch without disallow
+        disallowLog[0] = false;
+        android.view.MotionEvent dDown = android.view.MotionEvent.obtain(
+                0L, 0L, android.view.MotionEvent.ACTION_DOWN, 50f, 50f, 0);
+        disallowParent.dispatchTouchEvent(dDown);
+        check("B33 onInterceptTouchEvent called normally", disallowLog[0]);
+
+        // Set disallow and dispatch MOVE
+        disallowParent.requestDisallowInterceptTouchEvent(true);
+        disallowLog[0] = false;
+        android.view.MotionEvent dMove = android.view.MotionEvent.obtain(
+                0L, 10L, android.view.MotionEvent.ACTION_MOVE, 55f, 55f, 0);
+        disallowParent.dispatchTouchEvent(dMove);
+        check("B33 onInterceptTouchEvent NOT called with disallow", !disallowLog[0]);
+
+        // ── 6. Touch outside child: not dispatched to child ──
+        final java.util.ArrayList<String> outsideLog = new java.util.ArrayList<String>();
+        android.widget.FrameLayout outsideParent = new android.widget.FrameLayout(ctx);
+        android.view.View outsideChild = new android.view.View(ctx) {
+            @Override
+            public boolean onTouchEvent(android.view.MotionEvent event) {
+                outsideLog.add("hit");
+                return true;
+            }
+        };
+        outsideChild.setClickable(true);
+        outsideParent.addView(outsideChild);
+        outsideParent.layout(0, 0, 300, 300);
+        outsideChild.layout(10, 10, 50, 50);
+
+        android.view.MotionEvent outsideDown = android.view.MotionEvent.obtain(
+                0L, 0L, android.view.MotionEvent.ACTION_DOWN, 200f, 200f, 0);
+        outsideParent.dispatchTouchEvent(outsideDown);
+        check("B33 touch outside child not dispatched to child", outsideLog.isEmpty());
+
+        // ── 7. Coordinate transformation: child receives local coords ──
+        final float[] childCoords = {-1f, -1f};
+        android.widget.FrameLayout coordParent = new android.widget.FrameLayout(ctx);
+        android.view.View coordChild = new android.view.View(ctx) {
+            @Override
+            public boolean onTouchEvent(android.view.MotionEvent event) {
+                childCoords[0] = event.getX();
+                childCoords[1] = event.getY();
+                return true;
+            }
+        };
+        coordChild.setClickable(true);
+        coordParent.addView(coordChild);
+        coordParent.layout(0, 0, 300, 300);
+        coordChild.layout(50, 60, 200, 200);
+
+        android.view.MotionEvent coordDown = android.view.MotionEvent.obtain(
+                0L, 0L, android.view.MotionEvent.ACTION_DOWN, 100f, 100f, 0);
+        coordParent.dispatchTouchEvent(coordDown);
+        // Child should see (100-50, 100-60) = (50, 40)
+        check("B33 child X coord transformed", Math.abs(childCoords[0] - 50f) < 1f);
+        check("B33 child Y coord transformed", Math.abs(childCoords[1] - 40f) < 1f);
+
+        // ── 8. MotionEvent.offsetLocation ──
+        android.view.MotionEvent oe = android.view.MotionEvent.obtain(
+                0L, 0L, android.view.MotionEvent.ACTION_DOWN, 10f, 20f, 0);
+        oe.offsetLocation(5f, 10f);
+        check("B33 offsetLocation X", Math.abs(oe.getX() - 15f) < 0.01f);
+        check("B33 offsetLocation Y", Math.abs(oe.getY() - 30f) < 0.01f);
+
+        // ── 9. MotionEvent.setAction ──
+        android.view.MotionEvent sa = android.view.MotionEvent.obtain(
+                0L, 0L, android.view.MotionEvent.ACTION_DOWN, 0f, 0f, 0);
+        sa.setAction(android.view.MotionEvent.ACTION_CANCEL);
+        check("B33 setAction", sa.getActionMasked() == android.view.MotionEvent.ACTION_CANCEL);
+
+        // ── 10. MotionEvent.obtain(source) copy ──
+        android.view.MotionEvent src = android.view.MotionEvent.obtain(
+                100L, 200L, android.view.MotionEvent.ACTION_MOVE, 33f, 44f, 0);
+        android.view.MotionEvent copy = android.view.MotionEvent.obtain(src);
+        check("B33 obtain(source) action", copy.getActionMasked() == android.view.MotionEvent.ACTION_MOVE);
+        check("B33 obtain(source) X", Math.abs(copy.getX() - 33f) < 0.01f);
+        check("B33 obtain(source) Y", Math.abs(copy.getY() - 44f) < 0.01f);
+        check("B33 obtain(source) downTime", copy.getDownTime() == 100L);
+        check("B33 obtain(source) eventTime", copy.getEventTime() == 200L);
+
+        // ── 11. dispatchDraw clipToPadding ──
+        android.widget.FrameLayout clipParent = new android.widget.FrameLayout(ctx);
+        clipParent.setClipToPadding(true);
+        check("B33 getClipToPadding default true", clipParent.getClipToPadding());
+        clipParent.setClipToPadding(false);
+        check("B33 setClipToPadding false", !clipParent.getClipToPadding());
+
+        // ── 12. clipChildren ──
+        android.widget.FrameLayout clipGroup = new android.widget.FrameLayout(ctx);
+        check("B33 clipChildren default true", clipGroup.getClipChildren());
+        clipGroup.setClipChildren(false);
+        check("B33 setClipChildren false", !clipGroup.getClipChildren());
+
+        // ── 13. childrenDrawingOrderEnabled ──
+        android.widget.FrameLayout orderGroup = new android.widget.FrameLayout(ctx);
+        check("B33 drawOrderEnabled default false", !orderGroup.isChildrenDrawingOrderEnabled());
+        orderGroup.setChildrenDrawingOrderEnabled(true);
+        check("B33 drawOrderEnabled set true", orderGroup.isChildrenDrawingOrderEnabled());
+
+        // ── 14. OnHierarchyChangeListener ──
+        final java.util.ArrayList<String> hierLog = new java.util.ArrayList<String>();
+        android.widget.FrameLayout hierParent = new android.widget.FrameLayout(ctx);
+        hierParent.setOnHierarchyChangeListener(new android.view.ViewGroup.OnHierarchyChangeListener() {
+            @Override
+            public void onChildViewAdded(android.view.View p, android.view.View c) {
+                hierLog.add("added");
+            }
+            @Override
+            public void onChildViewRemoved(android.view.View p, android.view.View c) {
+                hierLog.add("removed");
+            }
+        });
+        android.view.View hierChild = new android.view.View(ctx);
+        hierParent.addView(hierChild);
+        check("B33 hierarchy listener: add fired", hierLog.size() == 1 && "added".equals(hierLog.get(0)));
+        hierParent.removeView(hierChild);
+        check("B33 hierarchy listener: remove fired", hierLog.size() == 2 && "removed".equals(hierLog.get(1)));
+
+        // ── 15. addViewInLayout ──
+        android.widget.FrameLayout layoutParent = new android.widget.FrameLayout(ctx);
+        android.view.View layoutChild = new android.view.View(ctx);
+        boolean added = layoutParent.addViewInLayout(layoutChild, 0,
+                new android.view.ViewGroup.LayoutParams(-2, -2));
+        check("B33 addViewInLayout returns true", added);
+        check("B33 addViewInLayout adds child", layoutParent.getChildCount() == 1);
+        check("B33 addViewInLayout child parent set", layoutChild.getParent() == layoutParent);
+
+        // ── 16. attachViewToParent / detachViewFromParent ──
+        android.widget.FrameLayout attachParent = new android.widget.FrameLayout(ctx);
+        android.view.View attachChild = new android.view.View(ctx);
+        attachParent.attachViewToParent(attachChild, 0,
+                new android.view.ViewGroup.LayoutParams(-2, -2));
+        check("B33 attachViewToParent", attachParent.getChildCount() == 1);
+        attachParent.detachViewFromParent(attachChild);
+        check("B33 detachViewFromParent", attachParent.getChildCount() == 0);
+        check("B33 detach clears parent", attachChild.getParent() == null);
+
+        // ── 17. detachAllViewsFromParent ──
+        android.widget.FrameLayout detachAllParent = new android.widget.FrameLayout(ctx);
+        detachAllParent.addView(new android.view.View(ctx));
+        detachAllParent.addView(new android.view.View(ctx));
+        detachAllParent.addView(new android.view.View(ctx));
+        check("B33 3 children before detachAll", detachAllParent.getChildCount() == 3);
+        detachAllParent.detachAllViewsFromParent();
+        check("B33 detachAllViewsFromParent", detachAllParent.getChildCount() == 0);
+
+        // ── 18. bringChildToFront ──
+        android.widget.FrameLayout bringParent = new android.widget.FrameLayout(ctx);
+        android.view.View bringA = new android.view.View(ctx);
+        android.view.View bringB = new android.view.View(ctx);
+        android.view.View bringC = new android.view.View(ctx);
+        bringParent.addView(bringA);
+        bringParent.addView(bringB);
+        bringParent.addView(bringC);
+        check("B33 before bringToFront: A at 0", bringParent.getChildAt(0) == bringA);
+        bringParent.bringChildToFront(bringA);
+        check("B33 after bringToFront: A at end", bringParent.getChildAt(2) == bringA);
+        check("B33 bringToFront count unchanged", bringParent.getChildCount() == 3);
+
+        // ── 19. removeViewAt ──
+        android.widget.FrameLayout removeAtParent = new android.widget.FrameLayout(ctx);
+        android.view.View removeAt0 = new android.view.View(ctx);
+        android.view.View removeAt1 = new android.view.View(ctx);
+        removeAtParent.addView(removeAt0);
+        removeAtParent.addView(removeAt1);
+        removeAtParent.removeViewAt(0);
+        check("B33 removeViewAt(0) removes first", removeAtParent.getChildCount() == 1);
+        check("B33 removeViewAt(0) remaining is second", removeAtParent.getChildAt(0) == removeAt1);
+
+        // ── 20. removeViews ──
+        android.widget.FrameLayout removeRangeParent = new android.widget.FrameLayout(ctx);
+        for (int i = 0; i < 5; i++) removeRangeParent.addView(new android.view.View(ctx));
+        android.view.View kept = removeRangeParent.getChildAt(4);
+        removeRangeParent.removeViews(0, 3);
+        check("B33 removeViews(0,3) leaves 2", removeRangeParent.getChildCount() == 2);
+
+        // ── 21. MarginLayoutParams.resolveLayoutDirection ──
+        android.view.ViewGroup.MarginLayoutParams mlp = new android.view.ViewGroup.MarginLayoutParams(100, 100);
+        mlp.setMarginStart(10);
+        mlp.setMarginEnd(20);
+        check("B33 getMarginStart before resolve", mlp.getMarginStart() == 10);
+        check("B33 getMarginEnd before resolve", mlp.getMarginEnd() == 20);
+        mlp.resolveLayoutDirection(android.view.View.LAYOUT_DIRECTION_LTR);
+        check("B33 LTR: leftMargin = start", mlp.leftMargin == 10);
+        check("B33 LTR: rightMargin = end", mlp.rightMargin == 20);
+
+        // ── 22. MarginLayoutParams RTL ──
+        android.view.ViewGroup.MarginLayoutParams mlpRtl = new android.view.ViewGroup.MarginLayoutParams(100, 100);
+        mlpRtl.setMarginStart(10);
+        mlpRtl.setMarginEnd(20);
+        mlpRtl.resolveLayoutDirection(android.view.View.LAYOUT_DIRECTION_RTL);
+        check("B33 RTL: rightMargin = start", mlpRtl.rightMargin == 10);
+        check("B33 RTL: leftMargin = end", mlpRtl.leftMargin == 20);
+
+        // ── 23. generateDefaultLayoutParams ──
+        android.widget.FrameLayout genParent = new android.widget.FrameLayout(ctx);
+        Object defParams = genParent.generateDefaultLayoutParams();
+        check("B33 generateDefaultLayoutParams not null", defParams != null);
+        check("B33 generateDefaultLayoutParams is LayoutParams",
+                defParams instanceof android.view.ViewGroup.LayoutParams);
+
+        // ── 24. LayoutParams copy constructor ──
+        android.view.ViewGroup.LayoutParams origLp = new android.view.ViewGroup.LayoutParams(100, 200);
+        android.view.ViewGroup.LayoutParams copyLp = new android.view.ViewGroup.LayoutParams(origLp);
+        check("B33 LayoutParams copy width", copyLp.width == 100);
+        check("B33 LayoutParams copy height", copyLp.height == 200);
+
+        // ── 25. motionEventSplittingEnabled ──
+        android.widget.FrameLayout splitGroup = new android.widget.FrameLayout(ctx);
+        check("B33 splitting default false", !splitGroup.isMotionEventSplittingEnabled());
+        splitGroup.setMotionEventSplittingEnabled(true);
+        check("B33 splitting set true", splitGroup.isMotionEventSplittingEnabled());
+
+        // ── 26. FOCUS constants have distinct values ──
+        check("B33 FOCUS_AFTER_DESCENDANTS", android.view.ViewGroup.FOCUS_AFTER_DESCENDANTS == 0x40000);
+        check("B33 FOCUS_BEFORE_DESCENDANTS", android.view.ViewGroup.FOCUS_BEFORE_DESCENDANTS == 0x20000);
+        check("B33 FOCUS_BLOCK_DESCENDANTS", android.view.ViewGroup.FOCUS_BLOCK_DESCENDANTS == 0x60000);
+
+        // ── 27. getFocusedChild ──
+        android.widget.FrameLayout focusParent = new android.widget.FrameLayout(ctx);
+        check("B33 focusedChild initially null", focusParent.getFocusedChild() == null);
+        android.view.View focusChild = new android.view.View(ctx);
+        focusParent.addView(focusChild);
+        focusParent.requestChildFocus(focusChild, focusChild);
+        check("B33 focusedChild after requestChildFocus", focusParent.getFocusedChild() == focusChild);
+        focusParent.clearChildFocus(focusChild);
+        check("B33 focusedChild after clearChildFocus", focusParent.getFocusedChild() == null);
+    }
+
+    // ══════════════════════════════════════════════════════════════════
+    //  B33/B34: ScrollView AOSP enhancements
+    // ══════════════════════════════════════════════════════════════════
+
+    static void testScrollViewAosp() {
+        section("B33: ScrollView AOSP (intercept, clamp, fillViewport)");
+        android.content.Context ctx = new android.content.Context();
+
+        // ── 1. fillViewport ──
+        android.widget.ScrollView sv = new android.widget.ScrollView();
+        check("B33 fillViewport default false", !sv.isFillViewport());
+        sv.setFillViewport(true);
+        check("B33 setFillViewport true", sv.isFillViewport());
+
+        // ── 2. scrollTo clamping ──
+        android.widget.ScrollView clampSv = new android.widget.ScrollView();
+        android.view.View tallChild = new android.view.View(ctx);
+        clampSv.addView(tallChild);
+        // Layout: ScrollView 300 tall, child 100 tall (no scroll range)
+        clampSv.layout(0, 0, 200, 300);
+        tallChild.layout(0, 0, 200, 100);
+        clampSv.scrollTo(0, 50);
+        // With content shorter than viewport, scroll range is 0
+        check("B33 scrollTo clamps to 0 when content < viewport", clampSv.getScrollY() == 0);
+
+        // ── 3. scrollTo with tall content ──
+        android.widget.ScrollView tallSv = new android.widget.ScrollView();
+        android.view.View tallContent = new android.view.View(ctx) {
+            @Override
+            protected void onMeasure(int w, int h) {
+                setMeasuredDimension(200, 1000);
+            }
+        };
+        tallSv.addView(tallContent);
+        tallSv.layout(0, 0, 200, 300);
+        tallContent.layout(0, 0, 200, 1000);
+        tallSv.scrollTo(0, 500);
+        check("B33 scrollTo 500 within range", tallSv.getScrollY() == 500);
+        tallSv.scrollTo(0, 2000);
+        check("B33 scrollTo clamps to maxScroll", tallSv.getScrollY() == 700); // 1000 - 300
+
+        // ── 4. scrollTo negative clamped to 0 ──
+        tallSv.scrollTo(0, -100);
+        check("B33 scrollTo negative clamped to 0", tallSv.getScrollY() == 0);
+
+        // ── 5. canScrollVertically ──
+        tallSv.scrollTo(0, 0);
+        check("B33 canScrollVertically down from top", tallSv.canScrollVertically(1));
+        check("B33 cannot scroll up from top", !tallSv.canScrollVertically(-1));
+        tallSv.scrollTo(0, 700);
+        check("B33 cannot scroll down from bottom", !tallSv.canScrollVertically(1));
+        check("B33 canScrollVertically up from bottom", tallSv.canScrollVertically(-1));
+
+        // ── 6. smoothScrollTo ──
+        tallSv.smoothScrollTo(0, 350);
+        check("B33 smoothScrollTo", tallSv.getScrollY() == 350);
+
+        // ── 7. smoothScrollBy ──
+        tallSv.smoothScrollBy(0, 50);
+        check("B33 smoothScrollBy", tallSv.getScrollY() == 400);
+
+        // ── 8. smoothScrollingEnabled ──
+        check("B33 smoothScrolling default true", tallSv.isSmoothScrollingEnabled());
+        tallSv.setSmoothScrollingEnabled(false);
+        check("B33 setSmoothScrollingEnabled false", !tallSv.isSmoothScrollingEnabled());
+    }
+
+    // ══════════════════════════════════════════════════════════════════
+    //  B34: ListView AOSP enhancements
+    // ══════════════════════════════════════════════════════════════════
+
+    static void testListViewAosp() {
+        section("B34: ListView (RecycleBin, headers, footers, choice mode)");
+
+        // ── 1. RecycleBin basic operation ──
+        android.widget.AbsListView.RecycleBin rb = new android.widget.AbsListView.RecycleBin();
+        android.view.View scrap = new android.view.View();
+        rb.addScrapView(scrap, 0);
+        check("B34 RecycleBin scrapCount(0) == 1", rb.getScrapCount(0) == 1);
+        check("B34 RecycleBin scrapCount(1) == 0", rb.getScrapCount(1) == 0);
+        android.view.View reused = rb.getScrapView(0);
+        check("B34 RecycleBin getScrapView returns same view", reused == scrap);
+        check("B34 RecycleBin scrapCount after get == 0", rb.getScrapCount(0) == 0);
+
+        // ── 2. RecycleBin multiple types ──
+        android.view.View v0 = new android.view.View();
+        android.view.View v1 = new android.view.View();
+        rb.addScrapView(v0, 0);
+        rb.addScrapView(v1, 1);
+        check("B34 RecycleBin type 0 count", rb.getScrapCount(0) == 1);
+        check("B34 RecycleBin type 1 count", rb.getScrapCount(1) == 1);
+        rb.clear();
+        check("B34 RecycleBin clear", rb.getScrapCount(0) == 0 && rb.getScrapCount(1) == 0);
+
+        // ── 3. Header and footer views ──
+        android.widget.ListView lv = new android.widget.ListView();
+        android.view.View header = new android.view.View();
+        header.setTag("header");
+        android.view.View footer = new android.view.View();
+        footer.setTag("footer");
+
+        lv.addHeaderView(header);
+        lv.addFooterView(footer);
+        check("B34 headerViewsCount", lv.getHeaderViewsCount() == 1);
+        check("B34 footerViewsCount", lv.getFooterViewsCount() == 1);
+
+        // Set adapter with 3 items
+        final java.util.ArrayList<String> items = new java.util.ArrayList<String>();
+        items.add("A");
+        items.add("B");
+        items.add("C");
+        android.widget.BaseAdapter adapter = new android.widget.BaseAdapter() {
+            @Override public int getCount() { return items.size(); }
+            @Override public Object getItem(int pos) { return items.get(pos); }
+            @Override public long getItemId(int pos) { return pos; }
+            @Override public android.view.View getView(int pos, android.view.View cv, android.view.ViewGroup p) {
+                android.view.View v = new android.view.View();
+                v.setTag(items.get(pos));
+                return v;
+            }
+        };
+        lv.setAdapter(adapter);
+        // Should have: 1 header + 3 adapter + 1 footer = 5
+        check("B34 childCount with header+footer", lv.getChildCount() == 5);
+        check("B34 first child is header", lv.getChildAt(0) == header);
+        check("B34 last child is footer", lv.getChildAt(4) == footer);
+        check("B34 middle child tag", "A".equals(lv.getChildAt(1).getTag()));
+
+        // ── 4. Remove header ──
+        boolean removed = lv.removeHeaderView(header);
+        check("B34 removeHeaderView returns true", removed);
+        check("B34 childCount after removeHeader", lv.getChildCount() == 4);
+        check("B34 headerViewsCount after remove", lv.getHeaderViewsCount() == 0);
+
+        // ── 5. Choice mode single ──
+        android.widget.ListView choiceLv = new android.widget.ListView();
+        choiceLv.setChoiceMode(android.widget.AbsListView.CHOICE_MODE_SINGLE);
+        check("B34 choiceMode single", choiceLv.getChoiceMode() == 1);
+        choiceLv.setItemChecked(2, true);
+        check("B34 isItemChecked(2)", choiceLv.isItemChecked(2));
+        check("B34 checkedItemCount == 1", choiceLv.getCheckedItemCount() == 1);
+        check("B34 checkedItemPosition == 2", choiceLv.getCheckedItemPosition() == 2);
+        // Single mode: checking another unchecks previous
+        choiceLv.setItemChecked(5, true);
+        check("B34 single mode: old unchecked", !choiceLv.isItemChecked(2));
+        check("B34 single mode: new checked", choiceLv.isItemChecked(5));
+
+        // ── 6. Choice mode multiple ──
+        android.widget.ListView multiLv = new android.widget.ListView();
+        multiLv.setChoiceMode(android.widget.AbsListView.CHOICE_MODE_MULTIPLE);
+        multiLv.setItemChecked(1, true);
+        multiLv.setItemChecked(3, true);
+        multiLv.setItemChecked(5, true);
+        check("B34 multiple: 3 checked", multiLv.getCheckedItemCount() == 3);
+        check("B34 multiple: 1 checked", multiLv.isItemChecked(1));
+        check("B34 multiple: 3 checked", multiLv.isItemChecked(3));
+        // Uncheck one
+        multiLv.setItemChecked(3, false);
+        check("B34 multiple: uncheck 3", !multiLv.isItemChecked(3));
+        check("B34 multiple: count now 2", multiLv.getCheckedItemCount() == 2);
+        // clearChoices
+        multiLv.clearChoices();
+        check("B34 clearChoices", multiLv.getCheckedItemCount() == 0);
+
+        // ── 7. getCheckedItemIds ──
+        multiLv.setItemChecked(10, true);
+        multiLv.setItemChecked(20, true);
+        long[] ids = multiLv.getCheckedItemIds();
+        check("B34 getCheckedItemIds length", ids.length == 2);
+
+        // ── 8. Fast scroll ──
+        android.widget.ListView fsLv = new android.widget.ListView();
+        check("B34 fastScroll default false", !fsLv.isFastScrollEnabled());
+        fsLv.setFastScrollEnabled(true);
+        check("B34 setFastScrollEnabled", fsLv.isFastScrollEnabled());
+
+        // ── 9. Scroll listener setup ──
+        final int[] scrollState = {-1};
+        android.widget.ListView scrollLv = new android.widget.ListView();
+        scrollLv.setOnScrollListener(new android.widget.AbsListView.OnScrollListener() {
+            @Override
+            public void onScrollStateChanged(android.widget.AbsListView view, int state) {
+                scrollState[0] = state;
+            }
+            @Override
+            public void onScroll(android.widget.AbsListView view, int first, int visible, int total) {}
+        });
+        check("B34 scroll listener set", scrollLv.getOnScrollListener() != null);
+
+        // ── 10. Transcript mode ──
+        android.widget.AbsListView tmLv = new android.widget.ListView();
+        check("B34 transcriptMode default DISABLED", tmLv.getTranscriptMode() == 0);
+        tmLv.setTranscriptMode(android.widget.AbsListView.TRANSCRIPT_MODE_ALWAYS_SCROLL);
+        check("B34 setTranscriptMode", tmLv.getTranscriptMode() == 2);
+
+        // ── 11. cacheColorHint ──
+        android.widget.AbsListView cchLv = new android.widget.ListView();
+        cchLv.setCacheColorHint(0xFF0000FF);
+        check("B34 cacheColorHint", cchLv.getCacheColorHint() == 0xFF0000FF);
+    }
+
+    // ══════════════════════════════════════════════════════════════════
+    //  B34: CompoundButton hierarchy
+    // ══════════════════════════════════════════════════════════════════
+
+    static void testCompoundButtonHierarchy() {
+        section("B34: CompoundButton hierarchy (CheckBox, RadioButton)");
+
+        // ── 1. CheckBox extends CompoundButton ──
+        android.widget.CheckBox cb = new android.widget.CheckBox();
+        check("B34 CheckBox instanceof CompoundButton", cb instanceof android.widget.CompoundButton);
+        check("B34 CheckBox instanceof Button", cb instanceof android.widget.Button);
+        check("B34 CheckBox instanceof TextView", cb instanceof android.widget.TextView);
+
+        // ── 2. RadioButton extends CompoundButton ──
+        android.widget.RadioButton rb = new android.widget.RadioButton();
+        check("B34 RadioButton instanceof CompoundButton", rb instanceof android.widget.CompoundButton);
+        check("B34 RadioButton instanceof Button", rb instanceof android.widget.Button);
+        check("B34 RadioButton instanceof TextView", rb instanceof android.widget.TextView);
+
+        // ── 3. CompoundButton toggle / setChecked ──
+        android.widget.CompoundButton compBtn = new android.widget.CheckBox();
+        check("B34 CompoundButton initially unchecked", !compBtn.isChecked());
+        compBtn.setChecked(true);
+        check("B34 CompoundButton setChecked(true)", compBtn.isChecked());
+        compBtn.toggle();
+        check("B34 CompoundButton toggle → unchecked", !compBtn.isChecked());
+        compBtn.toggle();
+        check("B34 CompoundButton toggle → checked", compBtn.isChecked());
+
+        // ── 4. CompoundButton.OnCheckedChangeListener ──
+        final boolean[] listenerFired = {false};
+        final boolean[] listenerValue = {false};
+        compBtn.setChecked(false); // reset
+        compBtn.setOnCheckedChangeListener(new android.widget.CompoundButton.OnCheckedChangeListener() {
+            @Override
+            public void onCheckedChanged(android.widget.CompoundButton buttonView, boolean isChecked) {
+                listenerFired[0] = true;
+                listenerValue[0] = isChecked;
+            }
+        });
+        compBtn.setChecked(true);
+        check("B34 CompoundButton listener fired", listenerFired[0]);
+        check("B34 CompoundButton listener value true", listenerValue[0]);
+
+        // ── 5. Listener not fired when setting same value ──
+        listenerFired[0] = false;
+        compBtn.setChecked(true); // same value
+        check("B34 CompoundButton listener not fired on same value", !listenerFired[0]);
+
+        // ── 6. CheckBox setChecked works ──
+        cb.setChecked(false);
+        check("B34 CheckBox setChecked(false)", !cb.isChecked());
+        cb.setChecked(true);
+        check("B34 CheckBox setChecked(true)", cb.isChecked());
+        cb.toggle();
+        check("B34 CheckBox toggle", !cb.isChecked());
+
+        // ── 7. RadioButton setChecked works ──
+        rb.setChecked(false);
+        check("B34 RadioButton setChecked(false)", !rb.isChecked());
+        rb.setChecked(true);
+        check("B34 RadioButton setChecked(true)", rb.isChecked());
+        rb.toggle();
+        check("B34 RadioButton toggle", !rb.isChecked());
+
+        // ── 8. RadioButton getText/setText (inherited from TextView) ──
+        rb.setText("Option 1");
+        check("B34 RadioButton getText", "Option 1".equals(rb.getText().toString()));
+
+        // ── 9. CheckBox getText/setText ──
+        cb.setText("Accept terms");
+        check("B34 CheckBox getText", "Accept terms".equals(cb.getText().toString()));
+
+        // ── 10. RadioGroup still works with CompoundButton-based RadioButton ──
+        android.widget.RadioGroup rg = new android.widget.RadioGroup();
+        android.widget.RadioButton r1 = new android.widget.RadioButton();
+        r1.setId(101);
+        android.widget.RadioButton r2 = new android.widget.RadioButton();
+        r2.setId(102);
+        rg.addView(r1);
+        rg.addView(r2);
+        rg.check(101);
+        check("B34 RadioGroup check r1", r1.isChecked());
+        check("B34 RadioGroup r2 unchecked", !r2.isChecked());
+        check("B34 RadioGroup checkedId", rg.getCheckedRadioButtonId() == 101);
+        rg.check(102);
+        check("B34 RadioGroup switch to r2", r2.isChecked());
+        check("B34 RadioGroup r1 unchecked after switch", !r1.isChecked());
     }
 }
