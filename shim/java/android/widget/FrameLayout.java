@@ -22,20 +22,45 @@ public class FrameLayout extends ViewGroup {
 
     @Override
     protected void onMeasure(int widthMeasureSpec, int heightMeasureSpec) {
-        measureChildren(widthMeasureSpec, heightMeasureSpec);
+        int wMode = android.view.View.MeasureSpec.getMode(widthMeasureSpec);
+        int wSize = android.view.View.MeasureSpec.getSize(widthMeasureSpec);
+        int hMode = android.view.View.MeasureSpec.getMode(heightMeasureSpec);
+        int hSize = android.view.View.MeasureSpec.getSize(heightMeasureSpec);
+
+        // FrameLayout children default to MATCH_PARENT — pass parent constraints directly
+        int childWidthSpec;
+        int childHeightSpec;
+        if (wMode == android.view.View.MeasureSpec.EXACTLY) {
+            childWidthSpec = android.view.View.MeasureSpec.makeMeasureSpec(
+                wSize - getPaddingLeft() - getPaddingRight(), android.view.View.MeasureSpec.EXACTLY);
+        } else if (wMode == android.view.View.MeasureSpec.AT_MOST) {
+            childWidthSpec = android.view.View.MeasureSpec.makeMeasureSpec(
+                wSize - getPaddingLeft() - getPaddingRight(), android.view.View.MeasureSpec.AT_MOST);
+        } else {
+            childWidthSpec = android.view.View.MeasureSpec.makeMeasureSpec(0, android.view.View.MeasureSpec.UNSPECIFIED);
+        }
+        if (hMode == android.view.View.MeasureSpec.EXACTLY) {
+            childHeightSpec = android.view.View.MeasureSpec.makeMeasureSpec(
+                hSize - getPaddingTop() - getPaddingBottom(), android.view.View.MeasureSpec.EXACTLY);
+        } else if (hMode == android.view.View.MeasureSpec.AT_MOST) {
+            childHeightSpec = android.view.View.MeasureSpec.makeMeasureSpec(
+                hSize - getPaddingTop() - getPaddingBottom(), android.view.View.MeasureSpec.AT_MOST);
+        } else {
+            childHeightSpec = android.view.View.MeasureSpec.makeMeasureSpec(0, android.view.View.MeasureSpec.UNSPECIFIED);
+        }
+
         int maxWidth = 0, maxHeight = 0;
         for (int i = 0; i < getChildCount(); i++) {
             android.view.View child = getChildAt(i);
             if (child.getVisibility() == GONE) continue;
+            child.measure(childWidthSpec, childHeightSpec);
             maxWidth = Math.max(maxWidth, child.getMeasuredWidth());
             maxHeight = Math.max(maxHeight, child.getMeasuredHeight());
         }
-        int specW = android.view.View.MeasureSpec.getMode(widthMeasureSpec) == android.view.View.MeasureSpec.EXACTLY
-            ? android.view.View.MeasureSpec.getSize(widthMeasureSpec)
-            : maxWidth + getPaddingLeft() + getPaddingRight();
-        int specH = android.view.View.MeasureSpec.getMode(heightMeasureSpec) == android.view.View.MeasureSpec.EXACTLY
-            ? android.view.View.MeasureSpec.getSize(heightMeasureSpec)
-            : maxHeight + getPaddingTop() + getPaddingBottom();
+        int specW = wMode == android.view.View.MeasureSpec.EXACTLY
+            ? wSize : maxWidth + getPaddingLeft() + getPaddingRight();
+        int specH = hMode == android.view.View.MeasureSpec.EXACTLY
+            ? hSize : maxHeight + getPaddingTop() + getPaddingBottom();
         setMeasuredDimension(specW, specH);
     }
 
@@ -47,8 +72,9 @@ public class FrameLayout extends ViewGroup {
         for (int i = 0; i < getChildCount(); i++) {
             android.view.View child = getChildAt(i);
             if (child.getVisibility() == GONE) continue;
-            int cw = child.getMeasuredWidth() > 0 ? child.getMeasuredWidth() : parentWidth;
-            int ch = child.getMeasuredHeight() > 0 ? child.getMeasuredHeight() : parentHeight;
+            // Default to full parent size (MATCH_PARENT behavior)
+            int cw = child.getMeasuredWidth() > 0 ? Math.max(child.getMeasuredWidth(), parentWidth) : parentWidth;
+            int ch = child.getMeasuredHeight() > 0 ? Math.max(child.getMeasuredHeight(), parentHeight) : parentHeight;
 
             int gravity = -1;
             Object lp = child.getLayoutParams();

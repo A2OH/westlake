@@ -74,18 +74,7 @@ public class ScrollView extends FrameLayout {
             resolveSize(maxHeight, heightMeasureSpec));
     }
 
-    private static int resolveSize(int size, int measureSpec) {
-        int specMode = MeasureSpec.getMode(measureSpec);
-        int specSize = MeasureSpec.getSize(measureSpec);
-        switch (specMode) {
-            case MeasureSpec.EXACTLY:
-                return specSize;
-            case MeasureSpec.AT_MOST:
-                return Math.min(size, specSize);
-            default:
-                return size;
-        }
-    }
+    // resolveSize is inherited from View
 
     @Override
     protected void dispatchDraw(android.graphics.Canvas canvas) {

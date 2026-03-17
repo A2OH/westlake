@@ -52,6 +52,16 @@ public class ListView extends AbsListView {
         populateFromAdapter();
     }
 
+    /** Default padding for list items (dp-like values). */
+    private static final int ITEM_PADDING_H = 16;
+    private static final int ITEM_PADDING_V = 12;
+
+    /** Divider height between items (pixels). */
+    private int mDividerHeight = 1;
+
+    public void setDividerHeight(int height) { mDividerHeight = height; }
+    public int getDividerHeight() { return mDividerHeight; }
+
     /** Re-creates all child views from the adapter. */
     private void populateFromAdapter() {
         removeAllViews();
@@ -59,6 +69,11 @@ public class ListView extends AbsListView {
         for (int i = 0; i < adapter.getCount(); i++) {
             View itemView = adapter.getView(i, null, this);
             if (itemView != null) {
+                // Apply default padding to item views if they have none
+                if (itemView.getPaddingLeft() == 0 && itemView.getPaddingTop() == 0
+                    && itemView.getPaddingRight() == 0 && itemView.getPaddingBottom() == 0) {
+                    itemView.setPadding(ITEM_PADDING_H, ITEM_PADDING_V, ITEM_PADDING_H, ITEM_PADDING_V);
+                }
                 addView(itemView);
             }
         }
@@ -69,11 +84,17 @@ public class ListView extends AbsListView {
         measureChildren(widthMeasureSpec, heightMeasureSpec);
         int totalHeight = 0;
         int maxWidth = 0;
+        int visibleCount = 0;
         for (int i = 0; i < getChildCount(); i++) {
             android.view.View child = getChildAt(i);
             if (child.getVisibility() == GONE) continue;
             totalHeight += child.getMeasuredHeight();
             maxWidth = Math.max(maxWidth, child.getMeasuredWidth());
+            visibleCount++;
+        }
+        // Add divider heights between items
+        if (visibleCount > 1) {
+            totalHeight += mDividerHeight * (visibleCount - 1);
         }
         int wMode = android.view.View.MeasureSpec.getMode(widthMeasureSpec);
         int wSize = android.view.View.MeasureSpec.getSize(widthMeasureSpec);
@@ -106,13 +127,33 @@ public class ListView extends AbsListView {
         super.layout(l, t, r, b);
         int childTop = getPaddingTop();
         int childLeft = getPaddingLeft();
+        int availWidth = (r - l) - getPaddingLeft() - getPaddingRight();
         for (int i = 0; i < getChildCount(); i++) {
             android.view.View child = getChildAt(i);
             if (child.getVisibility() == GONE) continue;
-            int cw = child.getMeasuredWidth() > 0 ? child.getMeasuredWidth() : (r - l);
+            int cw = child.getMeasuredWidth() > 0 ? child.getMeasuredWidth() : availWidth;
+            // Ensure items fill the available width
+            if (cw < availWidth) cw = availWidth;
             int ch = child.getMeasuredHeight() > 0 ? child.getMeasuredHeight() : 0;
             child.layout(childLeft, childTop, childLeft + cw, childTop + ch);
-            childTop += ch;
+            childTop += ch + mDividerHeight;
+        }
+    }
+
+    @Override
+    protected void onDraw(android.graphics.Canvas canvas) {
+        // Draw divider lines between items
+        if (mDividerHeight > 0 && getChildCount() > 1) {
+            android.graphics.Paint dividerPaint = new android.graphics.Paint();
+            dividerPaint.setColor(0xFFCCCCCC);
+            dividerPaint.setStyle(android.graphics.Paint.Style.FILL);
+            for (int i = 0; i < getChildCount() - 1; i++) {
+                android.view.View child = getChildAt(i);
+                if (child.getVisibility() == GONE) continue;
+                int dividerTop = child.getBottom();
+                canvas.drawRect(getPaddingLeft(), dividerTop,
+                    getWidth() - getPaddingRight(), dividerTop + mDividerHeight, dividerPaint);
+            }
         }
     }
 
