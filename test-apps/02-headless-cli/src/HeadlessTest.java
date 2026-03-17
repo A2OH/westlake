@@ -133,6 +133,8 @@ public class HeadlessTest {
         testMiniActivityManagerEdgeCases();
         testActivityThread();
         testResourcesPhase1();
+        testJsonReaderShim();
+        testJsonWriterShim();
 
         System.out.println("\n═══ Results ═══");
         System.out.println("Passed: " + passed);
@@ -8197,5 +8199,176 @@ public class HeadlessTest {
         // startActivity with null intent doesn't crash
         mgr.startActivity(null, null, -1);
         check("startActivity(null intent) no crash", true);
+    }
+
+    // ── JsonReader tests ──
+
+    static void testJsonReaderShim() {
+        section("JsonReader");
+        try {
+            // Simple object with string value
+            String json1 = "{\"name\":\"Alice\",\"age\":30,\"active\":true}";
+            android.util.JsonReader r1 = new android.util.JsonReader(new java.io.StringReader(json1));
+            r1.beginObject();
+
+            check("jr hasNext after beginObject", r1.hasNext());
+            String k1 = r1.nextName();
+            check("jr first key is name", "name".equals(k1));
+            String v1 = r1.nextString();
+            check("jr first value is Alice", "Alice".equals(v1));
+
+            String k2 = r1.nextName();
+            check("jr second key is age", "age".equals(k2));
+            int v2 = r1.nextInt();
+            check("jr age is 30", v2 == 30);
+
+            String k3 = r1.nextName();
+            check("jr third key is active", "active".equals(k3));
+            boolean v3 = r1.nextBoolean();
+            check("jr active is true", v3);
+
+            check("jr no more keys", !r1.hasNext());
+            r1.endObject();
+            r1.close();
+
+            // Array of numbers
+            String json2 = "[1, 2, 3]";
+            android.util.JsonReader r2 = new android.util.JsonReader(new java.io.StringReader(json2));
+            r2.beginArray();
+            check("jr array int 1", r2.nextInt() == 1);
+            check("jr array int 2", r2.nextInt() == 2);
+            check("jr array int 3", r2.nextInt() == 3);
+            check("jr array no more", !r2.hasNext());
+            r2.endArray();
+            r2.close();
+
+            // Nested object with null
+            String json3 = "{\"x\":{\"y\":null}}";
+            android.util.JsonReader r3 = new android.util.JsonReader(new java.io.StringReader(json3));
+            r3.beginObject();
+            check("jr nested name x", "x".equals(r3.nextName()));
+            r3.beginObject();
+            check("jr nested name y", "y".equals(r3.nextName()));
+            r3.nextNull();
+            r3.endObject();
+            r3.endObject();
+            r3.close();
+
+            // peek() returns correct tokens
+            String json4 = "{\"a\":1.5}";
+            android.util.JsonReader r4 = new android.util.JsonReader(new java.io.StringReader(json4));
+            check("jr peek BEGIN_OBJECT", r4.peek() == android.util.JsonToken.BEGIN_OBJECT);
+            r4.beginObject();
+            check("jr peek NAME (string)", r4.peek() == android.util.JsonToken.STRING);
+            r4.nextName();
+            check("jr peek NUMBER", r4.peek() == android.util.JsonToken.NUMBER);
+            double d = r4.nextDouble();
+            check("jr double 1.5", d == 1.5);
+            r4.endObject();
+            r4.close();
+
+            // skipValue
+            String json5 = "{\"skip\":{\"nested\":true},\"keep\":42}";
+            android.util.JsonReader r5 = new android.util.JsonReader(new java.io.StringReader(json5));
+            r5.beginObject();
+            r5.nextName(); // "skip"
+            r5.skipValue(); // skip the nested object
+            String k5 = r5.nextName();
+            check("jr skipValue then name", "keep".equals(k5));
+            check("jr skipValue then value", r5.nextInt() == 42);
+            r5.endObject();
+            r5.close();
+
+            // nextLong
+            String json6 = "[9876543210]";
+            android.util.JsonReader r6 = new android.util.JsonReader(new java.io.StringReader(json6));
+            r6.beginArray();
+            check("jr nextLong", r6.nextLong() == 9876543210L);
+            r6.endArray();
+            r6.close();
+
+            // String with escapes
+            String json7 = "{\"msg\":\"hello\\nworld\"}";
+            android.util.JsonReader r7 = new android.util.JsonReader(new java.io.StringReader(json7));
+            r7.beginObject();
+            r7.nextName();
+            String escaped = r7.nextString();
+            check("jr escape newline", "hello\nworld".equals(escaped));
+            r7.endObject();
+            r7.close();
+
+        } catch (Exception e) {
+            check("jr no exception: " + e.getMessage(), false);
+        }
+    }
+
+    // ── JsonWriter tests ──
+
+    static void testJsonWriterShim() {
+        section("JsonWriter");
+        try {
+            // Simple object
+            java.io.StringWriter sw1 = new java.io.StringWriter();
+            android.util.JsonWriter w1 = new android.util.JsonWriter(sw1);
+            w1.beginObject();
+            w1.name("name").value("Alice");
+            w1.name("age").value(30);
+            w1.name("active").value(true);
+            w1.endObject();
+            w1.close();
+            String out1 = sw1.toString();
+            check("jw object has name", out1.indexOf("\"name\"") >= 0);
+            check("jw object has Alice", out1.indexOf("\"Alice\"") >= 0);
+            check("jw object has age 30", out1.indexOf("30") >= 0);
+            check("jw object has true", out1.indexOf("true") >= 0);
+
+            // Array
+            java.io.StringWriter sw2 = new java.io.StringWriter();
+            android.util.JsonWriter w2 = new android.util.JsonWriter(sw2);
+            w2.beginArray();
+            w2.value(1);
+            w2.value(2);
+            w2.value(3);
+            w2.endArray();
+            w2.close();
+            String out2 = sw2.toString();
+            check("jw array output", "[1,2,3]".equals(out2));
+
+            // Null value
+            java.io.StringWriter sw3 = new java.io.StringWriter();
+            android.util.JsonWriter w3 = new android.util.JsonWriter(sw3);
+            w3.beginObject();
+            w3.name("x").nullValue();
+            w3.endObject();
+            w3.close();
+            String out3 = sw3.toString();
+            check("jw null value", out3.indexOf("null") >= 0);
+
+            // Double value
+            java.io.StringWriter sw4 = new java.io.StringWriter();
+            android.util.JsonWriter w4 = new android.util.JsonWriter(sw4);
+            w4.beginArray();
+            w4.value(3.14);
+            w4.endArray();
+            w4.close();
+            check("jw double value", sw4.toString().indexOf("3.14") >= 0);
+
+            // Nested
+            java.io.StringWriter sw5 = new java.io.StringWriter();
+            android.util.JsonWriter w5 = new android.util.JsonWriter(sw5);
+            w5.beginObject();
+            w5.name("inner");
+            w5.beginObject();
+            w5.name("k").value("v");
+            w5.endObject();
+            w5.endObject();
+            w5.close();
+            String out5 = sw5.toString();
+            check("jw nested object", out5.indexOf("\"inner\"") >= 0);
+            check("jw nested k/v", out5.indexOf("\"k\"") >= 0);
+
+        } catch (Exception e) {
+            check("jw no exception: " + e.getMessage(), false);
+        }
     }
 }
