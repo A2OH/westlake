@@ -64,6 +64,58 @@ public class ListView extends AbsListView {
         }
     }
 
+    @Override
+    protected void onMeasure(int widthMeasureSpec, int heightMeasureSpec) {
+        measureChildren(widthMeasureSpec, heightMeasureSpec);
+        int totalHeight = 0;
+        int maxWidth = 0;
+        for (int i = 0; i < getChildCount(); i++) {
+            android.view.View child = getChildAt(i);
+            if (child.getVisibility() == GONE) continue;
+            totalHeight += child.getMeasuredHeight();
+            maxWidth = Math.max(maxWidth, child.getMeasuredWidth());
+        }
+        int wMode = android.view.View.MeasureSpec.getMode(widthMeasureSpec);
+        int wSize = android.view.View.MeasureSpec.getSize(widthMeasureSpec);
+        int hMode = android.view.View.MeasureSpec.getMode(heightMeasureSpec);
+        int hSize = android.view.View.MeasureSpec.getSize(heightMeasureSpec);
+
+        int measuredW;
+        if (wMode == android.view.View.MeasureSpec.EXACTLY) {
+            measuredW = wSize;
+        } else if (wMode == android.view.View.MeasureSpec.AT_MOST) {
+            measuredW = Math.min(maxWidth + getPaddingLeft() + getPaddingRight(), wSize);
+        } else {
+            measuredW = maxWidth + getPaddingLeft() + getPaddingRight();
+        }
+
+        int measuredH;
+        if (hMode == android.view.View.MeasureSpec.EXACTLY) {
+            measuredH = hSize;
+        } else if (hMode == android.view.View.MeasureSpec.AT_MOST) {
+            measuredH = Math.min(totalHeight + getPaddingTop() + getPaddingBottom(), hSize);
+        } else {
+            measuredH = totalHeight + getPaddingTop() + getPaddingBottom();
+        }
+
+        setMeasuredDimension(measuredW, measuredH);
+    }
+
+    @Override
+    public void layout(int l, int t, int r, int b) {
+        super.layout(l, t, r, b);
+        int childTop = getPaddingTop();
+        int childLeft = getPaddingLeft();
+        for (int i = 0; i < getChildCount(); i++) {
+            android.view.View child = getChildAt(i);
+            if (child.getVisibility() == GONE) continue;
+            int cw = child.getMeasuredWidth() > 0 ? child.getMeasuredWidth() : (r - l);
+            int ch = child.getMeasuredHeight() > 0 ? child.getMeasuredHeight() : 0;
+            child.layout(childLeft, childTop, childLeft + cw, childTop + ch);
+            childTop += ch;
+        }
+    }
+
     public android.widget.ListAdapter getAdapter() { return adapter; }
 
     /**

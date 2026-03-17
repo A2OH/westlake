@@ -33,6 +33,52 @@ public class Button extends TextView {
     }
 
     @Override
+    protected void onMeasure(int widthMeasureSpec, int heightMeasureSpec) {
+        // Account for default button padding if no explicit padding set
+        int padL = getPaddingLeft() > 0 ? getPaddingLeft() : DEFAULT_PADDING;
+        int padR = getPaddingRight() > 0 ? getPaddingRight() : DEFAULT_PADDING;
+        int padT = getPaddingTop() > 0 ? getPaddingTop() : DEFAULT_PADDING;
+        int padB = getPaddingBottom() > 0 ? getPaddingBottom() : DEFAULT_PADDING;
+
+        float ts = getTextSize() > 0 ? getTextSize() : 14;
+        android.graphics.Paint paint = new android.graphics.Paint();
+        paint.setTextSize(ts);
+        android.graphics.Paint.FontMetrics fm = paint.getFontMetrics();
+        int textHeight = (int) Math.ceil(-fm.ascent + fm.descent) + padT + padB;
+        int textWidth = 0;
+        CharSequence text = getText();
+        if (text != null && text.length() > 0) {
+            textWidth = (int) Math.ceil(paint.measureText(text.toString()));
+        }
+        textWidth += padL + padR;
+
+        int wMode = android.view.View.MeasureSpec.getMode(widthMeasureSpec);
+        int wSize = android.view.View.MeasureSpec.getSize(widthMeasureSpec);
+        int hMode = android.view.View.MeasureSpec.getMode(heightMeasureSpec);
+        int hSize = android.view.View.MeasureSpec.getSize(heightMeasureSpec);
+
+        int measuredW;
+        if (wMode == android.view.View.MeasureSpec.EXACTLY) {
+            measuredW = wSize;
+        } else if (wMode == android.view.View.MeasureSpec.AT_MOST) {
+            measuredW = Math.min(textWidth, wSize);
+        } else {
+            measuredW = textWidth;
+        }
+
+        int measuredH;
+        if (hMode == android.view.View.MeasureSpec.EXACTLY) {
+            measuredH = hSize;
+        } else if (hMode == android.view.View.MeasureSpec.AT_MOST) {
+            measuredH = Math.min(textHeight, hSize);
+        } else {
+            measuredH = textHeight;
+        }
+
+        setMeasuredDimension(measuredW, measuredH);
+    }
+
+    @Override
     protected void onDraw(android.graphics.Canvas canvas) {
         // Draw button background (rounded rect)
         int bgColor = getBackgroundColor() != 0 ? getBackgroundColor() : DEFAULT_BG_COLOR;

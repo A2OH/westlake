@@ -54,6 +54,45 @@ public class TextView extends android.view.View {
     public int getInputType() { return mInputType; }
 
     @Override
+    protected void onMeasure(int widthMeasureSpec, int heightMeasureSpec) {
+        float ts = mTextSize > 0 ? mTextSize : 14;
+        android.graphics.Paint paint = new android.graphics.Paint();
+        paint.setTextSize(ts);
+        android.graphics.Paint.FontMetrics fm = paint.getFontMetrics();
+        int textHeight = (int) Math.ceil(-fm.ascent + fm.descent) + getPaddingTop() + getPaddingBottom();
+        int textWidth = 0;
+        if (mText != null && mText.length() > 0) {
+            textWidth = (int) Math.ceil(paint.measureText(mText.toString()));
+        }
+        textWidth += getPaddingLeft() + getPaddingRight();
+
+        int wMode = android.view.View.MeasureSpec.getMode(widthMeasureSpec);
+        int wSize = android.view.View.MeasureSpec.getSize(widthMeasureSpec);
+        int hMode = android.view.View.MeasureSpec.getMode(heightMeasureSpec);
+        int hSize = android.view.View.MeasureSpec.getSize(heightMeasureSpec);
+
+        int measuredW;
+        if (wMode == android.view.View.MeasureSpec.EXACTLY) {
+            measuredW = wSize;
+        } else if (wMode == android.view.View.MeasureSpec.AT_MOST) {
+            measuredW = Math.min(textWidth, wSize);
+        } else {
+            measuredW = textWidth;
+        }
+
+        int measuredH;
+        if (hMode == android.view.View.MeasureSpec.EXACTLY) {
+            measuredH = hSize;
+        } else if (hMode == android.view.View.MeasureSpec.AT_MOST) {
+            measuredH = Math.min(textHeight, hSize);
+        } else {
+            measuredH = textHeight;
+        }
+
+        setMeasuredDimension(measuredW, measuredH);
+    }
+
+    @Override
     protected void onDraw(android.graphics.Canvas canvas) {
         if (mText != null && mText.length() > 0) {
             android.graphics.Paint paint = new android.graphics.Paint();

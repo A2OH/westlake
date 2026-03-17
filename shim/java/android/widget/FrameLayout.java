@@ -21,6 +21,25 @@ public class FrameLayout extends ViewGroup {
     }
 
     @Override
+    protected void onMeasure(int widthMeasureSpec, int heightMeasureSpec) {
+        measureChildren(widthMeasureSpec, heightMeasureSpec);
+        int maxWidth = 0, maxHeight = 0;
+        for (int i = 0; i < getChildCount(); i++) {
+            android.view.View child = getChildAt(i);
+            if (child.getVisibility() == GONE) continue;
+            maxWidth = Math.max(maxWidth, child.getMeasuredWidth());
+            maxHeight = Math.max(maxHeight, child.getMeasuredHeight());
+        }
+        int specW = android.view.View.MeasureSpec.getMode(widthMeasureSpec) == android.view.View.MeasureSpec.EXACTLY
+            ? android.view.View.MeasureSpec.getSize(widthMeasureSpec)
+            : maxWidth + getPaddingLeft() + getPaddingRight();
+        int specH = android.view.View.MeasureSpec.getMode(heightMeasureSpec) == android.view.View.MeasureSpec.EXACTLY
+            ? android.view.View.MeasureSpec.getSize(heightMeasureSpec)
+            : maxHeight + getPaddingTop() + getPaddingBottom();
+        setMeasuredDimension(specW, specH);
+    }
+
+    @Override
     public void layout(int l, int t, int r, int b) {
         super.layout(l, t, r, b);
         int parentWidth = r - l - getPaddingLeft() - getPaddingRight();
