@@ -100,8 +100,8 @@ public class BinaryXmlParser {
 
     private void parseStringPool(byte[] data, int offset) {
         int stringCount = readInt(data, offset + 8);
-        int stringsStart = readInt(data, offset + 28);
-        int poolOffset = offset + 28 + 0; // after header
+        int stringsStart = readInt(data, offset + 20); // offset from pool header to string data
+        int poolOffset = offset + 28; // string offsets start here
 
         // Read string offsets
         int[] offsets = new int[stringCount];
@@ -116,9 +116,6 @@ public class BinaryXmlParser {
         boolean isUtf8 = (flags & (1 << 8)) != 0;
 
         stringPool = new String[stringCount];
-        int dataStart = offset + 28 + stringCount * 4; // skip style offsets if present
-        int styleCount = readInt(data, offset + 12);
-        dataStart += styleCount * 4;
         int absStringsStart = offset + stringsStart;
 
         for (int i = 0; i < stringCount; i++) {
@@ -173,7 +170,7 @@ public class BinaryXmlParser {
         if ("manifest".equals(tagName)) {
             // Read package attribute
             for (int i = 0; i < attrCount; i++) {
-                int attrOfs = offset + 8 + 24 + attrStart + i * 20;
+                int attrOfs = offset + 36 + i * 20;
                 String attrName = getString(readInt(data, attrOfs + 4));
                 int attrType = (readInt(data, attrOfs + 12) >> 24) & 0xFF;
                 int attrValue = readInt(data, attrOfs + 16);
@@ -185,7 +182,7 @@ public class BinaryXmlParser {
             }
         } else if ("activity".equals(tagName)) {
             for (int i = 0; i < attrCount; i++) {
-                int attrOfs = offset + 8 + 24 + attrStart + i * 20;
+                int attrOfs = offset + 36 + i * 20;
                 String attrName = getString(readInt(data, attrOfs + 4));
                 String attrStrValue = getString(readInt(data, attrOfs + 8));
 
@@ -198,7 +195,7 @@ public class BinaryXmlParser {
             }
         } else if ("action".equals(tagName)) {
             for (int i = 0; i < attrCount; i++) {
-                int attrOfs = offset + 8 + 24 + attrStart + i * 20;
+                int attrOfs = offset + 36 + i * 20;
                 String attrName = getString(readInt(data, attrOfs + 4));
                 String attrStrValue = getString(readInt(data, attrOfs + 8));
                 if ("name".equals(attrName) && "android.intent.action.MAIN".equals(attrStrValue)) {
@@ -210,7 +207,7 @@ public class BinaryXmlParser {
             }
         } else if ("uses-sdk".equals(tagName)) {
             for (int i = 0; i < attrCount; i++) {
-                int attrOfs = offset + 8 + 24 + attrStart + i * 20;
+                int attrOfs = offset + 36 + i * 20;
                 String attrName = getString(readInt(data, attrOfs + 4));
                 int attrValue = readInt(data, attrOfs + 16);
                 if ("minSdkVersion".equals(attrName)) minSdkVersion = attrValue;
@@ -218,7 +215,7 @@ public class BinaryXmlParser {
             }
         } else if ("uses-permission".equals(tagName)) {
             for (int i = 0; i < attrCount; i++) {
-                int attrOfs = offset + 8 + 24 + attrStart + i * 20;
+                int attrOfs = offset + 36 + i * 20;
                 String attrName = getString(readInt(data, attrOfs + 4));
                 String attrStrValue = getString(readInt(data, attrOfs + 8));
                 if ("name".equals(attrName) && attrStrValue != null) {
