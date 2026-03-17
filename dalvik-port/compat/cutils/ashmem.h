@@ -22,7 +22,11 @@ extern "C" {
 static inline int ashmem_create_region(const char* name, size_t size) {
 #ifdef __linux__
     /* Try memfd_create first (Linux 3.17+) */
-    int fd = syscall(319, name ? name : "dalvik-ashmem", 1 /* MFD_CLOEXEC */);
+#ifdef __NR_memfd_create
+    int fd = syscall(__NR_memfd_create, name ? name : "dalvik-ashmem", 1 /* MFD_CLOEXEC */);
+#else
+    int fd = syscall(385, name ? name : "dalvik-ashmem", 1 /* MFD_CLOEXEC */); /* ARM32 */
+#endif
     if (fd >= 0) {
         if (ftruncate(fd, size) < 0) {
             close(fd);
