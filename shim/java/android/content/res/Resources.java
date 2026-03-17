@@ -34,6 +34,9 @@ public class Resources {
     /** Phase 2 registry: manually registered resources keyed by resource ID. */
     private final HashMap<Integer, Object> mRegistry = new HashMap<Integer, Object>();
 
+    /** Layout bytes registry: binary AXML layout data keyed by resource ID. */
+    private final HashMap<Integer, byte[]> mLayoutBytesRegistry = new HashMap<Integer, byte[]>();
+
     public Resources() {}
 
     // ── ResourceTable integration ────────────────────────────────────────────
@@ -65,6 +68,18 @@ public class Resources {
         mRegistry.put(Integer.valueOf(id), Integer.valueOf(value));
     }
 
+    // ── Layout bytes registry ───────────────────────────────────────────────
+
+    /** Register binary AXML layout data for the given resource ID. */
+    public void registerLayoutBytes(int id, byte[] axml) {
+        mLayoutBytesRegistry.put(Integer.valueOf(id), axml);
+    }
+
+    /** Get registered binary AXML layout data, or null if none registered. */
+    public byte[] getLayoutBytes(int id) {
+        return mLayoutBytesRegistry.get(Integer.valueOf(id));
+    }
+
     // ── String resources ─────────────────────────────────────────────────────
 
     public String getString(int id) {
@@ -80,36 +95,11 @@ public class Resources {
     }
 
     public String getString(int id, Object... formatArgs) {
-        // Simple substitution: replace %s, %d, %f etc. with arg.toString()
-        // Cannot use String.format (JNI native on KitKat Dalvik)
+        // Use SimpleFormatter: pure-Java String.format replacement
+        // that doesn't need ICU/Locale natives (KitKat Dalvik compat)
         String template = getString(id);
         if (formatArgs == null || formatArgs.length == 0) return template;
-        StringBuilder sb = new StringBuilder();
-        int argIdx = 0;
-        for (int i = 0; i < template.length(); i++) {
-            char c = template.charAt(i);
-            if (c == '%' && i + 1 < template.length() && argIdx < formatArgs.length) {
-                char next = template.charAt(i + 1);
-                if (next == '%') {
-                    sb.append('%');
-                    i++;
-                } else {
-                    // Skip format specifier chars until we hit the conversion char
-                    int j = i + 1;
-                    while (j < template.length() && "0123456789.-+ #,(".indexOf(template.charAt(j)) >= 0) j++;
-                    if (j < template.length()) {
-                        sb.append(formatArgs[argIdx] != null ? formatArgs[argIdx].toString() : "null");
-                        argIdx++;
-                        i = j; // skip the conversion char
-                    } else {
-                        sb.append(c);
-                    }
-                }
-            } else {
-                sb.append(c);
-            }
-        }
-        return sb.toString();
+        return android.text.format.SimpleFormatter.format(template, formatArgs);
     }
 
     public CharSequence getText(int id) {
