@@ -208,6 +208,61 @@ public class LinearLayout extends ViewGroup {
             }
 
             mTotalLength += getPaddingTop() + getPaddingBottom();
+        } else if (remainingExcess > 0 && totalWeight == 0 && heightMode == MeasureSpec.EXACTLY) {
+            // No weights but parent is EXACTLY — distribute excess height equally
+            // among WRAP_CONTENT children only (children with fixed size keep their size)
+            int wrapCount = 0;
+            for (int i = 0; i < count; i++) {
+                View child = getChildAt(i);
+                if (child != null && child.getVisibility() != View.GONE) {
+                    LayoutParams lp = getLinearLayoutParams(child);
+                    if (lp.height == ViewGroup.LayoutParams.WRAP_CONTENT
+                            || lp.height == ViewGroup.LayoutParams.MATCH_PARENT) {
+                        wrapCount++;
+                    }
+                }
+            }
+            if (wrapCount > 0) {
+                int sharePerChild = remainingExcess / wrapCount;
+                int extraPixels = remainingExcess - sharePerChild * wrapCount;
+
+                mTotalLength = 0;
+                int idx = 0;
+                for (int i = 0; i < count; i++) {
+                    View child = getChildAt(i);
+                    if (child == null || child.getVisibility() == View.GONE) {
+                        continue;
+                    }
+                    LayoutParams lp = getLinearLayoutParams(child);
+                    boolean isWrap = (lp.height == ViewGroup.LayoutParams.WRAP_CONTENT
+                            || lp.height == ViewGroup.LayoutParams.MATCH_PARENT);
+                    int ch = child.getMeasuredHeight();
+                    if (isWrap) {
+                        ch += sharePerChild;
+                        if (idx < extraPixels) ch++;
+                        idx++;
+                    }
+
+                    int childHeightMeasureSpec = MeasureSpec.makeMeasureSpec(
+                            Math.max(0, ch), MeasureSpec.EXACTLY);
+                    int childWidthMeasureSpec = getChildMeasureSpec(widthMeasureSpec,
+                            getPaddingLeft() + getPaddingRight() + lp.leftMargin + lp.rightMargin,
+                            lp.width);
+                    child.measure(childWidthMeasureSpec, childHeightMeasureSpec);
+
+                    int margin = lp.leftMargin + lp.rightMargin;
+                    int measuredWidth = child.getMeasuredWidth() + margin;
+                    maxWidth = Math.max(maxWidth, measuredWidth);
+                    alternativeMaxWidth = Math.max(alternativeMaxWidth, measuredWidth);
+
+                    int totalLength = mTotalLength;
+                    mTotalLength = Math.max(totalLength, totalLength + child.getMeasuredHeight()
+                            + lp.topMargin + lp.bottomMargin);
+                }
+                mTotalLength += getPaddingTop() + getPaddingBottom();
+            } else {
+                alternativeMaxWidth = Math.max(alternativeMaxWidth, weightedMaxWidth);
+            }
         } else {
             alternativeMaxWidth = Math.max(alternativeMaxWidth, weightedMaxWidth);
         }
@@ -361,6 +416,77 @@ public class LinearLayout extends ViewGroup {
             }
 
             mTotalLength += getPaddingLeft() + getPaddingRight();
+        } else if (remainingExcess > 0 && totalWeight == 0 && widthMode == MeasureSpec.EXACTLY) {
+            // No weights set but parent is EXACTLY — distribute space equally among
+            // WRAP_CONTENT children so they fill the row (common calculator/grid pattern).
+            // Only distribute to children with WRAP_CONTENT width; fixed-size children keep theirs.
+            int wrapCount = 0;
+            for (int i = 0; i < count; i++) {
+                View child = getChildAt(i);
+                if (child != null && child.getVisibility() != View.GONE) {
+                    LayoutParams lp = getLinearLayoutParams(child);
+                    if (lp.width == ViewGroup.LayoutParams.WRAP_CONTENT
+                            || lp.width == ViewGroup.LayoutParams.MATCH_PARENT) {
+                        wrapCount++;
+                    }
+                }
+            }
+            if (wrapCount > 0) {
+                // Calculate space taken by fixed-size children
+                int fixedUsed = 0;
+                for (int i = 0; i < count; i++) {
+                    View child = getChildAt(i);
+                    if (child != null && child.getVisibility() != View.GONE) {
+                        LayoutParams lp = getLinearLayoutParams(child);
+                        if (lp.width != ViewGroup.LayoutParams.WRAP_CONTENT
+                                && lp.width != ViewGroup.LayoutParams.MATCH_PARENT) {
+                            fixedUsed += child.getMeasuredWidth() + lp.leftMargin + lp.rightMargin;
+                        }
+                    }
+                }
+                int totalPad = getPaddingLeft() + getPaddingRight();
+                int availableWidth = widthSize - totalPad - fixedUsed;
+                int perChild = availableWidth / wrapCount;
+                int extraPixels = availableWidth - perChild * wrapCount;
+
+                mTotalLength = 0;
+                int idx = 0;
+                for (int i = 0; i < count; i++) {
+                    View child = getChildAt(i);
+                    if (child == null || child.getVisibility() == View.GONE) {
+                        continue;
+                    }
+                    LayoutParams lp = getLinearLayoutParams(child);
+                    boolean isWrap = (lp.width == ViewGroup.LayoutParams.WRAP_CONTENT
+                            || lp.width == ViewGroup.LayoutParams.MATCH_PARENT);
+                    int cw;
+                    if (isWrap) {
+                        cw = perChild - lp.leftMargin - lp.rightMargin;
+                        if (idx < extraPixels) cw++;
+                        idx++;
+                    } else {
+                        cw = child.getMeasuredWidth();
+                    }
+                    int childWidthMeasureSpec = MeasureSpec.makeMeasureSpec(
+                            Math.max(0, cw), MeasureSpec.EXACTLY);
+                    int childHeightMeasureSpec = getChildMeasureSpec(heightMeasureSpec,
+                            getPaddingTop() + getPaddingBottom() + lp.topMargin + lp.bottomMargin,
+                            lp.height);
+                    child.measure(childWidthMeasureSpec, childHeightMeasureSpec);
+
+                    int margin = lp.topMargin + lp.bottomMargin;
+                    int childHeight = child.getMeasuredHeight() + margin;
+                    maxHeight = Math.max(maxHeight, childHeight);
+                    alternativeMaxHeight = Math.max(alternativeMaxHeight, childHeight);
+
+                    int totalLength = mTotalLength;
+                    mTotalLength = Math.max(totalLength, totalLength + child.getMeasuredWidth()
+                            + lp.leftMargin + lp.rightMargin);
+                }
+                mTotalLength += totalPad;
+            } else {
+                alternativeMaxHeight = Math.max(alternativeMaxHeight, weightedMaxHeight);
+            }
         } else {
             alternativeMaxHeight = Math.max(alternativeMaxHeight, weightedMaxHeight);
         }
@@ -587,6 +713,14 @@ public class LinearLayout extends ViewGroup {
         }
         child.setLayoutParams(lp);
         return lp;
+    }
+
+    @Override
+    protected ViewGroup.LayoutParams generateDefaultLayoutParamsInternal() {
+        if (mOrientation == HORIZONTAL) {
+            return new LayoutParams(LayoutParams.WRAP_CONTENT, LayoutParams.WRAP_CONTENT);
+        }
+        return new LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.WRAP_CONTENT);
     }
 
     // ── LayoutParams with weight support ──
