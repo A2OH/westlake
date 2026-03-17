@@ -5,19 +5,143 @@ import android.widget.Filter;
 import android.widget.FrameLayout;
 import android.widget.LinearLayout;
 import android.widget.TextView;
+import java.util.HashMap;
 
 /**
- * LayoutInflater — basic stub implementation for MiniServer.
+ * LayoutInflater — inflates layout resources into View trees.
  *
- * Since we don't have a resource system yet, inflate() returns stub views:
- * - A FrameLayout container for any resource ID
- * - The View gets the resource ID stored for later identification
- *
- * This is enough for apps that call setContentView(R.layout.xxx) to get
- * a non-null View tree that can hold child views.
+ * Supports three inflation strategies (tried in order):
+ * 1. Programmatic layout registry — apps register ViewFactory builders for resource IDs
+ * 2. Binary layout XML from APK — parses AXML format layout files
+ * 3. Fallback — returns an empty FrameLayout with the resource ID set
  */
 public class LayoutInflater {
     private Context mContext;
+
+    // ── Programmatic layout registry ──────────────────────────────────────
+    /**
+     * Factory interface for programmatic layout creation.
+     * Apps can register View tree builders for specific resource IDs,
+     * enabling programmatic UI construction via LayoutInflater.inflate().
+     */
+    public interface ViewFactory {
+        View createView(Context context, ViewGroup parent);
+    }
+
+    private static HashMap sLayoutRegistry = new HashMap();
+
+    /**
+     * Register a programmatic layout builder for the given resource ID.
+     * When inflate() is called with this resource ID, the factory will be
+     * invoked instead of parsing binary XML.
+     */
+    public static void registerLayout(int resourceId, ViewFactory factory) {
+        sLayoutRegistry.put(Integer.valueOf(resourceId), factory);
+    }
+
+    /**
+     * Unregister a previously registered layout factory.
+     */
+    public static void unregisterLayout(int resourceId) {
+        sLayoutRegistry.remove(Integer.valueOf(resourceId));
+    }
+
+    /**
+     * Check if a programmatic layout is registered for the given resource ID.
+     */
+    public static boolean hasRegisteredLayout(int resourceId) {
+        return sLayoutRegistry.containsKey(Integer.valueOf(resourceId));
+    }
+
+    // ── View tag-to-class mapping ─────────────────────────────────────────
+    private static final HashMap sTagClassMap = new HashMap();
+    static {
+        // android.view.* classes
+        sTagClassMap.put("View", "android.view.View");
+        sTagClassMap.put("ViewGroup", "android.view.ViewGroup");
+        sTagClassMap.put("SurfaceView", "android.view.SurfaceView");
+        sTagClassMap.put("TextureView", "android.view.TextureView");
+        // android.widget.* classes
+        sTagClassMap.put("LinearLayout", "android.widget.LinearLayout");
+        sTagClassMap.put("RelativeLayout", "android.widget.FrameLayout"); // approximate
+        sTagClassMap.put("FrameLayout", "android.widget.FrameLayout");
+        sTagClassMap.put("ScrollView", "android.widget.ScrollView");
+        sTagClassMap.put("TextView", "android.widget.TextView");
+        sTagClassMap.put("Button", "android.widget.Button");
+        sTagClassMap.put("EditText", "android.widget.EditText");
+        sTagClassMap.put("ImageView", "android.widget.ImageView");
+        sTagClassMap.put("CheckBox", "android.widget.CheckBox");
+        sTagClassMap.put("RadioButton", "android.widget.RadioButton");
+        sTagClassMap.put("Switch", "android.widget.Switch");
+        sTagClassMap.put("SeekBar", "android.widget.SeekBar");
+        sTagClassMap.put("ProgressBar", "android.widget.ProgressBar");
+        sTagClassMap.put("ListView", "android.widget.ListView");
+        sTagClassMap.put("Spinner", "android.widget.Spinner");
+        sTagClassMap.put("WebView", "android.webkit.WebView");
+        // Placeholder tags (no-op)
+        sTagClassMap.put("include", null);
+        sTagClassMap.put("merge", null);
+        sTagClassMap.put("fragment", null);
+        sTagClassMap.put("requestFocus", null);
+    }
+
+    /**
+     * Create a View from an XML tag name.
+     * Handles fully-qualified class names ("com.example.MyView"),
+     * short Android names ("LinearLayout" -> android.widget.LinearLayout),
+     * and special tags ("include", "merge", "fragment" -> null/placeholder).
+     */
+    public View createViewFromTag(String tagName) {
+        if (tagName == null) return null;
+
+        // Special tags that don't produce views
+        if ("include".equals(tagName) || "merge".equals(tagName)
+                || "fragment".equals(tagName) || "requestFocus".equals(tagName)) {
+            return null;
+        }
+
+        String fullName = null;
+
+        // Check if it's a fully-qualified name (contains a dot)
+        if (tagName.contains(".")) {
+            fullName = tagName;
+        } else {
+            // Look up in the tag map
+            Object mapped = sTagClassMap.get(tagName);
+            if (mapped != null) {
+                fullName = (String) mapped;
+            } else {
+                // Default: try android.widget.* then android.view.*
+                fullName = "android.widget." + tagName;
+            }
+        }
+
+        // Try to instantiate the view class
+        try {
+            Class cls = Class.forName(fullName);
+            // Try no-arg constructor first
+            return (View) cls.getDeclaredConstructor().newInstance();
+        } catch (Exception e) {
+            // Try Context constructor
+            try {
+                Class cls = Class.forName(fullName);
+                return (View) cls.getDeclaredConstructor(Context.class).newInstance(mContext);
+            } catch (Exception e2) {
+                // For non-widget short names, try android.view.*
+                if (!tagName.contains(".") && fullName.startsWith("android.widget.")) {
+                    try {
+                        Class cls = Class.forName("android.view." + tagName);
+                        return (View) cls.getDeclaredConstructor().newInstance();
+                    } catch (Exception e3) {
+                        // fall through
+                    }
+                }
+            }
+        }
+        return null;
+    }
+
+    // ── Constructor and factory ───────────────────────────────────────────
 
     public LayoutInflater(Context context) {
         mContext = context;
@@ -49,8 +173,7 @@ public class LayoutInflater {
     }
 
     /**
-     * Inflate a layout resource. Since we don't have real resources,
-     * returns a stub FrameLayout with the resource ID set.
+     * Inflate a layout resource.
      */
     public View inflate(int resource, ViewGroup root) {
         return inflate(resource, root, root != null);
@@ -58,13 +181,30 @@ public class LayoutInflater {
 
     /**
      * Inflate a layout resource with attachToRoot control.
-     * Attempts to load and parse the binary layout XML from the APK's extracted res/ directory.
-     * Falls back to a stub FrameLayout if the layout can't be found or parsed.
+     *
+     * Tries three strategies in order:
+     * 1. Programmatic layout registry (ViewFactory)
+     * 2. Binary layout XML from APK (BinaryLayoutParser)
+     * 3. Fallback: empty FrameLayout with resource ID
      */
     public View inflate(int resource, ViewGroup root, boolean attachToRoot) {
         View view = null;
 
-        // Try to inflate from the real binary layout XML
+        // 1. Check programmatic layout registry first
+        Object factoryObj = sLayoutRegistry.get(Integer.valueOf(resource));
+        if (factoryObj != null) {
+            ViewFactory factory = (ViewFactory) factoryObj;
+            view = factory.createView(mContext, root);
+            if (view != null) {
+                if (attachToRoot && root != null) {
+                    root.addView(view);
+                    return root;
+                }
+                return view;
+            }
+        }
+
+        // 2. Try to inflate from the real binary layout XML
         if (mContext != null) {
             android.content.res.Resources res = mContext.getResources();
             if (res != null) {
@@ -82,7 +222,7 @@ public class LayoutInflater {
             }
         }
 
-        // Fallback: stub FrameLayout
+        // 3. Fallback: stub FrameLayout
         if (view == null) {
             view = new FrameLayout(mContext);
         }

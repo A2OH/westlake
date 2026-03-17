@@ -131,6 +131,7 @@ public class HeadlessTest {
         testActivityLifecycleEdgeCases();
         testSharedPreferencesEdgeCases();
         testMiniActivityManagerEdgeCases();
+        testResourcesPhase1();
 
         System.out.println("\n═══ Results ═══");
         System.out.println("Passed: " + passed);
@@ -3357,6 +3358,98 @@ public class HeadlessTest {
         android.view.LayoutInflater cloned = inflater.cloneInContext(ctx2);
         check("cloned not null", cloned != null);
         check("cloned has new context", cloned.getContext() == ctx2);
+
+        // ── Phase 1: Programmatic layout registry ──
+        section("LayoutInflater Phase 1 - Registry");
+
+        // Register a programmatic layout
+        final int TEST_LAYOUT = 0x7f0e0001;
+        android.view.LayoutInflater.registerLayout(TEST_LAYOUT, new android.view.LayoutInflater.ViewFactory() {
+            public android.view.View createView(android.content.Context c, android.view.ViewGroup parent) {
+                android.widget.LinearLayout ll = new android.widget.LinearLayout();
+                ll.addView(new android.widget.TextView());
+                ll.addView(new android.widget.Button());
+                return ll;
+            }
+        });
+
+        check("hasRegisteredLayout true", android.view.LayoutInflater.hasRegisteredLayout(TEST_LAYOUT));
+        check("hasRegisteredLayout false for unknown", !android.view.LayoutInflater.hasRegisteredLayout(0x7f0effff));
+
+        android.view.View inflated = inflater.inflate(TEST_LAYOUT, null);
+        check("inflate registered layout non-null", inflated != null);
+        check("inflate registered layout is LinearLayout", inflated instanceof android.widget.LinearLayout);
+        check("inflated has 2 children",
+                inflated instanceof android.view.ViewGroup
+                && ((android.view.ViewGroup) inflated).getChildCount() == 2);
+
+        // Verify child types
+        android.view.ViewGroup inflatedVg = (android.view.ViewGroup) inflated;
+        check("child 0 is TextView", inflatedVg.getChildAt(0) instanceof android.widget.TextView);
+        check("child 1 is Button", inflatedVg.getChildAt(1) instanceof android.widget.Button);
+
+        // Register + inflate with attachToRoot=true
+        android.widget.FrameLayout regRoot = new android.widget.FrameLayout();
+        android.view.View regView = inflater.inflate(TEST_LAYOUT, regRoot, true);
+        check("registered attach returns root", regView == regRoot);
+        check("registered root has 1 child", regRoot.getChildCount() == 1);
+
+        // Register + inflate with attachToRoot=false
+        android.widget.FrameLayout regRoot2 = new android.widget.FrameLayout();
+        android.view.View regView2 = inflater.inflate(TEST_LAYOUT, regRoot2, false);
+        check("registered !attach returns child", regView2 != regRoot2);
+        check("registered !attach root empty", regRoot2.getChildCount() == 0);
+
+        // Unregister
+        android.view.LayoutInflater.unregisterLayout(TEST_LAYOUT);
+        check("unregistered layout gone", !android.view.LayoutInflater.hasRegisteredLayout(TEST_LAYOUT));
+        android.view.View afterUnreg = inflater.inflate(TEST_LAYOUT, null);
+        check("after unregister falls back to FrameLayout",
+                afterUnreg instanceof android.widget.FrameLayout);
+
+        // Fallback for unknown layout
+        android.view.View unknown = inflater.inflate(0x7f0effff, null);
+        check("unknown layout returns fallback", unknown != null);
+
+        // ── Phase 1: createViewFromTag ──
+        section("LayoutInflater Phase 1 - createViewFromTag");
+
+        // Short names
+        android.view.View fromTag1 = inflater.createViewFromTag("LinearLayout");
+        check("tag LinearLayout", fromTag1 instanceof android.widget.LinearLayout);
+
+        android.view.View fromTag2 = inflater.createViewFromTag("TextView");
+        check("tag TextView", fromTag2 instanceof android.widget.TextView);
+
+        android.view.View fromTag3 = inflater.createViewFromTag("Button");
+        check("tag Button", fromTag3 instanceof android.widget.Button);
+
+        android.view.View fromTag4 = inflater.createViewFromTag("FrameLayout");
+        check("tag FrameLayout", fromTag4 instanceof android.widget.FrameLayout);
+
+        android.view.View fromTag5 = inflater.createViewFromTag("View");
+        check("tag View", fromTag5 instanceof android.view.View);
+
+        android.view.View fromTag6 = inflater.createViewFromTag("ImageView");
+        check("tag ImageView", fromTag6 instanceof android.widget.ImageView);
+
+        android.view.View fromTag7 = inflater.createViewFromTag("EditText");
+        check("tag EditText", fromTag7 instanceof android.widget.EditText);
+
+        android.view.View fromTag8 = inflater.createViewFromTag("CheckBox");
+        check("tag CheckBox", fromTag8 instanceof android.widget.CheckBox);
+
+        android.view.View fromTag9 = inflater.createViewFromTag("ScrollView");
+        check("tag ScrollView", fromTag9 instanceof android.widget.ScrollView);
+
+        // Special tags return null
+        check("tag include is null", inflater.createViewFromTag("include") == null);
+        check("tag merge is null", inflater.createViewFromTag("merge") == null);
+        check("tag fragment is null", inflater.createViewFromTag("fragment") == null);
+
+        // Fully qualified name
+        android.view.View fromFqn = inflater.createViewFromTag("android.widget.ProgressBar");
+        check("tag fqn ProgressBar", fromFqn instanceof android.widget.ProgressBar);
     }
 
     // ── Context.startActivity tests ─────────────────────────────────────────
@@ -3840,6 +3933,109 @@ public class HeadlessTest {
         // getResources() returns same instance
         android.content.res.Resources res2 = ctx.getResources();
         check("getResources returns same instance", res == res2);
+    }
+
+    // ── Resources Phase 1 tests ───────────────────────────────────────────────
+
+    static void testResourcesPhase1() {
+        section("Resources Phase 1");
+
+        android.content.res.Resources res = new android.content.res.Resources();
+
+        // getString returns non-null default
+        check("getString returns non-null", res.getString(0x7f0a0001) != null);
+        check("getString contains id", res.getString(0x7f0a0001).length() > 0);
+
+        // getText delegates to getString
+        CharSequence text = res.getText(0x7f0a0001);
+        check("getText returns non-null", text != null);
+
+        // getString with format args
+        String fmt = res.getString(0x7f0a0001, "arg1", "arg2");
+        check("getString with args non-null", fmt != null);
+
+        // getColor returns opaque black default
+        check("getColor returns default black", res.getColor(0x7f0b0001) == 0xFF000000);
+
+        // getColor with Theme
+        check("getColor with theme", res.getColor(0x7f0b0001, null) == 0xFF000000);
+
+        // getInteger returns 0
+        check("getInteger returns 0", res.getInteger(0x7f0c0001) == 0);
+
+        // getBoolean returns false
+        check("getBoolean returns false", res.getBoolean(0x7f0c0001) == false);
+
+        // getDimension returns 0f
+        check("getDimension returns 0", res.getDimension(0x7f0c0001) == 0f);
+
+        // getDimensionPixelSize returns 0
+        check("getDimensionPixelSize returns 0", res.getDimensionPixelSize(0x7f0c0001) == 0);
+
+        // getDimensionPixelOffset returns 0
+        check("getDimensionPixelOffset returns 0", res.getDimensionPixelOffset(0x7f0c0001) == 0);
+
+        // getDrawable returns non-null ColorDrawable
+        android.graphics.drawable.Drawable d = res.getDrawable(0x7f0d0001);
+        check("getDrawable returns non-null", d != null);
+        check("getDrawable is ColorDrawable", d instanceof android.graphics.drawable.ColorDrawable);
+
+        // getDrawable with Theme
+        android.graphics.drawable.Drawable d2 = res.getDrawable(0x7f0d0001, null);
+        check("getDrawable with theme non-null", d2 != null);
+
+        // getColorStateList returns stub
+        android.content.res.ColorStateList csl = res.getColorStateList(0x7f0b0001);
+        check("getColorStateList non-null", csl != null);
+        check("getColorStateList default color", csl.getDefaultColor() == 0xFF000000);
+
+        // getLayout returns null (Phase B9)
+        check("getLayout returns null", res.getLayout(0x7f030001) == null);
+
+        // getIdentifier returns 0
+        check("getIdentifier returns 0", res.getIdentifier("app_name", "string", "com.test") == 0);
+
+        // getResourceName returns synthetic name
+        String rName = res.getResourceName(0x7f0a0001);
+        check("getResourceName non-null", rName != null);
+        check("getResourceName contains hex", rName.indexOf("7f0a0001") >= 0);
+
+        // getResourceEntryName
+        String eName = res.getResourceEntryName(0x7f0a0001);
+        check("getResourceEntryName non-null", eName != null);
+        check("getResourceEntryName contains hex", eName.indexOf("7f0a0001") >= 0);
+
+        // getResourceTypeName — typeId 0x0a = integer
+        String tName = res.getResourceTypeName(0x7f0a0001);
+        check("getResourceTypeName non-null", tName != null);
+        check("getResourceTypeName for 0x0a is integer", "integer".equals(tName));
+
+        // DisplayMetrics
+        android.util.DisplayMetrics dm = res.getDisplayMetrics();
+        check("displayMetrics non-null", dm != null);
+        check("displayMetrics density > 0", dm.density > 0);
+        check("displayMetrics widthPixels > 0", dm.widthPixels > 0);
+
+        // Configuration
+        android.content.res.Configuration cfg = res.getConfiguration();
+        check("configuration non-null", cfg != null);
+
+        // Phase 2: register custom string resource
+        res.registerStringResource(0x7f0a0001, "Hello World");
+        check("registered getString", "Hello World".equals(res.getString(0x7f0a0001)));
+
+        // Phase 2: register custom color resource
+        res.registerColorResource(0x7f0b0099, 0xFFFF0000);
+        check("registered getColor", res.getColor(0x7f0b0099) == 0xFFFF0000);
+
+        // Phase 2: register custom integer resource
+        res.registerIntegerResource(0x7f0c0099, 42);
+        check("registered getInteger", res.getInteger(0x7f0c0099) == 42);
+
+        // ContextWrapper delegates getResources properly
+        android.content.ContextWrapper cw = new android.content.ContextWrapper(new android.content.Context());
+        android.content.res.Resources cwRes = cw.getResources();
+        check("ContextWrapper.getResources non-null", cwRes != null);
     }
 
     // ── ContentResolver wiring tests ─────────────────────────────────────────
