@@ -41,31 +41,44 @@ typedef struct {
 typedef ArkUI_AnyNativeAPI* (*GetNativeAPI_fn)(ArkUI_NativeAPIVariantKind, int32_t);
 
 static ArkUI_NativeNodeAPI_1* g_api = NULL;
-static int g_initDone = 0;
+static volatile int g_initDone = 0;
+static void* g_libHandle = NULL;
 
 static int initAPI() {
     if (g_initDone) return g_api ? 0 : -1;
     g_initDone = 1;
 
-    void* lib = dlopen("libace_ndk.z.so", RTLD_NOW);
-    if (!lib) lib = dlopen("/system/lib/libace_ndk.z.so", RTLD_NOW);
-    if (!lib) lib = dlopen("/data/a2oh/libace_ndk.z.so", RTLD_NOW);
-    if (!lib) {
+    /* Try multiple paths for the NDK library */
+    const char* paths[] = {
+        "libace_ndk.z.so",
+        "/system/lib/libace_ndk.z.so",
+        "/data/a2oh/libace_ndk.z.so",
+        NULL
+    };
+    for (int i = 0; paths[i]; i++) {
+        g_libHandle = dlopen(paths[i], RTLD_NOW);
+        if (g_libHandle) break;
+    }
+    if (!g_libHandle) {
         fprintf(stderr, "[ArkUI] dlopen failed: %s\n", dlerror());
         return -1;
     }
-    GetNativeAPI_fn getAPI = (GetNativeAPI_fn) dlsym(lib, "OH_ArkUI_GetNativeAPI");
+    GetNativeAPI_fn getAPI = (GetNativeAPI_fn) dlsym(g_libHandle, "OH_ArkUI_GetNativeAPI");
     if (!getAPI) {
         fprintf(stderr, "[ArkUI] OH_ArkUI_GetNativeAPI not found\n");
+        dlclose(g_libHandle); g_libHandle = NULL;
         return -1;
     }
     ArkUI_AnyNativeAPI* any = getAPI(ARKUI_NATIVE_NODE, 1);
     if (!any || any->version < 1) {
         fprintf(stderr, "[ArkUI] GetNativeAPI returned null or bad version\n");
+        dlclose(g_libHandle); g_libHandle = NULL;
         return -1;
     }
     g_api = (ArkUI_NativeNodeAPI_1*) any;
-    fprintf(stderr, "[ArkUI] Loaded API version %d\n", g_api->version);
+    fprintf(stderr, "[ArkUI] Loaded API version %d (vtable at %p)\n", g_api->version, (void*)g_api);
+    /* WARNING: vtable struct layout is assumed — verify against actual libace_ndk.z.so.
+     * If createNode/addChild crash, the struct field order is wrong. */
     return 0;
 }
 
@@ -103,8 +116,9 @@ JNIEXPORT void JNICALL Java_com_ohos_shim_bridge_OHBridge_nodeInsertChildAt(
 
 JNIEXPORT void JNICALL Java_com_ohos_shim_bridge_OHBridge_nodeSetAttrString(
     JNIEnv* env, jclass, jlong h, jint attr, jstring jval) {
-    if (!g_api || !g_api->setAttribute || !h) return;
+    if (!g_api || !g_api->setAttribute || !h || !jval) return;
     const char* val = env->GetStringUTFChars(jval, NULL);
+    if (!val) return;
     ArkUI_AttributeItem item = {}; item.string = val;
     g_api->setAttribute((ArkUI_NodeHandle)(uintptr_t)h, attr, &item);
     env->ReleaseStringUTFChars(jval, val);
