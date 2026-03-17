@@ -85,6 +85,7 @@ public class Paint {
             this.textAlign   = paint.textAlign;
             this.strokeMiter = paint.strokeMiter;
             this.fakeBoldText = paint.fakeBoldText;
+            this.mTypeface = paint.mTypeface;
         }
     }
 
@@ -293,6 +294,17 @@ public class Paint {
         else    flags &= ~ANTI_ALIAS_FLAG;
     }
     public boolean isAntiAlias() { return (flags & ANTI_ALIAS_FLAG) != 0; }
+
+    // ── Typeface ─────────────────────────────────────────────────────────────
+
+    private Typeface mTypeface;
+
+    public Typeface setTypeface(Typeface typeface) {
+        mTypeface = typeface;
+        cachedAwtMetrics = null;
+        return typeface;
+    }
+    public Typeface getTypeface() { return mTypeface; }
 
     // ── Flags ────────────────────────────────────────────────────────────────
 

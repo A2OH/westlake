@@ -50,7 +50,13 @@ public class BoringLayout extends Layout {
         }
         if (metrics == null) metrics = new Metrics();
         if (paint != null) {
-            metrics.width = (int) paint.measureText(text.toString());
+            metrics.width = (int) Math.ceil(paint.measureText(text.toString()));
+            android.graphics.Paint.FontMetrics fm = paint.getFontMetrics();
+            metrics.ascent  = (int) Math.ceil(fm.ascent);
+            metrics.descent = (int) Math.ceil(fm.descent);
+            metrics.top     = (int) Math.ceil(fm.top);
+            metrics.bottom  = (int) Math.ceil(fm.bottom);
+            metrics.leading = (int) Math.ceil(fm.leading);
         }
         return metrics;
     }
