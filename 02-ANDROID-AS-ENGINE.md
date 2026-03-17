@@ -216,6 +216,108 @@ We built the engine and validated it with 2,139 test checks across 7 apps. The r
 
 The remaining ~56,310 Android APIs follow the same pattern — they're Java code that runs in Dalvik, calling into the ~15 bridges only for hardware/OS access.
 
+### 2.5 But Who Provides the 50,000 Java Classes?
+
+A natural question: if 50,000+ APIs are pure Java, they still need to exist as `.class` files that Dalvik loads. On real Android, `framework.jar` (~40MB) provides all `android.*` classes. In our engine, who provides them?
+
+**Three layers of class provision:**
+
+```
+Layer 1: java.* / javax.*  (~4,000 classes)
+  Provider: Dalvik VM ships these as core.jar (1.2MB)
+  Status:   WORKING — HashMap, String, ArrayList, Thread, etc.
+
+Layer 2: android.* framework  (~2,000 classes needed by typical app)
+  Two options:
+  ┌──────────────────────────────────────────────────────────────────┐
+  │ Option A: Shim layer (current)                                   │
+  │   1,968 stub classes, ~200 fully implemented                     │
+  │   Size: ~2MB DEX                                                 │
+  │   Fidelity: ~70% for simple apps                                 │
+  │   Pros: Small, fast to iterate, no AOSP dependencies             │
+  │   Cons: Missing methods, simplified behavior                     │
+  ├──────────────────────────────────────────────────────────────────┤
+  │ Option B: Real AOSP framework.jar (production target)            │
+  │   Actual Android framework Java source from AOSP                 │
+  │   Size: ~40MB DEX                                                │
+  │   Fidelity: ~99% (identical to real Android)                     │
+  │   Pros: Perfect compatibility, battle-tested code                │
+  │   Cons: Larger, needs SystemServer stubs                         │
+  └──────────────────────────────────────────────────────────────────┘
+
+Layer 3: App's own code  (varies per APK)
+  Provider: The APK's classes.dex
+  Status:   WORKING — loaded by DexClassLoader
+```
+
+**The production engine uses a hybrid approach:**
+
+```
+Boot classpath:
+├── core.jar              ← Dalvik's java.* classes (1.2MB, have this)
+├── framework-pure.jar    ← AOSP classes that are pure Java (~30MB)
+│     View, ViewGroup, LinearLayout, TextView, Canvas,
+│     Activity, Intent, Bundle, SharedPreferences,
+│     Handler, Looper, AsyncTask, Fragment...
+│     (~80% of framework.jar — compiles unchanged)
+│
+├── framework-bridge.jar  ← MiniServer + bridge layer (~2MB, have this)
+│     MiniActivityManager replaces ActivityManagerService
+│     MiniWindowManager replaces WindowManagerService
+│     MiniPackageManager replaces PackageManagerService
+│     OHBridge replaces native Binder IPC calls
+│
+└── app's classes.dex     ← The APK's own code
+```
+
+The key insight: **AOSP `framework.jar` is already pure Java.** The source code lives at `frameworks/base/core/java/android/`. We don't rewrite 50,000 APIs — we compile the real AOSP source and only replace the ~15 points where it calls into native system services (Binder → SystemServer). MiniServer provides those same services as lightweight in-process Java objects.
+
+### 2.6 Framework Memory: Shared vs Per-App
+
+On real Android, all apps share one copy of `framework.jar` via the Zygote fork model:
+
+```
+Real Android:
+  Zygote process loads framework.jar (~40MB) ONCE
+    ├── App 1 forked from Zygote — shares framework pages (copy-on-write)
+    ├── App 2 forked from Zygote — shares framework pages
+    ├── App 3 forked from Zygote — shares framework pages
+    └── Memory cost: ~40MB total (shared across ALL apps)
+
+Engine on OHOS:
+  Dalvik VM loads boot classpath per engine instance
+    ├── App 1: core.jar + framework = ~42MB
+    ├── App 2 (if simultaneous): +~20MB (only app DEX, framework pages reusable via mmap)
+    └── Memory cost: ~42MB base + ~20MB per additional app
+```
+
+**This is not a problem because the engine runs ONE app at a time** — the same model as Flutter. You don't run two Flutter apps simultaneously sharing the Dart VM.
+
+```
+Engine lifecycle:
+  User launches App A:
+    Load Dalvik + framework + App A → ~60MB total
+    App A runs, user interacts
+
+  User switches to App B:
+    Option 1: Unload A, load B → ~60MB (reuse VM, only swap app DEX)
+    Option 2: Suspend A, load B → ~60MB + ~20MB = ~80MB
+              (framework.jar pages shared via OS mmap, only app DEX duplicated)
+```
+
+**Comparison: memory cost for N simultaneous apps**
+
+| Apps Running | Container (Anbox) | Engine |
+|:------------:|------------------:|-------:|
+| 0 (idle) | 500MB-1GB (OS overhead) | **0 MB** (nothing loaded) |
+| 1 app | 500MB-1GB + ~20MB | **~60 MB** |
+| 2 apps | 500MB-1GB + ~40MB | **~80 MB** |
+| 5 apps | 500MB-1GB + ~100MB | **~160 MB** |
+
+The container has a fixed ~500MB-1GB base cost regardless of how many apps run. The engine scales linearly from zero. For the typical case (1-2 apps), the engine uses **6-10x less memory**.
+
+On a $50 phone with 2GB RAM, the container leaves ~1GB for the rest of the system. The engine leaves ~1.9GB. That's the difference between a usable device and a sluggish one.
+
 ---
 
 ## 3. Architecture

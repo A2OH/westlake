@@ -216,6 +216,108 @@ What actually happens:
 
 其余约56,310个Android API遵循相同模式——它们是在Dalvik中运行的Java代码，只在需要硬件/OS访问时才调用约15个桥接。
 
+### 2.5 但谁来提供这50,000个Java类？
+
+一个自然的问题：如果50,000+个API都是纯Java，它们仍然需要以`.class`文件的形式存在，供Dalvik加载。在真实Android中，`framework.jar`（约40MB）提供所有`android.*`类。在我们的引擎方案中，谁来提供它们？
+
+**三层类提供机制：**
+
+```
+第一层：java.* / javax.*（约4,000个类）
+  提供者：Dalvik VM自带的core.jar（1.2MB）
+  状态：   已完成 — HashMap、String、ArrayList、Thread等
+
+第二层：android.*框架（典型应用需要约2,000个类）
+  两种选择：
+  ┌──────────────────────────────────────────────────────────────────┐
+  │ 方案A：适配层（当前方案）                                         │
+  │   1,968个桩类，约200个完整实现                                     │
+  │   大小：约2MB DEX                                                │
+  │   兼容性：简单应用约70%                                           │
+  │   优点：体积小，迭代快，无AOSP依赖                                 │
+  │   缺点：缺少方法，行为简化                                        │
+  ├──────────────────────────────────────────────────────────────────┤
+  │ 方案B：真实AOSP framework.jar（生产目标）                          │
+  │   直接使用AOSP的Android框架Java源码                                │
+  │   大小：约40MB DEX                                                │
+  │   兼容性：约99%（与真实Android完全一致）                           │
+  │   优点：完美兼容，经过实战检验的代码                                │
+  │   缺点：体积较大，需要SystemServer桩                               │
+  └──────────────────────────────────────────────────────────────────┘
+
+第三层：应用自身代码（因APK而异）
+  提供者：APK中的classes.dex
+  状态：   已完成 — 由DexClassLoader加载
+```
+
+**生产环境引擎采用混合方案：**
+
+```
+启动类路径（Boot classpath）：
+├── core.jar              ← Dalvik的java.*类（1.2MB，已有）
+├── framework-pure.jar    ← AOSP中纯Java的类（约30MB）
+│     View, ViewGroup, LinearLayout, TextView, Canvas,
+│     Activity, Intent, Bundle, SharedPreferences,
+│     Handler, Looper, AsyncTask, Fragment...
+│     （framework.jar的约80%——无需修改即可编译）
+│
+├── framework-bridge.jar  ← MiniServer + 桥接层（约2MB，已有）
+│     MiniActivityManager 替代 ActivityManagerService
+│     MiniWindowManager 替代 WindowManagerService
+│     MiniPackageManager 替代 PackageManagerService
+│     OHBridge 替代原生Binder IPC调用
+│
+└── 应用的classes.dex     ← APK自身的代码
+```
+
+核心洞察：**AOSP的`framework.jar`本身就是纯Java。** 源码位于`frameworks/base/core/java/android/`。我们不需要重写50,000个API——直接编译真实的AOSP源码，只替换其中约15个调用原生系统服务的位置（Binder → SystemServer）。MiniServer以轻量级进程内Java对象的形式提供这些相同的服务。
+
+### 2.6 框架内存：共享 vs 每应用独立
+
+在真实Android中，所有应用通过Zygote fork模型共享一份`framework.jar`：
+
+```
+真实Android：
+  Zygote进程加载framework.jar（约40MB）一次
+    ├── 应用1 从Zygote fork — 共享框架页面（写时复制）
+    ├── 应用2 从Zygote fork — 共享框架页面
+    ├── 应用3 从Zygote fork — 共享框架页面
+    └── 内存开销：总计约40MB（所有应用共享）
+
+OHOS上的引擎：
+  每个引擎实例加载启动类路径
+    ├── 应用1：core.jar + framework = 约42MB
+    ├── 应用2（如果同时运行）：+约20MB（仅应用DEX，框架页面可通过mmap重用）
+    └── 内存开销：基础约42MB + 每个额外应用约20MB
+```
+
+**这并不是问题，因为引擎每次只运行一个应用** — 与Flutter相同的模型。你也不会同时运行两个共享Dart VM的Flutter应用。
+
+```
+引擎生命周期：
+  用户启动应用A：
+    加载 Dalvik + framework + 应用A → 总计约60MB
+    应用A运行，用户交互
+
+  用户切换到应用B：
+    方案1：卸载A，加载B → 约60MB（重用VM，只替换应用DEX）
+    方案2：挂起A，加载B → 约60MB + 约20MB = 约80MB
+           （framework.jar页面通过OS mmap共享，只有应用DEX重复）
+```
+
+**对比：N个同时运行应用的内存开销**
+
+| 运行应用数 | 容器方案（Anbox） | 引擎方案 |
+|:----------:|------------------:|--------:|
+| 0（空闲） | 500MB-1GB（OS开销） | **0 MB**（无加载） |
+| 1个应用 | 500MB-1GB + 约20MB | **约60 MB** |
+| 2个应用 | 500MB-1GB + 约40MB | **约80 MB** |
+| 5个应用 | 500MB-1GB + 约100MB | **约160 MB** |
+
+容器方案无论运行多少应用都有约500MB-1GB的固定基础开销。引擎方案从零开始线性扩展。对于典型场景（1-2个应用），引擎使用**少6-10倍的内存**。
+
+在2GB内存的50美元手机上，容器方案给系统其余部分只留下约1GB。引擎方案留下约1.9GB。这就是一个可用设备和一个卡顿设备之间的区别。
+
 ---
 
 ## 3. 架构设计
