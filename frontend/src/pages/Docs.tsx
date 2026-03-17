@@ -62,6 +62,8 @@ const ENGINE_DOCS = [
   { slug: 'architecture', title: 'Android-as-Engine: Architecture Design', titleZh: 'Android即引擎：架构设计文档' },
   { slug: 'call-flows', title: 'Detailed Call Flow Diagrams (12 flows)', titleZh: '详细调用流程图（12个流程）' },
   { slug: 'execution-plan', title: 'Engine Execution Plan (WS1-4)', titleZh: '引擎执行计划（WS1-4）' },
+  { slug: 'real-apk-status', title: 'Real APK on Dalvik/OHOS — Status', titleZh: '真实APK在Dalvik/OHOS上运行 — 状态' },
+  { slug: 'mockdonalds-plan', title: 'MockDonalds Integration Test Plan', titleZh: 'MockDonalds集成测试计划' },
 ];
 
 const A2OH_FACTORY_DOCS = [
@@ -80,6 +82,26 @@ const EXTERNAL_DOCS: Record<string, { repo: string; enPath: string; zhPath: stri
     repo: 'A2OH/A2OH-Factory',
     enPath: '03-AI-AGENT-PLAYBOOK.md',
     zhPath: '03-AI-AGENT-PLAYBOOK-CN.md',
+  },
+  'engine/architecture': {
+    repo: 'A2OH/harmony-android-guide',
+    enPath: '02-ANDROID-AS-ENGINE.md',
+    zhPath: '02-ANDROID-AS-ENGINE-CN.md',
+  },
+  'engine/execution-plan': {
+    repo: 'A2OH/harmony-android-guide',
+    enPath: '03-ENGINE-EXECUTION-PLAN.md',
+    zhPath: '03-ENGINE-EXECUTION-PLAN.md',
+  },
+  'engine/real-apk-status': {
+    repo: 'A2OH/harmony-android-guide',
+    enPath: 'docs/REAL-APK-STATUS.md',
+    zhPath: 'docs/REAL-APK-STATUS.md',
+  },
+  'engine/mockdonalds-plan': {
+    repo: 'A2OH/harmony-android-guide',
+    enPath: 'docs/MOCKDONALDS-PLAN.md',
+    zhPath: 'docs/MOCKDONALDS-PLAN.md',
   },
 };
 
