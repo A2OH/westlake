@@ -1406,8 +1406,10 @@ static jlong Inflater_createStream(JNIEnv*, jobject, jboolean nowrap) {
 }
 
 static void Inflater_setInputImpl(JNIEnv* env, jobject, jbyteArray buf, jint off, jint len, jlong streamHandle) {
+    fprintf(stderr, "[Inflater] setInput: buf=%p off=%d len=%d stream=0x%lx\n", buf, off, len, (unsigned long)streamHandle);
     z_stream* strm = (z_stream*)(uintptr_t) streamHandle;
-    if (!strm || !buf) return;
+    if (!strm || !buf) { fprintf(stderr, "[Inflater] setInput: NULL strm or buf\n"); return; }
+    fprintf(stderr, "[Inflater] setInput: current next_in=%p avail_in=%d\n", strm->next_in, strm->avail_in);
     /* Copy input data to a persistent buffer (z_stream needs it alive until inflate) */
     free((void*)strm->next_in); /* free previous input copy */
     jbyte* copy = (jbyte*) malloc(len);
@@ -1419,17 +1421,30 @@ static void Inflater_setInputImpl(JNIEnv* env, jobject, jbyteArray buf, jint off
 
 static jint Inflater_inflateImpl(JNIEnv* env, jobject, jbyteArray buf, jint off, jint len, jlong streamHandle) {
     z_stream* strm = (z_stream*)(uintptr_t) streamHandle;
-    if (!strm) return -1;
-    jbyte* bytes = env->GetByteArrayElements(buf, NULL);
-    if (!bytes) return -1;
-    strm->next_out = (Bytef*)(bytes + off);
+    if (!strm || !strm->next_in || strm->avail_in == 0) return 0;
+
+    jint arrLen = env->GetArrayLength(buf);
+    if (off < 0 || len < 0 || off + len > arrLen) return -1;
+
+    /* Use GetByteArrayRegion + SetByteArrayRegion instead of GetByteArrayElements
+     * to avoid pinning issues */
+    jbyte* outBuf = (jbyte*) malloc(len);
+    if (!outBuf) return -1;
+
+    strm->next_out = (Bytef*) outBuf;
     strm->avail_out = len;
+
     int ret = inflate(strm, Z_SYNC_FLUSH);
     jint produced = len - strm->avail_out;
-    env->ReleaseByteArrayElements(buf, bytes, 0);
+
+    if (produced > 0) {
+        env->SetByteArrayRegion(buf, off, produced, outBuf);
+    }
+    free(outBuf);
+
     if (ret == Z_STREAM_END || ret == Z_OK) return produced;
-    if (ret == Z_NEED_DICT) return 0; /* needs dictionary */
-    return -1; /* error */
+    if (ret == Z_NEED_DICT) return 0;
+    return -1;
 }
 
 static jint Inflater_getAdlerImpl(JNIEnv*, jobject, jlong streamHandle) {
@@ -1456,6 +1471,61 @@ static void Inflater_endImpl(JNIEnv*, jobject, jlong streamHandle) {
     z_stream* strm = (z_stream*)(uintptr_t) streamHandle;
     if (strm) { free((void*)strm->next_in); inflateEnd(strm); free(strm); }
 }
+
+/* Deflater */
+static jlong Deflater_createStream(JNIEnv*, jobject, jint level, jint strategy, jboolean nowrap) {
+    z_stream* strm = (z_stream*) calloc(1, sizeof(z_stream));
+    int ret = deflateInit2(strm, level, Z_DEFLATED, nowrap ? -MAX_WBITS : MAX_WBITS, 8, strategy);
+    if (ret != Z_OK) { free(strm); return 0; }
+    return (jlong)(uintptr_t) strm;
+}
+static void Deflater_setInputImpl(JNIEnv* env, jobject, jbyteArray buf, jint off, jint len, jlong sh) {
+    z_stream* s = (z_stream*)(uintptr_t)sh; if (!s) return;
+    free((void*)s->next_in);
+    jbyte* c = (jbyte*)malloc(len); if (!c) return;
+    env->GetByteArrayRegion(buf, off, len, c);
+    s->next_in = (Bytef*)c; s->avail_in = len;
+}
+static jint Deflater_deflateImpl(JNIEnv* env, jobject, jbyteArray buf, jint off, jint len, jlong sh, jint flush) {
+    z_stream* s = (z_stream*)(uintptr_t)sh; if (!s) return -1;
+    jbyte* b = env->GetByteArrayElements(buf, NULL); if (!b) return -1;
+    s->next_out = (Bytef*)(b+off); s->avail_out = len;
+    int ret = deflate(s, flush);
+    jint produced = len - s->avail_out;
+    env->ReleaseByteArrayElements(buf, b, 0);
+    return (ret == Z_OK || ret == Z_STREAM_END) ? produced : -1;
+}
+static void Deflater_endImpl(JNIEnv*, jobject, jlong sh) {
+    z_stream* s = (z_stream*)(uintptr_t)sh;
+    if (s) { free((void*)s->next_in); deflateEnd(s); free(s); }
+}
+static void Deflater_resetImpl(JNIEnv*, jobject, jlong sh) {
+    z_stream* s = (z_stream*)(uintptr_t)sh; if (s) deflateReset(s);
+}
+static jint Deflater_getAdlerImpl(JNIEnv*, jobject, jlong sh) {
+    z_stream* s = (z_stream*)(uintptr_t)sh; return s ? (jint)s->adler : 0;
+}
+static jlong Deflater_getTotalInImpl(JNIEnv*, jobject, jlong sh) {
+    z_stream* s = (z_stream*)(uintptr_t)sh; return s ? (jlong)s->total_in : 0;
+}
+static jlong Deflater_getTotalOutImpl(JNIEnv*, jobject, jlong sh) {
+    z_stream* s = (z_stream*)(uintptr_t)sh; return s ? (jlong)s->total_out : 0;
+}
+static void Deflater_setLevelsImpl(JNIEnv*, jobject, jint level, jint strategy, jlong sh) {
+    z_stream* s = (z_stream*)(uintptr_t)sh;
+    if (s) deflateParams(s, level, strategy);
+}
+static JNINativeMethod gDeflaterMethods[] = {
+    { "createStream",    "(IIZ)J",    (void*) Deflater_createStream },
+    { "setInputImpl",    "([BIIJ)V",  (void*) Deflater_setInputImpl },
+    { "setLevelsImpl",   "(IIJ)V",    (void*) Deflater_setLevelsImpl },
+    { "deflateImpl",     "([BIIJI)I", (void*) Deflater_deflateImpl },
+    { "endImpl",         "(J)V",      (void*) Deflater_endImpl },
+    { "resetImpl",       "(J)V",      (void*) Deflater_resetImpl },
+    { "getAdlerImpl",    "(J)I",      (void*) Deflater_getAdlerImpl },
+    { "getTotalInImpl",  "(J)J",      (void*) Deflater_getTotalInImpl },
+    { "getTotalOutImpl", "(J)J",      (void*) Deflater_getTotalOutImpl },
+};
 
 static JNINativeMethod gInflaterMethods[] = {
     { "createStream",   "(Z)J",     (void*) Inflater_createStream },
@@ -1533,9 +1603,11 @@ bool dvmRegisterLibcoreBridge(JNIEnv* env) {
     registerClass(env, "java/lang/Thread",
                   gThreadMethods, sizeof(gThreadMethods)/sizeof(gThreadMethods[0]));
 
-    /* Inflater (zlib) */
+    /* Inflater + Deflater (zlib) */
     registerClass(env, "java/util/zip/Inflater",
                   gInflaterMethods, sizeof(gInflaterMethods)/sizeof(gInflaterMethods[0]));
+    registerClass(env, "java/util/zip/Deflater",
+                  gDeflaterMethods, sizeof(gDeflaterMethods)/sizeof(gDeflaterMethods[0]));
 
     return true;
 }

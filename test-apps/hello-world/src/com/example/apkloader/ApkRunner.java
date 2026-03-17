@@ -119,19 +119,22 @@ public class ApkRunner {
                     System.arraycopy(apk, dStart, r, 0, uSz);
                     return r;
                 } else {
-                    /* DEFLATED — decompress using Inflater */
+                    /* DEFLATED — decompress via reflection to avoid dexopt crash */
                     byte[] compressed = new byte[cSz];
                     System.arraycopy(apk, dStart, compressed, 0, cSz);
-                    java.util.zip.Inflater inf = new java.util.zip.Inflater(true);
-                    inf.setInput(compressed, 0, cSz);
-                    byte[] result = new byte[uSz];
                     try {
-                        inf.inflate(result);
-                    } catch (java.util.zip.DataFormatException dfe) {
-                        /* ignore — return partial data */
+                        Class<?> infClass = Class.forName("java.util.zip.Inflater");
+                        Object inf = infClass.getConstructor(boolean.class).newInstance(true);
+                        infClass.getMethod("setInput", byte[].class, int.class, int.class)
+                            .invoke(inf, compressed, 0, cSz);
+                        byte[] result = new byte[uSz];
+                        infClass.getMethod("inflate", byte[].class).invoke(inf, result);
+                        infClass.getMethod("end").invoke(inf);
+                        return result;
+                    } catch (Exception ex) {
+                        System.out.println("WARNING: Cannot decompress entry '" + entryName + "': " + ex);
+                        return compressed; /* return raw compressed data */
                     }
-                    inf.end();
-                    return result;
                 }
             }
             pos += 46 + nLen + xLen + cLen;
