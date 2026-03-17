@@ -122,6 +122,19 @@ public class Activity extends Context {
         return mApplication;
     }
 
+    /**
+     * Returns the Application's Resources so that resource registrations
+     * on the Application context are visible to Activities (matches real Android
+     * where Activity and Application share the same ResourcesImpl).
+     */
+    @Override
+    public android.content.res.Resources getResources() {
+        if (mApplication != null) {
+            return mApplication.getResources();
+        }
+        return super.getResources();
+    }
+
     /* ── Surface rendering ── */
     private long mSurfaceCtx;
     private int mSurfaceWidth;
