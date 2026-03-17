@@ -35,6 +35,10 @@ public class MiniActivityManager {
      * @param requestCode -1 for startActivity, >= 0 for startActivityForResult
      */
     public void startActivity(Activity caller, Intent intent, int requestCode) {
+        if (intent == null) {
+            Log.w(TAG, "startActivity: null intent");
+            return;
+        }
         ComponentName component = intent.getComponent();
         if (component == null) {
             // Implicit intent resolution via MiniPackageManager
@@ -103,9 +107,13 @@ public class MiniActivityManager {
      * Finish an Activity. Pops it from the stack and resumes the previous one.
      */
     public void finishActivity(Activity activity) {
+        if (activity == null) {
+            Log.w(TAG, "finishActivity: null activity");
+            return;
+        }
         ActivityRecord record = findRecord(activity);
         if (record == null) {
-            Log.w(TAG, "finishActivity: activity not in stack");
+            // Already finished or never in stack — idempotent
             return;
         }
 
@@ -121,11 +129,13 @@ public class MiniActivityManager {
         // Deliver result to caller if startActivityForResult was used
         if (record.caller != null && record.requestCode >= 0) {
             Activity callerActivity = record.caller.activity;
-            callerActivity.onActivityResult(
-                record.requestCode,
-                activity.mResultCode,
-                activity.mResultData
-            );
+            if (callerActivity != null && !callerActivity.mDestroyed) {
+                callerActivity.onActivityResult(
+                    record.requestCode,
+                    activity.mResultCode,
+                    activity.mResultData
+                );
+            }
         }
 
         // Remove from stack
@@ -144,12 +154,10 @@ public class MiniActivityManager {
      * Handle back button press. Finishes the top activity.
      */
     public void onBackPressed() {
-        if (mResumed != null) {
+        if (mResumed != null && mResumed.activity != null) {
             Activity top = mResumed.activity;
             top.onBackPressed();
-            if (top.mFinished) {
-                finishActivity(top);
-            }
+            // finish() is now idempotent and calls finishActivity internally
         }
     }
 
@@ -182,6 +190,7 @@ public class MiniActivityManager {
 
     /** Get an Activity by index (0 = bottom). */
     public Activity getActivity(int index) {
+        if (index < 0 || index >= mStack.size()) return null;
         return mStack.get(index).activity;
     }
 

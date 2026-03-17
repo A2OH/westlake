@@ -72,7 +72,10 @@ public class Activity extends Context {
 
     /* ── Core getters/setters ── */
 
-    public Intent getIntent() { return mIntent; }
+    public Intent getIntent() {
+        if (mIntent == null) mIntent = new Intent();
+        return mIntent;
+    }
     public void setIntent(Intent newIntent) { mIntent = newIntent; }
     public Application getApplication() { return mApplication; }
     public ComponentName getComponentName() { return mComponent; }
@@ -80,6 +83,7 @@ public class Activity extends Context {
     public void setTitle(CharSequence title) { mTitle = title != null ? title.toString() : null; }
 
     public void finish() {
+        if (mFinished) return;
         mFinished = true;
         MiniServer.get().getActivityManager().finishActivity(this);
     }

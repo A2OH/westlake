@@ -216,6 +216,23 @@ public class Intent implements Cloneable, Parcelable {
     @Override
     public Object clone() { return new Intent(this); }
 
+    /**
+     * Make a clone of only the filter-matching fields (action, data, type,
+     * component, categories). Does NOT copy extras, flags, or other fields.
+     */
+    public Intent cloneFilter() {
+        Intent clone = new Intent();
+        clone.mAction = this.mAction;
+        clone.mData = this.mData;
+        clone.mType = this.mType;
+        clone.mComponent = this.mComponent;
+        clone.mPackage = this.mPackage;
+        if (this.mCategories != null) {
+            clone.mCategories = new HashSet<String>(this.mCategories);
+        }
+        return clone;
+    }
+
     @Override
     public String toString() {
         StringBuilder sb = new StringBuilder("Intent { ");

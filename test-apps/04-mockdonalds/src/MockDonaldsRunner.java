@@ -8,14 +8,16 @@ import android.view.ViewGroup;
 import android.widget.ListView;
 import android.widget.TextView;
 import com.example.mockdonalds.*;
+import com.ohos.shim.bridge.OHBridge;
 import java.util.List;
 
 /**
  * Headless test runner for MockDonalds app.
- * Exercises: SQLite, ListView, Intent extras, Activity lifecycle, SharedPreferences.
+ * Exercises: SQLite, ListView, Intent extras, Activity lifecycle, SharedPreferences,
+ * and Canvas rendering validation (draw log verification).
  *
  * Run: java -cp build MockDonaldsRunner
- * Expected: 10 PASS, 0 FAIL
+ * Expected: 14 PASS, 0 FAIL
  */
 public class MockDonaldsRunner {
     private static int passed = 0;
@@ -104,6 +106,23 @@ public class MockDonaldsRunner {
             CartManager cartAfter = new CartManager(checkoutAct);
             check("Cart cleared after checkout", cartAfter.getCartCount() == 0);
 
+            // ── Canvas Render Validation ──────────────────────────────────
+            System.out.println("\n--- Canvas Render Validation ---");
+
+            // Render MenuActivity
+            List<OHBridge.DrawRecord> menuLog = renderAndGetLog(menuAct, 480, 800);
+            check("MenuActivity renders 'MockDonalds Menu' text",
+                    hasDrawText(menuLog, "MockDonalds Menu"));
+            check("MenuActivity renders menu item 'Big Mock Burger'",
+                    hasDrawText(menuLog, "Big Mock Burger"));
+            check("MenuActivity renders button 'View Cart'",
+                    hasDrawText(menuLog, "View Cart") && hasDrawOp(menuLog, "drawRoundRect"));
+
+            // Render CheckoutActivity
+            List<OHBridge.DrawRecord> checkoutLog = renderAndGetLog(checkoutAct, 480, 800);
+            check("CheckoutActivity renders 'Order Confirmed!'",
+                    hasDrawText(checkoutLog, "Order Confirmed!"));
+
         } catch (Exception e) {
             System.out.println("EXCEPTION: " + e.getClass().getName() + ": " + e.getMessage());
             e.printStackTrace();
@@ -125,6 +144,55 @@ public class MockDonaldsRunner {
             System.out.println("  [FAIL] " + name);
             failed++;
         }
+    }
+
+    /**
+     * Simulate a surface, render the Activity's View tree, and return the draw log.
+     */
+    private static List<OHBridge.DrawRecord> renderAndGetLog(Activity activity, int w, int h) {
+        // Create a mock surface for this Activity
+        activity.onSurfaceCreated(0, w, h);
+        activity.renderFrame();
+
+        // Get the canvas handle from the surface
+        // The surface stores canvas internally; we need to retrieve the draw log
+        // from the canvas that renderFrame() used. The mock surface's canvas handle
+        // is accessible via surfaceGetCanvas on the Activity's surface context.
+        // Since renderFrame uses mSurfaceCtx, we access it through reflection or
+        // by re-reading the surface canvas.
+        long surfaceCtx = getSurfaceCtx(activity);
+        long canvasHandle = OHBridge.surfaceGetCanvas(surfaceCtx);
+        List<OHBridge.DrawRecord> log = OHBridge.getDrawLog(canvasHandle);
+        return log;
+    }
+
+    /** Get the Activity's mSurfaceCtx field via reflection. */
+    private static long getSurfaceCtx(Activity activity) {
+        try {
+            java.lang.reflect.Field f = Activity.class.getDeclaredField("mSurfaceCtx");
+            f.setAccessible(true);
+            return f.getLong(activity);
+        } catch (Exception e) {
+            return 0;
+        }
+    }
+
+    /** Check if draw log contains a drawText with the given substring. */
+    private static boolean hasDrawText(List<OHBridge.DrawRecord> log, String text) {
+        for (OHBridge.DrawRecord r : log) {
+            if ("drawText".equals(r.op) && r.text != null && r.text.contains(text)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /** Check if draw log contains the given operation type. */
+    private static boolean hasDrawOp(List<OHBridge.DrawRecord> log, String op) {
+        for (OHBridge.DrawRecord r : log) {
+            if (op.equals(r.op)) return true;
+        }
+        return false;
     }
 
     private static ListView findListView(View root) {

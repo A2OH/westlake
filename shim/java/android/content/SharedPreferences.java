@@ -166,6 +166,9 @@ public class SharedPreferences {
         }
 
         public Editor putString(String key, String value) {
+            if (value == null) {
+                return remove(key);
+            }
             pending.put(key, value);
             removals.remove(key);
             return this;

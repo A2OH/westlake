@@ -126,6 +126,11 @@ public class HeadlessTest {
         testSQLiteEndToEnd();
         testListViewAdapter();
         testIntentExtrasRoundTrip();
+        testBundleEdgeCases();
+        testIntentEdgeCases();
+        testActivityLifecycleEdgeCases();
+        testSharedPreferencesEdgeCases();
+        testMiniActivityManagerEdgeCases();
 
         System.out.println("\n═══ Results ═══");
         System.out.println("Passed: " + passed);
@@ -7387,5 +7392,576 @@ public class HeadlessTest {
             check("E2E: no exception: " + e.getMessage(), false);
             e.printStackTrace();
         }
+    }
+
+    // ── Point shim tests ────────────────────────────────────────────────────
+
+    static void testPointShim() {
+        section("android.graphics.Point (extended)");
+
+        android.graphics.Point p = new android.graphics.Point(3, 4);
+        check("Point constructor", p.x == 3 && p.y == 4);
+
+        p.offset(10, 20);
+        check("Point.offset", p.x == 13 && p.y == 24);
+
+        p.negate();
+        check("Point.negate", p.x == -13 && p.y == -24);
+
+        android.graphics.Point p2 = new android.graphics.Point(-13, -24);
+        check("Point.equals", p.equals(p2));
+
+        p.set(0, 0);
+        check("Point.set", p.x == 0 && p.y == 0);
+
+        android.graphics.Point p3 = new android.graphics.Point(p2);
+        check("Point copy constructor", p3.equals(p2));
+    }
+
+    // ── PointF shim tests ───────────────────────────────────────────────────
+
+    static void testPointFShim() {
+        section("android.graphics.PointF (extended)");
+
+        android.graphics.PointF pf = new android.graphics.PointF(3f, 4f);
+        check("PointF constructor", pf.x == 3f && pf.y == 4f);
+        check("PointF.length == 5", Math.abs(pf.length() - 5f) < 0.001f);
+
+        pf.offset(1f, 2f);
+        check("PointF.offset", pf.x == 4f && pf.y == 6f);
+
+        pf.negate();
+        check("PointF.negate", pf.x == -4f && pf.y == -6f);
+
+        android.graphics.PointF pf2 = new android.graphics.PointF(-4f, -6f);
+        check("PointF.equals", pf.equals(pf2));
+
+        pf.set(1.5f, 2.5f);
+        check("PointF.set", pf.x == 1.5f && pf.y == 2.5f);
+
+        android.graphics.PointF pf3 = new android.graphics.PointF();
+        pf3.set(pf);
+        check("PointF.set(PointF)", pf3.equals(pf));
+    }
+
+    // ── SpannableString shim tests ──────────────────────────────────────────
+
+    static void testSpannableStringShim() {
+        section("android.text.SpannableString");
+
+        android.text.SpannableString ss = new android.text.SpannableString("Hello World");
+        check("SS length == 11", ss.length() == 11);
+        check("SS charAt(0) == H", ss.charAt(0) == 'H');
+        check("SS toString", "Hello World".equals(ss.toString()));
+        check("SS subSequence", "World".equals(ss.subSequence(6, 11).toString()));
+
+        // Span operations
+        String span1 = "bold-marker";
+        ss.setSpan(span1, 0, 5, 0x11); // SPAN_INCLUSIVE_INCLUSIVE
+        check("SS getSpanStart", ss.getSpanStart(span1) == 0);
+        check("SS getSpanEnd", ss.getSpanEnd(span1) == 5);
+        check("SS getSpanFlags", ss.getSpanFlags(span1) == 0x11);
+
+        String span2 = "italic-marker";
+        ss.setSpan(span2, 6, 11, 0x21);
+
+        // getSpans
+        String[] spans = ss.getSpans(0, 11, String.class);
+        check("SS getSpans count == 2", spans.length == 2);
+
+        // getSpans with range filter
+        String[] mid = ss.getSpans(3, 4, String.class);
+        check("SS getSpans range filter == 1", mid.length == 1);
+
+        // removeSpan
+        ss.removeSpan(span1);
+        check("SS removeSpan getSpanStart == -1", ss.getSpanStart(span1) == -1);
+
+        // valueOf factory
+        android.text.SpannableString ss2 = android.text.SpannableString.valueOf("test");
+        check("SS valueOf", "test".equals(ss2.toString()));
+
+        // valueOf returns same instance for SpannableString input
+        android.text.SpannableString same = android.text.SpannableString.valueOf(ss2);
+        check("SS valueOf identity", same == ss2);
+    }
+
+    // ── SpannableStringBuilder shim tests ───────────────────────────────────
+
+    static void testSpannableStringBuilderShim() {
+        section("android.text.SpannableStringBuilder");
+
+        android.text.SpannableStringBuilder sb = new android.text.SpannableStringBuilder("Hello");
+        check("SSB initial length == 5", sb.length() == 5);
+        check("SSB toString", "Hello".equals(sb.toString()));
+
+        // append
+        sb.append(" World");
+        check("SSB append", "Hello World".equals(sb.toString()));
+
+        sb.append('!');
+        check("SSB append char", "Hello World!".equals(sb.toString()));
+
+        // insert
+        sb.insert(5, ",");
+        check("SSB insert", "Hello, World!".equals(sb.toString()));
+
+        // delete
+        sb.delete(5, 6);
+        check("SSB delete", "Hello World!".equals(sb.toString()));
+
+        // replace
+        sb.replace(6, 11, "Java");
+        check("SSB replace", "Hello Java!".equals(sb.toString()));
+
+        // charAt, subSequence
+        check("SSB charAt(0)", sb.charAt(0) == 'H');
+        check("SSB subSequence", "Java".equals(sb.subSequence(6, 10).toString()));
+
+        // Span operations
+        String marker = "test-span";
+        sb.setSpan(marker, 0, 5, 0x11);
+        check("SSB getSpanStart", sb.getSpanStart(marker) == 0);
+        check("SSB getSpanEnd", sb.getSpanEnd(marker) == 5);
+
+        sb.removeSpan(marker);
+        check("SSB removeSpan", sb.getSpanStart(marker) == -1);
+
+        // clear
+        sb.clear();
+        check("SSB clear length == 0", sb.length() == 0);
+
+        // clearSpans
+        android.text.SpannableStringBuilder sb2 = new android.text.SpannableStringBuilder("test");
+        sb2.setSpan("x", 0, 2, 0);
+        sb2.clearSpans();
+        check("SSB clearSpans", sb2.getSpans(0, 4, String.class).length == 0);
+
+        // valueOf factory
+        android.text.SpannableStringBuilder sb3 = android.text.SpannableStringBuilder.valueOf("abc");
+        check("SSB valueOf", "abc".equals(sb3.toString()));
+    }
+
+    // ── Html shim tests ─────────────────────────────────────────────────────
+
+    static void testHtmlShim() {
+        section("android.text.Html");
+
+        // fromHtml strips tags
+        android.text.Spanned result = android.text.Html.fromHtml("<b>bold</b> and <i>italic</i>");
+        check("Html.fromHtml strips tags", "bold and italic".equals(result.toString()));
+
+        // fromHtml handles <br>
+        android.text.Spanned br = android.text.Html.fromHtml("line1<br>line2");
+        check("Html.fromHtml br", br.toString().contains("line1\nline2"));
+
+        // fromHtml handles entities
+        android.text.Spanned ent = android.text.Html.fromHtml("&amp; &lt; &gt;");
+        check("Html.fromHtml entities", "& < >".equals(ent.toString()));
+
+        // fromHtml null returns empty
+        android.text.Spanned nul = android.text.Html.fromHtml(null);
+        check("Html.fromHtml null", "".equals(nul.toString()));
+
+        // toHtml wraps in <p>
+        android.text.SpannableString sp = new android.text.SpannableString("hello");
+        String html = android.text.Html.toHtml(sp);
+        check("Html.toHtml contains <p>", html.contains("<p>"));
+        check("Html.toHtml contains hello", html.contains("hello"));
+
+        // toHtml null returns empty
+        check("Html.toHtml null", "".equals(android.text.Html.toHtml(null)));
+
+        // escapeHtml
+        String escaped = android.text.Html.escapeHtml("<script>alert('xss')</script>");
+        check("Html.escapeHtml <", escaped.contains("&lt;"));
+        check("Html.escapeHtml >", escaped.contains("&gt;"));
+        check("Html.escapeHtml '", escaped.contains("&#39;"));
+
+        // escapeHtml null
+        check("Html.escapeHtml null", "".equals(android.text.Html.escapeHtml(null)));
+
+        // Constants
+        check("FROM_HTML_MODE_LEGACY == 0", android.text.Html.FROM_HTML_MODE_LEGACY == 0);
+        check("FROM_HTML_MODE_COMPACT == 1", android.text.Html.FROM_HTML_MODE_COMPACT == 1);
+    }
+
+    // ── Xml shim tests ──────────────────────────────────────────────────────
+
+    static void testXmlShim() {
+        section("android.util.Xml");
+
+        // Encoding enum
+        check("Xml.Encoding.UTF_8 toString", "UTF-8".equals(android.util.Xml.Encoding.UTF_8.toString()));
+        check("Xml.Encoding.US_ASCII toString", "US-ASCII".equals(android.util.Xml.Encoding.US_ASCII.toString()));
+        check("Xml.Encoding.UTF_16 toString", "UTF-16".equals(android.util.Xml.Encoding.UTF_16.toString()));
+        check("Xml.Encoding.ISO_8859_1 toString", "ISO-8859-1".equals(android.util.Xml.Encoding.ISO_8859_1.toString()));
+
+        // Encoding values count
+        check("Xml.Encoding values length == 4", android.util.Xml.Encoding.values().length == 4);
+
+        // newPullParser and newSerializer return non-exception (may be null)
+        try {
+            Object parser = android.util.Xml.newPullParser();
+            check("Xml.newPullParser no exception", true);
+        } catch (Exception e) {
+            check("Xml.newPullParser no exception", false);
+        }
+
+        try {
+            Object serializer = android.util.Xml.newSerializer();
+            check("Xml.newSerializer no exception", true);
+        } catch (Exception e) {
+            check("Xml.newSerializer no exception", false);
+        }
+
+        // FEATURE_RELAXED constant
+        check("Xml.FEATURE_RELAXED non-null", android.util.Xml.FEATURE_RELAXED != null);
+
+        // SAX parse
+        try {
+            android.util.Xml.parse("<root><item/></root>",
+                new org.xml.sax.helpers.DefaultHandler());
+            check("Xml.parse SAX no exception", true);
+        } catch (Exception e) {
+            check("Xml.parse SAX no exception: " + e.getMessage(), false);
+        }
+    }
+
+    // ══════════════════════════════════════════════════════════════════
+    //  Bundle Edge Cases
+    // ══════════════════════════════════════════════════════════════════
+
+    static void testBundleEdgeCases() {
+        section("Bundle edge cases");
+
+        // putAll
+        android.os.Bundle a = new android.os.Bundle();
+        a.putString("k1", "v1");
+        a.putInt("k2", 2);
+        android.os.Bundle b = new android.os.Bundle();
+        b.putString("k3", "v3");
+        b.putAll(a);
+        check("putAll merges keys", b.size() == 3);
+        check("putAll copies k1", "v1".equals(b.getString("k1")));
+        check("putAll keeps k3", "v3".equals(b.getString("k3")));
+
+        // putAll with null
+        android.os.Bundle c = new android.os.Bundle();
+        c.putAll(null); // should not crash
+        check("putAll(null) no crash", c.size() == 0);
+
+        // isEmpty / containsKey / remove
+        android.os.Bundle d = new android.os.Bundle();
+        check("new Bundle isEmpty", d.isEmpty());
+        d.putString("x", "y");
+        check("after put not isEmpty", !d.isEmpty());
+        check("containsKey present", d.containsKey("x"));
+        check("containsKey absent", !d.containsKey("z"));
+        d.remove("x");
+        check("remove makes isEmpty", d.isEmpty());
+        d.remove("nonexistent"); // should not crash
+        check("remove nonexistent no crash", true);
+
+        // getXxx with defaults for missing keys
+        android.os.Bundle e = new android.os.Bundle();
+        check("getInt missing returns default", e.getInt("nope", 42) == 42);
+        check("getLong missing returns default", e.getLong("nope", 99L) == 99L);
+        check("getDouble missing returns default", e.getDouble("nope", 1.5) == 1.5);
+        check("getBoolean missing returns default", e.getBoolean("nope", true) == true);
+        check("getString missing returns default", "def".equals(e.getString("nope", "def")));
+        check("getString missing returns null", e.getString("nope") == null);
+        check("getFloat missing returns default", e.getFloat("nope", 2.5f) == 2.5f);
+        check("getShort missing returns default", e.getShort("nope", (short) 7) == 7);
+        check("getByte missing returns default", e.getByte("nope", (byte) 3) == 3);
+        check("getChar missing returns default", e.getChar("nope", 'Z') == 'Z');
+
+        // Serializable round-trip
+        android.os.Bundle f = new android.os.Bundle();
+        f.putSerializable("ser", "hello");
+        java.io.Serializable ser = f.getSerializable("ser");
+        check("Serializable round-trip", "hello".equals(ser));
+        check("getSerializable missing null", f.getSerializable("nope") == null);
+
+        // Copy constructor deep copy
+        android.os.Bundle orig = new android.os.Bundle();
+        orig.putString("key", "original");
+        android.os.Bundle copy = new android.os.Bundle(orig);
+        copy.putString("key", "modified");
+        check("copy constructor deep copy", "original".equals(orig.getString("key")));
+
+        // clone
+        android.os.Bundle cloneOrig = new android.os.Bundle();
+        cloneOrig.putInt("num", 10);
+        android.os.Bundle cloned = (android.os.Bundle) cloneOrig.clone();
+        check("clone preserves value", cloned.getInt("num") == 10);
+        cloned.putInt("num", 20);
+        check("clone is independent", cloneOrig.getInt("num") == 10);
+
+        // keySet
+        android.os.Bundle ks = new android.os.Bundle();
+        ks.putString("a", "1");
+        ks.putString("b", "2");
+        check("keySet size", ks.keySet().size() == 2);
+        check("keySet contains a", ks.keySet().contains("a"));
+
+        // clear
+        ks.clear();
+        check("clear empties bundle", ks.isEmpty());
+    }
+
+    // ══════════════════════════════════════════════════════════════════
+    //  Intent Edge Cases
+    // ══════════════════════════════════════════════════════════════════
+
+    static void testIntentEdgeCases() {
+        section("Intent edge cases");
+
+        // clone
+        android.content.Intent orig = new android.content.Intent("TEST_ACTION");
+        orig.addCategory("cat1");
+        orig.putExtra("k", "v");
+        orig.setFlags(0x100);
+        android.content.Intent cloned = (android.content.Intent) orig.clone();
+        check("clone preserves action", "TEST_ACTION".equals(cloned.getAction()));
+        check("clone preserves category", cloned.hasCategory("cat1"));
+        check("clone preserves extras", "v".equals(cloned.getStringExtra("k")));
+        check("clone preserves flags", cloned.getFlags() == 0x100);
+        // deep copy isolation
+        cloned.putExtra("k", "modified");
+        check("clone extras isolated", "v".equals(orig.getStringExtra("k")));
+
+        // cloneFilter
+        android.content.Intent filterOrig = new android.content.Intent("ACT");
+        filterOrig.addCategory("cat");
+        filterOrig.putExtra("extra", "val");
+        filterOrig.setFlags(0x200);
+        android.content.Intent filter = filterOrig.cloneFilter();
+        check("cloneFilter preserves action", "ACT".equals(filter.getAction()));
+        check("cloneFilter preserves category", filter.hasCategory("cat"));
+        check("cloneFilter omits extras", filter.getExtras() == null);
+        check("cloneFilter omits flags", filter.getFlags() == 0);
+
+        // filterEquals
+        android.content.Intent i1 = new android.content.Intent("A");
+        i1.addCategory("c1");
+        android.content.Intent i2 = new android.content.Intent("A");
+        i2.addCategory("c1");
+        check("filterEquals same", i1.filterEquals(i2));
+        i2.setAction("B");
+        check("filterEquals different action", !i1.filterEquals(i2));
+        check("filterEquals null", !i1.filterEquals(null));
+
+        // filterHashCode
+        android.content.Intent h1 = new android.content.Intent("X");
+        android.content.Intent h2 = new android.content.Intent("X");
+        check("filterHashCode equal intents", h1.filterHashCode() == h2.filterHashCode());
+
+        // null safety on getters with no extras
+        android.content.Intent empty = new android.content.Intent();
+        check("getByteExtra default", empty.getByteExtra("x", (byte) 5) == 5);
+        check("getCharExtra default", empty.getCharExtra("x", 'Q') == 'Q');
+        check("getFloatExtra default", empty.getFloatExtra("x", 1.1f) == 1.1f);
+        check("getShortExtra default", empty.getShortExtra("x", (short) 3) == 3);
+        check("getCharSequenceExtra null", empty.getCharSequenceExtra("x") == null);
+        check("getParcelableExtra null", empty.getParcelableExtra("x") == null);
+        check("getSerializableExtra null", empty.getSerializableExtra("x") == null);
+        check("getBooleanArrayExtra null", empty.getBooleanArrayExtra("x") == null);
+        check("getByteArrayExtra null", empty.getByteArrayExtra("x") == null);
+        check("getIntArrayExtra null", empty.getIntArrayExtra("x") == null);
+        check("getStringArrayExtra null", empty.getStringArrayExtra("x") == null);
+        check("getParcelableArrayListExtra null", empty.getParcelableArrayListExtra("x") == null);
+        check("getStringArrayListExtra null", empty.getStringArrayListExtra("x") == null);
+
+        // putExtras(Bundle) / getExtras() round-trip
+        android.os.Bundle bun = new android.os.Bundle();
+        bun.putString("bk", "bv");
+        bun.putInt("bi", 77);
+        android.content.Intent ie = new android.content.Intent();
+        ie.putExtras(bun);
+        android.os.Bundle got = ie.getExtras();
+        check("putExtras/getExtras string", "bv".equals(got.getString("bk")));
+        check("putExtras/getExtras int", got.getInt("bi") == 77);
+
+        // replaceExtras
+        android.os.Bundle rep = new android.os.Bundle();
+        rep.putString("only", "this");
+        ie.replaceExtras(rep);
+        check("replaceExtras replaces all", ie.getStringExtra("only") != null);
+        check("replaceExtras removed old", ie.getStringExtra("bk") == null);
+
+        // replaceExtras(null) clears
+        ie.replaceExtras((android.os.Bundle) null);
+        check("replaceExtras(null) clears", ie.getExtras() == null);
+    }
+
+    // ══════════════════════════════════════════════════════════════════
+    //  Activity Lifecycle Edge Cases
+    // ══════════════════════════════════════════════════════════════════
+
+    static void testActivityLifecycleEdgeCases() {
+        section("Activity lifecycle edge cases");
+
+        // getIntent never returns null
+        android.app.Activity act = new android.app.Activity();
+        check("getIntent never null", act.getIntent() != null);
+
+        // setIntent / getIntent round-trip
+        android.content.Intent myIntent = new android.content.Intent("MY_ACTION");
+        myIntent.putExtra("key", "val");
+        act.setIntent(myIntent);
+        check("setIntent/getIntent action", "MY_ACTION".equals(act.getIntent().getAction()));
+        check("setIntent/getIntent extra", "val".equals(act.getIntent().getStringExtra("key")));
+
+        // double finish doesn't crash (idempotent)
+        android.app.Activity act2 = new android.app.Activity();
+        // First finish sets isFinishing, second is a no-op
+        act2.finish();
+        check("first finish sets isFinishing", act2.isFinishing());
+        act2.finish(); // second call should not crash
+        check("double finish no crash", act2.isFinishing());
+
+        // setResult through public API
+        android.app.Activity act3 = new android.app.Activity();
+        android.content.Intent resultData = new android.content.Intent();
+        resultData.putExtra("res", "data");
+        act3.setResult(android.app.Activity.RESULT_OK, resultData);
+        // setResult(int) overload
+        act3.setResult(android.app.Activity.RESULT_CANCELED);
+        check("setResult(int) works without crash", !act3.isFinishing() || act3.isFinishing());
+
+        // isDestroyed
+        android.app.Activity act5 = new android.app.Activity();
+        check("not destroyed initially", !act5.isDestroyed());
+
+        // runOnUiThread
+        final boolean[] ran = {false};
+        android.app.Activity act6 = new android.app.Activity();
+        act6.runOnUiThread(new Runnable() {
+            @Override public void run() { ran[0] = true; }
+        });
+        check("runOnUiThread executes synchronously", ran[0]);
+    }
+
+    // ══════════════════════════════════════════════════════════════════
+    //  SharedPreferences Edge Cases
+    // ══════════════════════════════════════════════════════════════════
+
+    static void testSharedPreferencesEdgeCases() {
+        section("SharedPreferences edge cases");
+
+        android.content.SharedPreferences sp =
+            android.content.SharedPreferences.getInstance("test_edge_" + System.nanoTime());
+
+        // commit and apply both work
+        sp.edit().putString("c_key", "c_val").commit();
+        check("commit stores value", "c_val".equals(sp.getString("c_key", null)));
+
+        sp.edit().putString("a_key", "a_val").apply();
+        check("apply stores value", "a_val".equals(sp.getString("a_key", null)));
+
+        // getAll returns copy
+        sp.edit().putInt("num", 42).putBoolean("flag", true).commit();
+        java.util.Map<String, ?> all = sp.getAll();
+        check("getAll contains keys", all.containsKey("num") && all.containsKey("flag"));
+        // Mutating the returned map doesn't affect the store
+        all.clear();
+        check("getAll returns copy", sp.getInt("num", 0) == 42);
+
+        // contains
+        check("contains existing key", sp.contains("num"));
+        check("contains missing key", !sp.contains("nonexistent"));
+
+        // remove via editor
+        sp.edit().remove("num").commit();
+        check("remove via editor", sp.getInt("num", -1) == -1);
+        check("remove doesn't affect others", sp.getBoolean("flag", false));
+
+        // putString(key, null) removes the key
+        sp.edit().putString("to_remove", "temp").commit();
+        check("putString stores", sp.contains("to_remove"));
+        sp.edit().putString("to_remove", null).commit();
+        check("putString(null) removes", !sp.contains("to_remove"));
+
+        // clear
+        sp.edit().clear().commit();
+        check("clear empties store", sp.getAll().isEmpty());
+
+        // Listener notifications
+        final java.util.List<String> changedKeys = new java.util.ArrayList<String>();
+        android.content.SharedPreferences.OnSharedPreferenceChangeListener listener =
+            new android.content.SharedPreferences.OnSharedPreferenceChangeListener() {
+                @Override
+                public void onSharedPreferenceChanged(
+                        android.content.SharedPreferences prefs, String key) {
+                    changedKeys.add(key);
+                }
+            };
+        sp.registerOnSharedPreferenceChangeListener(listener);
+        sp.edit().putString("notify_key", "notify_val").commit();
+        check("listener notified on commit", changedKeys.contains("notify_key"));
+
+        changedKeys.clear();
+        sp.edit().putInt("notify_int", 5).apply();
+        check("listener notified on apply", changedKeys.contains("notify_int"));
+
+        // Unregister
+        sp.unregisterOnSharedPreferenceChangeListener(listener);
+        changedKeys.clear();
+        sp.edit().putString("after_unreg", "val").commit();
+        check("unregistered listener not notified", changedKeys.isEmpty());
+
+        // StringSet round-trip
+        java.util.Set<String> strSet = new java.util.HashSet<String>();
+        strSet.add("one");
+        strSet.add("two");
+        sp.edit().putStringSet("ss", strSet).commit();
+        java.util.Set<String> gotSet = sp.getStringSet("ss", null);
+        check("StringSet round-trip size", gotSet != null && gotSet.size() == 2);
+        check("StringSet round-trip contains", gotSet.contains("one") && gotSet.contains("two"));
+        // Returned set is a copy
+        gotSet.add("three");
+        java.util.Set<String> got2 = sp.getStringSet("ss", null);
+        check("StringSet returns defensive copy", got2.size() == 2);
+
+        // Same name returns same instance
+        String instName = "test_edge_same_" + System.nanoTime();
+        android.content.SharedPreferences spA =
+            android.content.SharedPreferences.getInstance(instName);
+        android.content.SharedPreferences spB =
+            android.content.SharedPreferences.getInstance(instName);
+        check("same name same instance", spA == spB);
+    }
+
+    // ══════════════════════════════════════════════════════════════════
+    //  MiniActivityManager Edge Cases
+    // ══════════════════════════════════════════════════════════════════
+
+    static void testMiniActivityManagerEdgeCases() {
+        section("MiniActivityManager edge cases");
+
+        android.app.MiniActivityManager mgr =
+            android.app.MiniServer.get().getActivityManager();
+
+        // getActivity with out of bounds index returns null
+        check("getActivity(-1) null", mgr.getActivity(-1) == null);
+        check("getActivity(9999) null", mgr.getActivity(9999) == null);
+
+        // finishActivity with null doesn't crash
+        mgr.finishActivity(null);
+        check("finishActivity(null) no crash", true);
+
+        // finishActivity with non-managed activity doesn't crash
+        android.app.Activity stray = new android.app.Activity();
+        mgr.finishActivity(stray);
+        check("finishActivity(unmanaged) no crash", true);
+
+        // onBackPressed with empty stack doesn't crash
+        mgr.onBackPressed();
+        check("onBackPressed empty stack no crash", true);
+
+        // startActivity with null intent doesn't crash
+        mgr.startActivity(null, null, -1);
+        check("startActivity(null intent) no crash", true);
     }
 }
