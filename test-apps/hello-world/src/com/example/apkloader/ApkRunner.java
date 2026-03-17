@@ -113,6 +113,7 @@ public class ApkRunner {
                 int lnLen = rs(apk, lOfs+26);
                 int lxLen = rs(apk, lOfs+28);
                 int dStart = lOfs + 30 + lnLen + lxLen;
+                System.out.println("ZIP: found '" + name + "' comp=" + comp + " cSz=" + cSz + " uSz=" + uSz + " dStart=" + dStart + " apkLen=" + apk.length);
                 if (comp == 0) {
                     /* STORED — direct copy */
                     byte[] r = new byte[uSz];
