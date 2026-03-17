@@ -376,10 +376,14 @@ public class OHBridge {
         record(canvas, "drawCircle", new float[]{cx, cy, r}, null, getColor(brush != 0 ? brush : pen));
     }
     public static void canvasDrawLine(long canvas, float x1, float y1, float x2, float y2, long pen) {
-        record(canvas, "drawLine", new float[]{x1, y1, x2, y2}, null, getColor(pen));
+        Float w = sHandleWidths.get(pen);
+        float strokeWidth = w != null ? w : 1.0f;
+        record(canvas, "drawLine", new float[]{x1, y1, x2, y2, strokeWidth}, null, getColor(pen));
     }
     public static void canvasDrawText(long canvas, String text, float x, float y, long font, long pen, long brush) {
-        record(canvas, "drawText", new float[]{x, y}, text, getColor(brush != 0 ? brush : pen));
+        Float fs = sHandleFontSizes.get(font);
+        float fontSize = fs != null ? fs : 14.0f;
+        record(canvas, "drawText", new float[]{x, y, fontSize}, text, getColor(brush != 0 ? brush : pen));
     }
     public static void canvasDrawPath(long canvas, long path, long pen, long brush) {
         record(canvas, "drawPath", new float[]{}, null, getColor(brush != 0 ? brush : pen));
@@ -465,7 +469,8 @@ public class OHBridge {
 
     public static long fontCreate() { return sNextHandle.getAndIncrement(); }
     public static void fontDestroy(long font) {}
-    public static void fontSetSize(long font, float size) {}
+    private static final ConcurrentHashMap<Long, Float> sHandleFontSizes = new ConcurrentHashMap<>();
+    public static void fontSetSize(long font, float size) { sHandleFontSizes.put(font, size); }
 
     // ── Surface mock ──
 

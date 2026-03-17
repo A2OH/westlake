@@ -11,6 +11,7 @@ import com.ohos.shim.bridge.OHBridge;
 import com.example.mockdonalds.*;
 import java.util.List;
 import java.util.ArrayList;
+import java.awt.image.BufferedImage;
 
 /**
  * Renders MockDonalds MenuActivity to a bitmap and saves as PPM image.
@@ -95,6 +96,13 @@ public class FrameDumper {
         System.out.println("--- ASCII Screenshot (" + width + "x" + height + ") ---");
         printAsciiScreenshot(log, width, height, "MenuActivity");
 
+        // 7b. Render PNG screenshot of MenuActivity
+        System.out.println();
+        System.out.println("=== Generating PNG Screenshots ===");
+        BufferedImage menuImg = PixelRenderer.render(log, width, height);
+        PixelRenderer.savePNG(menuImg, "/tmp/mockdonalds-menu.png");
+        System.out.println("Saved: /tmp/mockdonalds-menu.png (" + menuImg.getWidth() + "x" + menuImg.getHeight() + ")");
+
         // 8. Render ItemDetailActivity
         System.out.println();
         System.out.println("=== Frame Dump: ItemDetailActivity ===");
@@ -111,6 +119,11 @@ public class FrameDumper {
             List<OHBridge.DrawRecord> detailLog = renderActivity(detailAct, width, height);
             printDrawLog(detailLog, "ItemDetailActivity");
             printAsciiScreenshot(detailLog, width, height, "ItemDetailActivity");
+
+            BufferedImage detailImg = PixelRenderer.render(detailLog, width, height);
+            PixelRenderer.savePNG(detailImg, "/tmp/mockdonalds-detail.png");
+            System.out.println("Saved: /tmp/mockdonalds-detail.png (" + detailImg.getWidth() + "x" + detailImg.getHeight() + ")");
+
             detailAct.finish();
         }
 
@@ -126,6 +139,11 @@ public class FrameDumper {
             List<OHBridge.DrawRecord> cartLog = renderActivity(cartAct, width, height);
             printDrawLog(cartLog, "CartActivity");
             printAsciiScreenshot(cartLog, width, height, "CartActivity");
+
+            BufferedImage cartImg = PixelRenderer.render(cartLog, width, height);
+            PixelRenderer.savePNG(cartImg, "/tmp/mockdonalds-cart.png");
+            System.out.println("Saved: /tmp/mockdonalds-cart.png (" + cartImg.getWidth() + "x" + cartImg.getHeight() + ")");
+
             cartAct.finish();
         }
 
