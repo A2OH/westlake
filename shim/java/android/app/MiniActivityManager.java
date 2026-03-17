@@ -5,6 +5,8 @@ import android.content.Intent;
 import android.os.Bundle;
 import android.util.Log;
 import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.Map;
 
 /**
  * MiniActivityManager — manages the Activity back stack for a single app.
@@ -22,6 +24,12 @@ public class MiniActivityManager {
 
     private final MiniServer mServer;
     private final ArrayList<ActivityRecord> mStack = new ArrayList<>();
+    private final Map<String, Class<?>> mRegisteredClasses = new HashMap<>();
+
+    /** Register an Activity class loaded from an external DEX/APK */
+    public void registerActivityClass(String className, Class<?> cls) {
+        mRegisteredClasses.put(className, cls);
+    }
     private ActivityRecord mResumed;
 
     MiniActivityManager(MiniServer server) {
@@ -62,7 +70,8 @@ public class MiniActivityManager {
         // Instantiate the Activity class
         Activity activity;
         try {
-            Class<?> cls = Class.forName(className);
+            Class<?> cls = mRegisteredClasses.get(className);
+            if (cls == null) cls = Class.forName(className);
             activity = (Activity) cls.newInstance();
         } catch (ClassNotFoundException e) {
             Log.e(TAG, "Activity class not found: " + className);
