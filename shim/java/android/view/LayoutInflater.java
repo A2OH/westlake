@@ -182,10 +182,11 @@ public class LayoutInflater {
     /**
      * Inflate a layout resource with attachToRoot control.
      *
-     * Tries three strategies in order:
+     * Tries four strategies in order:
      * 1. Programmatic layout registry (ViewFactory)
-     * 2. Binary layout XML from APK (BinaryLayoutParser)
-     * 3. Fallback: empty FrameLayout with resource ID
+     * 2. Registered layout bytes via Resources.getLayoutBytes() (BinaryLayoutParser)
+     * 3. Binary layout XML from APK via ResourceTable (BinaryLayoutParser)
+     * 4. Fallback: empty FrameLayout with resource ID
      */
     public View inflate(int resource, ViewGroup root, boolean attachToRoot) {
         View view = null;
@@ -204,8 +205,24 @@ public class LayoutInflater {
             }
         }
 
-        // 2. Try to inflate from the real binary layout XML
-        if (mContext != null) {
+        // 2. Try to inflate from registered layout bytes
+        if (view == null && mContext != null) {
+            android.content.res.Resources res = mContext.getResources();
+            if (res != null) {
+                byte[] layoutBytes = res.getLayoutBytes(resource);
+                if (layoutBytes != null && layoutBytes.length > 0) {
+                    try {
+                        BinaryLayoutParser parser = new BinaryLayoutParser(mContext);
+                        view = parser.parse(layoutBytes);
+                    } catch (Exception e) {
+                        // parse failed, fall through to next strategy
+                    }
+                }
+            }
+        }
+
+        // 3. Try to inflate from the real binary layout XML via ResourceTable
+        if (view == null && mContext != null) {
             android.content.res.Resources res = mContext.getResources();
             if (res != null) {
                 android.content.res.ResourceTable table = res.getResourceTable();
@@ -222,7 +239,7 @@ public class LayoutInflater {
             }
         }
 
-        // 3. Fallback: stub FrameLayout
+        // 4. Fallback: stub FrameLayout
         if (view == null) {
             view = new FrameLayout(mContext);
         }

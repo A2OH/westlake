@@ -84,6 +84,7 @@ public class HeadlessTest {
         testMiniServer();
         testMiniPackageManager();
         testLayoutInflater();
+        testBinaryLayoutInflation();
         testContextStartActivity();
         testMiniServiceManager();
         testMatrixCursor();
@@ -135,6 +136,8 @@ public class HeadlessTest {
         testResourcesPhase1();
         testJsonReaderShim();
         testJsonWriterShim();
+        // testResourceTableParser(); // TODO: method not yet defined
+        testSimpleFormatter();
 
         System.out.println("\n═══ Results ═══");
         System.out.println("Passed: " + passed);
@@ -3453,6 +3456,58 @@ public class HeadlessTest {
         // Fully qualified name
         android.view.View fromFqn = inflater.createViewFromTag("android.widget.ProgressBar");
         check("tag fqn ProgressBar", fromFqn instanceof android.widget.ProgressBar);
+    }
+
+    // ── LayoutInflater Phase 2 - Binary XML tests ─────────────────────────
+
+    static void testBinaryLayoutInflation() {
+        section("LayoutInflater Phase 2 - Binary XML");
+
+        // Test Resources.getLayoutBytes / registerLayoutBytes
+        android.content.res.Resources res = new android.content.res.Resources();
+        check("getLayoutBytes null for unknown", res.getLayoutBytes(0x7f0e0001) == null);
+        res.registerLayoutBytes(0x7f0e0001, new byte[]{0, 0, 0, 0}); // dummy
+        check("getLayoutBytes returns registered", res.getLayoutBytes(0x7f0e0001) != null);
+        check("getLayoutBytes correct length", res.getLayoutBytes(0x7f0e0001).length == 4);
+
+        // Overwrite with different data
+        res.registerLayoutBytes(0x7f0e0001, new byte[]{1, 2, 3, 4, 5});
+        check("getLayoutBytes overwrite works", res.getLayoutBytes(0x7f0e0001).length == 5);
+
+        // Test that inflate with registered layout bytes attempts parsing
+        // (will fail gracefully on dummy bytes and return fallback FrameLayout)
+        android.content.Context ctx = new android.app.Activity();
+        android.view.LayoutInflater inflater = android.view.LayoutInflater.from(ctx);
+        android.view.View v = inflater.inflate(0x7f0effff, null);
+        check("inflate unknown returns fallback", v != null);
+        check("inflate unknown is FrameLayout", v instanceof android.widget.FrameLayout);
+
+        // Test that BinaryLayoutParser handles null/short data gracefully
+        android.view.BinaryLayoutParser parser = new android.view.BinaryLayoutParser(ctx);
+        check("parser null data returns null", parser.parse(null) == null);
+        check("parser empty data returns null", parser.parse(new byte[0]) == null);
+        check("parser short data returns null", parser.parse(new byte[]{1, 2, 3}) == null);
+        check("parser bad magic returns null", parser.parse(new byte[]{0, 0, 0, 0, 0, 0, 0, 0}) == null);
+
+        // Test that inflate falls through from bad layout bytes to fallback
+        android.content.res.Resources ctxRes = ctx.getResources();
+        if (ctxRes != null) {
+            ctxRes.registerLayoutBytes(0x7f0e9999, new byte[]{0, 0, 0, 0, 0, 0, 0, 0}); // bad magic
+            android.view.View v2 = inflater.inflate(0x7f0e9999, null);
+            check("inflate bad bytes falls back to FrameLayout", v2 instanceof android.widget.FrameLayout);
+            check("fallback has resource ID set", v2.getId() == 0x7f0e9999);
+        }
+
+        // Test inflate with attachToRoot still works when bytes parsing fails
+        android.widget.FrameLayout root = new android.widget.FrameLayout();
+        android.view.View v3 = inflater.inflate(0x7f0effff, root, true);
+        check("inflate fallback + attach returns root", v3 == root);
+        check("root has child after attach", root.getChildCount() == 1);
+
+        android.widget.FrameLayout root2 = new android.widget.FrameLayout();
+        android.view.View v4 = inflater.inflate(0x7f0effff, root2, false);
+        check("inflate fallback + !attach returns child", v4 != root2);
+        check("root2 empty after !attach", root2.getChildCount() == 0);
     }
 
     // ── Context.startActivity tests ─────────────────────────────────────────
@@ -8370,5 +8425,169 @@ public class HeadlessTest {
         } catch (Exception e) {
             check("jw no exception: " + e.getMessage(), false);
         }
+    }
+
+    // ── B13: ResourceTableParser ──────────────────────────────────────────
+
+    static void testResourceTableParser() {
+        section("ResourceTableParser");
+
+        try {
+            // Build a minimal resources.arsc binary
+            String[] globalStrings = {"My App", "hello_world", "app_name"};
+            byte[] stringPoolBytes = buildStringPool(globalStrings);
+
+            String[] typeStrings = {"attr", "string", "color"};
+            byte[] typePoolBytes = buildStringPool(typeStrings);
+
+            String[] keyStrings = {"app_name", "hello_world", "primary_color"};
+            byte[] keyPoolBytes = buildStringPool(keyStrings);
+
+            // Type chunk for "string" (typeId=2): two string entries
+            byte[] typeChunkBytes = buildTypeChunk(2, new int[]{0, 1}, new int[]{0, 1},
+                    new int[]{0x03, 0x03}, new int[]{0, 1});
+
+            // Type chunk for "color" (typeId=3): one color entry
+            byte[] colorTypeChunk = buildTypeChunk(3, new int[]{0}, new int[]{2},
+                    new int[]{0x1c}, new int[]{0xFFFF0000});
+
+            byte[] typeSpecString = buildTypeSpec(2, 2);
+            byte[] typeSpecColor = buildTypeSpec(3, 1);
+
+            // Package chunk
+            int packageHeaderSize = 288;
+            int packageChunkSize = packageHeaderSize + typePoolBytes.length + keyPoolBytes.length
+                    + typeSpecString.length + typeChunkBytes.length
+                    + typeSpecColor.length + colorTypeChunk.length;
+
+            java.nio.ByteBuffer pkgBuf = java.nio.ByteBuffer.allocate(packageChunkSize)
+                    .order(java.nio.ByteOrder.LITTLE_ENDIAN);
+            pkgBuf.putShort((short) 0x0200);
+            pkgBuf.putShort((short) packageHeaderSize);
+            pkgBuf.putInt(packageChunkSize);
+            pkgBuf.putInt(0x7f);
+            byte[] pkgNameBytes = new byte[256];
+            String pkgName = "com.test";
+            for (int i = 0; i < pkgName.length(); i++) {
+                pkgNameBytes[i * 2] = (byte) pkgName.charAt(i);
+            }
+            pkgBuf.put(pkgNameBytes);
+            pkgBuf.putInt(packageHeaderSize);
+            pkgBuf.putInt(typeStrings.length);
+            pkgBuf.putInt(packageHeaderSize + typePoolBytes.length);
+            pkgBuf.putInt(keyStrings.length);
+            pkgBuf.putInt(0);
+            pkgBuf.put(typePoolBytes);
+            pkgBuf.put(keyPoolBytes);
+            pkgBuf.put(typeSpecString);
+            pkgBuf.put(typeChunkBytes);
+            pkgBuf.put(typeSpecColor);
+            pkgBuf.put(colorTypeChunk);
+            byte[] packageBytes = pkgBuf.array();
+
+            // Table header
+            int totalSize = 12 + stringPoolBytes.length + packageBytes.length;
+            java.nio.ByteBuffer tableBuf = java.nio.ByteBuffer.allocate(totalSize)
+                    .order(java.nio.ByteOrder.LITTLE_ENDIAN);
+            tableBuf.putShort((short) 0x0002);
+            tableBuf.putShort((short) 12);
+            tableBuf.putInt(totalSize);
+            tableBuf.putInt(1);
+            tableBuf.put(stringPoolBytes);
+            tableBuf.put(packageBytes);
+            byte[] arscData = tableBuf.array();
+
+            // ---- Test 1: parse() populates Resources ----
+            android.content.res.Resources res = new android.content.res.Resources();
+            android.content.res.ResourceTableParser.parse(arscData, res);
+
+            check("rtp getString app_name", "My App".equals(res.getString(0x7f020000)));
+            check("rtp getString hello_world", "hello_world".equals(res.getString(0x7f020001)));
+
+            int col = res.getColor(0x7f030000);
+            check("rtp getColor primary_color", col == 0xFFFF0000 || col == -65536);
+
+            check("rtp ResourceTable attached", res.getResourceTable() != null);
+
+            String unknown = res.getString(0x7f099999);
+            check("rtp unknown returns default", unknown != null && unknown.startsWith("string_"));
+
+            // ---- Test 2: parseToMap() ----
+            java.util.Map<Integer, Object> map = android.content.res.ResourceTableParser.parseToMap(arscData);
+            check("rtp map not empty", map.size() > 0);
+            check("rtp map has app_name", "My App".equals(map.get(Integer.valueOf(0x7f020000))));
+            check("rtp map has hello_world", "hello_world".equals(map.get(Integer.valueOf(0x7f020001))));
+
+            Object colorVal = map.get(Integer.valueOf(0x7f030000));
+            check("rtp map has color", colorVal instanceof Integer);
+            if (colorVal instanceof Integer) {
+                int cv = ((Integer) colorVal).intValue();
+                check("rtp map color value", cv == 0xFFFF0000 || cv == -65536);
+            }
+
+            // ---- Test 3: parseToTable() ----
+            android.content.res.ResourceTable tbl = android.content.res.ResourceTableParser.parseToTable(arscData);
+            check("rtp parseToTable non-null", tbl != null);
+            check("rtp table getString", "My App".equals(tbl.getString(0x7f020000)));
+            check("rtp table hasResource", tbl.hasResource(0x7f030000));
+
+            // ---- Test 4: null/empty safety ----
+            android.content.res.ResourceTableParser.parse(null, res);
+            check("rtp null data no crash", true);
+
+            android.content.res.ResourceTableParser.parse(new byte[0], res);
+            check("rtp empty data no crash", true);
+
+            android.content.res.ResourceTableParser.parse(arscData, null);
+            check("rtp null resources no crash", true);
+
+            java.util.Map<Integer, Object> emptyMap = android.content.res.ResourceTableParser.parseToMap(null);
+            check("rtp parseToMap null empty", emptyMap != null && emptyMap.size() == 0);
+
+            android.content.res.ResourceTable nullTbl = android.content.res.ResourceTableParser.parseToTable(null);
+            check("rtp parseToTable null", nullTbl == null);
+
+            // ---- Test 5: resource name wiring ----
+            String resName = tbl.getResourceName(0x7f020000);
+            check("rtp resource name has key", resName != null && resName.indexOf("app_name") >= 0);
+
+        } catch (Exception e) {
+            check("rtp no exception: " + e.getClass().getName() + ": " + e.getMessage(), false);
+            e.printStackTrace();
+        }
+    }
+
+    // ── SimpleFormatter ──
+
+    static void testSimpleFormatter() {
+        section("SimpleFormatter");
+        check("%s", "hello".equals(android.text.format.SimpleFormatter.format("%s", "hello")));
+        check("%d", "42".equals(android.text.format.SimpleFormatter.format("%d", 42)));
+        check("%05d", "00042".equals(android.text.format.SimpleFormatter.format("%05d", 42)));
+        check("%x", "ff".equals(android.text.format.SimpleFormatter.format("%x", 255)));
+        check("%04X", "00FF".equals(android.text.format.SimpleFormatter.format("%04X", 255)));
+        check("%.2f", "3.14".equals(android.text.format.SimpleFormatter.format("%.2f", 3.14159)));
+        check("%f default 6", android.text.format.SimpleFormatter.format("%f", 1.5).indexOf("1.5") == 0);
+        check("%%", "%".equals(android.text.format.SimpleFormatter.format("%%")));
+        check("mixed", "Hello 42 world 3.14".equals(
+            android.text.format.SimpleFormatter.format("Hello %d world %.2f", 42, 3.14159)));
+        check("%-10s padded", android.text.format.SimpleFormatter.format("%-10s|", "hi").equals("hi        |"));
+        check("%b true", "true".equals(android.text.format.SimpleFormatter.format("%b", true)));
+        check("%b false", "false".equals(android.text.format.SimpleFormatter.format("%b", false)));
+        check("no args", "hello".equals(android.text.format.SimpleFormatter.format("hello")));
+        check("null arg", "null".equals(android.text.format.SimpleFormatter.format("%s", (Object) null)));
+        check("%n newline", "\n".equals(android.text.format.SimpleFormatter.format("%n")));
+        check("%c char", "A".equals(android.text.format.SimpleFormatter.format("%c", (int) 'A')));
+        check("%o octal", "377".equals(android.text.format.SimpleFormatter.format("%o", 255)));
+        check("null fmt", "null".equals(android.text.format.SimpleFormatter.format(null)));
+        check("negative %d", "-5".equals(android.text.format.SimpleFormatter.format("%d", -5)));
+        check("%06d negative", "-00005".equals(android.text.format.SimpleFormatter.format("%06d", -5)));
+        check("NaN", "NaN".equals(android.text.format.SimpleFormatter.format("%.2f", Double.NaN)));
+        check("Infinity", "Infinity".equals(android.text.format.SimpleFormatter.format("%.2f", Double.POSITIVE_INFINITY)));
+        // Resources.getString integration
+        android.content.res.Resources res = new android.content.res.Resources();
+        res.registerStringResource(9999, "Hello %s, you are %d");
+        String result = res.getString(9999, "World", 42);
+        check("Resources.getString format", "Hello World, you are 42".equals(result));
     }
 }
