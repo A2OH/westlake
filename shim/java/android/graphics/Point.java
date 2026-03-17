@@ -31,6 +31,18 @@ public class Point {
         this.y = y;
     }
 
+    // ── Offset / negate ─────────────────────────────────────────────────────
+
+    public void offset(int dx, int dy) {
+        x += dx;
+        y += dy;
+    }
+
+    public void negate() {
+        x = -x;
+        y = -y;
+    }
+
     // ── Object overrides ─────────────────────────────────────────────────────
 
     @Override

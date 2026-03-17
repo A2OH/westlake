@@ -132,6 +132,28 @@ public final class Html {
         return "<p>" + encoded + "</p>";
     }
 
+    // ── escapeHtml ─────────────────────────────────────────────────
+
+    /**
+     * Returns an HTML-escaped representation of the given plain text.
+     */
+    public static String escapeHtml(CharSequence text) {
+        if (text == null) return "";
+        StringBuilder sb = new StringBuilder();
+        for (int i = 0; i < text.length(); i++) {
+            char c = text.charAt(i);
+            switch (c) {
+                case '&':  sb.append("&amp;"); break;
+                case '<':  sb.append("&lt;"); break;
+                case '>':  sb.append("&gt;"); break;
+                case '"':  sb.append("&quot;"); break;
+                case '\'': sb.append("&#39;"); break;
+                default:   sb.append(c); break;
+            }
+        }
+        return sb.toString();
+    }
+
     // ── ImageGetter ──────────────────────────────────────────────────
 
     /**

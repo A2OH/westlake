@@ -37,6 +37,48 @@ public class Xml {
         return new org.xml.sax.helpers.AttributesImpl();
     }
 
+    // ── Encoding enum (matches AOSP) ────────────────────────────────────
+
+    public enum Encoding {
+        US_ASCII("US-ASCII"),
+        UTF_8("UTF-8"),
+        UTF_16("UTF-16"),
+        ISO_8859_1("ISO-8859-1");
+
+        private final String charsetName;
+
+        Encoding(String charsetName) {
+            this.charsetName = charsetName;
+        }
+
+        @Override
+        public String toString() {
+            return charsetName;
+        }
+    }
+
+    // ── newPullParser / newSerializer stubs ────────────────────────────
+
+    /**
+     * Returns a new XmlPullParser. Since org.xmlpull is not available in
+     * this shim, returns null. Callers should use the SAX-based parse()
+     * methods instead, or provide their own XmlPullParser implementation.
+     */
+    public static Object newPullParser() {
+        // org.xmlpull.v1.XmlPullParser is not shimmed; return null
+        return null;
+    }
+
+    /**
+     * Returns a new XmlSerializer. Since org.xmlpull is not available in
+     * this shim, returns null. Callers should provide their own
+     * XmlSerializer implementation.
+     */
+    public static Object newSerializer() {
+        // org.xmlpull.v1.XmlSerializer is not shimmed; return null
+        return null;
+    }
+
     public static String findEncodingByBom(InputStream in) throws IOException {
         if (!in.markSupported()) return null;
         in.mark(4);

@@ -31,6 +31,23 @@ public class PointF {
         this.y = y;
     }
 
+    // ── Offset / negate ─────────────────────────────────────────────────────
+
+    public void set(PointF p) {
+        this.x = p.x;
+        this.y = p.y;
+    }
+
+    public void offset(float dx, float dy) {
+        x += dx;
+        y += dy;
+    }
+
+    public void negate() {
+        x = -x;
+        y = -y;
+    }
+
     // ── Distance from origin ─────────────────────────────────────────────────
 
     public float length() {
