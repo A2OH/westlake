@@ -471,21 +471,29 @@ static jobject JNICALL Posix_fstat(JNIEnv* env, jobject, jobject fdObj) {
 static jint JNICALL Posix_write_bytes_arr(JNIEnv* env, jobject, jobject fdObj, jbyteArray buf, jint off, jint len) {
     int fd = getFdFromFileDescriptor(env, fdObj);
     if (fd < 0 || buf == NULL) return len; /* /dev/null fallback */
+    jint arrLen = env->GetArrayLength(buf);
+    if (off < 0 || len < 0 || off + len > arrLen) return -1;
     jbyte* bytes = env->GetByteArrayElements(buf, NULL);
+    if (!bytes) return -1;
     ssize_t n = write(fd, bytes + off, len);
     env->ReleaseByteArrayElements(buf, bytes, JNI_ABORT);
     return (jint)(n >= 0 ? n : len);
 }
 
 /* writeBytes with Object parameter (jar uses this signature) */
-static jint JNICALL Posix_writeBytes(JNIEnv* env, jobject, jobject /*fd*/,
+static jint JNICALL Posix_writeBytes(JNIEnv* env, jobject, jobject fdObj,
         jobject jbuf, jint off, jint len) {
     if (jbuf == NULL || len <= 0) return 0;
+    int fd = getFdFromFileDescriptor(env, fdObj);
+    if (fd < 0) fd = STDOUT_FILENO; /* fallback */
     jclass byteArrayClass = env->FindClass("[B");
     if (!env->IsInstanceOf(jbuf, byteArrayClass)) return len;
     jbyteArray arr = (jbyteArray)jbuf;
+    jint arrLen = env->GetArrayLength(arr);
+    if (off < 0 || len < 0 || off + len > arrLen) return -1;
     jbyte* bytes = env->GetByteArrayElements(arr, NULL);
-    jint written = (jint)write(STDOUT_FILENO, bytes + off, len);
+    if (!bytes) return -1;
+    jint written = (jint)write(fd, bytes + off, len);
     env->ReleaseByteArrayElements(arr, bytes, JNI_ABORT);
     return written > 0 ? written : len;
 }
@@ -1167,31 +1175,27 @@ static JNINativeMethod gMathMethods[] = {
 
 /* ── java.lang.StringToReal / java.lang.RealToString ── */
 static jdouble StringToReal_parseDouble(JNIEnv* env, jclass, jstring str, jint e) {
-    /* str = mantissa digits (no decimal point), e = exponent adjustment
-     * e.g. "3.14" → str="314", e=-2 → 314 * 10^-2 = 3.14 */
+    /* str = mantissa digits, e = exponent adjustment
+     * e.g. "314" with e=-2 → 3.14. Reconstruct full string for strtod. */
     const char* s = env->GetStringUTFChars(str, NULL);
-    double v = strtod(s, NULL);
-    env->ReleaseStringUTFChars(str, s);
-    /* Apply exponent: v * 10^e */
-    if (e != 0) {
-        double scale = 1.0;
-        int ae = e < 0 ? -e : e;
-        for (int i = 0; i < ae; i++) scale *= 10.0;
-        v = e > 0 ? v * scale : v / scale;
+    if (!s) return 0.0;
+    char buf[512];
+    if (e == 0) {
+        snprintf(buf, sizeof(buf), "%s", s);
+    } else {
+        snprintf(buf, sizeof(buf), "%se%d", s, e);
     }
-    return v;
+    env->ReleaseStringUTFChars(str, s);
+    return strtod(buf, NULL);
 }
 static jfloat StringToReal_parseFloat(JNIEnv* env, jclass, jstring str, jint e) {
     const char* s = env->GetStringUTFChars(str, NULL);
-    float v = strtof(s, NULL);
+    if (!s) return 0.0f;
+    char buf[512];
+    if (e == 0) { snprintf(buf, sizeof(buf), "%s", s); }
+    else { snprintf(buf, sizeof(buf), "%se%d", s, e); }
     env->ReleaseStringUTFChars(str, s);
-    if (e != 0) {
-        float scale = 1.0f;
-        int ae = e < 0 ? -e : e;
-        for (int i = 0; i < ae; i++) scale *= 10.0f;
-        v = e > 0 ? v * scale : v / scale;
-    }
-    return v;
+    return strtof(buf, NULL);
 }
 static JNINativeMethod gStringToRealMethods[] = {
     { "parseDblImpl",   "(Ljava/lang/String;I)D", (void*) StringToReal_parseDouble },
@@ -1310,17 +1314,38 @@ static jlong Matcher_openImpl(JNIEnv*, jclass, jlong patAddr) {
 }
 static void Matcher_closeImpl(JNIEnv*, jclass, jlong addr) {
     MatcherState* ms = (MatcherState*)(uintptr_t) addr;
+    /* Note: ms->re is NOT freed here — it's owned by the Pattern (shared across matchers).
+     * The regex_t from Pattern_compileImpl is leaked when the Pattern is GC'd because
+     * Dalvik has no native destructor callback. Acceptable for short-lived VM usage.
+     * TODO: Track compiled patterns in a list and free on VM shutdown. */
     if (ms) { free(ms->input); free(ms); }
 }
 static void Matcher_setInputImpl(JNIEnv* env, jclass, jlong addr, jstring jstr, jint start, jint end) {
     MatcherState* ms = (MatcherState*)(uintptr_t) addr;
     free(ms->input);
-    const char* s = env->GetStringUTFChars(jstr, NULL);
-    ms->inputLen = end - start;
-    ms->input = (char*) malloc(ms->inputLen + 1);
-    memcpy(ms->input, s + start, ms->inputLen);
-    ms->input[ms->inputLen] = '\0'; ms->lastEnd = 0;
-    env->ReleaseStringUTFChars(jstr, s);
+    /* Use GetStringRegion to get the substring as UTF-16, then convert to UTF-8.
+     * start/end are Java char indices (UTF-16 code units). */
+    jint strLen = env->GetStringLength(jstr);
+    if (start < 0) start = 0;
+    if (end > strLen) end = strLen;
+    if (start >= end) { ms->input = (char*)calloc(1,1); ms->inputLen = 0; ms->lastEnd = 0; return; }
+    jint subLen = end - start;
+    jchar* chars = (jchar*) malloc(subLen * sizeof(jchar));
+    env->GetStringRegion(jstr, start, subLen, chars);
+    /* Convert UTF-16 to UTF-8 (simplified: BMP only, 3 bytes max per char) */
+    char* utf8 = (char*) malloc(subLen * 3 + 1);
+    int pos = 0;
+    for (int i = 0; i < subLen; i++) {
+        jchar c = chars[i];
+        if (c < 0x80) { utf8[pos++] = (char)c; }
+        else if (c < 0x800) { utf8[pos++] = 0xC0|(c>>6); utf8[pos++] = 0x80|(c&0x3F); }
+        else { utf8[pos++] = 0xE0|(c>>12); utf8[pos++] = 0x80|((c>>6)&0x3F); utf8[pos++] = 0x80|(c&0x3F); }
+    }
+    utf8[pos] = '\0';
+    free(chars);
+    ms->input = utf8;
+    ms->inputLen = pos;
+    ms->lastEnd = 0;
 }
 static jboolean Matcher_findImpl(JNIEnv*, jclass, jlong addr, jstring, jint si, jintArray offsets) {
     MatcherState* ms = (MatcherState*)(uintptr_t) addr;
