@@ -58,6 +58,12 @@ const OH_REVIEWS = [
   { slug: '14-build-system-review', title: 'Build System', titleZh: '构建系统' },
 ];
 
+const ENGINE_DOCS = [
+  { slug: 'architecture', title: 'Android-as-Engine: Architecture Design', titleZh: 'Android即引擎：架构设计文档' },
+  { slug: 'call-flows', title: 'Detailed Call Flow Diagrams (12 flows)', titleZh: '详细调用流程图（12个流程）' },
+  { slug: 'execution-plan', title: 'Engine Execution Plan (WS1-4)', titleZh: '引擎执行计划（WS1-4）' },
+];
+
 const A2OH_FACTORY_DOCS = [
   { slug: 'shim-build-plan', title: 'API Shim Layer: AI-Driven Build Plan', titleZh: 'API 适配层：AI 驱动构建计划' },
   { slug: 'ai-agent-playbook', title: 'AI Agent Playbook: Per-API Shim Generation', titleZh: 'AI 代理操作手册：逐API适配代码生成' },
@@ -130,6 +136,27 @@ function DocIndex() {
               </Link>
             ))}
           </div>
+        </div>
+      </div>
+
+      {/* Engine Architecture */}
+      <div className="bg-gray-900 border border-gray-800 rounded-xl p-4">
+        <h2 className="text-lg font-semibold mb-3 flex items-center gap-2">
+          <span className="text-xs font-bold bg-orange-900 text-orange-300 px-2 py-0.5 rounded">ENGINE</span>
+          {lang === 'zh' ? '引擎架构文档' : 'Engine Architecture'}
+        </h2>
+        <p className="text-sm text-gray-400 mb-3">
+          {lang === 'zh'
+            ? '运行未修改Android APK的引擎方案——架构设计、调用流程、执行计划、性能分析'
+            : 'Running unmodified Android APKs as an embedded engine — architecture, call flows, execution plan, performance analysis'}
+        </p>
+        <div className="space-y-1">
+          {ENGINE_DOCS.map(d => (
+            <Link key={d.slug} to={`/docs/engine/${d.slug}`}
+              className="block text-sm text-blue-400 hover:text-blue-300 py-1 px-2 rounded hover:bg-gray-800">
+              {getTitle(d)}
+            </Link>
+          ))}
         </div>
       </div>
 
