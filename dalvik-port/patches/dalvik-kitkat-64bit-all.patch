@@ -3845,6 +3845,22 @@ index fe14f8b..622148c 100644
 +                                        InlineArgType arg3, JValue* pResult);
  
  #endif  // DALVIK_INLINENATIVE_H_
+diff --git a/vm/JarFile.cpp b/vm/JarFile.cpp
+index 3a037a0..c28d5f1 100644
+--- a/vm/JarFile.cpp
++++ b/vm/JarFile.cpp
+@@ -304,9 +304,9 @@ tryArchive:
+                 }
+ 
+                 if (!result) {
+-                    ALOGE("Unable to extract+optimize DEX from '%s'",
++                    ALOGW("Unable to extract+optimize DEX from '%s' (non-fatal)",
+                         fileName);
+-                    goto bail;
++                    /* Non-fatal for jars: fall through to try loading the unoptimized DEX */
+                 }
+ 
+                 endWhen = dvmGetRelativeTimeUsec();
 diff --git a/vm/Jni.cpp b/vm/Jni.cpp
 index 0e77fab..2045a39 100644
 --- a/vm/Jni.cpp
@@ -4640,6 +4656,41 @@ index 866311c..069341c 100644
  
      /*
       * Write data into "oldOffset".
+diff --git a/vm/RawDexFile.cpp b/vm/RawDexFile.cpp
+index 4598767..2266caf 100644
+--- a/vm/RawDexFile.cpp
++++ b/vm/RawDexFile.cpp
+@@ -194,7 +194,29 @@ int dvmRawDexFileOpen(const char* fileName, const char* odexOutputName,
+         }
+ 
+         if (!result) {
+-            ALOGE("Unable to extract+optimize DEX from '%s'", fileName);
++            ALOGW("Unable to extract+optimize DEX from '%s' (non-fatal, using raw)", fileName);
++            /* Non-fatal: close the failed cache, reopen raw DEX directly */
++            close(optFd);
++            optFd = -1;
++            locked = false;
++            /* Use dvmRawDexFileOpenArray path instead */
++            off_t rawSize = lseek(dexFd, 0, SEEK_END);
++            lseek(dexFd, 0, SEEK_SET);
++            u1* rawData = (u1*)mmap(NULL, rawSize, PROT_READ, MAP_PRIVATE, dexFd, 0);
++            if (rawData != MAP_FAILED) {
++                if (dvmDexFileOpenPartial(rawData, rawSize, &pDvmDex) == 0) {
++                    ALOGI("Loaded raw DEX '%s' without optimization", fileName);
++                    *ppRawDexFile = (RawDexFile*)calloc(1, sizeof(RawDexFile));
++                    (*ppRawDexFile)->cacheFileName = cachedName;
++                    (*ppRawDexFile)->pDvmDex = pDvmDex;
++                    cachedName = NULL; /* don't free below */
++                    close(dexFd);
++                    free(cachedName);
++                    return 0;
++                }
++                munmap(rawData, rawSize);
++            }
++            ALOGE("Fallback raw DEX load also failed for '%s'", fileName);
+             goto bail;
+         }
+ 
 diff --git a/vm/Sync.cpp b/vm/Sync.cpp
 index f42004c..442c0fb 100644
 --- a/vm/Sync.cpp
