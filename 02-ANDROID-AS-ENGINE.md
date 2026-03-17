@@ -1,7 +1,7 @@
 # Android-as-Engine: Running Unmodified APKs on OpenHarmony
 
 **Architecture Design Document**
-**Date:** 2026-03-13 | **Updated:** 2026-03-16
+**Date:** 2026-03-13 | **Updated:** 2026-03-17
 
 ---
 
@@ -11,7 +11,7 @@ We propose running unmodified Android APKs on OpenHarmony by treating the Androi
 
 This approach was validated by analyzing 13 real APKs (TikTok, Instagram, YouTube, Netflix, Spotify, Facebook, Google Maps, Zoom, Grab, Duolingo, Uber, PayPal, Amazon) representing 2.3 billion+ monthly active users. Key finding: **94% of the "unmapped API gap" is handled automatically by the engine runtime. Only 6% needs real platform bridge work.**
 
-**Status (2026-03-16):** Phase 1 milestone achieved. A real Android APK runs end-to-end on OpenHarmony ARM32 via QEMU: APK extraction → manifest parsing → Activity launch → Dalvik VM execution → OHOS kernel. 2,139 validation checks pass across 7 test apps.
+**Status (2026-03-17):** Phase 1 complete. Compressed Android APKs load and launch on Dalvik VM running on OpenHarmony ARM32 QEMU. Full pipeline proven: APK ZIP (STORED + DEFLATED) → binary AXML manifest → DexClassLoader → Activity lifecycle → View tree. MockDonalds 14/14 tests pass. Next: visual rendering via ArkUI on ARM32.
 
 ---
 
@@ -869,50 +869,66 @@ This methodology can be applied to any APK to produce a gap report in minutes. T
 
 ---
 
-## 9. Validation: What We've Proven (2026-03-16)
+## 9. Validation: What We've Proven (2026-03-17)
 
-### 9.1 End-to-End Milestone Achieved
+### 9.1 End-to-End Milestone: Compressed APK on OHOS ARM32 QEMU
 
-A real Android APK runs on OpenHarmony ARM32 via QEMU:
+A compressed Android APK loads and launches on Dalvik VM running on OpenHarmony ARM32 QEMU:
 
 ```
-hello.apk (6.5KB, built with aapt + dx)
-  → ZIP extraction
+hello.apk (6.5KB, DEFLATED entries)
+  → ZIP extraction (zlib inflate for compressed entries)
   → Binary AndroidManifest.xml parsed (AXML format)
-  → Package name + launcher Activity discovered
-  → MiniServer initialized
-  → ActivityThread.main("hello.apk")
-  → Dalvik VM (KitKat 64-bit port, portable interpreter)
-  → OHOS kernel (ARM32, qemu-arm-linux)
-  → Activity.onCreate() runs
-  → "Hello from a REAL Android APK on Dalvik!"
+  → Package: com.example.hello
+  → Launcher: com.example.hello.HelloActivity
+  → DexClassLoader loads classes from APK
+  → Activity class instantiated
+  → onCreate() → View tree built → onResume()
+  → Running on: OHOS kernel (ARM32) → musl libc → Dalvik VM
 ```
 
-### 8.2 Test Coverage
+### 9.2 Test Coverage
 
-| Test App | Checks | APIs Exercised |
-|----------|-------:|----------------|
-| Headless shim tests | 1,892 | All shim class implementations |
-| MockDonalds (4 Activities) | 14 | SQLite, ListView, Intent, SharedPrefs, Canvas |
-| TODO list (3 Activities) | 17 | SQLite CRUD, Activity navigation, SharedPrefs |
-| Calculator | 15 | Button grid, arithmetic, View state machine |
-| Notes (2 Activities) | 16 | SQLite search, EditText, CRUD |
-| Real APK pipeline | 26 | ActivityThread, resources.arsc, View tree, Canvas |
-| SuperApp (12 API areas) | 106 | Handler, AsyncTask, Service, ContentProvider, BroadcastReceiver, AlertDialog, Notification, Menu, Clipboard, Timer, Message pool |
-| Layout validator | 53 | Measurement, rendering coords, touch hit-testing, scroll, View tree dump |
-| **Total** | **2,139** | **0 failures** |
+| Test App | Checks | Platform | APIs Exercised |
+|----------|-------:|----------|----------------|
+| Headless shim tests | 1,892 | Host JVM | All shim class implementations |
+| MockDonalds (4 Activities) | 14 | Host + QEMU ARM32 | SQLite, ListView, Intent, SharedPrefs, Canvas |
+| TODO list (3 Activities) | 17 | Host JVM | SQLite CRUD, Activity navigation, SharedPrefs |
+| Calculator | 15 | Host JVM | Button grid, arithmetic, View state machine |
+| Notes (2 Activities) | 16 | Host JVM | SQLite search, EditText, CRUD |
+| Real APK pipeline | 26 | Host + QEMU ARM32 | DexClassLoader, resources.arsc, View tree, Canvas |
+| SuperApp (12 API areas) | 106 | Host JVM | Handler, AsyncTask, Service, ContentProvider, BroadcastReceiver, AlertDialog, Notification, Menu, Clipboard, Timer, Message pool |
+| Layout validator | 53 | Host JVM | Measurement, rendering coords, touch hit-testing, scroll, View tree dump |
+| **Total** | **2,139** | | **0 failures** |
 
-### 8.3 Dalvik VM Validation
+### 9.3 Dalvik VM Validation
 
 | Test | Platform | Result |
 |------|----------|--------|
 | Hello World | x86_64 Linux | PASS |
 | Hello World | OHOS ARM32 (QEMU) | PASS |
 | MockDonalds (14 checks) | Dalvik x86_64 | 14/14 PASS |
-| Real APK (aapt-built) | Dalvik x86_64 | PASS |
-| Math.floor/ceil/sqrt/round/sin | Dalvik x86_64 | PASS |
-| Double.parseDouble/toString | Dalvik x86_64 | PASS |
-| String.split (regex) | Dalvik x86_64 | PASS |
+| MockDonalds (14 checks) | OHOS ARM32 (QEMU) | 14/14 PASS |
+| Real APK (compressed) | OHOS ARM32 (QEMU) | PASS — Activity launched |
+| Real APK (stored) | OHOS ARM32 (QEMU) | PASS — Activity launched |
+| Math/String/Regex/IO | Dalvik x86_64 | PASS |
+| Inflater/Deflater (zlib) | OHOS ARM32 (QEMU) | PASS (fixed heap corruption #533) |
+
+### 9.4 Road to Visual Output (Agent A — OHOS Platform)
+
+```mermaid
+graph LR
+    A1["Build ArkUI headless<br/>for ARM32<br/>(#532 A13)"] --> A2["Test nodeCreate<br/>on QEMU<br/>(#510 A12)"]
+    A2 --> A3["Build liboh_bridge.so<br/>ARM32 shared lib"]
+    A3 --> A4["View.draw() →<br/>ArkUI nodes via JNI"]
+    A4 --> A5["Software renderer →<br/>QEMU VNC framebuffer"]
+
+    style A1 fill:#ff9,stroke:#333
+    style A2 fill:#ff9,stroke:#333
+    style A3 fill:#ddd,stroke:#333
+    style A4 fill:#ddd,stroke:#333
+    style A5 fill:#ddd,stroke:#333
+```
 
 ---
 

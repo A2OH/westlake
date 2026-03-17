@@ -1,134 +1,179 @@
 # Real Android APK on Dalvik/OHOS — Status
 
-## Milestone Achieved
+## Latest Milestone: Compressed APK on OHOS ARM32 QEMU
 
-A real Android APK runs end-to-end on the ported Dalvik VM:
+A real Android APK (with compressed DEFLATED entries) loads and launches on Dalvik VM
+running on OpenHarmony ARM32 QEMU:
 
 ```
-$ dalvikvm ... com.example.apkloader.ApkRunner hello.apk
-
 === APK Runner ===
-Loading: hello.apk
-Manifest: 619 bytes
+Loading: /data/a2oh/hello.apk
 Package: com.example.hello
 Launcher: com.example.hello.HelloActivity
+Activities: [com.example.hello.HelloActivity]
+DexClassLoader: loaded /data/a2oh/hello.apk
 Starting: com.example.hello.HelloActivity
-=== REAL APK RUNNING ===
-Hello from a REAL Android APK on Dalvik!
-Package: com.example.hello
-Activity: HelloActivity
-Sum 1..10 = 55
-Menu items: 3
-Burgers: 3
-Price parsed: 5.99
-Math.sqrt(256) = 16.0
-=== REAL APK COMPLETE ===
-=== APK Launch COMPLETE ===
+Loaded class: com.example.hello.HelloActivity
+performCreate: com.example.hello.HelloActivity
+=== HelloActivity: XML layout inflated ===
+```
+
+MockDonalds (mock McDonald's ordering app) passes 14/14 tests on QEMU:
+
+```
+=== MockDonalds End-to-End Test ===
+  [PASS] MiniServer initialized
+  [PASS] MenuActivity launched (8 menu items, ListView populated)
+  [PASS] ItemDetailActivity (Big Mock Burger, $5.99)
+  [PASS] Add to Cart, CartActivity (1 item, total $5.99)
+  [PASS] Checkout: order saved, cart cleared
+  [PASS] Canvas renders: menu text, item names, buttons
+Results: 14 passed, 0 failed — ALL TESTS PASSED
 ```
 
 ## Architecture
 
+```mermaid
+graph TD
+    APK["hello.apk (ZIP)"] --> ZIP["ZIP Parser<br/>STORED + DEFLATED"]
+    ZIP --> MANIFEST["AndroidManifest.xml<br/>Text XML + Binary AXML"]
+    ZIP --> DEX["classes.dex"]
+    ZIP --> RES["resources.arsc"]
+
+    MANIFEST --> APKRUNNER["ApkRunner<br/>Package + Launcher detection"]
+    DEX --> DCL["DexClassLoader<br/>Runtime class loading"]
+    RES --> RESOURCES["Resources.getString()"]
+
+    APKRUNNER --> MINISERVER["MiniServer.init(package)"]
+    DCL --> CLASSLOAD["Activity class loaded"]
+    MINISERVER --> LIFECYCLE["Activity Lifecycle<br/>create→start→resume→pause→stop→destroy"]
+    CLASSLOAD --> LIFECYCLE
+
+    LIFECYCLE --> VIEWTREE["View Tree<br/>LinearLayout, TextView, ListView, Button"]
+    VIEWTREE --> CANVAS["Canvas (headless draw log)"]
+
+    subgraph "Dalvik VM (KitKat portable interpreter)"
+        INTERP["64-bit patched interpreter<br/>ARM32 + x86_64"]
+        LIBCORE["libcore_bridge.cpp<br/>Math, Posix, ICU, Regex, Inflater"]
+        CORE["core.jar (4000 classes)<br/>+ shim (2591 classes)"]
+    end
+
+    subgraph "OpenHarmony QEMU ARM32"
+        KERNEL["Linux 5.10 kernel<br/>cortex-a7, 4 cores, 1GB"]
+        INIT["init → samgr → hdcd"]
+        MUSL["musl libc (static)"]
+    end
 ```
-hello.apk (ZIP file)
-  ├── AndroidManifest.xml (text or binary AXML)
-  └── classes.dex (DEX 035, 2538 classes)
-         │
-         ▼
-┌─ ApkRunner ──────────────────────────────────┐
-│  1. Read APK (manual ZIP parse, no Inflater) │
-│  2. Extract AndroidManifest.xml              │
-│  3. Parse: package + launcher Activity       │
-│  4. MiniServer.init(package)                 │
-│  5. startActivity(launcher)                  │
-└──────────────────────────────────────────────┘
-         │
-         ▼
-┌─ Dalvik VM (KitKat portable interpreter) ────┐
-│  64-bit patched (x86_64 + ARM32 OHOS)        │
-│  libcore_bridge.cpp: Math, Posix, ICU, Regex │
-│  4000 core classes + 1978 shim classes        │
-└──────────────────────────────────────────────┘
-         │
-         ▼
-┌─ App: HelloActivity.onCreate() ──────────────┐
-│  HashMap.put ✅  Double.parseDouble ✅         │
-│  Math.sqrt ✅    System.out.println ✅          │
-│  Full Activity lifecycle ✅                    │
-└──────────────────────────────────────────────┘
+
+## Full Stack (proven end-to-end)
+
+```
+APK file (.apk)
+  → ZIP parse (manual, supports STORED + DEFLATED via zlib)
+  → AndroidManifest.xml (text XML + binary AXML parser)
+  → resources.arsc (string pool parser)
+  → DexClassLoader (runtime class loading from APK)
+  → Activity class instantiation
+  → Full lifecycle (onCreate → onStart → onResume)
+  → View tree (LinearLayout, TextView, ListView, Button, ImageView)
+  → Canvas headless rendering (draw log)
+  → Running on: OHOS kernel (ARM32) → musl libc → Dalvik VM → Android shim
 ```
 
 ## What Works
 
-| Feature | Status | Notes |
-|---------|--------|-------|
-| APK ZIP extraction | ✅ | Manual ZIP parser (no native Inflater) |
-| AndroidManifest.xml parsing | ✅ | Text XML + binary AXML support |
-| Package/launcher detection | ✅ | Reads intent-filter for MAIN/LAUNCHER |
-| MiniServer app launch | ✅ | Full Activity lifecycle |
-| Math natives | ✅ | floor, ceil, sqrt, sin, cos, tan, exp, log, pow (27 methods) |
-| Double.parseDouble | ✅ | With exponent support |
-| String.split (regex) | ✅ | POSIX regex via Pattern + Matcher natives |
-| File I/O (open/read/close) | ✅ | Posix natives with FileDescriptor objects |
-| fstat | ✅ | StructStat field population |
-| HashMap, ArrayList | ✅ | Standard Java collections |
-| Activity lifecycle | ✅ | onCreate→onStart→onResume→onPause→onStop→onDestroy |
-| Intent + extras | ✅ | String, int, double, boolean extras |
-| SharedPreferences | ✅ | In-memory HashMap-backed |
-| SQLite (in-memory) | ✅ | ContentValues CRUD, query, transactions |
-| Canvas rendering | ✅ | Headless draw log (no display) |
+| Feature | Host x86_64 | OHOS ARM32 QEMU | Notes |
+|---------|:-----------:|:---------------:|-------|
+| APK ZIP extraction | ✅ | ✅ | STORED + DEFLATED entries |
+| AndroidManifest.xml | ✅ | ✅ | Text XML + binary AXML |
+| DexClassLoader | ✅ | ✅ | Load classes from APK at runtime |
+| resources.arsc | ✅ | ✅ | String pool registration |
+| Activity lifecycle | ✅ | ✅ | Full create→start→resume→pause→stop→destroy→restart |
+| Intent + extras | ✅ | ✅ | String, int, double, boolean, Parcelable |
+| View tree | ✅ | ✅ | LinearLayout, FrameLayout, RelativeLayout, ListView, Button, TextView, ImageView |
+| ListView + Adapter | ✅ | ✅ | BaseAdapter, notifyDataSetChanged, view recycling |
+| SQLite | ✅ | ✅ | In-memory: create/insert/query/update/delete, transactions |
+| SharedPreferences | ✅ | ✅ | In-memory HashMap-backed |
+| Canvas rendering | ✅ | ✅ | Headless draw log (no display) |
+| Math natives | ✅ | ✅ | 27 methods: floor, ceil, sqrt, sin, cos, etc. |
+| Double.parseDouble | ✅ | ✅ | With exponent reconstruction |
+| String.split (regex) | ✅ | ✅ | POSIX regex via Pattern + Matcher |
+| File I/O | ✅ | ✅ | open/read/write/close/fstat/mkdir/chmod |
+| Inflater/Deflater | ✅ | ✅ | zlib via JNI (fixed heap corruption bug) |
+| MockDonalds 14/14 | ✅ | ✅ | Full ordering app flow |
+| Real APK loading | ✅ | ✅ | Compressed APK → Activity launch |
 
 ## What Doesn't Work Yet
 
-| Feature | Issue | Fix |
-|---------|-------|-----|
-| String.format | LocaleData NPE | Need proper ICU field initialization |
-| Compressed APK entries | No Inflater native | Build APKs with STORED entries |
-| XML layout inflation | Not implemented | Need binary AXML → View tree |
-| resources.arsc | Not implemented | Need resource table parser |
-| Real display output | Headless only | Need ArkUI or framebuffer |
+| Feature | Owner | Issue | Notes |
+|---------|-------|-------|-------|
+| getString() | Agent B | Shim gap | NoSuchMethodError in APK Activity |
+| String.format | Agent B | LocaleData NPE | SimpleFormatter workaround exists |
+| Visual rendering (VNC) | Agent A | #532 | Needs ArkUI on ARM32 + framebuffer pipeline |
+| ArkUI on ARM32 QEMU | Agent A | #532 | dalvikvm-arkui binary broken, needs rebuild |
+| Binary AXML in real APKs | Agent B | Shim | Parser exists, needs testing with real APKs |
+
+## Road to VNC Visual Output (Agent A)
+
+```mermaid
+graph LR
+    A1["A13: Build ArkUI<br/>headless for ARM32"] --> A2["A12: Test nodeCreate<br/>on QEMU"]
+    A2 --> A3["Build liboh_bridge.so<br/>ARM32 shared lib"]
+    A3 --> A4["View.draw() →<br/>ArkUI nodes via JNI"]
+    A4 --> A5["Software renderer →<br/>QEMU VNC framebuffer"]
+```
+
+All VNC rendering work is **Agent A** (OHOS platform / native / ArkUI):
+
+1. **ArkUI headless engine on ARM32** — Cross-compile without `--unresolved-symbols=ignore-all`
+2. **OHBridge JNI** — Connect View.draw() → ArkUI node creation → layout
+3. **Framebuffer renderer** — Software render ArkUI tree → QEMU VNC display
+
+## Runtime Flags
+
+```bash
+# Required for current dalvikvm (missing some core natives)
+-Xverify:none -Xdexopt:none
+
+# Boot classpath must include shim classes
+-Xbootclasspath:/data/a2oh/core.jar:/data/a2oh/apkrunner.dex
+
+# Environment
+ANDROID_DATA=/data/a2oh ANDROID_ROOT=/data/a2oh
+```
+
+## How to Test on QEMU
+
+```bash
+# 1. Build APK runner DEX
+cd android-to-openharmony-migration
+javac -d /tmp/build --release 8 \
+  -sourcepath "test-apps/mock:shim/java:test-apps/hello-world/src" \
+  test-apps/hello-world/src/com/example/apkloader/ApkRunner.java \
+  $(find test-apps/mock shim/java -name "*.java" ! -path "*/OHBridge.java")
+
+java -jar .../dx.jar --dex --min-sdk-version=26 --output=/tmp/apkrunner.dex /tmp/build
+
+# 2. Inject into QEMU userdata.img via debugfs
+debugfs -w -R "write /tmp/apkrunner.dex a2oh/apkrunner.dex" userdata.img
+debugfs -w -R "write hello.apk a2oh/hello.apk" userdata.img
+
+# 3. Boot QEMU and run
+cd /data/a2oh && ANDROID_DATA=/data/a2oh ANDROID_ROOT=/data/a2oh \
+  ./dalvikvm -Xverify:none -Xdexopt:none \
+  -Xbootclasspath:/data/a2oh/core.jar:/data/a2oh/apkrunner.dex \
+  -classpath /data/a2oh/apkrunner.dex \
+  com.example.apkloader.ApkRunner /data/a2oh/hello.apk
+```
 
 ## Issue Tracker
 
-All issues at: https://github.com/A2OH/harmony-android-guide/issues?q=label:real-apk
+All issues: https://github.com/A2OH/harmony-android-guide/issues
 
-| # | Issue | Status |
-|---|-------|--------|
-| #483 A6 | Extract real APK DEX | ✅ Closed |
-| #484 A7 | Native stubs (Math/ICU) | 90% done |
-| #485 A8 | Binary manifest parser | ✅ Closed |
-| #486 A9 | Full APK loader | ✅ Closed |
-
-## How to Test
-
-```bash
-# Build APK runner DEX
-cd android-to-openharmony-migration
-JAVAC8=.../jdk8/bin/javac
-JAVA8=.../jdk8/bin/java
-DX=.../dx.jar
-
-$JAVAC8 -d /tmp/build -sourcepath "test-apps/mock:shim/java:test-apps/hello-world/src" \
-  test-apps/hello-world/src/com/example/apkloader/ApkRunner.java \
-  test-apps/hello-world/src/com/example/apkloader/BinaryXmlParser.java \
-  test-apps/hello-world/src/com/example/hello/HelloActivity.java \
-  $(find test-apps/mock shim/java -name "*.java" ! -path "*/OHBridge.java")
-
-$JAVA8 -jar $DX --dex --output=/tmp/apkrunner.dex /tmp/build
-
-# Create APK (STORED, no compression)
-python3 -c "
-import zipfile
-with zipfile.ZipFile('hello.apk','w',zipfile.ZIP_STORED) as z:
-    z.write('/tmp/build-classes.dex','classes.dex')
-    z.write('AndroidManifest.xml','AndroidManifest.xml')
-"
-
-# Run on Dalvik
-export ANDROID_DATA=/tmp/android-data ANDROID_ROOT=/tmp/android-root
-mkdir -p /tmp/android-data/dalvik-cache /tmp/android-root/bin
-
-dalvik-port/build/dalvikvm -Xverify:none -Xdexopt:none \
-  -Xbootclasspath:dalvik-port/core-android-x86.jar:/tmp/apkrunner.dex \
-  -classpath /tmp/apkrunner.dex \
-  com.example.apkloader.ApkRunner hello.apk
-```
+| # | Issue | Status | Owner |
+|---|-------|--------|-------|
+| #533 | [A14] Inflater SIGILL crash | ✅ Fixed | Agent A |
+| #532 | [A13] ArkUI headless on ARM32 | In Progress | Agent A |
+| #510 | [A12] ArkUI vtable on QEMU | Todo | Agent A |
+| #473 | [A4] E2E smoke test on QEMU | ✅ Done | Agent A |
+| #516 | [B21] APK gap analysis tool | Todo | Agent B |

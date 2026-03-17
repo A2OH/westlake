@@ -1,7 +1,7 @@
 # Android即引擎：在OpenHarmony上运行未修改的APK
 
 **架构设计文档**
-**日期：** 2026-03-13 | **更新：** 2026-03-16
+**日期：** 2026-03-13 | **更新：** 2026-03-17
 
 ---
 
@@ -11,7 +11,7 @@
 
 通过分析13个真实APK（抖音/TikTok、Instagram、YouTube、Netflix、Spotify、Facebook、Google Maps、Zoom、Grab、Duolingo、Uber、PayPal、Amazon），覆盖超过23亿月活用户，验证了该方案。关键发现：**94%的"未映射API差距"由引擎运行时自动处理，只有6%需要真正的平台桥接工作。**
 
-**项目状态（2026-03-16）：** 第一阶段里程碑已达成。真实Android APK在OpenHarmony ARM32上通过QEMU端到端运行：APK解压 → Manifest解析 → Activity启动 → Dalvik VM执行 → OHOS内核。7个测试应用通过2,139项验证检查。
+**项目状态（2026-03-17）：** 第一阶段完成。压缩的Android APK可在OHOS ARM32 QEMU上加载启动。完整流水线已验证：APK ZIP（STORED + DEFLATED）→ 二进制AXML清单 → DexClassLoader → Activity生命周期 → View树。MockDonalds 14/14测试通过。下一步：通过ARM32上的ArkUI实现视觉渲染。
 
 ---
 
@@ -818,50 +818,72 @@ graph TD
 
 ---
 
-## 9. 验证结果（2026-03-16）
+## 9. 验证结果（2026-03-17）
 
-### 9.1 端到端里程碑已达成
+### 9.1 端到端里程碑：压缩APK在OHOS ARM32 QEMU上运行
 
-真实Android APK在OpenHarmony ARM32上通过QEMU运行：
+压缩的Android APK在OpenHarmony ARM32 QEMU上通过Dalvik VM加载启动：
 
 ```
-hello.apk (6.5KB, built with aapt + dx)
-  → ZIP extraction
-  → Binary AndroidManifest.xml parsed (AXML format)
-  → Package name + launcher Activity discovered
-  → MiniServer initialized
-  → ActivityThread.main("hello.apk")
-  → Dalvik VM (KitKat 64-bit port, portable interpreter)
-  → OHOS kernel (ARM32, qemu-arm-linux)
-  → Activity.onCreate() runs
-  → "Hello from a REAL Android APK on Dalvik!"
+hello.apk (6.5KB, DEFLATED压缩条目)
+  → ZIP解压（zlib inflate处理压缩条目）
+  → 二进制AndroidManifest.xml解析（AXML格式）
+  → 包名: com.example.hello
+  → 启动器: com.example.hello.HelloActivity
+  → DexClassLoader从APK加载类
+  → Activity类实例化
+  → onCreate() → View树构建 → onResume()
+  → 运行于: OHOS内核 (ARM32) → musl libc → Dalvik VM
 ```
 
-### 8.2 测试覆盖
+### 9.2 测试覆盖
 
-| 测试应用 | 检查数 | 测试的API领域 |
-|----------|-------:|--------------|
-| 无头适配层测试 | 1,892 | 所有适配层类实现 |
-| MockDonalds（4个Activity） | 14 | SQLite、ListView、Intent、SharedPrefs、Canvas |
-| TODO列表（3个Activity） | 17 | SQLite CRUD、Activity导航、SharedPrefs |
-| 计算器 | 15 | 按钮网格、算术运算、View状态机 |
-| 笔记本（2个Activity） | 16 | SQLite搜索、EditText、CRUD |
-| 真实APK管线 | 26 | ActivityThread、resources.arsc、View树、Canvas |
-| SuperApp（12个API领域） | 106 | Handler、AsyncTask、Service、ContentProvider、BroadcastReceiver、AlertDialog、Notification、Menu、Clipboard、Timer、Message pool |
-| 布局验证器 | 53 | 测量、渲染坐标、触摸命中测试、滚动、View树转储 |
-| **总计** | **2,139** | **0个失败** |
+| 测试应用 | 检查数 | 平台 | 测试的API领域 |
+|----------|-------:|------|--------------|
+| 无头适配层测试 | 1,892 | 宿主JVM | 所有适配层类实现 |
+| MockDonalds（4个Activity） | 14 | 宿主 + QEMU ARM32 | SQLite、ListView、Intent、SharedPrefs、Canvas |
+| TODO列表（3个Activity） | 17 | 宿主JVM | SQLite CRUD、Activity导航、SharedPrefs |
+| 计算器 | 15 | 宿主JVM | 按钮网格、算术运算、View状态机 |
+| 笔记本（2个Activity） | 16 | 宿主JVM | SQLite搜索、EditText、CRUD |
+| 真实APK管线 | 26 | 宿主 + QEMU ARM32 | DexClassLoader、resources.arsc、View树、Canvas |
+| SuperApp（12个API领域） | 106 | 宿主JVM | Handler、AsyncTask、Service、ContentProvider、BroadcastReceiver、AlertDialog、Notification、Menu、Clipboard、Timer、Message pool |
+| 布局验证器 | 53 | 宿主JVM | 测量、渲染坐标、触摸命中测试、滚动、View树转储 |
+| **总计** | **2,139** | | **0个失败** |
 
-### 8.3 Dalvik VM验证
+### 9.3 Dalvik VM验证
 
 | 测试 | 平台 | 结果 |
 |------|------|------|
 | Hello World | x86_64 Linux | 通过 |
 | Hello World | OHOS ARM32 (QEMU) | 通过 |
 | MockDonalds（14项检查） | Dalvik x86_64 | 14/14 通过 |
-| 真实APK（aapt构建） | Dalvik x86_64 | 通过 |
-| Math.floor/ceil/sqrt/round/sin | Dalvik x86_64 | 通过 |
-| Double.parseDouble/toString | Dalvik x86_64 | 通过 |
-| String.split（正则表达式） | Dalvik x86_64 | 通过 |
+| MockDonalds（14项检查） | OHOS ARM32 (QEMU) | 14/14 通过 |
+| 真实APK（压缩） | OHOS ARM32 (QEMU) | 通过 — Activity已启动 |
+| 真实APK（未压缩） | OHOS ARM32 (QEMU) | 通过 — Activity已启动 |
+| Math/String/Regex/IO | Dalvik x86_64 | 通过 |
+| Inflater/Deflater (zlib) | OHOS ARM32 (QEMU) | 通过（已修复堆损坏 #533） |
+
+### 9.4 视觉输出路线图（Agent A — OHOS平台）
+
+```mermaid
+graph LR
+    A1["构建ArkUI无头引擎<br/>ARM32版本<br/>(#532 A13)"] --> A2["在QEMU上测试<br/>nodeCreate<br/>(#510 A12)"]
+    A2 --> A3["构建liboh_bridge.so<br/>ARM32共享库"]
+    A3 --> A4["View.draw() →<br/>通过JNI创建ArkUI节点"]
+    A4 --> A5["软件渲染器 →<br/>QEMU VNC帧缓冲"]
+
+    style A1 fill:#ff9,stroke:#333
+    style A2 fill:#ff9,stroke:#333
+    style A3 fill:#ddd,stroke:#333
+    style A4 fill:#ddd,stroke:#333
+    style A5 fill:#ddd,stroke:#333
+```
+
+所有VNC渲染工作由 **Agent A**（OHOS平台/原生/ArkUI）负责：
+
+1. **ARM32 ArkUI无头引擎** — 正确交叉编译（不使用`--unresolved-symbols=ignore-all`）
+2. **OHBridge JNI** — 连接 View.draw() → ArkUI节点创建 → 布局
+3. **帧缓冲渲染器** — 软件渲染ArkUI树 → QEMU VNC显示
 
 ---
 

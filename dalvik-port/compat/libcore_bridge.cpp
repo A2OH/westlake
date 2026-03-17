@@ -1453,17 +1453,16 @@ static jlong Inflater_createStream(JNIEnv*, jobject, jboolean nowrap) {
 }
 
 static void Inflater_setInputImpl(JNIEnv* env, jobject, jbyteArray buf, jint off, jint len, jlong streamHandle) {
-    fprintf(stderr, "[Inflater] setInput: buf=%p off=%d len=%d stream=0x%lx\n", buf, off, len, (unsigned long)streamHandle);
     z_stream* strm = (z_stream*)(uintptr_t) streamHandle;
-    if (!strm || !buf) { fprintf(stderr, "[Inflater] setInput: NULL strm or buf\n"); return; }
-    fprintf(stderr, "[Inflater] setInput: current next_in=%p avail_in=%d\n", strm->next_in, strm->avail_in);
-    /* Copy input data to a persistent buffer (z_stream needs it alive until inflate) */
-    free((void*)strm->next_in); /* free previous input copy */
+    if (!strm || !buf) return;
+    /* Free previous input buffer (stored in opaque, NOT next_in which zlib advances) */
+    free(strm->opaque);
     jbyte* copy = (jbyte*) malloc(len);
     if (!copy) return;
     env->GetByteArrayRegion(buf, off, len, copy);
     strm->next_in = (Bytef*) copy;
     strm->avail_in = len;
+    strm->opaque = copy; /* save original pointer for correct free */
 }
 
 static jint Inflater_inflateImpl(JNIEnv* env, jobject, jbyteArray buf, jint off, jint len, jlong streamHandle) {
@@ -1473,8 +1472,6 @@ static jint Inflater_inflateImpl(JNIEnv* env, jobject, jbyteArray buf, jint off,
     jint arrLen = env->GetArrayLength(buf);
     if (off < 0 || len < 0 || off + len > arrLen) return -1;
 
-    /* Use GetByteArrayRegion + SetByteArrayRegion instead of GetByteArrayElements
-     * to avoid pinning issues */
     jbyte* outBuf = (jbyte*) malloc(len);
     if (!outBuf) return -1;
 
@@ -1511,12 +1508,12 @@ static jlong Inflater_getTotalOutImpl(JNIEnv*, jobject, jlong streamHandle) {
 
 static void Inflater_resetImpl(JNIEnv*, jobject, jlong streamHandle) {
     z_stream* strm = (z_stream*)(uintptr_t) streamHandle;
-    if (strm) inflateReset(strm);
+    if (strm) { free(strm->opaque); strm->opaque = NULL; inflateReset(strm); }
 }
 
 static void Inflater_endImpl(JNIEnv*, jobject, jlong streamHandle) {
     z_stream* strm = (z_stream*)(uintptr_t) streamHandle;
-    if (strm) { free((void*)strm->next_in); inflateEnd(strm); free(strm); }
+    if (strm) { free(strm->opaque); inflateEnd(strm); free(strm); }
 }
 
 /* Deflater */
@@ -1528,10 +1525,11 @@ static jlong Deflater_createStream(JNIEnv*, jobject, jint level, jint strategy, 
 }
 static void Deflater_setInputImpl(JNIEnv* env, jobject, jbyteArray buf, jint off, jint len, jlong sh) {
     z_stream* s = (z_stream*)(uintptr_t)sh; if (!s) return;
-    free((void*)s->next_in);
+    free(s->opaque); /* free previous input buffer (original pointer, not advanced) */
     jbyte* c = (jbyte*)malloc(len); if (!c) return;
     env->GetByteArrayRegion(buf, off, len, c);
     s->next_in = (Bytef*)c; s->avail_in = len;
+    s->opaque = c; /* save for correct free */
 }
 static jint Deflater_deflateImpl(JNIEnv* env, jobject, jbyteArray buf, jint off, jint len, jlong sh, jint flush) {
     z_stream* s = (z_stream*)(uintptr_t)sh; if (!s) return -1;
@@ -1544,7 +1542,7 @@ static jint Deflater_deflateImpl(JNIEnv* env, jobject, jbyteArray buf, jint off,
 }
 static void Deflater_endImpl(JNIEnv*, jobject, jlong sh) {
     z_stream* s = (z_stream*)(uintptr_t)sh;
-    if (s) { free((void*)s->next_in); deflateEnd(s); free(s); }
+    if (s) { free(s->opaque); deflateEnd(s); free(s); }
 }
 static void Deflater_resetImpl(JNIEnv*, jobject, jlong sh) {
     z_stream* s = (z_stream*)(uintptr_t)sh; if (s) deflateReset(s);
