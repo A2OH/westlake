@@ -147,6 +147,7 @@ public class HeadlessTest {
         testScrollViewAosp();
         testListViewAosp();
         testCompoundButtonHierarchy();
+        testTextViewB35();
 
         System.out.println("\n═══ Results ═══");
         System.out.println("Passed: " + passed);
@@ -10561,5 +10562,285 @@ public class HeadlessTest {
         rg.check(102);
         check("B34 RadioGroup switch to r2", r2.isChecked());
         check("B34 RadioGroup r1 unchecked after switch", !r1.isChecked());
+    }
+
+    // ── B35: Enhanced TextView — full text measurement and rendering ──────────
+
+    static void testTextViewB35() {
+        section("B35: Enhanced TextView — typeface, allCaps, hint, measurement, TextWatcher, BoringLayout, TextPaint");
+
+        // 1. setTypeface/getTypeface round-trip
+        android.widget.TextView tv = new android.widget.TextView();
+        tv.setTypeface(android.graphics.Typeface.MONOSPACE);
+        check("B35 setTypeface/getTypeface", tv.getTypeface() == android.graphics.Typeface.MONOSPACE);
+
+        // 2. setTypeface with style
+        tv.setTypeface(android.graphics.Typeface.SANS_SERIF, android.graphics.Typeface.BOLD);
+        check("B35 setTypeface+style non-null", tv.getTypeface() != null);
+        check("B35 setTypeface+style isBold", tv.getTypeface().isBold());
+
+        // 3. setTypeface(null, style) creates default
+        tv.setTypeface(null, android.graphics.Typeface.ITALIC);
+        check("B35 setTypeface(null,ITALIC) isItalic", tv.getTypeface() != null && tv.getTypeface().isItalic());
+
+        // 4. setAllCaps transforms text to uppercase
+        tv.setText("hello world");
+        tv.setAllCaps(true);
+        check("B35 isAllCaps true", tv.isAllCaps());
+        // getText() returns original, but display text is uppercased
+        check("B35 getText still original", "hello world".equals(tv.getText().toString()));
+        // Measure to trigger layout with transformed text
+        int wSpec = android.view.View.MeasureSpec.makeMeasureSpec(0, android.view.View.MeasureSpec.UNSPECIFIED);
+        int hSpec = android.view.View.MeasureSpec.makeMeasureSpec(0, android.view.View.MeasureSpec.UNSPECIFIED);
+        tv.setTextSize(16);
+        tv.measure(wSpec, hSpec);
+        check("B35 allCaps measuredWidth > 0", tv.getMeasuredWidth() > 0);
+
+        // 5. setAllCaps(false) reverts
+        tv.setAllCaps(false);
+        check("B35 isAllCaps false", !tv.isAllCaps());
+
+        // 6. setHint/getHint
+        android.widget.TextView tvHint = new android.widget.TextView();
+        tvHint.setHint("Enter text here");
+        check("B35 getHint", "Enter text here".equals(tvHint.getHint().toString()));
+
+        // 7. Hint draws when text is empty — verify onDraw doesn't crash
+        tvHint.setTextSize(16);
+        tvHint.measure(
+            android.view.View.MeasureSpec.makeMeasureSpec(200, android.view.View.MeasureSpec.EXACTLY),
+            android.view.View.MeasureSpec.makeMeasureSpec(50, android.view.View.MeasureSpec.EXACTLY));
+        tvHint.layout(0, 0, 200, 50);
+        android.graphics.Bitmap bmpHint = android.graphics.Bitmap.createBitmap(200, 50, android.graphics.Bitmap.Config.ARGB_8888);
+        android.graphics.Canvas cHint = new android.graphics.Canvas(bmpHint);
+        tvHint.draw(cHint);
+        check("B35 hint draw no crash", true);
+
+        // 8. onMeasure with compound drawables (wider/taller)
+        android.widget.TextView tvDraw = new android.widget.TextView();
+        tvDraw.setText("X");
+        tvDraw.setTextSize(16);
+        tvDraw.measure(wSpec, hSpec);
+        int baseW = tvDraw.getMeasuredWidth();
+        int baseH = tvDraw.getMeasuredHeight();
+        // Create a mock drawable with intrinsic size
+        android.graphics.drawable.ColorDrawable leftDr = new android.graphics.drawable.ColorDrawable(0xFFFF0000);
+        leftDr.setBounds(0, 0, 30, 30);
+        tvDraw.setCompoundDrawables(leftDr, null, null, null);
+        tvDraw.setCompoundDrawablePadding(5);
+        tvDraw.measure(wSpec, hSpec);
+        int withDrawableW = tvDraw.getMeasuredWidth();
+        check("B35 compound drawable adds width", withDrawableW > baseW);
+
+        // 9. onMeasure with maxHeight constraint
+        android.widget.TextView tvMax = new android.widget.TextView();
+        tvMax.setText("Line1\nLine2\nLine3\nLine4\nLine5");
+        tvMax.setTextSize(16);
+        tvMax.setMaxLines(Integer.MAX_VALUE);
+        tvMax.measure(wSpec, hSpec);
+        int fullHeight = tvMax.getMeasuredHeight();
+        tvMax.setMaxHeight(30);
+        tvMax.measure(wSpec, hSpec);
+        int maxedHeight = tvMax.getMeasuredHeight();
+        check("B35 maxHeight constrains", maxedHeight <= 30);
+
+        // 10. onMeasure with minHeight constraint
+        android.widget.TextView tvMin = new android.widget.TextView();
+        tvMin.setText("A");
+        tvMin.setTextSize(16);
+        tvMin.measure(wSpec, hSpec);
+        int smallH = tvMin.getMeasuredHeight();
+        tvMin.setMinHeight(200);
+        tvMin.measure(wSpec, hSpec);
+        int minedH = tvMin.getMeasuredHeight();
+        check("B35 minHeight enforced", minedH >= 200);
+
+        // 11. TextPaint density field
+        android.text.TextPaint tp = new android.text.TextPaint();
+        tp.density = 2.0f;
+        check("B35 TextPaint density", tp.density == 2.0f);
+
+        // 12. TextPaint baselineShift
+        tp.baselineShift = 5;
+        check("B35 TextPaint baselineShift", tp.baselineShift == 5);
+
+        // 13. TextPaint set() copy method
+        android.text.TextPaint tp2 = new android.text.TextPaint();
+        tp2.setTextSize(24);
+        tp2.density = 3.0f;
+        tp2.baselineShift = 10;
+        tp2.bgColor = 0xFFABCDEF;
+        android.text.TextPaint tp3 = new android.text.TextPaint();
+        tp3.set(tp2);
+        check("B35 TextPaint.set copies textSize", tp3.getTextSize() == 24f);
+        check("B35 TextPaint.set copies density", tp3.density == 3.0f);
+        check("B35 TextPaint.set copies baselineShift", tp3.baselineShift == 10);
+        check("B35 TextPaint.set copies bgColor", tp3.bgColor == 0xFFABCDEF);
+
+        // 14. BoringLayout.isBoring for simple text returns Metrics
+        android.text.TextPaint bp = new android.text.TextPaint();
+        bp.setTextSize(16);
+        android.text.BoringLayout.Metrics bm = android.text.BoringLayout.isBoring("Hello", bp);
+        check("B35 BoringLayout.isBoring simple non-null", bm != null);
+        check("B35 BoringLayout.isBoring width > 0", bm != null && bm.width > 0);
+        check("B35 BoringLayout.isBoring ascent < 0", bm != null && bm.ascent < 0);
+        check("B35 BoringLayout.isBoring descent > 0", bm != null && bm.descent > 0);
+
+        // 15. BoringLayout.isBoring returns null for multi-line
+        android.text.BoringLayout.Metrics bmMulti = android.text.BoringLayout.isBoring("Hello\nWorld", bp);
+        check("B35 BoringLayout.isBoring multi-line null", bmMulti == null);
+
+        // 16. BoringLayout.isBoring returns null for RTL text
+        android.text.BoringLayout.Metrics bmRtl = android.text.BoringLayout.isBoring("\u0645\u0631\u062D\u0628\u0627", bp);
+        check("B35 BoringLayout.isBoring RTL null", bmRtl == null);
+
+        // 17. BoringLayout.isBoring reuses metrics object
+        android.text.BoringLayout.Metrics reuse = new android.text.BoringLayout.Metrics();
+        android.text.BoringLayout.Metrics result = android.text.BoringLayout.isBoring("Test", bp, reuse);
+        check("B35 BoringLayout.isBoring reuses metrics", result == reuse);
+
+        // 18. EditText inherits from TextView
+        android.widget.EditText et = new android.widget.EditText();
+        et.setText("Editable");
+        check("B35 EditText getText", "Editable".equals(et.getText().toString()));
+        et.setHint("Type here");
+        check("B35 EditText getHint", "Type here".equals(et.getHint().toString()));
+        et.setTypeface(android.graphics.Typeface.SERIF);
+        check("B35 EditText setTypeface", et.getTypeface() == android.graphics.Typeface.SERIF);
+
+        // 19. TextWatcher fires on setText (multiple watchers)
+        android.widget.TextView tvW = new android.widget.TextView();
+        final int[] watcherCalls = {0, 0, 0};
+        android.widget.TextView.TextWatcher w1 = new android.widget.TextView.TextWatcher() {
+            public void beforeTextChanged(CharSequence s, int start, int count, int after) {
+                watcherCalls[0]++;
+            }
+            public void onTextChanged(CharSequence s, int start, int before, int count) {
+                watcherCalls[1]++;
+            }
+            public void afterTextChanged(Object s) {
+                watcherCalls[2]++;
+            }
+        };
+        tvW.addTextChangedListener(w1);
+        tvW.setText("trigger");
+        check("B35 TextWatcher beforeTextChanged fired", watcherCalls[0] == 1);
+        check("B35 TextWatcher onTextChanged fired", watcherCalls[1] == 1);
+        check("B35 TextWatcher afterTextChanged fired", watcherCalls[2] == 1);
+
+        // 20. Multiple watchers both fire
+        final int[] w2Calls = {0};
+        android.widget.TextView.TextWatcher w2 = new android.widget.TextView.TextWatcher() {
+            public void beforeTextChanged(CharSequence s, int start, int count, int after) {}
+            public void onTextChanged(CharSequence s, int start, int before, int count) { w2Calls[0]++; }
+            public void afterTextChanged(Object s) {}
+        };
+        tvW.addTextChangedListener(w2);
+        tvW.setText("second");
+        check("B35 multiple watchers both fire", watcherCalls[1] == 2 && w2Calls[0] == 1);
+
+        // 21. removeTextChangedListener
+        tvW.removeTextChangedListener(w1);
+        tvW.setText("third");
+        check("B35 removeTextChangedListener", watcherCalls[1] == 2);  // w1 not called again
+        check("B35 w2 still fires after remove w1", w2Calls[0] == 2);
+
+        // 22. Paint.setTypeface/getTypeface
+        android.graphics.Paint p = new android.graphics.Paint();
+        p.setTypeface(android.graphics.Typeface.MONOSPACE);
+        check("B35 Paint.setTypeface/getTypeface", p.getTypeface() == android.graphics.Typeface.MONOSPACE);
+
+        // 23. Paint copy preserves typeface
+        android.graphics.Paint p2 = new android.graphics.Paint(p);
+        check("B35 Paint copy typeface", p2.getTypeface() == android.graphics.Typeface.MONOSPACE);
+
+        // 24. setTextIsSelectable
+        android.widget.TextView tvSel = new android.widget.TextView();
+        tvSel.setTextIsSelectable(true);
+        check("B35 isTextSelectable true", tvSel.isTextSelectable());
+        tvSel.setTextIsSelectable(false);
+        check("B35 isTextSelectable false", !tvSel.isTextSelectable());
+
+        // 25. setAutoLinkMask
+        android.widget.TextView tvLink = new android.widget.TextView();
+        tvLink.setAutoLinkMask(15);  // Linkify.ALL
+        check("B35 getAutoLinkMask", tvLink.getAutoLinkMask() == 15);
+
+        // 26. setInputType / getInputType round-trip
+        android.widget.TextView tvInput = new android.widget.TextView();
+        tvInput.setInputType(129);  // TYPE_CLASS_TEXT | TYPE_TEXT_VARIATION_PASSWORD
+        check("B35 getInputType", tvInput.getInputType() == 129);
+
+        // 27. setImeOptions / getImeOptions
+        tvInput.setImeOptions(6);  // IME_ACTION_DONE
+        check("B35 getImeOptions", tvInput.getImeOptions() == 6);
+
+        // 28. getEditableText returns null for NORMAL buffer
+        android.widget.TextView tvNorm = new android.widget.TextView();
+        tvNorm.setText("normal");
+        check("B35 getEditableText null for NORMAL", tvNorm.getEditableText() == null);
+
+        // 29. setMaxWidth / setMinWidth
+        android.widget.TextView tvWC = new android.widget.TextView();
+        tvWC.setMaxWidth(300);
+        tvWC.setMinWidth(50);
+        check("B35 getMaxWidth", tvWC.getMaxWidth() == 300);
+        check("B35 getMinWidth", tvWC.getMinWidth() == 50);
+
+        // 30. minWidth enforced in measure
+        tvWC.setText("A");
+        tvWC.setTextSize(16);
+        tvWC.measure(
+            android.view.View.MeasureSpec.makeMeasureSpec(0, android.view.View.MeasureSpec.UNSPECIFIED),
+            android.view.View.MeasureSpec.makeMeasureSpec(0, android.view.View.MeasureSpec.UNSPECIFIED));
+        check("B35 minWidth enforced in measure", tvWC.getMeasuredWidth() >= 50);
+
+        // 31. setLines sets both min and max
+        android.widget.TextView tvLines = new android.widget.TextView();
+        tvLines.setLines(3);
+        check("B35 setLines minLines", tvLines.getMinLines() == 3);
+        check("B35 setLines maxLines", tvLines.getMaxLines() == 3);
+
+        // 32. BoringLayout.make creates layout
+        android.text.TextPaint blp = new android.text.TextPaint();
+        blp.setTextSize(16);
+        android.text.BoringLayout.Metrics blm = new android.text.BoringLayout.Metrics();
+        blm.width = 100;
+        android.text.BoringLayout bl = android.text.BoringLayout.make("Test", blp, 200,
+            android.text.Layout.Alignment.ALIGN_NORMAL, 1.0f, 0.0f, blm, false);
+        check("B35 BoringLayout.make non-null", bl != null);
+        check("B35 BoringLayout lineCount==1", bl.getLineCount() == 1);
+
+        // 33. setHintTextColor
+        android.widget.TextView tvHC = new android.widget.TextView();
+        tvHC.setHintTextColor(0xFFAA0000);
+        check("B35 getHintTextColor", tvHC.getHintTextColor() == 0xFFAA0000);
+
+        // 34. AllCaps with setText after setAllCaps
+        android.widget.TextView tvAC = new android.widget.TextView();
+        tvAC.setAllCaps(true);
+        tvAC.setText("mixed Case");
+        tvAC.setTextSize(16);
+        tvAC.measure(
+            android.view.View.MeasureSpec.makeMeasureSpec(0, android.view.View.MeasureSpec.UNSPECIFIED),
+            android.view.View.MeasureSpec.makeMeasureSpec(0, android.view.View.MeasureSpec.UNSPECIFIED));
+        // The layout should have used uppercased text
+        check("B35 allCaps setText after", tvAC.getMeasuredWidth() > 0);
+
+        // 35. TextPaint constructor from Paint copies typeface
+        android.graphics.Paint srcP = new android.graphics.Paint();
+        srcP.setTypeface(android.graphics.Typeface.SERIF);
+        srcP.setTextSize(20);
+        android.text.TextPaint tpFromP = new android.text.TextPaint(srcP);
+        check("B35 TextPaint(Paint) textSize", tpFromP.getTextSize() == 20f);
+
+        // 36. StaticLayout getLineStart/getLineEnd consistency
+        android.graphics.Paint slPaint = new android.graphics.Paint();
+        slPaint.setTextSize(16);
+        android.text.StaticLayout sl = new android.text.StaticLayout(
+            "Hello World", slPaint, 500,
+            android.text.Layout.Alignment.ALIGN_NORMAL, 1.0f, 0.0f);
+        check("B35 StaticLayout getLineStart(0)==0", sl.getLineStart(0) == 0);
+        check("B35 StaticLayout getLineEnd(0)==11", sl.getLineEnd(0) == 11);
     }
 }

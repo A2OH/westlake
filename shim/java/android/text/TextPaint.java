@@ -42,4 +42,28 @@ public class TextPaint extends Paint {
             linkColor     = tp.linkColor;
         }
     }
+
+    /**
+     * Copy fields from another TextPaint into this one.
+     */
+    public void set(TextPaint tp) {
+        if (tp == null) return;
+        // Copy Paint base fields
+        setColor(tp.getColor());
+        setTextSize(tp.getTextSize());
+        setStyle(tp.getStyle());
+        setStrokeWidth(tp.getStrokeWidth());
+        setStrokeCap(tp.getStrokeCap());
+        setStrokeJoin(tp.getStrokeJoin());
+        setTextAlign(tp.getTextAlign());
+        setFakeBoldText(tp.isFakeBoldText());
+        setAntiAlias(tp.isAntiAlias());
+        setFlags(tp.getFlags());
+        setTypeface(tp.getTypeface());
+        // Copy TextPaint-specific fields
+        density       = tp.density;
+        baselineShift = tp.baselineShift;
+        bgColor       = tp.bgColor;
+        linkColor     = tp.linkColor;
+    }
 }
