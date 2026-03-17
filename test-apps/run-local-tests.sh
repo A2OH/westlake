@@ -27,11 +27,12 @@ JAVA_FILES="$JAVA_FILES $(find "$SHIM_JAVA" -name "*.java" ! -path "*/ohos/shim/
 JAVA_FILES="$JAVA_FILES $SCRIPT_DIR/02-headless-cli/src/HeadlessTest.java"
 JAVA_FILES="$JAVA_FILES $SCRIPT_DIR/03-ui-mockup/src/UITestApp.java"
 JAVA_FILES="$JAVA_FILES $(find "$SCRIPT_DIR/04-mockdonalds/src" -name "*.java")"
-JAVA_FILES="$JAVA_FILES $(find "$SCRIPT_DIR/06-real-apk/src" -name "*.java")"
+# 06-real-apk/HelloActivity excluded — needs aapt-generated R.java + android.jar
+JAVA_FILES="$JAVA_FILES $SCRIPT_DIR/06-real-apk/src/RealApkRunner.java"
 
 echo "Compiling $(echo "$JAVA_FILES" | wc -w) Java files..."
 javac -d "$BUILD_DIR" \
-    -sourcepath "$MOCK_JAVA:$SHIM_JAVA:$SCRIPT_DIR/02-headless-cli/src:$SCRIPT_DIR/03-ui-mockup/src:$SCRIPT_DIR/04-mockdonalds/src:$SCRIPT_DIR/06-real-apk/src" \
+    -sourcepath "$MOCK_JAVA:$SHIM_JAVA:$SCRIPT_DIR/02-headless-cli/src:$SCRIPT_DIR/03-ui-mockup/src:$SCRIPT_DIR/04-mockdonalds/src" \
     $JAVA_FILES 2>&1
 
 echo "Compiled successfully."
