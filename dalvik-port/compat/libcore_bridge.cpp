@@ -475,7 +475,7 @@ static jboolean JNICALL ICU_initLocaleDataNative(JNIEnv* env, jclass, jstring, j
     SET_LD_STR("integerPattern", "#,##0");
     SET_LD_STR("currencyPattern", "\xc2\xa4#,##0.00");
     SET_LD_STR("percentPattern", "#,##0%");
-    SET_LD_CHAR('zeroDigit', '0');
+    SET_LD_CHAR("zeroDigit", '0');
     SET_LD_STRARR("amPm", "AM", "PM");
     SET_LD_STRARR("longMonthNames", "January","February","March","April","May","June","July","August","September","October","November","December");
     SET_LD_STRARR("shortMonthNames", "Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec");
@@ -1080,17 +1080,30 @@ static JNINativeMethod gMathMethods[] = {
 
 /* ── java.lang.StringToReal / java.lang.RealToString ── */
 static jdouble StringToReal_parseDouble(JNIEnv* env, jclass, jstring str, jint e) {
-    /* e is the starting index in the string */
+    /* str = mantissa digits (no decimal point), e = exponent adjustment
+     * e.g. "3.14" → str="314", e=-2 → 314 * 10^-2 = 3.14 */
     const char* s = env->GetStringUTFChars(str, NULL);
     double v = strtod(s, NULL);
     env->ReleaseStringUTFChars(str, s);
+    /* Apply exponent: v * 10^e */
+    if (e != 0) {
+        double scale = 1.0;
+        int ae = e < 0 ? -e : e;
+        for (int i = 0; i < ae; i++) scale *= 10.0;
+        v = e > 0 ? v * scale : v / scale;
+    }
     return v;
 }
 static jfloat StringToReal_parseFloat(JNIEnv* env, jclass, jstring str, jint e) {
-    (void)e;
     const char* s = env->GetStringUTFChars(str, NULL);
     float v = strtof(s, NULL);
     env->ReleaseStringUTFChars(str, s);
+    if (e != 0) {
+        float scale = 1.0f;
+        int ae = e < 0 ? -e : e;
+        for (int i = 0; i < ae; i++) scale *= 10.0f;
+        v = e > 0 ? v * scale : v / scale;
+    }
     return v;
 }
 static JNINativeMethod gStringToRealMethods[] = {
@@ -1202,6 +1215,74 @@ static JNINativeMethod gPatternMethods[] = {
     { "compileImpl", "(Ljava/lang/String;I)J", (void*) Pattern_compileImpl },
 };
 
+/* ── java.util.regex.Matcher natives ── */
+struct MatcherState { regex_t* re; char* input; int inputLen; regmatch_t matches[32]; int lastEnd; };
+static jlong Matcher_openImpl(JNIEnv*, jclass, jlong patAddr) {
+    MatcherState* ms = (MatcherState*) calloc(1, sizeof(MatcherState));
+    ms->re = (regex_t*)(uintptr_t) patAddr; return (jlong)(uintptr_t) ms;
+}
+static void Matcher_closeImpl(JNIEnv*, jclass, jlong addr) {
+    MatcherState* ms = (MatcherState*)(uintptr_t) addr;
+    if (ms) { free(ms->input); free(ms); }
+}
+static void Matcher_setInputImpl(JNIEnv* env, jclass, jlong addr, jstring jstr, jint start, jint end) {
+    MatcherState* ms = (MatcherState*)(uintptr_t) addr;
+    free(ms->input);
+    const char* s = env->GetStringUTFChars(jstr, NULL);
+    ms->inputLen = end - start;
+    ms->input = (char*) malloc(ms->inputLen + 1);
+    memcpy(ms->input, s + start, ms->inputLen);
+    ms->input[ms->inputLen] = '\0'; ms->lastEnd = 0;
+    env->ReleaseStringUTFChars(jstr, s);
+}
+static jboolean Matcher_findImpl(JNIEnv*, jclass, jlong addr, jstring, jint si, jintArray offsets) {
+    MatcherState* ms = (MatcherState*)(uintptr_t) addr;
+    if (!ms || !ms->re || !ms->input || si >= ms->inputLen) return JNI_FALSE;
+    regmatch_t m; int rc = regexec(ms->re, ms->input + si, 1, &m, 0);
+    if (rc == 0) {
+        ms->matches[0].rm_so = m.rm_so + si; ms->matches[0].rm_eo = m.rm_eo + si;
+        ms->lastEnd = ms->matches[0].rm_eo;
+        /* Write group 0 offsets if array provided */
+        /* offsets layout: [groupCount+1][2] — offsets[0]=start, offsets[1]=end */
+        return JNI_TRUE;
+    }
+    return JNI_FALSE;
+}
+static jboolean Matcher_findNextImpl(JNIEnv* e, jclass c, jlong addr, jstring js, jintArray o) {
+    MatcherState* ms = (MatcherState*)(uintptr_t) addr;
+    return Matcher_findImpl(e, c, addr, js, ms ? ms->lastEnd : 0, o);
+}
+static jint Matcher_groupCountImpl(JNIEnv*, jclass, jlong) { return 0; }
+static void Matcher_usePatternImpl(JNIEnv*, jclass, jlong addr, jlong p) {
+    MatcherState* ms = (MatcherState*)(uintptr_t) addr; if (ms) ms->re = (regex_t*)(uintptr_t) p;
+}
+static jboolean Matcher_hitEndImpl(JNIEnv*, jclass, jlong) { return JNI_FALSE; }
+static jboolean Matcher_requireEndImpl(JNIEnv*, jclass, jlong) { return JNI_FALSE; }
+static jboolean Matcher_lookingAtImpl(JNIEnv*, jclass, jlong, jstring, jintArray) { return JNI_FALSE; }
+static jboolean Matcher_matchesImpl(JNIEnv*, jclass, jlong addr, jstring, jintArray) {
+    MatcherState* ms = (MatcherState*)(uintptr_t) addr;
+    if (!ms || !ms->re || !ms->input) return JNI_FALSE;
+    regmatch_t m; int rc = regexec(ms->re, ms->input, 1, &m, 0);
+    return (rc == 0 && m.rm_so == 0 && m.rm_eo == ms->inputLen) ? JNI_TRUE : JNI_FALSE;
+}
+static void Matcher_useAnchoringBoundsImpl(JNIEnv*, jclass, jlong, jboolean) {}
+static void Matcher_useTransparentBoundsImpl(JNIEnv*, jclass, jlong, jboolean) {}
+static JNINativeMethod gMatcherMethods[] = {
+    { "openImpl",       "(J)J",                         (void*) Matcher_openImpl },
+    { "closeImpl",      "(J)V",                         (void*) Matcher_closeImpl },
+    { "setInputImpl",   "(JLjava/lang/String;II)V",     (void*) Matcher_setInputImpl },
+    { "findImpl",       "(JLjava/lang/String;I[I)Z",    (void*) Matcher_findImpl },
+    { "findNextImpl",   "(JLjava/lang/String;[I)Z",     (void*) Matcher_findNextImpl },
+    { "matchesImpl",    "(JLjava/lang/String;[I)Z",     (void*) Matcher_matchesImpl },
+    { "groupCountImpl", "(J)I",                         (void*) Matcher_groupCountImpl },
+    { "usePatternImpl", "(JJ)V",                        (void*) Matcher_usePatternImpl },
+    { "hitEndImpl",     "(J)Z",                         (void*) Matcher_hitEndImpl },
+    { "requireEndImpl", "(J)Z",                         (void*) Matcher_requireEndImpl },
+    { "lookingAtImpl",  "(JLjava/lang/String;[I)Z",     (void*) Matcher_lookingAtImpl },
+    { "useAnchoringBoundsImpl", "(JZ)V",                (void*) Matcher_useAnchoringBoundsImpl },
+    { "useTransparentBoundsImpl", "(JZ)V",              (void*) Matcher_useTransparentBoundsImpl },
+};
+
 /* ── java.lang.Thread ── */
 static void Thread_sleep(JNIEnv*, jclass, jlong ms) {
     struct timespec ts;
@@ -1260,6 +1341,8 @@ bool dvmRegisterLibcoreBridge(JNIEnv* env) {
     /* Regex */
     registerClass(env, "java/util/regex/Pattern",
                   gPatternMethods, sizeof(gPatternMethods)/sizeof(gPatternMethods[0]));
+    registerClass(env, "java/util/regex/Matcher",
+                  gMatcherMethods, sizeof(gMatcherMethods)/sizeof(gMatcherMethods[0]));
 
     /* Thread.sleep */
     registerClass(env, "java/lang/Thread",
