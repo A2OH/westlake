@@ -5,10 +5,10 @@ import com.ohos.shim.bridge.OHBridge;
 /**
  * Shim: android.widget.RadioButton → ArkUI Radio node concept.
  *
- * ArkUI provides a Radio component; we map checked state through a generic
- * toggle attribute on a STACK node (the bridge can specialise the node type).
+ * AOSP: RadioButton extends CompoundButton (not View directly).
+ * CompoundButton extends Button → TextView → View.
  */
-public class RadioButton extends View {
+public class RadioButton extends CompoundButton {
 
     // ArkUI attribute for checked state (approximate)
     private static final int ATTR_CHECKED = 1100;
@@ -23,12 +23,8 @@ public class RadioButton extends View {
     private static final float CIRCLE_STROKE_WIDTH = 2f;
     private static final float CIRCLE_TEXT_GAP = 8f;
 
-    private boolean checked = false;
-    private OnCheckedChangeListener onCheckedChangeListener;
-    private CharSequence mLabel = "";
-
     public RadioButton() {
-        super(0); // Bridge maps to Radio component
+        super();
     }
 
     public RadioButton(android.content.Context context) {
@@ -43,35 +39,21 @@ public class RadioButton extends View {
         this();
     }
 
-    // ── Checked state ──
+    // ── Checked state (with OHBridge wiring) ──
 
-    public boolean isChecked() { return checked; }
-
+    @Override
     public void setChecked(boolean checked) {
-        if (this.checked != checked) {
-            this.checked = checked;
-            if (nativeHandle != 0) {
-                OHBridge.nodeSetAttrInt(nativeHandle, ATTR_CHECKED, checked ? 1 : 0);
-            }
-            if (onCheckedChangeListener != null) {
-                onCheckedChangeListener.onCheckedChanged(this, checked);
-            }
+        super.setChecked(checked);
+        if (nativeHandle != 0) {
+            OHBridge.nodeSetAttrInt(nativeHandle, ATTR_CHECKED, checked ? 1 : 0);
         }
     }
-
-    public void toggle() {
-        setChecked(!checked);
-    }
-
-    // ── Label text ──
-
-    public void setText(CharSequence text) { mLabel = text != null ? text : ""; }
-    public CharSequence getText() { return mLabel; }
 
     // ── Drawing ──
 
     @Override
     protected void onDraw(android.graphics.Canvas canvas) {
+        boolean checked = isChecked();
         int w = getWidth();
         int h = getHeight();
         if (w <= 0 || h <= 0) return;
@@ -96,8 +78,9 @@ public class RadioButton extends View {
         }
 
         // Step 3: Draw label text to the right
-        if (mLabel != null && mLabel.length() > 0) {
-            float textSize = 14f; // default text size
+        CharSequence label = getText();
+        if (label != null && label.length() > 0) {
+            float textSize = getTextSize() > 0 ? getTextSize() : 14f;
             paint.setColor(TEXT_COLOR);
             paint.setTextSize(textSize);
             paint.setStyle(android.graphics.Paint.Style.FILL);
@@ -105,19 +88,7 @@ public class RadioButton extends View {
             android.graphics.Paint.FontMetrics fm = paint.getFontMetrics();
             float textX = cx + OUTER_RADIUS + CIRCLE_STROKE_WIDTH + CIRCLE_TEXT_GAP;
             float textY = cy + (-fm.ascent - fm.descent) / 2f;
-            canvas.drawText(mLabel.toString(), textX, textY, paint);
+            canvas.drawText(label.toString(), textX, textY, paint);
         }
-    }
-
-    // ── Listener ──
-
-    public void setOnCheckedChangeListener(OnCheckedChangeListener listener) {
-        this.onCheckedChangeListener = listener;
-    }
-
-    // ── Interface ──
-
-    public interface OnCheckedChangeListener {
-        void onCheckedChanged(RadioButton button, boolean isChecked);
     }
 }

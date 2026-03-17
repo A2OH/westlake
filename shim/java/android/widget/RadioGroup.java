@@ -106,11 +106,11 @@ public class RadioGroup extends LinearLayout {
     private void wireRadioButton(View child) {
         if (child instanceof RadioButton) {
             final RadioButton rb = (RadioButton) child;
-            rb.setOnCheckedChangeListener(new RadioButton.OnCheckedChangeListener() {
+            rb.setOnCheckedChangeListener(new CompoundButton.OnCheckedChangeListener() {
                 @Override
-                public void onCheckedChanged(RadioButton button, boolean isChecked) {
-                    if (isChecked) {
-                        check(button.getId());
+                public void onCheckedChanged(CompoundButton buttonView, boolean isChecked) {
+                    if (isChecked && buttonView instanceof RadioButton) {
+                        check(buttonView.getId());
                     }
                 }
             });

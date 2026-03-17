@@ -226,6 +226,48 @@ public final class MotionEvent {
         }
     }
 
+    /**
+     * Offset all coordinates by (deltaX, deltaY). Used during ViewGroup dispatch
+     * to translate into child coordinate space.
+     */
+    public void offsetLocation(float deltaX, float deltaY) {
+        x += deltaX;
+        y += deltaY;
+        rawX += deltaX;
+        rawY += deltaY;
+        for (int i = 0; i < pointerCount; i++) {
+            pointerX[i] += deltaX;
+            pointerY[i] += deltaY;
+        }
+    }
+
+    /** Change the action of this event. */
+    public void setAction(int newAction) {
+        this.action = newAction;
+    }
+
+    /**
+     * Copy-obtain: create a new MotionEvent with the same data as the source.
+     */
+    public static MotionEvent obtain(MotionEvent source) {
+        MotionEvent ev = new MotionEvent();
+        ev.action = source.action;
+        ev.x = source.x;
+        ev.y = source.y;
+        ev.rawX = source.rawX;
+        ev.rawY = source.rawY;
+        ev.downTime = source.downTime;
+        ev.eventTime = source.eventTime;
+        ev.metaState = source.metaState;
+        ev.pointerCount = source.pointerCount;
+        for (int i = 0; i < source.pointerCount; i++) {
+            ev.pointerIds[i] = source.pointerIds[i];
+            ev.pointerX[i] = source.pointerX[i];
+            ev.pointerY[i] = source.pointerY[i];
+        }
+        return ev;
+    }
+
     /** No-op: preserved for Android API compatibility. */
     public void recycle() {}
 
