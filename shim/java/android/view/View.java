@@ -492,7 +492,9 @@ public class View {
     public int getWindowVisibility() { return 0; }
     public void getWindowVisibleDisplayFrame(Object p0) {}
     public boolean hasExplicitFocusable() { return false; }
+    public boolean hasFocus() { return false; }
     public boolean hasFocusable() { return false; }
+    public boolean isFocused() { return false; }
     public boolean hasNestedScrollingParent() { return false; }
     public boolean hasOnClickListeners() { return mClickListener != null; }
     public boolean hasOnLongClickListeners() { return false; }
