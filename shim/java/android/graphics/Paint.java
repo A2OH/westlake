@@ -56,6 +56,12 @@ public class Paint {
     private Join  strokeJoin  = Join.MITER;
     private Align textAlign   = Align.LEFT;
     private float strokeMiter = 4f;
+    private boolean fakeBoldText = false;
+
+    // ── Cached AWT FontMetrics (host JVM only) ─────────────────────────
+    private transient Object cachedAwtMetrics;  // java.awt.FontMetrics
+    private float cachedMetricsSize = -1;
+    private int   cachedMetricsStyle = -1;
 
     // ── Constructors ─────────────────────────────────────────────────────────
 
@@ -78,6 +84,7 @@ public class Paint {
             this.strokeJoin  = paint.strokeJoin;
             this.textAlign   = paint.textAlign;
             this.strokeMiter = paint.strokeMiter;
+            this.fakeBoldText = paint.fakeBoldText;
         }
     }
 
@@ -115,28 +122,99 @@ public class Paint {
 
     // ── Text ─────────────────────────────────────────────────────────────────
 
-    public void  setTextSize(float size) { this.textSize = size; }
+    public void  setTextSize(float size) { this.textSize = size; this.cachedAwtMetrics = null; }
     public float getTextSize()           { return textSize; }
+
+    public void    setFakeBoldText(boolean bold) { this.fakeBoldText = bold; this.cachedAwtMetrics = null; }
+    public boolean isFakeBoldText()              { return fakeBoldText; }
 
     public void  setTextAlign(Align align) { this.textAlign = (align != null) ? align : Align.LEFT; }
     public Align getTextAlign()            { return textAlign; }
 
     /**
-     * Rough width estimate: each character is ~0.6 em wide.
+     * Returns java.awt.Font style constant (PLAIN/BOLD), or 0 if AWT unavailable.
+     */
+    private int getAwtFontStyle() {
+        int style = 0; // java.awt.Font.PLAIN
+        if (fakeBoldText) style |= 1; // java.awt.Font.BOLD
+        return style;
+    }
+
+    /**
+     * Returns a cached java.awt.FontMetrics for the current text size and style,
+     * or null if java.awt is not available (e.g. on Dalvik).
+     */
+    private Object getAwtFontMetrics() {
+        int style = getAwtFontStyle();
+        if (cachedAwtMetrics != null && cachedMetricsSize == textSize && cachedMetricsStyle == style) {
+            return cachedAwtMetrics;
+        }
+        try {
+            int sz = Math.max(1, (int) textSize);
+            java.awt.Font f = new java.awt.Font("SansSerif", style, sz);
+            java.awt.Graphics g = new java.awt.image.BufferedImage(1, 1,
+                java.awt.image.BufferedImage.TYPE_INT_ARGB).getGraphics();
+            cachedAwtMetrics = g.getFontMetrics(f);
+            cachedMetricsSize = textSize;
+            cachedMetricsStyle = style;
+            return cachedAwtMetrics;
+        } catch (Throwable t) {
+            return null;
+        }
+    }
+
+    /**
+     * Measures text width using Java2D on host JVM, with fallback for Dalvik.
      */
     public float measureText(String text) {
-        if (text == null) return 0f;
+        if (text == null || text.length() == 0) return 0f;
+        try {
+            Object obj = getAwtFontMetrics();
+            if (obj != null) {
+                java.awt.FontMetrics awtFm = (java.awt.FontMetrics) obj;
+                return awtFm.stringWidth(text);
+            }
+        } catch (Throwable t) {
+            // fall through
+        }
         return text.length() * textSize * 0.6f;
     }
 
     public float measureText(char[] text, int index, int count) {
         if (text == null || count <= 0) return 0f;
-        return count * textSize * 0.6f;
+        return measureText(new String(text, index, count));
     }
 
     public float measureText(String text, int start, int end) {
         if (text == null) return 0f;
-        return (end - start) * textSize * 0.6f;
+        return measureText(text.substring(start, end));
+    }
+
+    /**
+     * Fills bounds with the bounding rectangle of the text.
+     */
+    public void getTextBounds(String text, int start, int end, Rect bounds) {
+        if (bounds == null) return;
+        if (text == null || start >= end) {
+            bounds.set(0, 0, 0, 0);
+            return;
+        }
+        String sub = text.substring(start, end);
+        float width = measureText(sub);
+        FontMetrics fm = getFontMetrics();
+        bounds.left = 0;
+        bounds.top = (int) fm.ascent;
+        bounds.right = (int) width;
+        bounds.bottom = (int) fm.descent;
+    }
+
+    public void getTextBounds(char[] text, int index, int count, Rect bounds) {
+        if (bounds == null) return;
+        if (text == null || count <= 0) {
+            bounds.set(0, 0, 0, 0);
+            return;
+        }
+        getTextBounds(new String(text, index, count), 0, count, bounds);
     }
 
     // ── FontMetrics ──────────────────────────────────────────────────────────
@@ -159,6 +237,20 @@ public class Paint {
 
     public FontMetrics getFontMetrics() {
         FontMetrics fm = new FontMetrics();
+        try {
+            Object obj = getAwtFontMetrics();
+            if (obj != null) {
+                java.awt.FontMetrics awtFm = (java.awt.FontMetrics) obj;
+                fm.ascent  = -awtFm.getAscent();     // Android ascent is negative
+                fm.descent = awtFm.getDescent();
+                fm.leading = awtFm.getLeading();
+                fm.top     = fm.ascent - 2;
+                fm.bottom  = fm.descent + 1;
+                return fm;
+            }
+        } catch (Throwable t) {
+            // fall through to approximation
+        }
         fm.top     = -textSize * 1.08f;
         fm.ascent  = -textSize * 0.93f;
         fm.descent =  textSize * 0.24f;
@@ -169,26 +261,29 @@ public class Paint {
 
     public float getFontMetrics(FontMetrics metrics) {
         if (metrics == null) metrics = new FontMetrics();
-        metrics.top     = -textSize * 1.08f;
-        metrics.ascent  = -textSize * 0.93f;
-        metrics.descent =  textSize * 0.24f;
-        metrics.bottom  =  textSize * 0.28f;
-        metrics.leading = 0;
+        FontMetrics real = getFontMetrics();
+        metrics.top     = real.top;
+        metrics.ascent  = real.ascent;
+        metrics.descent = real.descent;
+        metrics.bottom  = real.bottom;
+        metrics.leading = real.leading;
         return metrics.descent - metrics.ascent;
     }
 
     public FontMetricsInt getFontMetricsInt() {
         FontMetricsInt fm = new FontMetricsInt();
-        fm.top     = Math.round(-textSize * 1.08f);
-        fm.ascent  = Math.round(-textSize * 0.93f);
-        fm.descent = Math.round(textSize * 0.24f);
-        fm.bottom  = Math.round(textSize * 0.28f);
-        fm.leading = 0;
+        FontMetrics real = getFontMetrics();
+        fm.top     = Math.round(real.top);
+        fm.ascent  = Math.round(real.ascent);
+        fm.descent = Math.round(real.descent);
+        fm.bottom  = Math.round(real.bottom);
+        fm.leading = Math.round(real.leading);
         return fm;
     }
 
     public float getFontSpacing() {
-        return textSize * 0.93f + textSize * 0.24f;
+        FontMetrics fm = getFontMetrics();
+        return fm.descent - fm.ascent + fm.leading;
     }
 
     // ── Anti-alias ───────────────────────────────────────────────────────────
