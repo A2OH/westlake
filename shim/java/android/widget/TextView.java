@@ -426,6 +426,17 @@ public class TextView extends android.view.View {
 
     @Override
     protected void onDraw(android.graphics.Canvas canvas) {
+        // Draw a subtle background for display-style TextViews (large text, no explicit bg)
+        if (getBackgroundColor() == 0 && mTextSize >= 28 && getWidth() > 0 && getHeight() > 0) {
+            android.graphics.Paint bgp = new android.graphics.Paint();
+            bgp.setColor(0xFFEEEEEE);
+            bgp.setStyle(android.graphics.Paint.Style.FILL);
+            canvas.drawRect(0, 0, getWidth(), getHeight(), bgp);
+            // Bottom separator line
+            bgp.setColor(0xFFCCCCCC);
+            canvas.drawRect(0, getHeight() - 2, getWidth(), getHeight(), bgp);
+        }
+
         CharSequence displayText = getTransformedText();
         boolean textEmpty = (displayText == null || displayText.length() == 0);
         boolean hintAvailable = (mHint != null && mHint.length() > 0);
