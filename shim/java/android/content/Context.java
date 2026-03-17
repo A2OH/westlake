@@ -209,6 +209,9 @@ public class Context {
         android.app.MiniServer.get().getServiceManager().unbindService(p0);
     }
     public void unregisterComponentCallbacks(ComponentCallbacks p0) {}
+    public Intent registerReceiver(BroadcastReceiver receiver, IntentFilter filter) {
+        return null;
+    }
     public void unregisterReceiver(BroadcastReceiver p0) {}
     public void updateServiceGroup(ServiceConnection p0, int p1, int p2) {}
 }
