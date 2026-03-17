@@ -52,21 +52,25 @@ public class CartActivity extends Activity {
 
         Button checkoutBtn = new Button();
         checkoutBtn.setText("Checkout");
-        checkoutBtn.setOnClickListener(v -> {
-            if (!cartItems.isEmpty()) {
-                Intent intent = new Intent();
-                intent.setComponent(new android.content.ComponentName(
-                        getPackageName(), "com.example.mockdonalds.CheckoutActivity"));
-                intent.putExtra("total", cartManager.getCartTotalString());
-                intent.putExtra("item_count", cartItems.size());
-                startActivityForResult(intent, 300);
+        checkoutBtn.setOnClickListener(new android.view.View.OnClickListener() {
+            @Override public void onClick(android.view.View v) {
+                if (!cartItems.isEmpty()) {
+                    Intent intent = new Intent();
+                    intent.setComponent(new android.content.ComponentName(
+                            getPackageName(), "com.example.mockdonalds.CheckoutActivity"));
+                    intent.putExtra("total", cartManager.getCartTotalString());
+                    intent.putExtra("item_count", cartItems.size());
+                    startActivityForResult(intent, 300);
+                }
             }
         });
         root.addView(checkoutBtn);
 
         Button backBtn = new Button();
         backBtn.setText("Back to Menu");
-        backBtn.setOnClickListener(v -> finish());
+        backBtn.setOnClickListener(new android.view.View.OnClickListener() {
+            @Override public void onClick(android.view.View v) { finish(); }
+        });
         root.addView(backBtn);
 
         setContentView(root);

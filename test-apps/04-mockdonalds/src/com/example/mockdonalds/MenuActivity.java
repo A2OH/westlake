@@ -46,27 +46,31 @@ public class MenuActivity extends Activity {
         // Menu ListView
         ListView listView = new ListView();
         listView.setAdapter(new MenuAdapter());
-        listView.setOnItemClickListener((parent, view, position, id) -> {
-            MenuItem item = menuItems.get(position);
-            Intent intent = new Intent();
-            intent.setComponent(new android.content.ComponentName(
-                    getPackageName(), "com.example.mockdonalds.ItemDetailActivity"));
-            intent.putExtra("item_id", item.id);
-            intent.putExtra("item_name", item.name);
-            intent.putExtra("item_price", item.price);
-            intent.putExtra("item_description", item.description);
-            startActivityForResult(intent, 100);
+        listView.setOnItemClickListener(new android.widget.AdapterView.OnItemClickListener() {
+            @Override public void onItemClick(android.widget.AdapterView parent, android.view.View view, int position, long id) {
+                MenuItem item = menuItems.get(position);
+                Intent intent = new Intent();
+                intent.setComponent(new android.content.ComponentName(
+                        getPackageName(), "com.example.mockdonalds.ItemDetailActivity"));
+                intent.putExtra("item_id", item.id);
+                intent.putExtra("item_name", item.name);
+                intent.putExtra("item_price", item.price);
+                intent.putExtra("item_description", item.description);
+                startActivityForResult(intent, 100);
+            }
         });
         root.addView(listView);
 
         // Cart button
         Button cartBtn = new Button();
         cartBtn.setText("View Cart");
-        cartBtn.setOnClickListener(v -> {
-            Intent intent = new Intent();
-            intent.setComponent(new android.content.ComponentName(
-                    getPackageName(), "com.example.mockdonalds.CartActivity"));
-            startActivityForResult(intent, 200);
+        cartBtn.setOnClickListener(new android.view.View.OnClickListener() {
+            @Override public void onClick(android.view.View v) {
+                Intent intent = new Intent();
+                intent.setComponent(new android.content.ComponentName(
+                        getPackageName(), "com.example.mockdonalds.CartActivity"));
+                startActivityForResult(intent, 200);
+            }
         });
         root.addView(cartBtn);
 

@@ -46,23 +46,27 @@ public class ItemDetailActivity extends Activity {
 
         Button addBtn = new Button();
         addBtn.setText("Add to Cart");
-        addBtn.setOnClickListener(v -> {
-            CartManager cart = new CartManager(ItemDetailActivity.this);
-            MenuDbHelper db = new MenuDbHelper(ItemDetailActivity.this);
-            MenuItem item = db.getItem(itemId);
-            if (item != null) {
-                int count = cart.addToCart(item);
-                Intent result = new Intent();
-                result.putExtra("cart_count", count);
-                setResult(RESULT_OK, result);
+        addBtn.setOnClickListener(new android.view.View.OnClickListener() {
+            @Override public void onClick(android.view.View v) {
+                CartManager cart = new CartManager(ItemDetailActivity.this);
+                MenuDbHelper db = new MenuDbHelper(ItemDetailActivity.this);
+                MenuItem item = db.getItem(itemId);
+                if (item != null) {
+                    int count = cart.addToCart(item);
+                    Intent result = new Intent();
+                    result.putExtra("cart_count", count);
+                    setResult(RESULT_OK, result);
+                }
+                finish();
             }
-            finish();
         });
         root.addView(addBtn);
 
         Button backBtn = new Button();
         backBtn.setText("Back");
-        backBtn.setOnClickListener(v -> finish());
+        backBtn.setOnClickListener(new android.view.View.OnClickListener() {
+            @Override public void onClick(android.view.View v) { finish(); }
+        });
         root.addView(backBtn);
 
         setContentView(root);

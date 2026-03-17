@@ -50,9 +50,11 @@ public class CheckoutActivity extends Activity {
 
         Button doneBtn = new Button();
         doneBtn.setText("Done");
-        doneBtn.setOnClickListener(v -> {
-            setResult(RESULT_OK);
-            finish();
+        doneBtn.setOnClickListener(new android.view.View.OnClickListener() {
+            @Override public void onClick(android.view.View v) {
+                setResult(RESULT_OK);
+                finish();
+            }
         });
         root.addView(doneBtn);
 

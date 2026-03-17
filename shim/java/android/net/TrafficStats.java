@@ -86,7 +86,12 @@ public class TrafficStats {
 
     // --- Thread tagging ---
 
-    private static final ThreadLocal<Integer> threadTag = ThreadLocal.withInitial(() -> 0);
+    private static final ThreadLocal<Integer> threadTag = new ThreadLocal<Integer>() {
+        @Override
+        protected Integer initialValue() {
+            return 0;
+        }
+    };
 
     /**
      * Tags the current thread's socket traffic with the given tag for accounting purposes.

@@ -4,6 +4,7 @@ import android.renderscript.Type;
 
 import java.util.concurrent.Executor;
 import java.util.concurrent.Executors;
+import java.util.concurrent.ThreadFactory;
 
 /**
  * Android-compatible AsyncTask shim.
@@ -21,10 +22,13 @@ public class AsyncTask<Params, Progress, Result> {
     public enum Status { PENDING, RUNNING, FINISHED }
 
     private static final Executor DEFAULT_EXECUTOR =
-            Executors.newCachedThreadPool(r -> {
-                Thread t = new Thread(r, "AsyncTask-thread");
-                t.setDaemon(true);
-                return t;
+            Executors.newCachedThreadPool(new ThreadFactory() {
+                @Override
+                public Thread newThread(Runnable r) {
+                    Thread t = new Thread(r, "AsyncTask-thread");
+                    t.setDaemon(true);
+                    return t;
+                }
             });
 
     private volatile Status mStatus = Status.PENDING;
@@ -74,19 +78,22 @@ public class AsyncTask<Params, Progress, Result> {
         }
         mStatus = Status.RUNNING;
         onPreExecute();
-        exec.execute(() -> {
-            Result result = null;
-            try {
-                result = doInBackground(params);
-            } catch (Exception e) {
-                mCancelled = true;
-            } finally {
-                mStatus = Status.FINISHED;
-                final Result finalResult = result;
-                if (mCancelled) {
-                    onCancelled(finalResult);
-                } else {
-                    onPostExecute(finalResult);
+        exec.execute(new Runnable() {
+            @Override
+            public void run() {
+                Result result = null;
+                try {
+                    result = doInBackground(params);
+                } catch (Exception e) {
+                    mCancelled = true;
+                } finally {
+                    mStatus = Status.FINISHED;
+                    final Result finalResult = result;
+                    if (mCancelled) {
+                        onCancelled(finalResult);
+                    } else {
+                        onPostExecute(finalResult);
+                    }
                 }
             }
         });

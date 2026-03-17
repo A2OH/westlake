@@ -36,7 +36,12 @@ public class AnimationUtils {
      * @return a stub TimeInterpolator that returns input unchanged
      */
     public static TimeInterpolator loadInterpolator(Object context, int id) {
-        return input -> input;
+        return new TimeInterpolator() {
+            @Override
+            public float getInterpolation(float input) {
+                return input;
+            }
+        };
     }
 
     /**

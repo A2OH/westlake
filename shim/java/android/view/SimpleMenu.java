@@ -52,7 +52,12 @@ public class SimpleMenu implements Menu {
 
     @Override
     public void removeItem(int id) {
-        mItems.removeIf(item -> item.getItemId() == id);
+        java.util.Iterator<MenuItem> it = mItems.iterator();
+        while (it.hasNext()) {
+            if (it.next().getItemId() == id) {
+                it.remove();
+            }
+        }
     }
 
     // ── SimpleMenuItem inner class ──
