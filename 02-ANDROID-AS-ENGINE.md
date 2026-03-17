@@ -657,9 +657,74 @@ Only ~15 system-level boundaries need bridging. Everything above these boundarie
 
 ---
 
-## 8. Validation: What We've Proven (2026-03-16)
+## 8. Real-World APK Analysis: Amazon Shopping (45MB, 8 DEX files)
 
-### 8.1 End-to-End Milestone Achieved
+### 8.1 The AndroidX Insight: Apps Bring Their Own Framework
+
+Modern Android apps bundle ~97% of their code. Analyzing Amazon Shopping APK (30,207 unique type references):
+
+```mermaid
+pie title "Amazon Shopping APK: Where Code Lives"
+    "App + 3rd-party libs" : 93.7
+    "AndroidX (bundled)" : 3.9
+    "android.* (our framework)" : 1.5
+    "java.* (Dalvik core.jar)" : 0.8
+```
+
+| Category | Types | % | Source |
+|----------|------:|--:|--------|
+| App code + 3rd-party libs (OkHttp, Glide, Dagger) | 28,310 | 93.7% | Bundled in APK |
+| AndroidX (Fragment, RecyclerView, ViewModel, Room) | 1,174 | 3.9% | Bundled in APK |
+| **Core android.*** | **443** | **1.5%** | **Our framework** |
+| java.* (core Java) | 256 | 0.8% | Dalvik core.jar |
+
+**97.6% of the app is self-contained.** RecyclerView, Fragment, ViewModel, LiveData, Room, Navigation, WorkManager, OkHttp, Glide — all resolve from the APK's own DEX files. Our engine gets them for free.
+
+### 8.2 The 443 Classes We Need to Provide
+
+Of the 443 core `android.*` types Amazon needs, 434 have shim files (98% file coverage). The most-called classes and their status:
+
+| Class | Stub % | Calls | Status |
+|-------|-------:|------:|--------|
+| Bundle | 8% | 351 | **WORKS** |
+| Intent | 19% | 1,266 | **WORKS** |
+| SharedPreferences | 4% | 633 | **WORKS** |
+| Uri | 19% | 355 | **WORKS** |
+| Log | 0% | 643 | **WORKS** |
+| Handler | 17% | 86 | **WORKS** |
+| SQLiteDatabase | 16% | 111 | **WORKS** |
+| Activity | 78% | 53 | **PARTIAL** — lifecycle works, secondary methods stub |
+| Context | 72% | 721 | **PARTIAL** — getResources/getSystemService work |
+| View | 76% | 1,400 | **PARTIAL** — layout/draw pipeline works |
+| PackageManager | 96% | 155 | **MOSTLY STUB** |
+
+### 8.3 What Works vs What's Needed
+
+| Category | Status | Gap |
+|----------|--------|-----|
+| Activity/Fragment lifecycle | Works | AndroidX Fragment is bundled |
+| View measure/layout/draw | Works | Custom onMeasure/onDraw supported |
+| RecyclerView | **Free** | 100% bundled in APK (AndroidX) |
+| Networking (OkHttp) | **Free** | Bundled; needs java.net.Socket (in core.jar) |
+| Image loading (Glide) | **Free** | Bundled; needs BitmapFactory (implemented) |
+| Database (Room → SQLite) | Works | Room bundled, generates standard SQLite calls |
+| Navigation | **Free** | Entirely bundled (AndroidX) |
+| Permissions | Works | Auto-grant for MVP |
+| Service/BroadcastReceiver | Works | Validated with 106-check SuperApp |
+| **Resource system** | **Gap** | resources.arsc parsing done, but TypedArray/styled attrs missing |
+| **PackageManager** | **Gap** | 96% stub, needs basic package info |
+
+### 8.4 Bottom Line
+
+For a simple APK: **ready today.** Data layer, lifecycle, layout all work.
+
+For Amazon Shopping: 443 framework classes needed, 434 exist as shims, ~55 most critical ones need deeper implementation. The effort is focused — it's 443 classes, not 30,000, because AndroidX handles the rest.
+
+---
+
+## 9. Validation: What We've Proven (2026-03-16)
+
+### 9.1 End-to-End Milestone Achieved
 
 A real Android APK runs on OpenHarmony ARM32 via QEMU:
 
