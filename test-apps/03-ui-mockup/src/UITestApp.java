@@ -183,9 +183,13 @@ public class UITestApp {
         final boolean[] changed = {false};
         et.addTextChangedListener(new EditText.TextWatcher() {
             @Override
+            public void beforeTextChanged(CharSequence s, int start, int count, int after) {}
+            @Override
             public void onTextChanged(CharSequence s, int start, int before, int count) {
                 changed[0] = true;
             }
+            @Override
+            public void afterTextChanged(Object s) {}
         });
         check("addTextChangedListener", true);
 

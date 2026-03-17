@@ -145,7 +145,11 @@ public class Context {
     public File[] getExternalFilesDirs(String p0) { return null; }
     public File getFileStreamPath(String p0) { return null; }
     public File getFilesDir() { return null; }
-    public Executor getMainExecutor() { return Runnable::run; }
+    public Executor getMainExecutor() {
+        return new Executor() {
+            @Override public void execute(Runnable r) { r.run(); }
+        };
+    }
     public Looper getMainLooper() { return Looper.getMainLooper(); }
     public File getNoBackupFilesDir() { return null; }
     public File getObbDir() { return null; }

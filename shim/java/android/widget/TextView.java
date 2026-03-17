@@ -52,9 +52,9 @@ public class TextView extends android.view.View {
     public void setGravity(int gravity) {}
 
     public interface TextWatcher {
-        default void beforeTextChanged(CharSequence s, int start, int count, int after) {}
+        void beforeTextChanged(CharSequence s, int start, int count, int after);
         void onTextChanged(CharSequence s, int start, int before, int count);
-        default void afterTextChanged(Object s) {}
+        void afterTextChanged(Object s);
     }
 
     private TextWatcher mTextWatcher;

@@ -17,6 +17,32 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicLong;
 
+/* Regex-free split for KitKat Dalvik (no Pattern.compileImpl native) */
+class SplitHelper {
+    static String[] ws(String s) {
+        s = s.trim(); if (s.isEmpty()) return new String[0];
+        List<String> r = new ArrayList<String>(); int st = 0; boolean w = false;
+        for (int i = 0; i <= s.length(); i++) {
+            boolean sp = (i == s.length()) || Character.isWhitespace(s.charAt(i));
+            if (w && sp) { r.add(s.substring(st, i)); w = false; }
+            else if (!w && !sp) { st = i; w = true; }
+        } return r.toArray(new String[0]);
+    }
+    static String[] ch(String s, char d) {
+        List<String> r = new ArrayList<String>(); int st = 0;
+        for (int i = 0; i <= s.length(); i++)
+            if (i == s.length() || s.charAt(i) == d) { r.add(s.substring(st, i)); st = i+1; }
+        return r.toArray(new String[0]);
+    }
+    static String[] andSplit(String s) {
+        // Split on " AND " case-insensitive without regex
+        List<String> r = new ArrayList<String>(); String u = s.toUpperCase(Locale.US);
+        int st = 0, idx;
+        while ((idx = u.indexOf(" AND ", st)) >= 0) { r.add(s.substring(st, idx)); st = idx + 5; }
+        r.add(s.substring(st)); return r.toArray(new String[0]);
+    }
+}
+
 /**
  * Android-compatible SQLiteDatabase shim.
  * In-memory database backed by Java data structures (Maps/Lists).
@@ -378,7 +404,7 @@ public final class SQLiteDatabase extends SQLiteClosable {
 
         String prefix = sql.substring(0, parenOpen).trim();
         // Extract table name: last word before '('
-        String[] prefixParts = prefix.split("\\s+");
+        String[] prefixParts = SplitHelper.ws(prefix);
         String tableName = prefixParts[prefixParts.length - 1];
         // Remove backticks/brackets/quotes
         tableName = stripQuotes(tableName);
@@ -434,7 +460,7 @@ public final class SQLiteDatabase extends SQLiteClosable {
             return null;
         }
         // First token is the column name
-        String[] parts = colDef.trim().split("\\s+");
+        String[] parts = SplitHelper.ws(colDef.trim());
         return stripQuotes(parts[0]);
     }
 
@@ -453,7 +479,7 @@ public final class SQLiteDatabase extends SQLiteClosable {
     }
 
     private void parseDropTable(String sql) {
-        String[] parts = sql.trim().split("\\s+");
+        String[] parts = SplitHelper.ws(sql.trim());
         // DROP TABLE [IF EXISTS] name
         String tableName = parts[parts.length - 1];
         tableName = stripQuotes(tableName);
@@ -669,7 +695,7 @@ public final class SQLiteDatabase extends SQLiteClosable {
                 // Handle "offset, count" or just "count"
                 String trimmedLimit = limit.trim();
                 if (trimmedLimit.contains(",")) {
-                    String[] parts = trimmedLimit.split(",");
+                    String[] parts = SplitHelper.ch(trimmedLimit, ',');
                     // offset, count
                     int offset = Integer.parseInt(parts[0].trim());
                     int count = Integer.parseInt(parts[1].trim());
@@ -808,7 +834,7 @@ public final class SQLiteDatabase extends SQLiteClosable {
         // Determine columns
         String[] columns = null;
         if (!colPart.equals("*")) {
-            String[] rawCols = colPart.split(",");
+            String[] rawCols = SplitHelper.ch(colPart, ',');
             columns = new String[rawCols.length];
             for (int i = 0; i < rawCols.length; i++) {
                 columns[i] = stripQuotes(rawCols[i].trim());
@@ -857,7 +883,7 @@ public final class SQLiteDatabase extends SQLiteClosable {
 
         // Split on AND (case-insensitive) -- basic support
         String[] conditions;
-        conditions = clause.split("(?i)\\s+AND\\s+");
+        conditions = SplitHelper.andSplit(clause);
 
         int argIndex = 0;
         for (String condition : conditions) {
@@ -955,10 +981,12 @@ public final class SQLiteDatabase extends SQLiteClosable {
         if (a == null && b == null) return 0;
         if (a == null) return -1;
         if (b == null) return 1;
+        // Avoid Double.parseDouble (needs native parseDblImpl on KitKat)
+        // Use simple long comparison for integers, fallback to string compare
         try {
-            double da = Double.parseDouble(a);
-            double db = Double.parseDouble(b);
-            return Double.compare(da, db);
+            long la = Long.parseLong(a);
+            long lb = Long.parseLong(b);
+            return Long.compare(la, lb);
         } catch (NumberFormatException e) {
             return a.compareTo(b);
         }
@@ -973,7 +1001,7 @@ public final class SQLiteDatabase extends SQLiteClosable {
         if (trimmed.toUpperCase(Locale.US).startsWith("BY ")) {
             trimmed = trimmed.substring(3).trim();
         }
-        String[] parts = trimmed.split("\\s+");
+        String[] parts = SplitHelper.ws(trimmed);
         final String sortCol = stripQuotes(parts[0]);
         final boolean ascending = !(parts.length > 1 && parts[1].toUpperCase(Locale.US).equals("DESC"));
 

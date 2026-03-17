@@ -17,7 +17,11 @@ public class MenuItem {
     }
 
     public String getPriceString() {
-        return String.format("$%.2f", price);
+        // Avoid String.format (ICU) and Math.round/floor (native) for KitKat Dalvik
+        int cents = (int)(price * 100 + 0.5);
+        int dollars = cents / 100;
+        int remainder = cents % 100;
+        return "$" + dollars + "." + (remainder < 10 ? "0" : "") + remainder;
     }
 
     @Override
