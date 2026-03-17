@@ -21,21 +21,11 @@
 
 每个跨平台应用框架在OpenHarmony上都遵循相同的模式：
 
-```
-┌─────────────────────────────────────────────────────────────────┐
-│                    Any Cross-Platform App                        │
-│  ┌───────────┐   ┌───────────────┐   ┌───────────────────────┐  │
-│  │ App Code  │ → │ Framework     │ → │ Rendering Engine      │  │
-│  │ (bytecode)│   │ (widget tree, │   │ (draws pixels to a    │  │
-│  │           │   │  layout, state│   │  surface buffer)      │  │
-│  │           │   │  management)  │   │                       │  │
-│  └───────────┘   └───────────────┘   └───────────┬───────────┘  │
-└──────────────────────────────────────────────────┼──────────────┘
-                                                   │
-                                        ┌──────────▼──────────┐
-                                        │ OH: XComponent      │
-                                        │ surface + input      │
-                                        └─────────────────────┘
+```mermaid
+graph TD
+    A["App Code (bytecode)"] --> B["Framework (widget tree, layout, state management)"]
+    B --> C["Rendering Engine (draws pixels to surface buffer)"]
+    C --> D["OH: XComponent surface + input"]
 ```
 
 这对OH目前运行的**每一个**框架都成立：
@@ -68,40 +58,42 @@ OH将缓冲区合成到显示器上。它完全不知道是谁绘制了这些像
 
 ### 1.3 Flutter类比详解
 
+```mermaid
+graph LR
+    subgraph Flutter
+        F1["Dart bytecode"] --> F2["Flutter Framework<br/>(widget tree + layout)"]
+        F2 --> F3["Skia SkCanvas"]
+        F3 --> F4["OH XComponent"]
+    end
+    subgraph Android Engine
+        A1["DEX bytecode"] --> A2["Android Framework<br/>(View tree + layout)"]
+        A2 --> A3["OH_Drawing Canvas"]
+        A3 --> A4["OH XComponent"]
+    end
 ```
-Flutter on OH:                          Android-as-Engine on OH:
-─────────────                           ─────────────────────────
-Dart source → Dart bytecode             Java source → DEX bytecode
-Dart VM executes bytecode               Dalvik VM executes bytecode
-Flutter Framework builds widget tree    Android Framework builds View tree
-Flutter layout engine measures/positions Android layout engine measures/positions
-Flutter calls SkCanvas.drawRect()       Android calls Canvas.drawRect()
-  → Skia rasterizes to pixel buffer       → OH_Drawing rasterizes to pixel buffer
-OH displays the buffer                  OH displays the buffer
 
-Platform channels for:                  Platform bridges for:
-  - Camera                                - Camera
-  - Location                              - Location
-  - Sensors                               - Sensors
-  - Notifications                         - Notifications
-  - File system                           - File system
-  (identical boundary!)                   (identical boundary!)
-```
+Both frameworks need the same platform bridges: Camera, Location, Sensors, Notifications, File system — the integration boundary is identical.
 
 Flutter约有20个平台通道类别。Android需要约15个平台桥接。**集成面的量级完全相同**，因为两个框架对宿主OS的需求是一样的——一个用于绘制的表面、输入事件、以及对硬件/系统服务的访问。
 
 ### 1.4 具体示例：按下按钮时发生了什么
 
-```
-Flutter:                                    Android Engine:
-1. SkCanvas receives touch at (x,y)        1. XComponent receives touch at (x,y)
-2. Dart: GestureDetector.onTap()           2. Java: View.dispatchTouchEvent()
-3. Dart: setState() → rebuild widget tree  3. Java: onClick() → update state
-4. Dart: RenderBox.layout()                4. Java: View.measure() + layout()
-5. Dart: RenderBox.paint(canvas)           5. Java: View.draw(canvas)
-6. Skia: SkCanvas.drawRRect(...)           6. OH_Drawing: CanvasDrawRoundRect(...)
-7. Skia → GPU → pixels                    7. OH_Drawing → Skia → GPU → pixels
-8. OH displays frame                       8. OH displays frame
+```mermaid
+sequenceDiagram
+    participant User
+    participant XComponent
+    participant View as View Tree (Java)
+    participant Canvas
+    participant OH as OH_Drawing/Skia
+    participant Display
+
+    User->>XComponent: Touch at (x,y)
+    XComponent->>View: dispatchTouchEvent()
+    View->>View: onClick() / setState()
+    View->>View: measure() + layout()
+    View->>Canvas: draw(canvas)
+    Canvas->>OH: drawRoundRect / drawText
+    OH->>Display: Skia / GPU / pixels
 ```
 
 步骤1-5是**纯客户代码**，在客户VM中运行。步骤6是唯一的原生调用。步骤7-8由OH处理。两个框架在结构上完全一致——它们只是使用不同的语言（Dart vs Java）和不同的Widget词汇。
@@ -116,10 +108,10 @@ Android SDK暴露了约57,000个公共API。一种朴素的方案是将每个API
 
 ```
 WRONG approach (API shimming):
-  android.widget.TextView.setText(String)  →  Text({ content: string })
-  android.widget.Button.setOnClickListener →  Button({ onClick: () => {} })
-  android.view.View.setVisibility(int)     →  .visibility(Visibility.Hidden)
-  ... × 57,000 methods = years of work, endless edge cases
+  android.widget.TextView.setText(String)  ->  Text({ content: string })
+  android.widget.Button.setOnClickListener ->  Button({ onClick: () => {} })
+  android.view.View.setVisibility(int)     ->  .visibility(Visibility.Hidden)
+  ... x 57,000 methods = years of work, endless edge cases
 ```
 
 这种方案行不通，原因如下：
@@ -131,19 +123,30 @@ WRONG approach (API shimming):
 
 追踪一个典型Android API的调用路径：
 
-```
-App calls: textView.setText("Hello World")
+```mermaid
+graph TD
+    A["App: textView.setText('Hello')"] --> B["1. TextView.setText() — Pure Java"]
+    B --> C["2. View.invalidate() — Pure Java"]
+    C --> D["3. ViewGroup.requestLayout() — Pure Java"]
+    D --> E["4. scheduleTraversal() — Pure Java"]
+    E --> F["5. Handler.dispatchMessage() — Pure Java"]
+    F --> G["6. performTraversals() — Pure Java"]
+    G --> H["7. TextView.onMeasure() — Pure Java"]
+    H --> I["8. TextView.onDraw(canvas) — Pure Java"]
+    I --> J["9. Canvas.drawText() — JNI BRIDGE"]
+    J --> K["OH_Drawing_CanvasDrawText() — Skia — pixels"]
 
-What actually happens:
-  1. TextView.setText()              ← Pure Java: stores CharSequence in mText
-  2. TextView.requestLayout()        ← Pure Java: marks view for re-layout
-  3. ViewGroup.requestLayout()       ← Pure Java: propagates up the tree
-  4. ViewRootImpl.scheduleTraversal() ← Pure Java: posts Runnable to Handler
-  5. Handler.dispatchMessage()       ← Pure Java: message queue processing
-  6. ViewRootImpl.performTraversals() ← Pure Java: measure → layout → draw
-  7. TextView.onMeasure()            ← Pure Java: calculates text bounds
-  8. TextView.onDraw(canvas)         ← Pure Java: calls canvas.drawText()
-  9. Canvas.drawText("Hello", x, y)  ← JNI BRIDGE → OH_Drawing_CanvasDrawText()
+    style A fill:#e1f5fe
+    style B fill:#e8f5e9
+    style C fill:#e8f5e9
+    style D fill:#e8f5e9
+    style E fill:#e8f5e9
+    style F fill:#e8f5e9
+    style G fill:#e8f5e9
+    style H fill:#e8f5e9
+    style I fill:#e8f5e9
+    style J fill:#fff3e0
+    style K fill:#fce4ec
 ```
 
 **步骤1-8都是纯Java。** 无论宿主OS是Android、Linux还是OpenHarmony，它们在Dalvik中的运行方式完全相同。只有步骤9跨越了原生边界——而且它是一个通用的"在指定坐标绘制文本"调用，而不是setText专属的桥接。
@@ -154,40 +157,25 @@ What actually happens:
 
 一个Android应用与宿主OS的交互点与其他任何应用完全相同：
 
-```
-┌─────────────────────────────────────────────────────────────────┐
-│                    Android Framework (Pure Java)                 │
-│                                                                  │
-│  57,000 APIs: View, Widget, Activity, Service, Content,         │
-│  Intent, Fragment, Animation, Drawable, Text, Database,         │
-│  SharedPreferences, Handler, Looper, AsyncTask, ...             │
-│                                                                  │
-│  ALL of this is pure Java running in Dalvik VM.                 │
-│  None of it needs OHOS-specific code.                           │
-│                                                                  │
-└─────────────────────┬───────────────────────────────────────────┘
-                      │
-          Only these cross the boundary:
-                      │
-     ┌────────────────▼────────────────────────────────┐
-     │           ~15 HAL Bridges (liboh_bridge.so)      │
-     │                                                  │
-     │  1. Pixels:    Canvas.draw*()  → OH_Drawing     │
-     │  2. Surface:   NativeWindow    → XComponent     │
-     │  3. Touch:     MotionEvent     ← XComponent     │
-     │  4. Audio:     AudioTrack      → OH AudioRenderer│
-     │  5. Camera:    Camera2         → OH Camera       │
-     │  6. Network:   Socket          → OH Net          │
-     │  7. Location:  LocationManager → OH GeoLocation  │
-     │  8. Bluetooth: BT HAL         → OH Bluetooth     │
-     │  9. Sensors:   SensorManager   → OH Sensor       │
-     │  10. Storage:  File I/O        → OH FileSystem   │
-     │  11. Telephony:RIL             → OH Telephony    │
-     │  12. Notify:   NotificationMgr → OH Notification │
-     │  13. Perms:    PackageManager  → OH AccessCtrl   │
-     │  14. Clipboard:ClipboardSvc    → OH Pasteboard   │
-     │  15. Vibrate:  VibratorService → OH Vibrator     │
-     └─────────────────────────────────────────────────┘
+```mermaid
+graph TD
+    subgraph FW["Android Framework (Pure Java in Dalvik)"]
+        FW1["57,000 APIs: View, Widget, Activity, Service,<br/>Intent, Fragment, Animation, Drawable, Text,<br/>Database, SharedPreferences, Handler, Looper...<br/><br/>ALL pure Java. None needs OHOS-specific code."]
+    end
+
+    FW1 --> BRIDGE
+
+    subgraph BRIDGE["~15 HAL Bridges (liboh_bridge.so)"]
+        B1["1. Pixels: Canvas.draw* → OH_Drawing"]
+        B2["2. Surface: NativeWindow → XComponent"]
+        B3["3. Touch: MotionEvent ← XComponent"]
+        B4["4. Audio: AudioTrack → OH AudioRenderer"]
+        B5["5. Camera: Camera2 → OH Camera"]
+        B6["6-10. Network, Location, BT, Sensors, Storage"]
+        B7["11-15. Telephony, Notify, Perms, Clipboard, Vibrate"]
+    end
+
+    BRIDGE --> OH["OpenHarmony OS"]
 ```
 
 ### 2.4 实证验证：我们的实现证实了这一架构
@@ -222,32 +210,23 @@ What actually happens:
 
 **三层类提供机制：**
 
-```
-第一层：java.* / javax.*（约4,000个类）
-  提供者：Dalvik VM自带的core.jar（1.2MB）
-  状态：   已完成 — HashMap、String、ArrayList、Thread等
+```mermaid
+graph TD
+    subgraph "Layer 1: java.* / javax.* (~4,000 classes)"
+        L1["core.jar (1.2MB)<br/>HashMap, String, ArrayList, Thread...<br/>Status: WORKING"]
+    end
+    subgraph "Layer 2: android.* framework (~2,000 classes)"
+        L2A["Option A: Shim layer (current)<br/>1,968 stubs, ~200 implemented<br/>~2MB DEX, ~70% fidelity"]
+        L2B["Option B: Real AOSP framework.jar (production)<br/>Actual AOSP source<br/>~40MB DEX, ~99% fidelity"]
+    end
+    subgraph "Layer 3: App code"
+        L3["APK's classes.dex<br/>Status: WORKING — DexClassLoader"]
+    end
 
-第二层：android.*框架（典型应用需要约2,000个类）
-  两种选择：
-  ┌──────────────────────────────────────────────────────────────────┐
-  │ 方案A：适配层（当前方案）                                         │
-  │   1,968个桩类，约200个完整实现                                     │
-  │   大小：约2MB DEX                                                │
-  │   兼容性：简单应用约70%                                           │
-  │   优点：体积小，迭代快，无AOSP依赖                                 │
-  │   缺点：缺少方法，行为简化                                        │
-  ├──────────────────────────────────────────────────────────────────┤
-  │ 方案B：真实AOSP framework.jar（生产目标）                          │
-  │   直接使用AOSP的Android框架Java源码                                │
-  │   大小：约40MB DEX                                                │
-  │   兼容性：约99%（与真实Android完全一致）                           │
-  │   优点：完美兼容，经过实战检验的代码                                │
-  │   缺点：体积较大，需要SystemServer桩                               │
-  └──────────────────────────────────────────────────────────────────┘
-
-第三层：应用自身代码（因APK而异）
-  提供者：APK中的classes.dex
-  状态：   已完成 — 由DexClassLoader加载
+    L1 --> VM["Dalvik VM"]
+    L2A -.-> VM
+    L2B -.-> VM
+    L3 --> VM
 ```
 
 **生产环境引擎采用混合方案：**
