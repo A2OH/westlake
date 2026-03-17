@@ -374,22 +374,102 @@ static jobject JNICALL Posix_uname(JNIEnv* env, jobject) {
         env->NewStringUTF(buf.machine));
 }
 
-static jint JNICALL Posix_open(JNIEnv* env, jobject, jstring jpath, jint flags, jint mode) {
-    if (jpath == NULL) return -1;
+static jobject JNICALL Posix_open(JNIEnv* env, jobject, jstring jpath, jint flags, jint mode) {
+    if (jpath == NULL) return NULL;
     const char* path = env->GetStringUTFChars(jpath, NULL);
     int fd = open(path, flags, mode);
     env->ReleaseStringUTFChars(jpath, path);
-    return fd;
+    if (fd < 0) return NULL;
+    /* Create FileDescriptor object and set its 'descriptor' field */
+    jclass fdClass = env->FindClass("java/io/FileDescriptor");
+    jmethodID init = env->GetMethodID(fdClass, "<init>", "()V");
+    jobject fdObj = env->NewObject(fdClass, init);
+    jfieldID descField = env->GetFieldID(fdClass, "descriptor", "I");
+    env->SetIntField(fdObj, descField, fd);
+    return fdObj;
 }
 
-static void JNICALL Posix_close(JNIEnv*, jobject, jobject) { }
-
-static jint JNICALL Posix_read_bytes(JNIEnv*, jobject, jobject, jbyteArray, jint, jint) {
-    return 0;
+static int getFdFromFileDescriptor(JNIEnv* env, jobject fdObj) {
+    if (!fdObj) return -1;
+    jclass fdClass = env->GetObjectClass(fdObj);
+    jfieldID descField = env->GetFieldID(fdClass, "descriptor", "I");
+    return env->GetIntField(fdObj, descField);
 }
 
-static jint JNICALL Posix_write_bytes_arr(JNIEnv*, jobject, jobject, jbyteArray, jint, jint len) {
-    return len;
+static void JNICALL Posix_close(JNIEnv* env, jobject, jobject fdObj) {
+    int fd = getFdFromFileDescriptor(env, fdObj);
+    if (fd >= 0) close(fd);
+}
+
+static jint JNICALL Posix_read_bytes(JNIEnv* env, jobject, jobject fdObj, jbyteArray buf, jint off, jint len) {
+    int fd = getFdFromFileDescriptor(env, fdObj);
+    if (fd < 0 || buf == NULL) return -1;
+    jbyte* bytes = env->GetByteArrayElements(buf, NULL);
+    ssize_t n = read(fd, bytes + off, len);
+    env->ReleaseByteArrayElements(buf, bytes, 0);
+    return (jint) n;
+}
+
+static jobject JNICALL Posix_fstat(JNIEnv* env, jobject, jobject fdObj) {
+    int fd = getFdFromFileDescriptor(env, fdObj);
+    struct stat st;
+    if (fd < 0 || fstat(fd, &st) < 0) return NULL;
+    jclass ssClass = env->FindClass("libcore/io/StructStat");
+    if (!ssClass) { env->ExceptionClear(); return NULL; }
+
+    /* Try various constructor signatures (differs between KitKat versions) */
+    jobject obj = NULL;
+    /* Try: (JJIJJJJJJJJJ)V — 12 params */
+    jmethodID init = env->GetMethodID(ssClass, "<init>", "(JJIJJJJJJJJJ)V");
+    if (init) {
+        obj = env->NewObject(ssClass, init,
+            (jlong)st.st_dev, (jlong)st.st_ino, (jint)st.st_mode,
+            (jlong)st.st_nlink, (jlong)st.st_uid, (jlong)st.st_gid,
+            (jlong)st.st_rdev, (jlong)st.st_size,
+            (jlong)st.st_atime, (jlong)st.st_mtime, (jlong)st.st_ctime,
+            (jlong)st.st_blksize);
+    } else {
+        env->ExceptionClear();
+        /* Fallback: allocate and set fields manually */
+        init = env->GetMethodID(ssClass, "<init>", "()V");
+        if (!init) {
+            env->ExceptionClear();
+            /* Last resort: allocate object without constructor */
+            obj = env->AllocObject(ssClass);
+        } else {
+            obj = env->NewObject(ssClass, init);
+        }
+        if (obj) {
+            #define SET_STAT_LONG(name) do { \
+                jfieldID f = env->GetFieldID(ssClass, #name, "J"); \
+                if (f) env->SetLongField(obj, f, (jlong)st.st_##name); \
+                else env->ExceptionClear(); \
+            } while(0)
+            SET_STAT_LONG(dev); SET_STAT_LONG(ino); SET_STAT_LONG(nlink);
+            SET_STAT_LONG(uid); SET_STAT_LONG(gid); SET_STAT_LONG(rdev);
+            SET_STAT_LONG(size); SET_STAT_LONG(blksize);
+            #undef SET_STAT_LONG
+            jfieldID mf = env->GetFieldID(ssClass, "st_mode", "I");
+            if (mf) env->SetIntField(obj, mf, st.st_mode);
+            else env->ExceptionClear();
+            jfieldID af = env->GetFieldID(ssClass, "st_atime", "J");
+            if (af) env->SetLongField(obj, af, st.st_atime);
+            else env->ExceptionClear();
+            jfieldID mtf = env->GetFieldID(ssClass, "st_mtime", "J");
+            if (mtf) env->SetLongField(obj, mtf, st.st_mtime);
+            else env->ExceptionClear();
+        }
+    }
+    return obj;
+}
+
+static jint JNICALL Posix_write_bytes_arr(JNIEnv* env, jobject, jobject fdObj, jbyteArray buf, jint off, jint len) {
+    int fd = getFdFromFileDescriptor(env, fdObj);
+    if (fd < 0 || buf == NULL) return len; /* /dev/null fallback */
+    jbyte* bytes = env->GetByteArrayElements(buf, NULL);
+    ssize_t n = write(fd, bytes + off, len);
+    env->ReleaseByteArrayElements(buf, bytes, JNI_ABORT);
+    return (jint)(n >= 0 ? n : len);
 }
 
 /* writeBytes with Object parameter (jar uses this signature) */
@@ -952,7 +1032,9 @@ static JNINativeMethod gPosixMethods[] = {
     { "uname",     "()Llibcore/io/StructUtsname;", (void*) Posix_uname },
     { "open",      "(Ljava/lang/String;II)Ljava/io/FileDescriptor;", (void*) Posix_open },
     { "close",     "(Ljava/io/FileDescriptor;)V", (void*) Posix_close },
+    { "fstat",     "(Ljava/io/FileDescriptor;)Llibcore/io/StructStat;", (void*) Posix_fstat },
     { "read",      "(Ljava/io/FileDescriptor;[BII)I", (void*) Posix_read_bytes },
+    { "readBytes", "(Ljava/io/FileDescriptor;Ljava/lang/Object;II)I", (void*) Posix_read_bytes },
     { "write",     "(Ljava/io/FileDescriptor;[BII)I", (void*) Posix_write_bytes_arr },
     { "writeBytes","(Ljava/io/FileDescriptor;Ljava/lang/Object;II)I", (void*) Posix_writeBytes },
 };
