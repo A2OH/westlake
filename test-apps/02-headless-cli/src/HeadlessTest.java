@@ -8808,5 +8808,64 @@ public class HeadlessTest {
         // With weightSum=4, two children with weight=1 each get 100px (1/4 of 400)
         check("weightSum 4: ws1 height == 100", ws1.getHeight() == 100);
         check("weightSum 4: ws2 height == 100", ws2.getHeight() == 100);
+
+        // ── B.31: Paint.measureText real font measurement ──
+        section("B31 Paint.measureText Java2D");
+        android.graphics.Paint mtPaint = new android.graphics.Paint();
+        mtPaint.setTextSize(20);
+
+        // "W" is wider than "i" in a proportional font
+        float wW = mtPaint.measureText("W");
+        float wi = mtPaint.measureText("i");
+        check("measureText('W') > 0", wW > 0);
+        check("measureText('i') > 0", wi > 0);
+        check("'W' wider than 'i' (proportional)", wW > wi);
+
+        // Longer strings produce wider measurements
+        float wHello = mtPaint.measureText("Hello");
+        float wHelloWorld = mtPaint.measureText("Hello World");
+        check("'Hello World' wider than 'Hello'", wHelloWorld > wHello);
+
+        // Overloads produce consistent results
+        float mtW2 = mtPaint.measureText("Hello World", 0, 5);
+        check("substring overload matches", Math.abs(wHello - mtW2) < 0.01f);
+        float mtW3 = mtPaint.measureText("Hello".toCharArray(), 0, 5);
+        check("char[] overload matches", Math.abs(wHello - mtW3) < 0.01f);
+
+        // Empty/null edge cases
+        check("measureText(null) == 0", mtPaint.measureText((String) null) == 0f);
+        check("measureText('') == 0", mtPaint.measureText("") == 0f);
+
+        // Larger text size produces wider measurement
+        android.graphics.Paint bigPaint = new android.graphics.Paint();
+        bigPaint.setTextSize(40);
+        float wBig = bigPaint.measureText("Hello");
+        check("textSize 40 wider than 20", wBig > wHello);
+
+        // getFontMetrics with real AWT
+        android.graphics.Paint.FontMetrics mtFm = mtPaint.getFontMetrics();
+        check("B31 ascent < 0", mtFm.ascent < 0);
+        check("B31 descent > 0", mtFm.descent > 0);
+        check("B31 top < ascent", mtFm.top < mtFm.ascent);
+        check("B31 bottom > descent", mtFm.bottom > mtFm.descent);
+
+        // getTextBounds
+        android.graphics.Rect textBounds = new android.graphics.Rect();
+        mtPaint.getTextBounds("Hello", 0, 5, textBounds);
+        check("getTextBounds width > 0", textBounds.right > 0);
+        check("getTextBounds top < 0 (ascent)", textBounds.top < 0);
+        check("getTextBounds bottom > 0 (descent)", textBounds.bottom > 0);
+
+        // getFontSpacing real
+        float mtSpacing = mtPaint.getFontSpacing();
+        check("B31 getFontSpacing > 0", mtSpacing > 0);
+        check("B31 getFontSpacing reasonable", mtSpacing > 15 && mtSpacing < 40);
+
+        // setFakeBoldText
+        mtPaint.setFakeBoldText(true);
+        check("isFakeBoldText after set", mtPaint.isFakeBoldText());
+        float wBold = mtPaint.measureText("Hello");
+        // Bold text is typically same or slightly wider
+        check("bold measureText > 0", wBold > 0);
     }
 }
