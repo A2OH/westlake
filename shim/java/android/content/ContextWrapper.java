@@ -70,7 +70,7 @@ public class ContextWrapper extends Context {
     public PackageManager getPackageManager() { return null; }
     public String getPackageName() { return null; }
     public String getPackageResourcePath() { return null; }
-    public Resources getResources() { return null; }
+    public Resources getResources() { return super.getResources(); }
     public SharedPreferences getSharedPreferences(String p0, int p1) { return null; }
     public Object getSystemService(String p0) { return super.getSystemService(p0); }
     public String getSystemServiceName(Object p0) { return null; }
