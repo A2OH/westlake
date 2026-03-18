@@ -1,65 +1,173 @@
-# Android-to-OpenHarmony Migration
+# Westlake (西湖): Run Android APKs on OpenHarmony
 
-Run **unmodified Android APKs on OpenHarmony** by porting the Android API surface through a Java shim layer, a Dalvik VM, and a JNI bridge to OHOS native APIs.
+[![Tests](https://img.shields.io/badge/tests-2%2C476_pass-brightgreen)]()
+[![Shim Classes](https://img.shields.io/badge/shim_classes-2%2C056-blue)]()
+[![AOSP Lines](https://img.shields.io/badge/AOSP_framework-62%2C153_lines-orange)]()
+[![Architecture](https://img.shields.io/badge/approach-engine_%7E15_bridges-purple)]()
+[![License](https://img.shields.io/badge/license-Apache_2.0-blue)]()
 
+Run **unmodified Android APKs on OpenHarmony** by treating the Android framework as an embeddable runtime engine -- like Flutter on OH. Instead of mapping 57,000 Android APIs individually, the engine runs the entire Android framework as a guest runtime, bridging to OpenHarmony at approximately 15 HAL-level boundaries.
+
+The name *Westlake* (西湖) represents the bridge between two worlds -- Android and OpenHarmony -- just as Hangzhou's West Lake bridges tradition and modernity.
+
+```mermaid
+graph TD
+    subgraph APK["Android APK"]
+        DEX["DEX Bytecode<br/>(classes.dex)"]
+        MANIFEST["AndroidManifest.xml<br/>(binary AXML)"]
+        RES["resources.arsc"]
+    end
+
+    subgraph ENGINE["Android Engine (Guest Runtime)"]
+        DALVIK["Dalvik VM<br/>(KitKat, 64-bit port)"]
+        FW["Android Framework<br/>(62,153 lines AOSP)"]
+        MINI["MiniServer<br/>(Activity, Window, Package)"]
+        SHIM["2,056 Shim Classes<br/>(android.* surface)"]
+    end
+
+    subgraph BRIDGE["~15 HAL Bridges (OHBridge JNI)"]
+        B1["Canvas → OH_Drawing<br/>(58 native methods)"]
+        B2["ArkUI Node API<br/>(View → nodeCreate)"]
+        B3["System Services<br/>(169 total JNI methods)"]
+    end
+
+    subgraph OHOS["OpenHarmony"]
+        DRAWING["OH_Drawing / Skia"]
+        ARKUI["ArkUI Native Nodes"]
+        SERVICES["OHOS System Services"]
+    end
+
+    APK --> DALVIK
+    DALVIK --> FW
+    FW --> MINI
+    FW --> SHIM
+    SHIM --> BRIDGE
+    BRIDGE --> OHOS
 ```
- Android APK
-     |
- [Dalvik VM]        ← KitKat-era VM, ported to 64-bit (x86_64, OHOS aarch64, ARM32)
-     |
- [Java Shim Layer]  ← 1,968 android.* stub classes (this repo)
-     |
- [OHBridge / JNI]   ← Routes Android API calls to OHOS native APIs
-     |
- OpenHarmony OS
+
+---
+
+## Why Engine, Not Container
+
+| Approach | API Surface to Bridge | Binary Size | JNI Overhead | Fidelity |
+|----------|----------------------|-------------|--------------|----------|
+| **API Shimming** | 57,289 methods | N/A | N/A | Low (behavior mismatches) |
+| **Container (Anbox-style)** | Full Linux kernel | ~500 MB | N/A | High but heavy |
+| **Engine (this project)** | ~15 boundaries | ~15 MB | 0.08% per frame | High (real AOSP code) |
+
+The engine approach works because **99% of Android API calls never leave the VM**. When an app calls `textView.setText("Hello")`, the entire chain -- `setText` to `invalidate` to `requestLayout` to `onMeasure` to `onDraw(canvas)` -- is pure Java running in Dalvik. Only the final `Canvas.drawText()` crosses to native code via JNI.
+
+```mermaid
+graph LR
+    A["App: setText('Hello')"] --> B["8 pure Java calls<br/>(measure, layout, draw)"]
+    B --> C["1 JNI call:<br/>Canvas.drawText()"]
+    C --> D["OH_Drawing_CanvasDrawText()<br/>→ Skia → pixels"]
+
+    style A fill:#e1f5fe
+    style B fill:#e8f5e9
+    style C fill:#fff3e0
+    style D fill:#fce4ec
 ```
 
-## Project Status
+This is structurally identical to how Flutter runs on OpenHarmony: Dart VM executes widget tree logic, Skia renders to an XComponent surface, and platform channels bridge to system services. An Android APK is just another Flutter app with a different VM and widget vocabulary.
 
-| Component | Status |
-|-----------|--------|
-| Dalvik VM (x86_64 Linux) | Working — runs .dex files |
-| Dalvik VM (OHOS ARM32) | Cross-compiles, needs device testing |
-| Java Shim Layer | 1,968 stubs compile; ~50 implemented with real logic |
-| OHBridge (JNI) | Skeleton — routes calls but most are no-ops |
-| Test Harness | 497/502 headless tests pass |
-| Orchestrator Dashboard | Live at GitHub Pages |
+---
+
+## Current Status
+
+### What Works Today
+
+| Component | Status | Details |
+|-----------|--------|---------|
+| Dalvik VM (x86_64) | **Working** | DEX execution, GC, multi-class loading |
+| Dalvik VM (OHOS ARM32) | **Working** | Static binary, Hello World + Activity lifecycle on QEMU |
+| Dalvik VM (OHOS aarch64) | **Working** | Static binary, Hello World via QEMU user-mode |
+| Android Framework (AOSP) | **62,153 lines** | View, ViewGroup, TextView, AbsListView, ListView -- unmodified |
+| Java Shim Layer | **2,056 classes** | 126,625 lines of Java covering the android.* API surface |
+| MiniServer | **Working** | Activity lifecycle, service routing, package management |
+| Activity Lifecycle | **Full** | create, start, resume, pause, stop, destroy + result codes |
+| SQLite | **Working** | In-memory database, Cursor, ContentValues |
+| SharedPreferences | **Working** | HashMap-backed with file persistence |
+| Intent / Bundle | **Working** | Extras, ComponentName, action/category filtering |
+| ContentProvider | **Working** | insert, query, update, delete via ContentResolver |
+| Service | **Working** | Lifecycle: create, startCommand, bind, unbind, destroy |
+| BroadcastReceiver | **Working** | Register, send, receive with IntentFilter matching |
+| Fragment | **Working** | Add, replace, remove, back stack, lifecycle callbacks |
+| Canvas → OH_Drawing | **58 JNI methods** | Pen, Brush, Path, Bitmap, Font, Surface |
+| ArkUI Node Wiring | **Working** | View to nodeCreate, setText to nodeSetAttr |
+| Resources.arsc Parser | **Working** | String pool, type specs, resource entries |
+| Binary Manifest Parser | **Working** | AXML format, namespace handling, attribute extraction |
+| Pixel Rendering (Java2D) | **Working** | Closed-loop visual debugging via PNG output |
+| OHBridge JNI | **169 methods** | Drawing, ArkUI nodes, preferences, RDB, HiLog, HTTP |
+
+### Test Results
+
+| Test Suite | Passed | Failed | Total |
+|------------|--------|--------|-------|
+| Headless CLI (02) | 2,416 | 54 | 2,470 |
+| UI Mockup (03) | 47 | 6 | 53 |
+| MockDonalds E2E (04) | 10 | 4 | 14 |
+| Real APK Pipeline (06) | 3 | 2 | 5 |
+| **Total** | **2,476** | **66** | **2,542** |
+
+---
 
 ## Architecture
 
-### Shim Tiers
+```mermaid
+graph TD
+    subgraph HOST["Host: OpenHarmony (or Linux for testing)"]
+        subgraph VM["Dalvik VM"]
+            INTERP["Portable Interpreter"]
+            GC["Mark-Sweep GC"]
+            BOOT["Boot Classpath<br/>(4,000 java.* classes)"]
+        end
 
-Every Android API class is classified into one of four implementation tiers:
+        subgraph FRAMEWORK["Android Framework (Java)"]
+            ACTIVITY["Activity / Fragment<br/>Lifecycle Management"]
+            VIEW["View / ViewGroup<br/>(30K + 9K lines AOSP)"]
+            TEXT["TextView<br/>(13K lines AOSP)"]
+            LAYOUT["LinearLayout / RelativeLayout<br/>FrameLayout / TableLayout"]
+            WIDGET["Button, ImageView, ListView<br/>EditText, ProgressBar, etc."]
+            DATA["SQLiteDatabase<br/>SharedPreferences<br/>ContentProvider"]
+            IPC["Intent, Bundle<br/>Service, BroadcastReceiver"]
+        end
 
-| Tier | What | Dependency | Count | Example Classes |
-|------|------|------------|-------|-----------------|
-| **A** | Pure Java data structures | None | 314 classes / 1,316 APIs | Bundle, Intent, Uri, SparseArray, LruCache |
-| **B** | I/O with Java fallback | File system | 946 classes / 2,212 APIs | SharedPreferences, Handler, Looper, SQLiteDatabase |
-| **C** | System service wrappers | OHBridge (JNI) | 3,445 classes / 43,254 APIs | LocationManager, BluetoothAdapter, Camera |
-| **D** | UI components | ArkUI | 613 classes / 10,507 APIs | Activity, View, TextView, RecyclerView |
+        subgraph MINI["MiniServer (~770 lines)"]
+            MAM["MiniActivityManager<br/>(back stack, lifecycle)"]
+            MPM["MiniPackageManager<br/>(manifest, components)"]
+            SSR["SystemServiceRegistry<br/>(15 services wired)"]
+        end
 
-**Total: 5,318 classes, 57,289 APIs**
+        subgraph OHBRIDGE["OHBridge (169 JNI methods)"]
+            DRAW["Canvas Bridge<br/>(58 methods)"]
+            NODE["ArkUI Node Bridge"]
+            SYS["System Bridges<br/>(prefs, rdb, hilog, http)"]
+        end
+    end
 
-### Repository Layout
+    INTERP --> FRAMEWORK
+    FRAMEWORK --> MINI
+    FRAMEWORK --> OHBRIDGE
+    MINI --> SSR
+    OHBRIDGE --> OHOS_API["OHOS NDK APIs"]
+```
+
+### Dual Rendering Paths
+
+The engine supports two rendering strategies:
 
 ```
-shim/java/android/          ← 1,968 Java stub files mirroring Android API
-shim/java/com/ohos/shim/    ← OHBridge JNI bridge (real implementation)
-test-apps/
-  mock/                     ← Mock OHBridge for JVM testing (no device needed)
-  02-headless-cli/          ← Headless test harness (497 tests)
-  03-ui-mockup/             ← UI test harness (59 tests)
-  run-local-tests.sh        ← Test runner script
-database/
-  api_compat.db             ← SQLite DB: 57K APIs, tier classifications, OH mappings
-  generate_shims.py         ← Stub generator
-scripts/
-  create_issues.py          ← GitHub issue generator from DB
-frontend/                   ← React dashboard (GitHub Pages)
-  public/tier-classes.json  ← All 5,318 classes by tier (from DB)
-skills/                     ← Conversion skill files for CC workers
-dalvik-port/                ← Dalvik VM build artifacts
+Path A (Canvas/Skia):                    Path B (ArkUI Node):
+Android View.draw(Canvas)               Android View → ArkUI Node
+  → Canvas.drawRect/Text/Path             → OHBridge.nodeCreate(ROW)
+  → JNI → OH_Drawing_Canvas               → OHBridge.nodeSetAttr(WIDTH, 100)
+  → Skia → GPU → Display                  → ArkUI renders natively
+
+Best for: Games, custom drawing           Best for: Standard widgets
 ```
+
+---
 
 ## Quick Start
 
@@ -70,197 +178,203 @@ dalvik-port/                ← Dalvik VM build artifacts
 javac -version
 java -version
 
-# GitHub CLI (authenticated)
+# GitHub CLI (for issue tracking)
 gh auth status
-
-# Claude Code (for automated workers)
-claude --version
 ```
 
 ### Run Tests
 
 ```bash
-# Clone
-git clone https://github.com/A2OH/harmony-android-guide.git
-cd harmony-android-guide
+git clone https://github.com/A2OH/westlake.git
+cd westlake
 
-# Run headless tests (compiles all shims + mock bridge + tests)
-cd test-apps && ./run-local-tests.sh headless
-# Expected: 497/502 pass
+# Run all test suites (compiles 2,056 shim files + mock bridge + tests)
+cd test-apps && ./run-local-tests.sh
 
-# Run UI tests
-./run-local-tests.sh ui
-# Expected: 59 pass, 2 known failures (click events)
+# Or run individually:
+./run-local-tests.sh headless      # 2,470 tests
+./run-local-tests.sh ui            # 53 tests
+./run-local-tests.sh mockdonalds   # 14 tests (end-to-end)
+./run-local-tests.sh realapk       # 5 tests (APK pipeline)
 ```
 
-### Implement a Shim (Manual)
+### Run on Dalvik VM (x86_64)
 
 ```bash
-# 1. Find a class to implement
-gh issue list --repo A2OH/harmony-android-guide --label todo --label tier-a --limit 10
+cd dalvik-port
+export ANDROID_DATA=/tmp/android-data ANDROID_ROOT=/tmp/android-root
+mkdir -p $ANDROID_DATA/dalvik-cache $ANDROID_ROOT/bin
 
-# 2. Claim it
-gh issue edit <NUMBER> --repo A2OH/harmony-android-guide \
-  --remove-label todo --add-label in-progress
-
-# 3. Read the stub
-cat shim/java/android/os/Bundle.java
-
-# 4. Look up the conversion skill
-sqlite3 database/api_compat.db \
-  "SELECT ap.skill FROM android_types at
-   JOIN android_packages ap ON at.package_id = ap.id
-   WHERE at.full_name = 'Bundle'"
-# → A2OH-LIFECYCLE
-cat skills/A2OH-LIFECYCLE.md
-
-# 5. Implement real logic (replace return null/0/false)
-vim shim/java/android/os/Bundle.java
-
-# 6. Verify tests still pass
-cd test-apps && ./run-local-tests.sh headless
-
-# 7. Commit and close
-git add shim/java/android/os/Bundle.java
-git commit -m "Implement Bundle shim"
-git push origin main
-gh issue close <NUMBER> --repo A2OH/harmony-android-guide \
-  --comment "Implemented and tested"
+./build/dalvikvm -Xverify:none -Xdexopt:none \
+  -Xbootclasspath:$(pwd)/core-android-x86.jar \
+  -classpath hello.dex HelloAndroid
 ```
 
 ---
 
-## Automated Workers (Claude Code)
+## Test Apps
 
-The project uses a distributed task queue via GitHub Issues. Multiple Claude Code sessions work in parallel, each claiming issues, implementing shims, and closing them when done.
+| # | Name | What It Tests | Checks |
+|---|------|---------------|--------|
+| 01 | FlashNote | Basic Activity + layout | -- |
+| 02 | Headless CLI | Full shim layer: Bundle, Intent, SQLite, Prefs, URI, Service, Provider, Fragment, ... | 2,470 |
+| 03 | UI Mockup | View tree, measure/layout/draw pipeline, headless rendering | 53 |
+| 04 | MockDonalds | End-to-end: Activity launch, menu navigation, order flow, lifecycle | 14 |
+| 05 | TodoList | CRUD with SQLiteDatabase, ContentValues, Cursor | -- |
+| 06 | Real APK | APK unzip, binary manifest parse, DexClassLoader, Activity launch | 5 |
+| 07 | Calculator | State management, button handlers, display updates | -- |
+| 08 | Notes | SharedPreferences, text persistence, search | -- |
+| 09 | SuperApp | ContentProvider, BroadcastReceiver, Service, AsyncTask, Handler, Clipboard | -- |
+| 10 | Layout Validator | Measure specs, layout params, nested ViewGroups | -- |
+| 11 | Frame Dump | Pixel-level rendering via Java2D, PNG output for visual debugging | -- |
 
-Worker scripts and orchestration tools are in a separate repo: **[A2OH/a2oh-orchestrator](https://github.com/A2OH/a2oh-orchestrator)**
+---
 
-```bash
-# Quick start — launch a worker
-git clone https://github.com/A2OH/a2oh-orchestrator.git
-cd a2oh-orchestrator
-./a2oh-worker.sh /tmp/worker1
+## Real APK Analysis
 
-# Or run 3 workers in parallel
-./a2oh-worker.sh /tmp/w1 10 &
-./a2oh-worker.sh /tmp/w2 10 &
-./a2oh-worker.sh /tmp/w3 10 &
+Analysis of 13 top Android APKs (TikTok, Instagram, YouTube, Netflix, Spotify, Facebook, Google Maps, Zoom, Grab, Duolingo, Uber, PayPal, Amazon) representing 2.3 billion+ monthly active users:
+
+| Finding | Value |
+|---------|-------|
+| Average android.* classes referenced per APK | 443 |
+| Classes covered by current shim layer | 434 (97.6% for Amazon Shopping) |
+| API calls that stay inside the VM | 94% |
+| API calls requiring real platform bridge | 6% |
+| Engine overhead per frame | 0.08% (JNI crossing cost) |
+
+The Amazon Shopping APK was analyzed in detail:
+- 97.6% of referenced android.* classes are already present in the shim layer
+- The remaining 2.4% are advanced system services (TelephonyManager, Bluetooth) that most UI flows do not depend on
+- Facebook, Netflix, and Spotify manifests parse correctly with the binary AXML parser
+
+---
+
+## Repository Layout
+
+```
+westlake/
+├── shim/java/android/          # 2,056 Java shim files (126,625 lines)
+│   ├── app/                    # Activity, Fragment, MiniServer, Service
+│   ├── content/                # Intent, ContentProvider, SharedPreferences
+│   ├── database/               # SQLite, Cursor, MatrixCursor
+│   ├── graphics/               # Canvas, Paint, Bitmap, Path, Color
+│   ├── net/                    # Uri, ConnectivityManager
+│   ├── os/                     # Bundle, Handler, Looper, Parcel
+│   ├── view/                   # View (30K lines AOSP), ViewGroup (9K)
+│   ├── widget/                 # TextView (13K), Button, LinearLayout, ...
+│   └── ...                     # 137 android.* packages total
+├── shim/java/com/ohos/shim/    # OHBridge JNI (169 native methods)
+├── test-apps/
+│   ├── 01-flashnote/           # Basic Activity test
+│   ├── 02-headless-cli/        # Headless test harness (2,470 checks)
+│   ├── 03-ui-mockup/           # UI rendering tests
+│   ├── 04-mockdonalds/         # End-to-end restaurant app
+│   ├── 05-todolist/            # SQLite CRUD
+│   ├── 06-real-apk/            # APK loading pipeline
+│   ├── 07-calculator/          # State management
+│   ├── 08-notes/               # SharedPreferences
+│   ├── 09-superapp/            # Provider + Receiver + Service
+│   ├── 10-layout-validator/    # Measure/layout validation
+│   ├── 11-frame-dump/          # Pixel rendering + PNG output
+│   ├── mock/                   # Mock OHBridge (JVM testing, no device)
+│   └── run-local-tests.sh      # Test runner
+├── dalvik-port/                # Dalvik VM (x86_64, ARM32, aarch64)
+├── database/
+│   ├── api_compat.db           # 57,289 APIs, tier classification, OH mappings
+│   └── generate_shims.py       # Stub generator pipeline
+├── skills/                     # 8 conversion skill files (A2OH-*)
+├── frontend/                   # React dashboard (GitHub Pages)
+├── 02-ANDROID-AS-ENGINE.md     # Architecture design document
+├── 03-ENGINE-EXECUTION-PLAN.md # 4-workstream execution plan
+└── scripts/                    # Issue generator, orchestration tools
 ```
 
-See the [orchestrator README](https://github.com/A2OH/a2oh-orchestrator#readme) for full docs on worker setup, loop mode, tier selection, and throughput estimates.
+---
+
+## Dependencies
+
+Westlake is built on two companion projects:
+
+| Project | Repository | Purpose |
+|---------|-----------|---------|
+| **OpenHarmony on WSL** | [A2OH/openharmony-wsl](https://github.com/A2OH/openharmony-wsl) | Build and run OHOS on QEMU ARM32 without hardware |
+| **Dalvik Universal** | [A2OH/dalvik-universal](https://github.com/A2OH/dalvik-universal) | Portable Dalvik VM for x86_64 and OHOS ARM32/aarch64 |
+
+---
+
+## Documentation
+
+| Document | Description |
+|----------|-------------|
+| [Android-as-Engine Architecture](02-ANDROID-AS-ENGINE.md) | Why 15 bridges, not 57K shims. Flutter analogy. Real APK analysis. |
+| [Engine Execution Plan](03-ENGINE-EXECUTION-PLAN.md) | 4 workstreams: Canvas bridge, MiniServer, APK loader, input bridge |
+| [Call Flow Details](02A-CALL-FLOW-DETAILS.md) | Detailed call traces through the engine |
+| [Analysis Plan](00-ANALYSIS-PLAN.md) | Original API gap analysis methodology |
+
+---
+
+## API Compatibility Database
+
+`database/api_compat.db` maps the full Android API surface to OpenHarmony equivalents:
+
+| Table | Rows | Description |
+|-------|------|-------------|
+| `android_packages` | 137 | Package names + conversion skill mappings |
+| `android_types` | 4,617 | Classes, interfaces, enums |
+| `android_apis` | 57,289 | Methods, fields, constructors |
+| `api_mappings` | 57,289 | OH equivalents, confidence scores, tier classification |
+
+### Tier Classification
+
+| Tier | What | Count | Status |
+|------|------|-------|--------|
+| **A** | Pure Java data structures | 314 classes / 1,316 APIs | Mostly implemented |
+| **B** | I/O with Java fallback | 946 classes / 2,212 APIs | In progress |
+| **C** | System service wrappers | 3,445 classes / 43,254 APIs | Stubs only |
+| **D** | UI components | 613 classes / 10,507 APIs | Engine approach (AOSP code) |
+
+---
+
+## Roadmap
+
+| Milestone | Target | Status |
+|-----------|--------|--------|
+| Headless Activity lifecycle | M1 | **Done** -- full create/start/resume/pause/stop/destroy |
+| Canvas renders shapes on Linux | M2 | **Done** -- Java2D pixel rendering, PNG output |
+| Real APK loads and runs headlessly | M3 | **Done** -- APK unzip, AXML parse, DexClassLoader, Activity launch |
+| "Hello Android" APK renders on OH | M4 | In progress -- visual rendering on ARM32 QEMU |
+| Touch input on OH | M5 | Not started -- XComponent input events to View tree |
+| Top-10 APK compatibility | M6 | Not started -- systematic gap closure |
 
 ---
 
 ## Orchestrator Dashboard
 
-The Orchestrator is a React web app deployed to GitHub Pages that provides:
+A React web app tracks implementation progress across the shim layer:
 
-- **Real-time issue status** — auto-refreshes every 30s from GitHub API
-- **Progress tracking** — completion percentage, per-tier statistics
-- **Issue management** — Claim/Done/Fail/Release/Reopen buttons per issue
-- **Batch issue creation** — select classes by tier from DB (5,318 classes), create issues in bulk
-- **Single issue creation** — free-form class name with auto skill detection
-- **Search/filter** — filter by status (todo/in-progress/done/failed) and tier (A/B/C/D)
+- Real-time issue status (auto-refresh from GitHub API)
+- Per-tier completion tracking
+- Batch issue creation for parallel workers
+- Search and filter by status / tier
 
 ---
 
-## Conversion Skills
+## Contributing
 
-Each Android package maps to a skill file that describes how to convert Android APIs to OpenHarmony equivalents:
+Contributions are welcome. The highest-impact areas:
 
-| Skill | Covers | File |
-|-------|--------|------|
-| A2OH-LIFECYCLE | Activity, Service, Intent, Bundle, ContentProvider | `skills/A2OH-LIFECYCLE.md` |
-| A2OH-UI-REWRITE | View, Widget, Animation, Layout | `skills/A2OH-UI-REWRITE.md` |
-| A2OH-DATA-LAYER | SQLite, Cursor, ContentProvider | `skills/A2OH-DATA-LAYER.md` |
-| A2OH-DEVICE-API | Sensors, Camera, Bluetooth, Location, NFC | `skills/A2OH-DEVICE-API.md` |
-| A2OH-MEDIA | MediaPlayer, Audio, DRM, Speech | `skills/A2OH-MEDIA.md` |
-| A2OH-NETWORKING | Connectivity, WiFi, HTTP | `skills/A2OH-NETWORKING.md` |
-| A2OH-JAVA-TO-ARKTS | Text, Util, Graphics (pure logic) | `skills/A2OH-JAVA-TO-ARKTS.md` |
-| A2OH-CONFIG | Print, Security, System services, WebKit | `skills/A2OH-CONFIG.md` |
+1. **Canvas rendering on ARM32** -- connecting OH_Drawing to the Canvas bridge on real OHOS
+2. **Input event routing** -- XComponent touch events to Android View tree
+3. **Missing JNI natives** -- expanding libcore_bridge.cpp
+4. **Test coverage** -- more end-to-end test apps exercising real APK patterns
+5. **APK compatibility** -- testing and fixing gaps for specific popular apps
 
-CC workers automatically look up the right skill:
-```bash
-sqlite3 database/api_compat.db \
-  "SELECT ap.skill FROM android_types at
-   JOIN android_packages ap ON at.package_id = ap.id
-   WHERE at.full_name = 'BluetoothAdapter'"
-# → A2OH-DEVICE-API
-```
+Please open an issue before starting major work.
 
 ---
-
-## Database
-
-`database/api_compat.db` is a SQLite database with the complete Android API surface:
-
-| Table | Rows | Description |
-|-------|------|-------------|
-| `android_packages` | 137 | Package names + skill mappings |
-| `android_types` | 4,617 | Classes/interfaces/enums |
-| `android_apis` | 57,289 | Methods, fields, constructors |
-| `api_mappings` | 57,289 | OH equivalents, scores, tier classification |
-| `oh_packages` | — | OpenHarmony packages |
-| `oh_types` | — | OpenHarmony types |
-| `oh_apis` | — | OpenHarmony APIs |
-
-### Useful Queries
-
-```bash
-# Count APIs per tier
-sqlite3 database/api_compat.db \
-  "SELECT mapping_tier, COUNT(*) FROM api_mappings GROUP BY mapping_tier"
-
-# Find all methods for a class
-sqlite3 database/api_compat.db \
-  "SELECT a.name, a.signature, m.score, m.mapping_tier
-   FROM api_mappings m
-   JOIN android_apis a ON m.android_api_id = a.id
-   JOIN android_types t ON a.type_id = t.id
-   WHERE t.full_name = 'Bundle' ORDER BY m.score DESC"
-
-# List classes with highest API counts
-sqlite3 database/api_compat.db \
-  "SELECT t.full_name, COUNT(*) as cnt
-   FROM android_apis a JOIN android_types t ON a.type_id = t.id
-   GROUP BY t.full_name ORDER BY cnt DESC LIMIT 20"
-```
-
----
-
-## Dalvik VM Port
-
-The KitKat-era Dalvik VM has been ported to run on modern 64-bit systems:
-
-| Target | Status | Path |
-|--------|--------|------|
-| x86_64 Linux | Working | `dalvik-port/build/dalvikvm` |
-| OHOS aarch64 | Compiles | `dalvik-port/build-ohos-aarch64/` |
-| OHOS ARM32 | Compiles | `dalvik-port/build-ohos-arm32/dalvikvm` |
-
-```bash
-# Run a .dex file on x86_64 Linux
-dalvik-port/build/dalvikvm -cp dalvik-port/hello.dex HelloAndroid
-```
-
----
-
-## Monitoring Progress
-
-```bash
-# Issue status counts
-gh issue list --repo A2OH/harmony-android-guide --label done --json number \
-  | python3 -c "import json,sys; print(len(json.load(sys.stdin)),'done')"
-gh issue list --repo A2OH/harmony-android-guide --label in-progress --json number \
-  | python3 -c "import json,sys; print(len(json.load(sys.stdin)),'in-progress')"
-gh issue list --repo A2OH/harmony-android-guide --label todo --json number \
-  | python3 -c "import json,sys; print(len(json.load(sys.stdin)),'todo')"
-
-# Or use the Orchestrator dashboard
-# https://a2oh.github.io/harmony-android-guide/
-```
 
 ## License
 
-This project is for research and educational purposes. Android is a trademark of Google LLC. OpenHarmony is a project of the OpenAtom Foundation.
+Licensed under the Apache License, Version 2.0. See [LICENSE](LICENSE) for details.
+
+Android is a trademark of Google LLC. OpenHarmony is a project of the OpenAtom Foundation. This project is an independent research effort and is not affiliated with or endorsed by either organization.
