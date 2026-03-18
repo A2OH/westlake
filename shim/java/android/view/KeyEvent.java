@@ -439,7 +439,29 @@ public class KeyEvent {
     }
     public boolean isTracking() { return (flags & FLAG_TRACKING) != 0; }
 
-    public boolean dispatch(Object p0, Object p1, Object p2) { return false; }
+    /**
+     * Deliver this key event to a {@link Callback} interface.  If this is
+     * an ACTION_MULTIPLE event and it is not handled, then an attempt will
+     * be made to deliver a single normal event.
+     *
+     * @param receiver The Callback that will be given the event.
+     * @param state State information retained across events.
+     * @param target The target of the dispatch, for use in tracking.
+     *
+     * @return The return value from the Callback method that was called.
+     */
+    public boolean dispatch(Object receiver, Object state, Object target) {
+        if (!(receiver instanceof Callback)) return false;
+        Callback cb = (Callback) receiver;
+        if (action == ACTION_DOWN) {
+            return cb.onKeyDown(keyCode, this);
+        } else if (action == ACTION_UP) {
+            return cb.onKeyUp(keyCode, this);
+        } else {
+            // ACTION_MULTIPLE
+            return cb.onKeyMultiple(keyCode, repeatCount, this);
+        }
+    }
     public static KeyEvent changeAction(KeyEvent event, int action) { return event; }
     public static KeyEvent changeFlags(KeyEvent event, int flags) { return event; }
     public static KeyEvent changeTimeRepeat(KeyEvent event, long time, int count) { return event; }
@@ -459,8 +481,16 @@ public class KeyEvent {
         return "KeyEvent{action=" + action + " keyCode=" + keyCode + "}";
     }
 
-    /** Auto-generated stub. */
-    public static interface Callback {}
+    /**
+     * Interface for receiving key events.  View implements this to dispatch
+     * events to onKeyDown/onKeyUp.
+     */
+    public static interface Callback {
+        boolean onKeyDown(int keyCode, KeyEvent event);
+        boolean onKeyUp(int keyCode, KeyEvent event);
+        boolean onKeyMultiple(int keyCode, int count, KeyEvent event);
+        default boolean onKeyLongPress(int keyCode, KeyEvent event) { return false; }
+    }
 
     /** Auto-generated stub. */
     public static class DispatcherState {
