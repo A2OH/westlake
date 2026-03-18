@@ -24,6 +24,9 @@ public class TextPaint extends Paint {
     /** Colour applied to hyperlinks within this text. */
     public int linkColor = 0xFF0000EE; // default Android blue
 
+    /** Drawable state array for state-dependent text appearance. */
+    public int[] drawableState;
+
     public TextPaint() {
         super();
     }
@@ -68,4 +71,15 @@ public class TextPaint extends Paint {
     }
 
     public static void setCompatibilityScaling(float factor) {}
+
+    public void reset() {
+        setColor(0xFF000000);
+        setTextSize(12f);
+        setFlags(0);
+        density = 1.0f;
+        baselineShift = 0;
+        bgColor = 0;
+        linkColor = 0xFF0000EE;
+        drawableState = null;
+    }
 }

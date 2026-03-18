@@ -35,7 +35,7 @@ public class RemoteAction {
     public CharSequence getContentDescription() { return mContentDescription; }
 
     /** Returns null — PendingIntent not yet bridged to OH. */
-    public Object getActionIntent() { return null; }
+    public PendingIntent getActionIntent() { return null; }
 
     public boolean isEnabled() { return mEnabled; }
 

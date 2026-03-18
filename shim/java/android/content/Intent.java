@@ -61,6 +61,8 @@ public class Intent implements Cloneable, Parcelable {
     public static final String EXTRA_STREAM = "android.intent.extra.STREAM";
     public static final String EXTRA_INTENT = "android.intent.extra.INTENT";
     public static final String EXTRA_TITLE = "android.intent.extra.TITLE";
+    public static final String EXTRA_PROCESS_TEXT = "android.intent.extra.PROCESS_TEXT";
+    public static final String EXTRA_PROCESS_TEXT_READONLY = "android.intent.extra.PROCESS_TEXT_READONLY";
 
     /* ── Flags ── */
     public static final int FLAG_ACTIVITY_NEW_TASK = 0x10000000;

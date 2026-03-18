@@ -26,4 +26,5 @@ public interface MovementMethod {
     boolean canSelectArbitrarily();
     void    onTakeFocus(TextView widget, Spannable text, int direction);
     boolean onGenericMotionEvent(TextView widget, Spannable text, MotionEvent event);
+    boolean onKeyOther(TextView widget, Spannable text, KeyEvent event);
 }

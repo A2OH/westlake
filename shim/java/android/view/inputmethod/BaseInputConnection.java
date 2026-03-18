@@ -50,4 +50,11 @@ public class BaseInputConnection implements InputConnection {
     public boolean endBatchEdit() {
         return false;
     }
+
+    @Override
+    public int getCursorCapsMode(int reqModes) {
+        return 0;
+    }
+
+    public static void removeComposingSpans(android.text.Spannable text) {}
 }

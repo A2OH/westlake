@@ -35,11 +35,17 @@ public interface TextClassifier {
 
     TextClassification classifyText(CharSequence text, int startIndex, int endIndex, Object options);
 
+    default TextClassification classifyText(TextClassification.Request request) {
+        return classifyText(request.getText(), request.getStartIndex(), request.getEndIndex(), null);
+    }
+
     TextSelection suggestSelection(CharSequence text, int selectionStartIndex, int selectionEndIndex, Object options);
 
     TextLinks generateLinks(CharSequence text, Object options);
 
     String detectLanguage(CharSequence text);
+
+    default boolean isDestroyed() { return false; }
 
     String WIDGET_TYPE_TEXTVIEW = "textview";
     String WIDGET_TYPE_EDITTEXT = "edittext";

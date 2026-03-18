@@ -205,4 +205,9 @@ public class PackageManager {
     public void updateInstantAppCookie(Object p0) {}
     public void verifyPendingInstall(Object p0, Object p1) {}
     public int checkPermission(String permission, String packageName) { return PERMISSION_GRANTED; }
+
+    public static class NameNotFoundException extends Exception {
+        public NameNotFoundException() { super(); }
+        public NameNotFoundException(String name) { super(name); }
+    }
 }

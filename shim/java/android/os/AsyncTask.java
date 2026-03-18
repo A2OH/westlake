@@ -106,4 +106,8 @@ public class AsyncTask<Params, Progress, Result> {
             onProgressUpdate(values);
         }
     }
+
+    public static void execute(Runnable runnable) {
+        DEFAULT_EXECUTOR.execute(runnable);
+    }
 }

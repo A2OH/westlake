@@ -14,4 +14,5 @@ public final class SpellCheckerSubtype implements Parcelable {
     public String getExtraValueOf(String p0) { return null; }
     public int getNameResId() { return 0; }
     public void writeToParcel(Parcel p0, int p1) {}
+    public java.util.Locale getLocaleObject() { return java.util.Locale.getDefault(); }
 }

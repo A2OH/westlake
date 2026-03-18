@@ -233,14 +233,14 @@ public class Context {
     }
 
     public android.graphics.drawable.Drawable getDrawable(int id) { return null; }
-    public android.content.res.Resources.Theme getTheme() { return null; }
+    public android.content.res.Resources.Theme getTheme() { return new android.content.res.Resources.Theme(); }
     public boolean isAutofillCompatibilityEnabled() { return false; }
     public AutofillOptions getAutofillOptions() { return null; }
     public Object getContentCaptureOptions() { return null; }
     public int getNextAutofillId() { return 0; }
     public void startActivityForResult(String who, android.content.Intent intent, int requestCode, android.os.Bundle options) {}
     public boolean canStartActivityForResult() { return false; }
-    public Context createPackageContextAsUser(String packageName, int flags, android.os.UserHandle user) { return this; }
+    public Context createPackageContextAsUser(String packageName, int flags, android.os.UserHandle user) throws android.content.pm.PackageManager.NameNotFoundException { return this; }
     public void startActivityAsUser(android.content.Intent intent, android.os.UserHandle user) {}
     public boolean canLoadUnsafeResources() { return false; }
 }

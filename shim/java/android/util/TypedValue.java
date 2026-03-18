@@ -114,6 +114,10 @@ public class TypedValue {
         return Float.intBitsToFloat(data);
     }
 
+    public int getComplexUnit() {
+        return data & 0xF;
+    }
+
     /**
      * Returns the dimension value in pixels.  Only valid when {@link #type}
      * is {@link #TYPE_DIMENSION}.

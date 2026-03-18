@@ -26,4 +26,7 @@ public class TextServicesManager {
 
     /** Always returns null — no spell-checker info available. */
     public SpellCheckerInfo getCurrentSpellCheckerInfo() { return null; }
+
+    /** Always returns null — no spell-checker subtype available. */
+    public SpellCheckerSubtype getCurrentSpellCheckerSubtype(boolean allowImplicitlySelectedSubtype) { return null; }
 }

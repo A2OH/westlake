@@ -62,6 +62,10 @@ public class Process {
         return FIRST_APPLICATION_UID; // mock app UID
     }
 
+    public static UserHandle myUserHandle() {
+        return new UserHandle(0);
+    }
+
     public static void setThreadPriority(int priority) {
         // Map Android priority to Java priority (rough mapping)
         int javaPriority;

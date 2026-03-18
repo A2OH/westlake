@@ -18,6 +18,7 @@ public class MetaKeyKeyListener {
     public void clearMetaKeyState(View p0, Editable p1, int p2) {}
     public static void clearMetaKeyState(Editable p0, int p1) {}
     public static int getMetaState(CharSequence p0) { return 0; }
+    public static int getMetaState(CharSequence p0, int p1) { return 0; }
     public static int getMetaState(CharSequence p0, KeyEvent p1) { return 0; }
     public static int getMetaState(CharSequence p0, int p1, KeyEvent p2) { return 0; }
     public static long handleKeyDown(long p0, int p1, KeyEvent p2) { return 0L; }

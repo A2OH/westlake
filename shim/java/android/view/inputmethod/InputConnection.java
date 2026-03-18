@@ -13,4 +13,5 @@ public interface InputConnection {
     boolean finishComposingText();
     boolean beginBatchEdit();
     boolean endBatchEdit();
+    int getCursorCapsMode(int reqModes);
 }

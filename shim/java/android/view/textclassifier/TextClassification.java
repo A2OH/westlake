@@ -63,6 +63,7 @@ public class TextClassification {
             public Builder(CharSequence text, int startIndex, int endIndex) {
                 mText = text; mStartIndex = startIndex; mEndIndex = endIndex;
             }
+            public Builder setDefaultLocales(android.os.LocaleList locales) { return this; }
             public Request build() { return new Request(mText, mStartIndex, mEndIndex); }
         }
     }

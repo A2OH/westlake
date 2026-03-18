@@ -15,7 +15,8 @@ public class Toast {
     public float getVerticalMargin() { return 0f; }
     public int getXOffset() { return 0; }
     public int getYOffset() { return 0; }
-    public static Toast makeText(Context p0, CharSequence p1, int p2) { return null; }
+    public static Toast makeText(Context p0, CharSequence p1, int p2) { return new Toast(p0); }
+    public static Toast makeText(Context p0, int p1, int p2) { return new Toast(p0); }
     public void removeCallback(Object p0) {}
     public void setDuration(int p0) {}
     public void setGravity(int p0, int p1, int p2) {}

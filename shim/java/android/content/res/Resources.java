@@ -309,4 +309,5 @@ public class Resources {
     public static boolean resourceHasPackage(int resId) { return (resId >>> 24) != 0; }
     public TypedArray obtainTypedArray(int id) { return new TypedArray(); }
     public android.graphics.Typeface getFont(int id) { return null; }
+    public void parseBundleExtras(android.content.res.XmlResourceParser parser, android.os.Bundle outBundle) {}
 }

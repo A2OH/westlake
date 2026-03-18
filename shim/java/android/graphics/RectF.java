@@ -6,7 +6,7 @@ import android.os.Parcel;
  * Shim: android.graphics.RectF
  * Pure Java — no OHBridge calls.
  */
-public class RectF {
+public class RectF implements android.os.Parcelable {
 
     public float left, top, right, bottom;
 
@@ -280,4 +280,7 @@ public class RectF {
     public String toString() {
         return "RectF(" + left + ", " + top + " - " + right + ", " + bottom + ")";
     }
+
+    @Override
+    public int describeContents() { return 0; }
 }

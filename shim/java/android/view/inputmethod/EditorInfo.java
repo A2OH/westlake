@@ -75,6 +75,6 @@ public class EditorInfo {
     public CharSequence initialText;
     public android.os.LocaleList hintLocales;
     public String privateImeOptions;
-    public int targetInputMethodUser;
+    public android.os.UserHandle targetInputMethodUser;
     public void setInitialSurroundingText(CharSequence text) {}
 }

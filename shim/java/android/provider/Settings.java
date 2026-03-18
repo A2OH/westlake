@@ -204,6 +204,7 @@ public class Settings {
         public static final String PACKAGE_VERIFIER_ENABLE   = "package_verifier_enable";
         public static final String BOOT_COUNT                = "boot_count";
         public static final String INSTALL_NON_MARKET_APPS   = "install_non_market_apps";
+        public static final String DEVICE_PROVISIONED       = "device_provisioned";
 
         public Global() {}
 

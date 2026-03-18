@@ -47,6 +47,7 @@ public class InputMethodManager {
         return active;
     }
 
+    public void viewClicked(View view) {}
     public void restartInput(View view) {
         // no-op
     }

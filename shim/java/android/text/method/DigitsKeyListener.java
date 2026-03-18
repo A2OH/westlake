@@ -50,6 +50,10 @@ public class DigitsKeyListener implements KeyListener {
         return getInstance(sign, decimal);
     }
 
+    public static DigitsKeyListener getInstance(java.util.Locale locale, DigitsKeyListener existing) {
+        return existing != null ? existing : getInstance();
+    }
+
     /** Returns the set of accepted characters. */
     public char[] getAcceptedChars() {
         return accepted.clone();

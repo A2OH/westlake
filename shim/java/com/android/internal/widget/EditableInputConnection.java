@@ -13,4 +13,5 @@ public class EditableInputConnection implements InputConnection {
     public boolean beginBatchEdit() { return false; }
     public boolean endBatchEdit() { return false; }
     public boolean closeConnection() { return false; }
+    public int getCursorCapsMode(int reqModes) { return 0; }
 }

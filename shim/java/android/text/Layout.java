@@ -125,6 +125,7 @@ public class Layout {
 
     public Alignment getParagraphAlignment(int line) { return mAlignment; }
     public void getSelectionPath(int start, int end, Path dest) {}
+    public void getCursorPath(int point, Path dest, CharSequence editingBuffer) {}
     public float getPrimaryHorizontal(int offset, boolean clamped) { return 0; }
     public int getEllipsizedWidth() { return mWidth; }
 
