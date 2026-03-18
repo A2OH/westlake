@@ -300,7 +300,13 @@ public final class MotionEvent {
     public float getAxisValue(int axis, int pointerIndex) { return 0f; }
     public boolean isFromSource(int source) { return false; }
     public int getHistorySize() { return 0; }
-    public int getPointerIdBits() { return 0; }
+    public int getPointerIdBits() {
+        int bits = 0;
+        for (int i = 0; i < pointerCount; i++) {
+            bits |= 1 << pointerIds[i];
+        }
+        return bits;
+    }
     public MotionEvent split(int idBits) { return obtain(this); }
     public boolean isHoverExitPending() { return false; }
     public void setHoverExitPending(boolean hoverExitPending) {}

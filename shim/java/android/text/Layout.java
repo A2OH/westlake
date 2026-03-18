@@ -129,8 +129,29 @@ public class Layout {
     public float getPrimaryHorizontal(int offset, boolean clamped) { return 0; }
     public int getEllipsizedWidth() { return mWidth; }
 
-    public void draw(Canvas c) {}
-    public void draw(Canvas c, Path highlight, Paint highlightPaint, int cursorOffsetVertical) {}
+    public void draw(Canvas c) {
+        draw(c, null, null, 0);
+    }
+
+    public void draw(Canvas c, Path highlight, Paint highlightPaint, int cursorOffsetVertical) {
+        // Draw each line of text
+        if (c == null || mText == null || mPaint == null) return;
+        int lineCount = getLineCount();
+        for (int i = 0; i < lineCount; i++) {
+            int start = getLineStart(i);
+            int end = getLineEnd(i);
+            if (end > start) {
+                String lineText = mText.subSequence(start, end).toString();
+                // Remove trailing newline if present
+                if (lineText.endsWith("\n")) lineText = lineText.substring(0, lineText.length() - 1);
+                if (lineText.length() > 0) {
+                    float x = getLineLeft(i);
+                    float baseline = getLineBaseline(i);
+                    c.drawText(lineText, x, baseline, mPaint);
+                }
+            }
+        }
+    }
 
     public void increaseWidthTo(int wid) { mWidth = wid; }
 

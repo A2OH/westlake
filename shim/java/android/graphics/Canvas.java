@@ -12,7 +12,8 @@ import com.ohos.shim.bridge.OHBridge;
 public class Canvas {
 
     private final Bitmap bitmap;
-    private int saveDepth = 0;
+    // AOSP Canvas save count starts at 1 (initial state counts as one save)
+    private int saveDepth = 1;
 
     // Native handles
     private long nativeCanvas;
@@ -247,7 +248,10 @@ public class Canvas {
 
     public int save() {
         if (nativeCanvas != 0) OHBridge.canvasSave(nativeCanvas);
-        return ++saveDepth;
+        // AOSP returns the save count before the save (used by restoreToCount)
+        int count = saveDepth;
+        saveDepth++;
+        return count;
     }
 
     public int save(int saveFlags) {
@@ -264,7 +268,9 @@ public class Canvas {
                 OHBridge.canvasClipRect(nativeCanvas, left, top, right, bottom);
             }
         }
-        return ++saveDepth;
+        int count = saveDepth;
+        saveDepth++;
+        return count;
     }
 
     public int saveLayerAlpha(RectF bounds, int alpha) {
@@ -275,7 +281,7 @@ public class Canvas {
     }
 
     public void restore() {
-        if (saveDepth > 0) {
+        if (saveDepth > 1) {
             saveDepth--;
             if (nativeCanvas != 0) OHBridge.canvasRestore(nativeCanvas);
         }
@@ -300,8 +306,10 @@ public class Canvas {
     }
 
     public void restoreToCount(int saveCount) {
+        if (saveCount < 1) saveCount = 1; // can't restore past initial state
         while (saveDepth > saveCount) {
-            restore();
+            saveDepth--;
+            if (nativeCanvas != 0) OHBridge.canvasRestore(nativeCanvas);
         }
     }
 
@@ -332,7 +340,10 @@ public class Canvas {
 
     public boolean clipRect(Rect rect) { return true; }
     public boolean clipRect(RectF rect) { return true; }
-    public boolean clipRect(int left, int top, int right, int bottom) { return true; }
+    public boolean clipRect(int left, int top, int right, int bottom) {
+        if (nativeCanvas != 0) OHBridge.canvasClipRect(nativeCanvas, (float) left, (float) top, (float) right, (float) bottom);
+        return true;
+    }
     public void clipRect(float left, float top, float right, float bottom) {
         if (nativeCanvas != 0) OHBridge.canvasClipRect(nativeCanvas, left, top, right, bottom);
     }
