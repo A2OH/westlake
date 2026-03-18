@@ -36,7 +36,13 @@ public class PendingIntent {
     public int getReminderId() { return mReminderId; }
     public void setReminderId(int id) { mReminderId = id; }
 
-    public void send() {
+    public void send() throws CanceledException {
         // stub — no-op in shim layer
+    }
+
+    public static class CanceledException extends Exception {
+        public CanceledException() { super(); }
+        public CanceledException(String message) { super(message); }
+        public CanceledException(Exception cause) { super(cause); }
     }
 }

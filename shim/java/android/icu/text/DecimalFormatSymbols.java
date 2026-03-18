@@ -33,6 +33,10 @@ public class DecimalFormatSymbols {
         return new DecimalFormatSymbols(java.text.DecimalFormatSymbols.getInstance(locale.toLocale()));
     }
 
+    public static DecimalFormatSymbols getInstance(java.util.Locale locale) {
+        return new DecimalFormatSymbols(java.text.DecimalFormatSymbols.getInstance(locale));
+    }
+
     // ---- Instance methods ----
 
     public char getDecimalSeparator() {
@@ -61,6 +65,15 @@ public class DecimalFormatSymbols {
 
     public char getZeroDigit() {
         return delegate.getZeroDigit();
+    }
+
+    public String[] getDigitStrings() {
+        char zero = delegate.getZeroDigit();
+        String[] digits = new String[10];
+        for (int i = 0; i < 10; i++) {
+            digits[i] = String.valueOf((char)(zero + i));
+        }
+        return digits;
     }
 
     /** Returns the underlying delegate for interop with DecimalFormat. */

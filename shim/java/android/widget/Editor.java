@@ -21,8 +21,8 @@ public class Editor {
     boolean mAllowUndo;
     boolean mCreatedWithASelection;
     boolean mCursorVisible = true;
-    Object mCustomInsertionActionModeCallback;
-    Object mCustomSelectionActionModeCallback;
+    android.view.ActionMode.Callback mCustomInsertionActionModeCallback;
+    android.view.ActionMode.Callback mCustomSelectionActionModeCallback;
     boolean mDiscardNextActionUp;
     Drawable mDrawableForCursor;
     boolean mErrorWasChanged;
@@ -33,21 +33,21 @@ public class Editor {
     InputContentType mInputContentType;
     InputMethodState mInputMethodState;
     int mInputType;
-    Object mInsertionPointCursorController;
+    InsertionPointCursorController mInsertionPointCursorController;
     boolean mIsBeingLongClicked;
     boolean mIsBeingLongClickedByAccessibility;
     boolean mIsInsertionActionModeStartPending;
     android.text.method.KeyListener mKeyListener;
-    Object mProcessTextIntentActionsHandler;
+    ProcessTextIntentActionsHandler mProcessTextIntentActionsHandler;
     boolean mSelectAllOnFocus;
-    Object mSelectionModifierCursorController;
+    SelectionModifierCursorController mSelectionModifierCursorController;
     boolean mSelectionMoved;
     boolean mShowSoftInputOnFocus = true;
-    Object mSpellChecker;
+    SpellChecker mSpellChecker;
     Object mSuggestionRangeSpan;
     boolean mTextIsSelectable;
     boolean mTouchFocusSelected;
-    Object mUndoInputFilter;
+    android.text.InputFilter mUndoInputFilter;
 
     public Editor() {}
     public Editor(TextView textView) {}
@@ -62,7 +62,7 @@ public class Editor {
         public android.os.Bundle extras;
         public android.os.LocaleList imeHintLocales;
         public boolean enterDown;
-        public int targetInputMethodUser;
+        public android.os.UserHandle targetInputMethodUser;
     }
     public static class InputMethodState {
         public int mBatchEditNesting;
@@ -120,14 +120,14 @@ public class Editor {
     public void onTouchEvent(MotionEvent event) {}
     public void onTouchUpEvent(MotionEvent event) {}
     public void onWindowFocusChanged(boolean focused) {}
-    public void performLongClick(boolean handled) {}
+    public boolean performLongClick(boolean handled) { return false; }
     public void prepareCursorControllers() {}
     public void redo() {}
     public void refreshTextActionMode() {}
     public void replace() {}
     public void reportExtractedText() {}
-    public void restoreInstanceState(Object state) {}
-    public Object saveInstanceState() { return null; }
+    public void restoreInstanceState(android.os.ParcelableParcel state) {}
+    public android.os.ParcelableParcel saveInstanceState() { return null; }
     public void sendOnTextChanged(int start, int before, int after) {}
     public void setContextMenuAnchor(float x, float y) {}
     public void setError(CharSequence error, Drawable icon) {}
@@ -139,4 +139,23 @@ public class Editor {
     public void stopTextActionMode() {}
     public void undo() {}
     public void updateCursorPosition() {}
+
+    // Inner stub classes for typed fields
+    public static class InsertionPointCursorController {
+        public boolean isCursorBeingModified() { return false; }
+    }
+    public static class SelectionModifierCursorController {
+        public boolean isSelectionStartDragged() { return false; }
+        public void resetTouchOffsets() {}
+        public boolean isDragAcceleratorActive() { return false; }
+    }
+    public static class ProcessTextIntentActionsHandler {
+        public void onInitializeAccessibilityNodeInfo(android.view.accessibility.AccessibilityNodeInfo info) {}
+        public boolean performAccessibilityAction(int action) { return false; }
+        public void initializeAccessibilityActions() {}
+    }
+    public static class SpellChecker {
+        public void onSpellCheckSpanRemoved(android.text.style.SpellCheckSpan span) {}
+        public static boolean haveWordBoundariesChanged(CharSequence text, int start, int end, int spanStart, int spanEnd) { return false; }
+    }
 }

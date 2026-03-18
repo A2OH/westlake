@@ -124,7 +124,7 @@ public class AccessibilityNodeInfo {
     public CharSequence getContentDescription() { return null; }
     public int getDrawingOrder() { return 0; }
     public CharSequence getError() { return null; }
-    public Object getExtras() { return null; }
+    public android.os.Bundle getExtras() { return new android.os.Bundle(); }
     public CharSequence getHintText() { return null; }
     public int getInputType() { return 0; }
     public Object getLabelFor() { return null; }

@@ -319,6 +319,8 @@ public class Paint {
 
     // ── Shadow layer ──────────────────────────────────────────────────────
 
+    public static void setCompatibilityScaling(float factor) { /* no-op */ }
+
     public void setShadowLayer(float radius, float dx, float dy, int shadowColor) { /* no-op */ }
 
     // ── Shader/Xfermode/Dither ───────────────────────────────────────────

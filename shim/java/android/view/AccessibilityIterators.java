@@ -30,6 +30,7 @@ public class AccessibilityIterators {
         protected LineTextSegmentIterator() {}
         public static LineTextSegmentIterator getInstance() { return new LineTextSegmentIterator(); }
         public void initialize(String text) {}
+        public void initialize(CharSequence text, android.text.Layout layout) {}
         public int[] following(int current) { return null; }
         public int[] preceding(int current) { return null; }
     }
@@ -37,6 +38,7 @@ public class AccessibilityIterators {
         protected PageTextSegmentIterator() {}
         public static PageTextSegmentIterator getInstance() { return new PageTextSegmentIterator(); }
         public void initialize(String text) {}
+        public void initialize(android.widget.TextView textView) {}
         public int[] following(int current) { return null; }
         public int[] preceding(int current) { return null; }
     }

@@ -62,4 +62,9 @@ public class ScrollingMovementMethod implements MovementMethod {
     public boolean onGenericMotionEvent(TextView widget, Spannable text, MotionEvent event) {
         return false;
     }
+
+    @Override
+    public boolean onKeyOther(TextView widget, Spannable text, KeyEvent event) {
+        return false;
+    }
 }

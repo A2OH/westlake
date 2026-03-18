@@ -493,6 +493,7 @@ public final class R {
         public static final int scrollbar_handle_vertical = 303;
         public static final int scrollbar_handle_horizontal = 304;
         public static final int scroll_indicator_material = 305;
+        public static final int indicator_input_error = 306;
     }
 
     public static final class color {

@@ -344,7 +344,8 @@ public class TextUtils {
         START,
         MIDDLE,
         END,
-        MARQUEE
+        MARQUEE,
+        END_SMALL
     }
 
     /**
@@ -409,11 +410,20 @@ public class TextUtils {
     public static Object listEllipsize(Object p0, Object p1, Object p2, Object p3, Object p4, Object p5, Object p6) { return null; }
     public static void writeToParcel(Object p0, Object p1, Object p2) {}
 
+    public static String trimToParcelableSize(String s) {
+        return s;
+    }
     public static CharSequence trimToParcelableSize(CharSequence s) {
         return s;
     }
     public static CharSequence trimToParcelableSize(CharSequence s, int maxLength) {
         if (s == null || s.length() <= maxLength) return s;
         return s.subSequence(0, maxLength);
+    }
+
+    public static boolean hasStyleSpan(Spanned spanned) {
+        if (spanned == null) return false;
+        Object[] spans = spanned.getSpans(0, spanned.length(), Object.class);
+        return spans != null && spans.length > 0;
     }
 }
