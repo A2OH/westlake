@@ -18,7 +18,7 @@ public class BroadcastReceiver {
      * The bridge runtime calls this when a CommonEvent is received
      * that matches the IntentFilter.
      */
-    public void onReceive(Object context, Object intent) {}
+    public void onReceive(Context context, Intent intent) {}
 
     /**
      * Called by the bridge to indicate the receiver is no longer needed.

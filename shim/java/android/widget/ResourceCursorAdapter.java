@@ -5,6 +5,7 @@ import android.view.View;
 import android.view.ViewGroup;
 
 public class ResourceCursorAdapter extends CursorAdapter {
+    public ResourceCursorAdapter(Context p0, int p1, Cursor p2) { super(p0, p2, false); }
     public ResourceCursorAdapter(Context p0, int p1, Cursor p2, boolean p3) { super(p0, p2, p3); }
     public ResourceCursorAdapter(Context p0, int p1, Cursor p2, int p3) { super(p0, p2, p3 != 0); }
 

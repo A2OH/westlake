@@ -667,6 +667,37 @@ public final class R {
         public static final int AdapterViewAnimator_outAnimation = 2901;
         public static final int AdapterViewAnimator_animateFirstView = 2902;
         public static final int AdapterViewAnimator_loopViews = 2903;
+
+        // RatingBar
+        public static final int[] RatingBar = {};
+        public static final int RatingBar_numStars = 3000;
+        public static final int RatingBar_isIndicator = 3001;
+        public static final int RatingBar_rating = 3002;
+        public static final int RatingBar_stepSize = 3003;
+
+        // TabWidget
+        public static final int[] TabWidget = {};
+        public static final int TabWidget_tabLayout = 3100;
+        public static final int TabWidget_tabStripEnabled = 3101;
+        public static final int TabWidget_tabStripLeft = 3102;
+        public static final int TabWidget_tabStripRight = 3103;
+
+        // ToggleButton
+        public static final int[] ToggleButton = {};
+        public static final int ToggleButton_textOn = 3200;
+        public static final int ToggleButton_textOff = 3201;
+        public static final int ToggleButton_disabledAlpha = 3202;
+
+        // ViewAnimator
+        public static final int[] ViewAnimator = {};
+        public static final int ViewAnimator_inAnimation = 3300;
+        public static final int ViewAnimator_outAnimation = 3301;
+        public static final int ViewAnimator_animateFirstView = 3302;
+
+        // ViewFlipper
+        public static final int[] ViewFlipper = {};
+        public static final int ViewFlipper_flipInterval = 3400;
+        public static final int ViewFlipper_autoStart = 3401;
     }
 
     public static final class attr {
@@ -738,6 +769,9 @@ public final class R {
         public static final int galleryStyle = 434;
         public static final int stackViewStyle = 435;
         public static final int videoViewStyle = 436;
+        public static final int tabWidgetStyle = 437;
+        public static final int ratingBarStyle = 438;
+        public static final int buttonStyleToggle = 439;
     }
 
     public static final class id {
@@ -792,6 +826,10 @@ public final class R {
         public static final int search_voice_btn = 329;
         public static final int submit_area = 330;
         public static final int accessibilityActionSetProgress = 331;
+        public static final int tabs = 332;
+        public static final int tabcontent = 333;
+        public static final int toggle = 334;
+        public static final int message = 335;
     }
 
     public static final class layout {
@@ -804,6 +842,7 @@ public final class R {
         public static final int number_picker = 350;
         public static final int search_view = 351;
         public static final int search_dropdown_item_icons_2line = 352;
+        public static final int tab_indicator_holo = 353;
     }
 
     public static final class dimen {
@@ -815,6 +854,7 @@ public final class R {
         public static final int search_view_preferred_height = 352;
         public static final int search_view_preferred_width = 353;
         public static final int seekbar_thumb_exclusion_max_size = 354;
+        public static final int toast_y_offset = 355;
     }
 
     public static final class string {
@@ -850,9 +890,15 @@ public final class R {
         public static final int scroll_indicator_material = 305;
         public static final int indicator_input_error = 306;
         public static final int list_selector_background = 307;
+        public static final int tab_bottom_left = 308;
+        public static final int tab_bottom_left_v4 = 309;
+        public static final int tab_bottom_right = 310;
+        public static final int tab_bottom_right_v4 = 311;
+        public static final int tab_indicator_v4 = 312;
     }
 
     public static final class color {
+        public static final int tab_indicator_text_v4 = 400;
     }
 
     public static final class style {
@@ -870,6 +916,7 @@ public final class R {
     public static final class integer {
         public static final int date_picker_mode = 2400;
         public static final int time_picker_mode = 2500;
+        public static final int config_toastDefaultGravity = 2600;
     }
 
     public static final class array {

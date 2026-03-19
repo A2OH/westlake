@@ -38,6 +38,7 @@ public class Intent implements Cloneable, Parcelable {
     public static final String ACTION_SHUTDOWN = "android.intent.action.ACTION_SHUTDOWN";
     public static final String ACTION_SCREEN_ON = "android.intent.action.SCREEN_ON";
     public static final String ACTION_SCREEN_OFF = "android.intent.action.SCREEN_OFF";
+    public static final String ACTION_USER_PRESENT = "android.intent.action.USER_PRESENT";
     public static final String ACTION_BATTERY_CHANGED = "android.intent.action.BATTERY_CHANGED";
     public static final String ACTION_BATTERY_LOW = "android.intent.action.BATTERY_LOW";
     public static final String ACTION_BATTERY_OKAY = "android.intent.action.BATTERY_OKAY";

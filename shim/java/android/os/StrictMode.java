@@ -30,6 +30,8 @@ public final class StrictMode {
     }
 
     public static Span enterCriticalSpan(String name) { return new Span(); }
+    public static boolean vmIncorrectContextUseEnabled() { return false; }
+    public static void onIncorrectContextUsed(String message, Exception e) {}
 
     public static class Span {
         public void finish() {}
