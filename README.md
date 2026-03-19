@@ -84,7 +84,7 @@ This is structurally identical to how Flutter runs on OpenHarmony: Dart VM execu
 | Dalvik VM (x86_64) | **Working** | DEX execution, GC, multi-class loading |
 | Dalvik VM (OHOS ARM32) | **Working** | Static binary, Hello World + Activity lifecycle on QEMU |
 | Dalvik VM (OHOS aarch64) | **Working** | Static binary, Hello World via QEMU user-mode |
-| Android Framework (AOSP) | **62,153 lines** | View, ViewGroup, TextView, AbsListView, ListView -- unmodified |
+| Android Framework (AOSP) | **89,000+ lines** | 24 files: View, ViewGroup, TextView, LinearLayout, RelativeLayout, FrameLayout, ListView, GridView, Spinner, etc. -- ALL unmodified |
 | Java Shim Layer | **2,056 classes** | 126,625 lines of Java covering the android.* API surface |
 | MiniServer | **Working** | Activity lifecycle, service routing, package management |
 | Activity Lifecycle | **Full** | create, start, resume, pause, stop, destroy + result codes |
@@ -102,15 +102,45 @@ This is structurally identical to how Flutter runs on OpenHarmony: Dart VM execu
 | Pixel Rendering (Java2D) | **Working** | Closed-loop visual debugging via PNG output |
 | OHBridge JNI | **169 methods** | Drawing, ArkUI nodes, preferences, RDB, HiLog, HTTP |
 
+### Option B: Unmodified AOSP Code (the approach)
+
+Instead of reimplementing Android's layout engine, we compile the **real AOSP source code** unchanged and stub the ~140 system service dependencies:
+
+| AOSP File | Lines | Modified? |
+|-----------|------:|:---------:|
+| View.java | 30,408 | No |
+| ViewGroup.java | 9,277 | No |
+| TextView.java | 13,705 | No |
+| LinearLayout, FrameLayout, RelativeLayout | 4,680 | No |
+| ListView, AbsListView, GridView | 12,840 | No |
+| Spinner, AdapterView, ScrollView, etc. | 18,090+ | No |
+| **Total: 24 files** | **89,000+** | **0 changes** |
+
+Stubs are trivial (return null/0/false). The AOSP layout math runs identically to real Android.
+
+See [Architecture Design](docs/engine/ARCHITECTURE.md) for the full explanation of why this works.
+
 ### Test Results
 
 | Test Suite | Passed | Failed | Total |
 |------------|--------|--------|-------|
-| Headless CLI (02) | 2,416 | 54 | 2,470 |
-| UI Mockup (03) | 47 | 6 | 53 |
-| MockDonalds E2E (04) | 10 | 4 | 14 |
-| Real APK Pipeline (06) | 3 | 2 | 5 |
-| **Total** | **2,476** | **66** | **2,542** |
+| Headless CLI (02) | 2,453 | 0 | 2,453 |
+| UI Mockup (03) | 53 | 0 | 53 |
+| MockDonalds E2E (04) | 14 | 0 | 14 |
+| Real APK Pipeline (06) | 5 | 0 | 5 |
+| **Total** | **2,525** | **0** | **2,525** |
+
+### Dalvik VM Validation
+
+| Test | Platform | Result |
+|------|----------|--------|
+| Hello World | x86_64 Linux | PASS |
+| Hello World | OHOS ARM32 QEMU | PASS |
+| MockDonalds (14 checks) | Dalvik x86_64 | 10/14 PASS (4 Canvas = DEX rebuild needed) |
+| MockDonalds (14 checks) | OHOS ARM32 QEMU | 14/14 PASS |
+| AOSP class loading (24 classes) | Dalvik x86_64 | ALL resolve |
+| AOSP LinearLayout measure+layout | Dalvik x86_64 | Children at correct positions |
+| Real APK (aapt+dx built) | Dalvik x86_64 | Activity launches, View tree renders |
 
 ---
 
@@ -125,14 +155,17 @@ graph TD
             BOOT["Boot Classpath<br/>(4,000 java.* classes)"]
         end
 
-        subgraph FRAMEWORK["Android Framework (Java)"]
-            ACTIVITY["Activity / Fragment<br/>Lifecycle Management"]
-            VIEW["View / ViewGroup<br/>(30K + 9K lines AOSP)"]
-            TEXT["TextView<br/>(13K lines AOSP)"]
-            LAYOUT["LinearLayout / RelativeLayout<br/>FrameLayout / TableLayout"]
-            WIDGET["Button, ImageView, ListView<br/>EditText, ProgressBar, etc."]
-            DATA["SQLiteDatabase<br/>SharedPreferences<br/>ContentProvider"]
-            IPC["Intent, Bundle<br/>Service, BroadcastReceiver"]
+        subgraph FRAMEWORK["AOSP Framework (89K+ lines, UNMODIFIED)"]
+            VIEW["View (30K) + ViewGroup (9K)<br/>AOSP — layout, draw, touch"]
+            TEXT["TextView (13K) + StaticLayout<br/>AOSP — word wrap, ellipsize"]
+            LAYOUT["LinearLayout, RelativeLayout,<br/>FrameLayout, GridLayout, TableLayout<br/>AOSP — weight, gravity, constraints"]
+            LIST["ListView (4K), AbsListView (6K),<br/>GridView, Spinner, ScrollView<br/>AOSP — recycler, headers, scroll"]
+            WIDGET["Button, ImageView, CheckedTextView,<br/>CompoundButton, ProgressBar, etc.<br/>AOSP — 24 files total"]
+            DATA["SQLiteDatabase, SharedPreferences,<br/>ContentProvider (shim + MiniServer)"]
+            IPC["Activity, Fragment, Intent, Bundle,<br/>Service, BroadcastReceiver (shim)"]
+        end
+        subgraph STUBS["~140 Dependency Stubs"]
+            S1["ViewRootImpl, AccessibilityManager,<br/>RenderNode, Editor, InputMethodManager<br/>(return null/0/false)"]
         end
 
         subgraph MINI["MiniServer (~770 lines)"]
@@ -400,10 +433,13 @@ Westlake is built on two companion projects:
 
 | Document | Description |
 |----------|-------------|
-| [Android-as-Engine Architecture](02-ANDROID-AS-ENGINE.md) | Why 15 bridges, not 57K shims. Flutter analogy. Real APK analysis. |
-| [Engine Execution Plan](03-ENGINE-EXECUTION-PLAN.md) | 4 workstreams: Canvas bridge, MiniServer, APK loader, input bridge |
-| [Call Flow Details](02A-CALL-FLOW-DETAILS.md) | Detailed call traces through the engine |
-| [Analysis Plan](00-ANALYSIS-PLAN.md) | Original API gap analysis methodology |
+| [Architecture Design (EN)](docs/engine/ARCHITECTURE.md) | Why 15 bridges, not 57K shims. Flutter analogy. Performance analysis. Option B (unmodified AOSP). Amazon APK gap analysis. |
+| [架构设计文档 (CN)](docs/engine/ARCHITECTURE_CN.md) | 中文版：引擎方案、Flutter类比、性能对比、AOSP集成、APK分析 |
+| [Call Flow Details](docs/engine/CALL-FLOWS.md) | 12 detailed ASCII call traces: app launch, rendering, touch, navigation, SQLite, SharedPrefs, Service, ContentProvider, Handler, ArkUI, resources.arsc, manifest |
+| [Execution Plan](docs/engine/EXECUTION-PLAN.md) | 4 workstreams: Canvas bridge, MiniServer, APK loader, input bridge |
+| [Real APK Status](docs/engine/REAL-APK-STATUS.md) | End-to-end APK loading on Dalvik/OHOS — what works, what's next |
+| [MockDonalds Plan](docs/engine/MOCKDONALDS-PLAN.md) | Integration test plan for the 4-Activity restaurant app |
+| [Online Docs](https://harmony.moxin.app/docs) | Interactive docs with Mermaid diagrams (EN/CN toggle) |
 
 ---
 

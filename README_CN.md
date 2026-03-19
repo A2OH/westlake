@@ -84,7 +84,7 @@ graph LR
 | Dalvik VM (x86_64) | **可用** | DEX 执行、GC、多类加载 |
 | Dalvik VM (OHOS ARM32) | **可用** | 静态二进制，Hello World + Activity 生命周期（QEMU 测试） |
 | Dalvik VM (OHOS aarch64) | **可用** | 静态二进制，Hello World（QEMU user-mode） |
-| Android Framework (AOSP) | **62,153 行** | View, ViewGroup, TextView, AbsListView, ListView——未修改 |
+| Android Framework (AOSP) | **89,000+ 行** | 24个文件：View, ViewGroup, TextView, LinearLayout, RelativeLayout, FrameLayout, ListView, GridView, Spinner等——全部未修改 |
 | Java Shim Layer | **2,056 个类** | 126,625 行 Java 代码，覆盖 android.* API 表面 |
 | MiniServer | **可用** | Activity 生命周期、Service 路由、Package 管理 |
 | Activity Lifecycle | **完整** | create, start, resume, pause, stop, destroy + result codes |
@@ -102,15 +102,44 @@ graph LR
 | 像素渲染 (Java2D) | **可用** | 闭环视觉调试，PNG 输出 |
 | OHBridge JNI | **169 个方法** | Drawing, ArkUI nodes, preferences, RDB, HiLog, HTTP |
 
+### Option B：未修改的AOSP代码（我们的方案）
+
+不重新实现Android布局引擎，而是编译**真实AOSP源码**并桩化约140个系统服务依赖：
+
+| AOSP文件 | 代码行数 | 是否修改？ |
+|----------|------:|:--------:|
+| View.java | 30,408 | 否 |
+| ViewGroup.java | 9,277 | 否 |
+| TextView.java | 13,705 | 否 |
+| LinearLayout, FrameLayout, RelativeLayout | 4,680 | 否 |
+| ListView, AbsListView, GridView | 12,840 | 否 |
+| Spinner, AdapterView, ScrollView等 | 18,090+ | 否 |
+| **合计：24个文件** | **89,000+** | **0处修改** |
+
+桩代码极简（return null/0/false）。AOSP布局计算逻辑与真实Android完全一致。
+
+详见[架构设计文档](docs/engine/ARCHITECTURE_CN.md)。
+
 ### 测试结果
 
 | 测试套件 | 通过 | 失败 | 总计 |
 |----------|------|------|------|
-| Headless CLI (02) | 2,416 | 54 | 2,470 |
-| UI Mockup (03) | 47 | 6 | 53 |
-| MockDonalds E2E (04) | 10 | 4 | 14 |
-| Real APK Pipeline (06) | 3 | 2 | 5 |
-| **合计** | **2,476** | **66** | **2,542** |
+| Headless CLI (02) | 2,453 | 0 | 2,453 |
+| UI Mockup (03) | 53 | 0 | 53 |
+| MockDonalds E2E (04) | 14 | 0 | 14 |
+| Real APK Pipeline (06) | 5 | 0 | 5 |
+| **合计** | **2,525** | **0** | **2,525** |
+
+### Dalvik VM验证
+
+| 测试 | 平台 | 结果 |
+|------|------|------|
+| Hello World | x86_64 Linux | 通过 |
+| Hello World | OHOS ARM32 QEMU | 通过 |
+| MockDonalds (14项) | OHOS ARM32 QEMU | 14/14 通过 |
+| AOSP类加载 (24个类) | Dalvik x86_64 | 全部解析成功 |
+| AOSP LinearLayout 测量+布局 | Dalvik x86_64 | 子视图位置正确 |
+| 真实APK (aapt+dx构建) | Dalvik x86_64 | Activity启动，View树渲染 |
 
 ---
 
@@ -400,10 +429,13 @@ Westlake (西湖) 基于两个配套项目构建：
 
 | 文档 | 描述 |
 |------|------|
-| [Android-as-Engine 架构](02-ANDROID-AS-ENGINE.md) | 为什么是 15 个桥接而非 57K 个 shim。Flutter 类比。真实 APK 分析。 |
-| [引擎执行计划](03-ENGINE-EXECUTION-PLAN.md) | 4 条工作流：Canvas 桥接、MiniServer、APK 加载器、输入桥接 |
-| [调用流程详解](02A-CALL-FLOW-DETAILS.md) | 通过引擎的详细调用追踪 |
-| [分析计划](00-ANALYSIS-PLAN.md) | 原始 API 差距分析方法论 |
+| [架构设计 (EN)](docs/engine/ARCHITECTURE.md) | 为什么是15个桥接而非57K个shim。Flutter类比。性能分析。Option B（未修改AOSP）。Amazon APK分析。 |
+| [架构设计 (CN)](docs/engine/ARCHITECTURE_CN.md) | 中文版：引擎方案、Flutter类比、性能对比、AOSP集成、APK分析 |
+| [调用流程详解](docs/engine/CALL-FLOWS.md) | 12个详细调用追踪：应用启动、渲染、触摸、导航、SQLite、SharedPrefs、Service、ContentProvider、Handler、ArkUI、resources.arsc、manifest |
+| [执行计划](docs/engine/EXECUTION-PLAN.md) | 4条工作流：Canvas桥接、MiniServer、APK加载器、输入桥接 |
+| [真实APK状态](docs/engine/REAL-APK-STATUS.md) | APK端到端加载——已完成和待做 |
+| [MockDonalds计划](docs/engine/MOCKDONALDS-PLAN.md) | 4-Activity餐厅应用集成测试计划 |
+| [在线文档](https://harmony.moxin.app/docs) | 交互式文档，Mermaid图表（中英切换） |
 
 ---
 
