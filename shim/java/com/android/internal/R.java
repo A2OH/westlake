@@ -731,6 +731,41 @@ public final class R {
         public static final int SlidingDrawer_animateOnClick = 3904;
         public static final int SlidingDrawer_handle = 3905;
         public static final int SlidingDrawer_content = 3906;
+
+        // MenuGroup
+        public static final int[] MenuGroup = {};
+        public static final int MenuGroup_id = 0;
+        public static final int MenuGroup_menuCategory = 1;
+        public static final int MenuGroup_orderInCategory = 2;
+        public static final int MenuGroup_checkableBehavior = 3;
+        public static final int MenuGroup_visible = 4;
+        public static final int MenuGroup_enabled = 5;
+
+        // MenuItem
+        public static final int[] MenuItem = {};
+        public static final int MenuItem_id = 0;
+        public static final int MenuItem_menuCategory = 1;
+        public static final int MenuItem_orderInCategory = 2;
+        public static final int MenuItem_title = 3;
+        public static final int MenuItem_titleCondensed = 4;
+        public static final int MenuItem_icon = 5;
+        public static final int MenuItem_iconTintMode = 6;
+        public static final int MenuItem_iconTint = 7;
+        public static final int MenuItem_alphabeticShortcut = 8;
+        public static final int MenuItem_alphabeticModifiers = 9;
+        public static final int MenuItem_numericShortcut = 10;
+        public static final int MenuItem_numericModifiers = 11;
+        public static final int MenuItem_checkable = 12;
+        public static final int MenuItem_checked = 13;
+        public static final int MenuItem_visible = 14;
+        public static final int MenuItem_enabled = 15;
+        public static final int MenuItem_showAsAction = 16;
+        public static final int MenuItem_onClick = 17;
+        public static final int MenuItem_actionLayout = 18;
+        public static final int MenuItem_actionViewClass = 19;
+        public static final int MenuItem_actionProviderClass = 20;
+        public static final int MenuItem_contentDescription = 21;
+        public static final int MenuItem_tooltipText = 22;
     }
 
     public static final class attr {
@@ -866,6 +901,11 @@ public final class R {
         public static final int tabcontent = 333;
         public static final int toggle = 334;
         public static final int message = 335;
+        public static final int zoomIn = 336;
+        public static final int zoomOut = 337;
+        public static final int zoomControls = 338;
+        public static final int hint = 339;
+        public static final int primary = 340;
     }
 
     public static final class layout {
@@ -879,6 +919,8 @@ public final class R {
         public static final int search_view = 351;
         public static final int search_dropdown_item_icons_2line = 352;
         public static final int tab_indicator_holo = 353;
+        public static final int zoom_controls = 354;
+        public static final int zoom_container = 355;
     }
 
     public static final class dimen {
@@ -950,6 +992,7 @@ public final class R {
         public static final int Animation_DropDownDown = 702;
         public static final int Animation_DropDownUp = 703;
         public static final int Animation_PopupWindow = 704;
+        public static final int Animation_ZoomButtons = 705;
     }
 
     public static final class bool {

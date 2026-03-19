@@ -58,6 +58,9 @@ public interface MenuItem {
     default MenuItem setNumericShortcut(char numericChar, int numericModifiers) { return setNumericShortcut(numericChar); }
     default int getNumericModifiers() { return 0; }
     default MenuItem setShortcut(char numericChar, char alphaChar, int numericModifiers, int alphaModifiers) { return setShortcut(numericChar, alphaChar); }
+    default MenuItem setTitleCondensed(CharSequence title) { return this; }
+    default CharSequence getTitleCondensed() { return null; }
+    default MenuItem setIconTintBlendMode(android.graphics.BlendMode blendMode) { return this; }
 
     public static final int SHOW_AS_ACTION_NEVER = 0;
     public static final int SHOW_AS_ACTION_IF_ROOM = 1;

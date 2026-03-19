@@ -37,6 +37,13 @@ public class Xml {
         return new org.xml.sax.helpers.AttributesImpl();
     }
 
+    public static android.util.AttributeSet asAttributeSet(org.xmlpull.v1.XmlPullParser parser) {
+        if (parser instanceof android.util.AttributeSet) {
+            return (android.util.AttributeSet) parser;
+        }
+        return new android.util.XmlPullAttributes(parser);
+    }
+
     // ── Encoding enum (matches AOSP) ────────────────────────────────────
 
     public enum Encoding {

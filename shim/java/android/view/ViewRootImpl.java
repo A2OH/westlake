@@ -87,6 +87,8 @@ public class ViewRootImpl implements ViewParent {
     public void requestFitSystemWindows() {}
     public void requestTransparentRegion(View child) {}
     public void onDescendantInvalidated(View child, View target) {}
+    public void dispatchInputEvent(KeyEvent event) {}
+    public void dispatchInputEvent(InputEvent event) {}
     public void onDescendantUnbufferedRequested() {}
     public boolean onStartNestedScroll(View child, View target, int nestedScrollAxes) { return false; }
     public void onNestedScrollAccepted(View child, View target, int nestedScrollAxes) {}

@@ -48,6 +48,7 @@ public class Intent implements Cloneable, Parcelable {
     public static final String ACTION_TIME_CHANGED = "android.intent.action.TIME_SET";
     public static final String ACTION_TIMEZONE_CHANGED = "android.intent.action.TIMEZONE_CHANGED";
     public static final String EXTRA_TIMEZONE = "time-zone";
+    public static final String ACTION_CONFIGURATION_CHANGED = "android.intent.action.CONFIGURATION_CHANGED";
 
     /* ── Category constants ── */
     public static final String CATEGORY_DEFAULT = "android.intent.category.DEFAULT";
