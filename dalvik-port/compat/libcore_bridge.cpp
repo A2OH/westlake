@@ -1605,6 +1605,8 @@ static JNINativeMethod gThreadMethods[] = {
     { "sleep", "(J)V", (void*) Thread_sleep },
 };
 
+extern "C" bool dvmRegisterOHBridge(JNIEnv* env);
+
 bool dvmRegisterLibcoreBridge(JNIEnv* env) {
     if (!registerClass(env, "libcore/io/OsConstants", gOsConstantsMethods, 1))
         return false;
@@ -1664,6 +1666,9 @@ bool dvmRegisterLibcoreBridge(JNIEnv* env) {
                   gInflaterMethods, sizeof(gInflaterMethods)/sizeof(gInflaterMethods[0]));
     registerClass(env, "java/util/zip/Deflater",
                   gDeflaterMethods, sizeof(gDeflaterMethods)/sizeof(gDeflaterMethods[0]));
+
+    /* OHBridge Canvas/Pen/Brush/Font/Bitmap/Path (software renderer) */
+    dvmRegisterOHBridge(env);
 
     return true;
 }

@@ -362,6 +362,10 @@ $(BUILD)/link_fixups.o: $(COMPAT)/link_fixups.cpp
 $(BUILD)/libcore_bridge.o: $(COMPAT)/libcore_bridge.cpp
 	$(CXX) $(CXXFLAGS) -c $< -o $@
 
+# Compile arkui/canvas bridge (OH_Drawing software renderer)
+$(BUILD)/arkui_bridge.o: $(COMPAT)/arkui_bridge.cpp $(COMPAT)/software_canvas.h $(COMPAT)/stb_truetype.h
+	$(CXX) $(CXXFLAGS) -I$(COMPAT) -c $< -o $@
+
 # Compile ARM EABI assembly if present
 ifdef DVM_ASM_SRCS
 $(BUILD)/CallEABI.o: $(DVM_ASM_SRCS)
@@ -372,7 +376,7 @@ ASM_OBJS :=
 endif
 
 # Link: create static library from all object files
-link: build-all $(BUILD)/link_fixups.o $(BUILD)/libcore_bridge.o $(ASM_OBJS)
+link: build-all $(BUILD)/link_fixups.o $(BUILD)/libcore_bridge.o $(BUILD)/arkui_bridge.o $(ASM_OBJS)
 	@echo "═══ Linking libdvm.a ═══"
 	$(AR) rcs $(BUILD)/libdvm.a $(BUILD)/*.o
 	@echo "Created: $(BUILD)/libdvm.a ($$(du -h $(BUILD)/libdvm.a | cut -f1))"
@@ -380,7 +384,7 @@ link: build-all $(BUILD)/link_fixups.o $(BUILD)/libcore_bridge.o $(ASM_OBJS)
 # Build dalvikvm launcher
 dalvikvm: link
 	@echo "═══ Building dalvikvm launcher ═══"
-	$(CXX) $(CXXFLAGS) $(LINK_FLAGS) -o $(BUILD)/dalvikvm launcher.cpp $(BUILD)/libdvm.a $(LDFLAGS)
+	$(CXX) $(CXXFLAGS) $(LINK_FLAGS) -o $(BUILD)/dalvikvm launcher.cpp -Wl,--whole-archive $(BUILD)/libdvm.a -Wl,--no-whole-archive $(LDFLAGS)
 	@echo "Created: $(BUILD)/dalvikvm"
 	@ls -lh $(BUILD)/dalvikvm
 ifneq ($(TARGET),)
