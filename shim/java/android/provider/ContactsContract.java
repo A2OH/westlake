@@ -124,6 +124,8 @@ public class ContactsContract {
                 Uri.parse("content://com.android.contacts/data/emails");
             public static final Uri CONTENT_FILTER_URI =
                 Uri.parse("content://com.android.contacts/data/emails/filter");
+            public static final Uri CONTENT_LOOKUP_URI =
+                Uri.parse("content://com.android.contacts/data/emails/lookup");
             public static final String CONTENT_TYPE =
                 "vnd.android.cursor.dir/email_v2";
             public static final String CONTENT_ITEM_TYPE =
@@ -235,8 +237,42 @@ public class ContactsContract {
         public static final String ACCOUNT_TYPE = "account_type";
     }
 
+    /** PhoneLookup table for reverse phone number lookup. */
+    public static class PhoneLookup {
+        public static final Uri CONTENT_FILTER_URI =
+            Uri.parse("content://com.android.contacts/phone_lookup");
+        public static final String _ID = "_id";
+        public static final String LOOKUP_KEY = "lookup";
+        public static final String DISPLAY_NAME = "display_name";
+        public static final String NUMBER = "number";
+    }
+
+    /** QuickContact helper for showing quick contact UI. */
+    public static class QuickContact {
+        public static final String ACTION_QUICK_CONTACT =
+            "com.android.contacts.action.QUICK_CONTACT";
+        public static final int MODE_SMALL = 1;
+        public static final int MODE_MEDIUM = 2;
+        public static final int MODE_LARGE = 3;
+        public static final int MODE_FULL = 4;
+
+        public static void showQuickContact(android.content.Context context,
+                android.view.View target, Uri lookupUri,
+                String[] excludeMimes, String prioritizedMimeType) {}
+
+        public static void showQuickContact(android.content.Context context,
+                android.graphics.Rect target, Uri lookupUri,
+                String[] excludeMimes, String prioritizedMimeType) {}
+
+        public static void showQuickContact(android.content.Context context,
+                android.view.View target, Uri lookupUri, int mode,
+                String[] excludeMimes) {}
+    }
+
     /** Intents for contacts-related actions. */
     public static class Intents {
+        public static final String SHOW_OR_CREATE_CONTACT =
+            "com.android.contacts.action.SHOW_OR_CREATE_CONTACT";
         public static final String SEARCH_SUGGESTION_CLICKED =
             "android.provider.Contacts.SEARCH_SUGGESTION_CLICKED";
 

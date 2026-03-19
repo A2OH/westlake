@@ -33,7 +33,12 @@ public class Settings {
     // ── System ──────────────────────────────────────────────────────────────
 
     public static class System {
+        public static final android.net.Uri CONTENT_URI = android.net.Uri.parse("content://settings/system");
         private static final HashMap<String, String> sStore = new HashMap<String, String>();
+
+        public static android.net.Uri getUriFor(String name) {
+            return android.net.Uri.parse("content://settings/system/" + name);
+        }
 
         public static final String SCREEN_BRIGHTNESS        = "screen_brightness";
         public static final String SCREEN_BRIGHTNESS_MODE   = "screen_brightness_mode";

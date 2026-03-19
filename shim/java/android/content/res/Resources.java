@@ -46,6 +46,8 @@ public class Resources {
         public TypedArray obtainStyledAttributes(int resid, int[] attrs) { return new TypedArray(); }
         public void encode(Object encoder) {}
         public int getExplicitStyle(android.util.AttributeSet set) { return 0; }
+        public void applyStyle(int resId, boolean force) {}
+        public void setTo(Theme other) {}
     }
 
     private final DisplayMetrics mDisplayMetrics = new DisplayMetrics();
@@ -129,6 +131,10 @@ public class Resources {
 
     public String[] getStringArray(int id) {
         return new String[0];
+    }
+
+    public CharSequence[] getTextArray(int id) {
+        return new CharSequence[0];
     }
 
     // ── Color resources ──────────────────────────────────────────────────────
@@ -310,4 +316,13 @@ public class Resources {
     public TypedArray obtainTypedArray(int id) { return new TypedArray(); }
     public android.graphics.Typeface getFont(int id) { return null; }
     public void parseBundleExtras(android.content.res.XmlResourceParser parser, android.os.Bundle outBundle) {}
+
+    /** Create a new Theme instance. */
+    public Theme newTheme() { return new Theme(); }
+
+    /** Select a default theme resource ID given a target SDK version. */
+    public static int selectDefaultTheme(int curTheme, int targetSdkVersion) { return curTheme; }
+
+    /** Return an AssetManager instance (stub returns null). */
+    public AssetManager getAssets() { return null; }
 }

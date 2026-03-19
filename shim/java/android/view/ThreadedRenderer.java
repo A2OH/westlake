@@ -11,4 +11,5 @@ public class ThreadedRenderer {
     public void removeObserver(Object observer) {}
     public android.graphics.Rect surfaceInsets = new android.graphics.Rect();
     public void destroyHardwareResources(View view) {}
+    public TextureLayer createTextureLayer() { return new TextureLayer(); }
 }

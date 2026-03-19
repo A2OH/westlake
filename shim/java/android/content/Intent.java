@@ -44,6 +44,10 @@ public class Intent implements Cloneable, Parcelable {
     public static final String ACTION_BATTERY_OKAY = "android.intent.action.BATTERY_OKAY";
     public static final String ACTION_POWER_CONNECTED = "android.intent.action.ACTION_POWER_CONNECTED";
     public static final String ACTION_POWER_DISCONNECTED = "android.intent.action.ACTION_POWER_DISCONNECTED";
+    public static final String ACTION_TIME_TICK = "android.intent.action.TIME_TICK";
+    public static final String ACTION_TIME_CHANGED = "android.intent.action.TIME_SET";
+    public static final String ACTION_TIMEZONE_CHANGED = "android.intent.action.TIMEZONE_CHANGED";
+    public static final String EXTRA_TIMEZONE = "time-zone";
 
     /* ── Category constants ── */
     public static final String CATEGORY_DEFAULT = "android.intent.category.DEFAULT";

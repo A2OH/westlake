@@ -60,6 +60,49 @@ public class SimpleMenu implements Menu {
         }
     }
 
+    @Override
+    public MenuItem add(int titleRes) {
+        return add(0, mItems.size(), mItems.size(), "@" + titleRes);
+    }
+
+    @Override
+    public SubMenu addSubMenu(int groupId, int itemId, int order, CharSequence title) { return null; }
+
+    @Override
+    public SubMenu addSubMenu(CharSequence title) { return null; }
+
+    @Override
+    public SubMenu addSubMenu(int titleRes) { return null; }
+
+    @Override
+    public MenuItem getItem(int index) {
+        if (index >= 0 && index < mItems.size()) return mItems.get(index);
+        return null;
+    }
+
+    @Override
+    public void removeGroup(int groupId) {}
+
+    @Override
+    public void setGroupEnabled(int group, boolean enabled) {}
+
+    @Override
+    public void setGroupVisible(int group, boolean visible) {}
+
+    @Override
+    public void setGroupCheckable(int group, boolean checkable, boolean exclusive) {}
+
+    @Override
+    public void close() {}
+
+    @Override
+    public boolean hasVisibleItems() {
+        for (MenuItem item : mItems) {
+            if (item.isVisible()) return true;
+        }
+        return false;
+    }
+
     // ── SimpleMenuItem inner class ──
 
     private static class SimpleMenuItem implements MenuItem {

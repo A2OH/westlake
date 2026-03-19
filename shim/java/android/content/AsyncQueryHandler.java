@@ -1,16 +1,27 @@
 package android.content;
 
+import android.database.Cursor;
+import android.net.Uri;
+
+/** Stub for android.content.AsyncQueryHandler. */
 public class AsyncQueryHandler {
     public AsyncQueryHandler() {}
+    public AsyncQueryHandler(ContentResolver cr) {}
 
-    public void cancelOperation(Object p0) {}
-    public Object createHandler(Object p0) { return null; }
-    public void onDeleteComplete(Object p0, Object p1, Object p2) {}
-    public void onInsertComplete(Object p0, Object p1, Object p2) {}
-    public void onQueryComplete(Object p0, Object p1, Object p2) {}
-    public void onUpdateComplete(Object p0, Object p1, Object p2) {}
-    public void startDelete(Object p0, Object p1, Object p2, Object p3, Object p4) {}
-    public void startInsert(Object p0, Object p1, Object p2, Object p3) {}
-    public void startQuery(Object p0, Object p1, Object p2, Object p3, Object p4, Object p5, Object p6) {}
-    public void startUpdate(Object p0, Object p1, Object p2, Object p3, Object p4, Object p5) {}
+    public void startQuery(int token, Object cookie, Uri uri,
+            String[] projection, String selection, String[] selectionArgs,
+            String orderBy) {}
+
+    public void cancelOperation(int token) {}
+
+    protected void onQueryComplete(int token, Object cookie, Cursor cursor) {}
+    protected void onInsertComplete(int token, Object cookie, Uri uri) {}
+    protected void onUpdateComplete(int token, Object cookie, int result) {}
+    protected void onDeleteComplete(int token, Object cookie, int result) {}
+
+    public void startInsert(int token, Object cookie, Uri uri, ContentValues initialValues) {}
+    public void startUpdate(int token, Object cookie, Uri uri, ContentValues values,
+            String selection, String[] selectionArgs) {}
+    public void startDelete(int token, Object cookie, Uri uri,
+            String selection, String[] selectionArgs) {}
 }

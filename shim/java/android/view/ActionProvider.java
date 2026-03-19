@@ -57,7 +57,7 @@ public class ActionProvider {
     /**
      * Called to prepare a submenu { // stub@link #hasSubMenu()} returns true.
      */
-    public void onPrepareSubMenu(Object subMenu) {
+    public void onPrepareSubMenu(SubMenu subMenu) {
         // no-op
     }
 

@@ -2,6 +2,10 @@ package android.graphics;
 import android.os.Handler;
 
 public class SurfaceTexture {
+    public interface OnFrameAvailableListener {
+        void onFrameAvailable(SurfaceTexture surfaceTexture);
+    }
+
     public SurfaceTexture(int p0) {}
     public SurfaceTexture(int p0, boolean p1) {}
     public SurfaceTexture(boolean p0) {}

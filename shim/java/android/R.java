@@ -405,6 +405,16 @@ public final class R {
         public static final int StackView_clickColor = 0;
         public static final int StackView_resOutColor = 0;
 
+        // SlidingDrawer
+        public static final int[] SlidingDrawer = {};
+        public static final int SlidingDrawer_orientation = 500;
+        public static final int SlidingDrawer_bottomOffset = 501;
+        public static final int SlidingDrawer_topOffset = 502;
+        public static final int SlidingDrawer_allowSingleTap = 503;
+        public static final int SlidingDrawer_animateOnClick = 504;
+        public static final int SlidingDrawer_handle = 505;
+        public static final int SlidingDrawer_content = 506;
+
         private styleable() {}
     }
 }

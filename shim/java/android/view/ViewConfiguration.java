@@ -121,4 +121,5 @@ public class ViewConfiguration {
     public static int getTouchSlop() { return 8; }
     public static float getAmbiguousGestureMultiplier() { return 2.0f; }
     public int getScaledDoubleTapTouchSlop() { return TOUCH_SLOP; }
+    public int getScaledMinimumScalingSpan() { return 170; }
 }

@@ -698,6 +698,39 @@ public final class R {
         public static final int[] ViewFlipper = {};
         public static final int ViewFlipper_flipInterval = 3400;
         public static final int ViewFlipper_autoStart = 3401;
+
+        // AnalogClock
+        public static final int[] AnalogClock = {};
+        public static final int AnalogClock_dial = 3500;
+        public static final int AnalogClock_hand_hour = 3501;
+        public static final int AnalogClock_hand_minute = 3502;
+
+        // TextClock
+        public static final int[] TextClock = {};
+        public static final int TextClock_format12Hour = 3600;
+        public static final int TextClock_format24Hour = 3601;
+        public static final int TextClock_timeZone = 3602;
+
+        // AdapterViewFlipper
+        public static final int[] AdapterViewFlipper = {};
+        public static final int AdapterViewFlipper_flipInterval = 3700;
+        public static final int AdapterViewFlipper_autoStart = 3701;
+
+        // Theme (quickContactBadgeOverlay)
+        public static final int Theme_quickContactBadgeOverlay = 3800;
+
+        // ActivityChooserModel / ShareActionProvider
+        public static final int[] ActivityChooserModel = {};
+
+        // SlidingDrawer
+        public static final int[] SlidingDrawer = {};
+        public static final int SlidingDrawer_orientation = 3900;
+        public static final int SlidingDrawer_bottomOffset = 3901;
+        public static final int SlidingDrawer_topOffset = 3902;
+        public static final int SlidingDrawer_allowSingleTap = 3903;
+        public static final int SlidingDrawer_animateOnClick = 3904;
+        public static final int SlidingDrawer_handle = 3905;
+        public static final int SlidingDrawer_content = 3906;
     }
 
     public static final class attr {
@@ -772,6 +805,9 @@ public final class R {
         public static final int tabWidgetStyle = 437;
         public static final int ratingBarStyle = 438;
         public static final int buttonStyleToggle = 439;
+        public static final int imageButtonStyle = 440;
+        public static final int popupMenuStyle = 441;
+        public static final int actionModeShareDrawable = 442;
     }
 
     public static final class id {
@@ -882,6 +918,9 @@ public final class R {
         public static final int VideoView_error_text_unknown = 358;
         public static final int am = 359;
         public static final int pm = 360;
+        public static final int shareactionprovider_share_with = 361;
+        public static final int shareactionprovider_share_with_application = 362;
+        public static final int activity_chooser_view_see_all = 363;
     }
 
     public static final class drawable {
@@ -895,6 +934,10 @@ public final class R {
         public static final int tab_bottom_right = 310;
         public static final int tab_bottom_right_v4 = 311;
         public static final int tab_indicator_v4 = 312;
+        public static final int clock_dial = 313;
+        public static final int clock_hand_hour = 314;
+        public static final int clock_hand_minute = 315;
+        public static final int ic_contact_picture = 316;
     }
 
     public static final class color {

@@ -260,4 +260,5 @@ public class Context {
     public android.content.res.ColorStateList getColorStateList(int id) {
         return android.content.res.ColorStateList.valueOf(0);
     }
+    public int getThemeResId() { return 0; }
 }

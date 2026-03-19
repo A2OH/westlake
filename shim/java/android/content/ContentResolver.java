@@ -108,6 +108,7 @@ public class ContentResolver {
     public void notifyChange(Uri p0, ContentObserver p1, int p2) {}
     public boolean refresh(Uri p0, Bundle p1, CancellationSignal p2) { return false; }
     public void registerContentObserver(Uri p0, boolean p1, ContentObserver p2) {}
+    public void registerContentObserver(Uri p0, boolean p1, ContentObserver p2, int userId) {}
     public void releasePersistableUriPermission(Uri p0, int p1) {}
     public static void removePeriodicSync(Account p0, String p1, Bundle p2) {}
     public static void removeStatusChangeListener(Object p0) {}
