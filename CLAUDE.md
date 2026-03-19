@@ -1,58 +1,188 @@
-# Android-to-OpenHarmony Migration — Distributed API Porting
+# Westlake -- Build & Development Guide
 
 ## What This Project Is
 
 This project runs **unmodified Android APKs on OpenHarmony** using:
-1. **Dalvik VM** — KitKat-era VM ported to 64-bit (x86_64, OHOS aarch64, OHOS ARM32)
-2. **Java Shim Layer** — 1,968 `android.*` stub classes (compile cleanly, but most return null/0)
-3. **OHBridge** — JNI bridge routing Android API calls to OHOS native APIs
+1. **Dalvik VM** -- KitKat-era VM ported to 64-bit (x86_64, OHOS aarch64, OHOS ARM32)
+2. **Java Shim Layer** -- 2,056 `android.*` classes (126,625 lines) covering the Android API surface
+3. **AOSP Framework** -- 62,153 lines of unmodified AOSP code (View, ViewGroup, TextView, ListView, etc.)
+4. **OHBridge** -- JNI bridge (169 methods) routing Android API calls to OHOS native APIs
 
-The stubs compile but don't work. **Your job: implement real logic in shim classes** so the APIs actually function correctly.
+The engine approach: 99% of Android API calls stay inside the VM. Only ~15 HAL-level boundaries cross to native code via JNI.
 
-## Distributed Task Queue (GitHub Issues)
+## Key Skills for Building This Project
 
-Multiple Claude Code sessions work in parallel, each picking tasks from GitHub Issues.
+### 1. Option B AOSP Integration
 
-### How it works
+Copy ENTIRE AOSP .java files unmodified. Never cherry-pick methods or modify AOSP code.
+
+- Source: `/home/dspfac/aosp-android-11/frameworks/base/core/java/android/`
+- Target: `shim/java/android/` (same package path)
+- Currently: 62,153+ lines across 10+ AOSP files (View, ViewGroup, TextView, AbsListView, ListView, etc.)
+- When AOSP code references missing classes, create stub files that compile but return defaults
+- Use `scripts/aosp-stub-gen.py` to auto-generate stubs from compile errors
+- Fix compile errors in TEST code or STUB code, NEVER in AOSP code
+
+### 2. Closed-Loop Visual Debugging
+
+Render an Activity to pixels without any hardware or ArkUI:
 
 ```
-GitHub Issues (task queue)          Multiple CC Workers
-┌─────────────────────┐       ┌──────┐ ┌──────┐ ┌──────┐
-│ [SHIM] Bundle  todo │──────▶│ CC#1 │ │ CC#2 │ │ CC#3 │
-│ [SHIM] Intent  todo │       │      │ │      │ │      │
-│ [SHIM] Uri     todo │       │ pick │ │ pick │ │ pick │
-│ [SHIM] Color   done │       │ impl │ │ impl │ │ impl │
-│ ...                 │       │ test │ │ test │ │ test │
-└─────────────────────┘       │ push │ │ push │ │ push │
-                              └──────┘ └──────┘ └──────┘
+Activity.onCreate() -> setContentView(layout)
+  -> View.measure() -> View.layout() -> View.draw(Canvas)
+    -> Canvas records draw log (mock OHBridge)
+      -> PixelRenderer reads draw log -> Java2D -> PNG file
 ```
 
-### Step 1: Pick a task
+- Run: `java -cp build FrameDumper` (outputs /tmp/mockdonalds-menu.png etc.)
+- Read the PNG to identify layout bugs
+- Fix shim/stub code -> re-render -> verify visually
+- No hardware or ArkUI needed at any point
+
+### 3. Auto-Stub Generator
+
+```bash
+python3 scripts/aosp-stub-gen.py
+```
+
+Iteratively:
+1. Compiles AOSP file with all shim code
+2. Parses javac error output
+3. Generates minimal stub classes/methods for missing dependencies
+4. Repeats until compilation succeeds
+
+### 4. DEX Building
+
+For KitKat Dalvik compatibility, target DEX format 035:
+
+```bash
+# Option A: javac --release 8 + dx (simplest)
+javac -d classes --release 8 *.java
+java -jar dx.jar --dex --output=classes.dex classes/
+
+# Option B: javac --release 11 + d8 (needed for AOSP TextView completeOnTimeout)
+javac -d classes --release 11 *.java
+java -jar r8-8.5.35.jar --min-api 19 --output . classes/
+```
+
+Constraints:
+- No lambdas in shim code (KitKat Dalvik cannot handle invokedynamic)
+- No String.format, String.split, Pattern.compile (KitKat natives missing)
+- Use SimpleFormatter, splitByChar helpers instead
+
+### 5. Test Infrastructure
+
+```bash
+# Primary test command -- compiles everything, runs on host JVM
+cd test-apps && ./run-local-tests.sh headless
+
+# Individual suites
+./run-local-tests.sh ui           # View tree, measure/layout/draw
+./run-local-tests.sh mockdonalds  # End-to-end restaurant app
+./run-local-tests.sh realapk      # APK unpack, AXML parse, Activity launch
+./run-local-tests.sh all          # All of the above
+```
+
+Key files:
+- `test-apps/run-local-tests.sh` -- compiles all shim + test code, runs headless
+- `test-apps/mock/` -- Mock OHBridge that records draw log, no native code needed
+- `test-apps/02-headless-cli/src/HeadlessTest.java` -- 2,470+ self-validation checks
+- `test-apps/03-ui-mockup/src/UITestApp.java` -- 53 UI rendering checks
+- `test-apps/04-mockdonalds/` -- 14 end-to-end checks
+- `test-apps/11-frame-dump/` -- PixelRenderer for PNG screenshot generation
+
+### 6. Real APK Analysis
+
+```bash
+# Extract type references from an APK
+dexdump -f app.apk | grep "Class descriptor"
+
+# Categorize: app classes / AndroidX / android.* / java.*
+# Cross-reference against shim layer for gap report
+```
+
+### 7. Distributed Task Queue (GitHub Issues)
+
+Multiple workers implement shim classes in parallel via GitHub Issues:
+
 ```bash
 # List available tasks
 gh issue list --repo A2OH/harmony-android-guide --label todo --label tier-a --limit 10
 
-# Claim it (atomic: remove todo, add in-progress)
-ISSUE=<NUMBER>
+# Claim a task
 gh issue edit $ISSUE --repo A2OH/harmony-android-guide --remove-label todo --add-label in-progress
+
+# After implementation + tests pass:
+gh issue close $ISSUE --repo A2OH/harmony-android-guide --comment "Done"
+gh issue edit $ISSUE --repo A2OH/harmony-android-guide --remove-label in-progress --add-label done
 ```
 
-### Step 2: Read the issue
-Each issue has:
-- **Class name** and file path
-- **API methods** to implement (from api_compat.db with scores)
-- **Self-validation test** checklist
-- **Current stub** analysis (how many methods return null/0)
+## Important Constraints
 
-### Step 3: Look up the skill for this class
+- **No lambdas** in shim code (KitKat Dalvik)
+- **No String.format / String.split / Pattern.compile** (KitKat natives missing)
+- **No Co-Authored-By** in git commits
+- **Option B = copy ENTIRE AOSP files unchanged**, stub missing deps, NEVER cherry-pick
+- **Never modify AOSP code** -- fix tests or stubs instead
+- **Match AOSP method signatures exactly** -- apps depend on them
+- **Don't break existing tests** -- always run full suite before pushing
+
+## Repository Layout
+
+```
+A2OH/westlake           -- Integration (this repo)
+A2OH/dalvik-universal    -- Dalvik VM source + 64-bit port
+A2OH/openharmony-wsl     -- OHOS build on WSL2/QEMU
+```
+
+### This Repo Structure
+
+```
+westlake/
+├── shim/java/android/          # 2,056 Java shim files (126,625 lines)
+│   ├── app/                    # Activity, Fragment, MiniServer, Service
+│   ├── content/                # Intent, ContentProvider, SharedPreferences
+│   ├── database/               # SQLite, Cursor, MatrixCursor
+│   ├── graphics/               # Canvas, Paint, Bitmap, Path, Color
+│   ├── net/                    # Uri, ConnectivityManager
+│   ├── os/                     # Bundle, Handler, Looper, Parcel
+│   ├── view/                   # View (30K lines AOSP), ViewGroup (9K)
+│   ├── widget/                 # TextView (13K), Button, LinearLayout, ...
+│   └── ...                     # 137 android.* packages total
+├── shim/java/com/ohos/shim/    # OHBridge JNI (169 native methods)
+├── test-apps/
+│   ├── 02-headless-cli/        # Headless test harness (2,470 checks)
+│   ├── 03-ui-mockup/           # UI rendering tests (53 checks)
+│   ├── 04-mockdonalds/         # End-to-end restaurant app (14 checks)
+│   ├── 06-real-apk/            # APK loading pipeline
+│   ├── 11-frame-dump/          # Pixel rendering + PNG output
+│   ├── mock/                   # Mock OHBridge (JVM testing, no device)
+│   └── run-local-tests.sh      # Test runner
+├── dalvik-port/                # Dalvik VM (x86_64, ARM32, aarch64)
+├── database/api_compat.db      # 57,289 APIs, tier classification, OH mappings
+├── scripts/                    # Stub generator, issue creator, orchestration
+└── skills/                     # 8 conversion skill files (A2OH-*)
+```
+
+## Common Tasks
+
+| Task | How |
+|------|-----|
+| Run tests | `cd test-apps && ./run-local-tests.sh headless` |
+| Add a new AOSP class | Copy from AOSP source, stub deps, compile, test |
+| Fix test regression | Update TEST code or STUB code, never AOSP code |
+| Build DEX for Dalvik | `javac --release 8` then `dx --dex` (or `d8` for release 11) |
+| Render PNG screenshot | `java -cp build FrameDumper` -> `/tmp/*.png` |
+| Analyze an APK | `dexdump` -> categorize types -> gap report |
+| Implement a shim class | Read issue, read skill file, implement, write test, verify |
+
+## Conversion Skills
+
+Query the DB for the right skill file:
 ```bash
-# Query the DB for the right conversion skill file
 sqlite3 database/api_compat.db "SELECT ap.skill FROM android_types at2 JOIN android_packages ap ON at2.package_id = ap.id WHERE at2.full_name = 'YourClassName'"
-# Returns e.g. A2OH-LIFECYCLE, A2OH-DATA-LAYER, A2OH-UI-REWRITE, etc.
-# Then read skills/<SKILL_NAME>.md for Android→OH conversion rules
 ```
 
-Available skills:
 | Skill | Covers |
 |-------|--------|
 | `A2OH-LIFECYCLE` | Activity, Service, BroadcastReceiver, Intent, Bundle, ContentProvider |
@@ -64,153 +194,14 @@ Available skills:
 | `A2OH-JAVA-TO-ARKTS` | Text, Util, Graphics (pure logic), Annotation, ICU |
 | `A2OH-CONFIG` | Print, Security, System services, WebKit |
 
-### Step 4: Implement
-1. Read the existing stub at `shim/java/android/<path>/<Class>.java`
-2. Read the skill file for conversion rules and OH API mappings
-3. Replace `return null` / `return 0` / `return false` with **real Java logic**
-4. For pure-data classes (Tier A): use `HashMap`, `ArrayList`, standard Java — no JNI needed
-5. Match AOSP method signatures exactly — apps depend on them
-6. Look at the AOSP source for reference behavior if unsure
-
-### Step 5: Write self-test
-Add a test method to `test-apps/02-headless-cli/src/HeadlessTest.java`:
-```java
-static void testYourClass() {
-    section("YourClass");
-    YourClass obj = new YourClass();
-    obj.putFoo("key", "value");
-    check("putFoo/getFoo round-trip", "value".equals(obj.getFoo("key")));
-}
-```
-Add `testYourClass();` to the `main()` method.
-
-### Step 6: Verify
-```bash
-# This compiles ALL shims + mock bridge + tests and runs them
-cd test-apps && ./run-local-tests.sh headless
-
-# MUST: compile cleanly, new tests pass, existing tests don't regress
-```
-
-### Step 7: Complete
-```bash
-# Create branch, commit, push
-git checkout -b shim/<class-name-lowercase>
-git add shim/java/android/<path>/<Class>.java
-git add test-apps/02-headless-cli/src/HeadlessTest.java
-git commit -m "Implement <ClassName> shim with self-validation tests"
-git push origin shim/<class-name-lowercase>
-
-# Close the issue
-gh issue close $ISSUE --repo A2OH/harmony-android-guide \
-  --comment "Implemented and tested. Branch: shim/<class-name-lowercase>"
-gh issue edit $ISSUE --repo A2OH/harmony-android-guide --remove-label in-progress --add-label done
-```
-
-## Environment Setup (for new CC workers)
-
-### Prerequisites
-```bash
-# Clone the repo
-git clone https://github.com/A2OH/harmony-android-guide.git
-cd harmony-android-guide
-
-# Verify Java
-javac -version   # Need JDK 8+ (JDK 21 works)
-java -version
-
-# Verify GitHub CLI
-gh auth status   # Must be authenticated
-
-# Verify test infrastructure
-ls test-apps/run-local-tests.sh
-ls test-apps/mock/com/ohos/shim/bridge/OHBridge.java
-ls test-apps/02-headless-cli/src/HeadlessTest.java
-```
-
-### Run baseline tests
-```bash
-cd test-apps && ./run-local-tests.sh headless
-# Note the pass/fail counts — your changes must not increase failures
-```
-
-### Understanding the codebase
-- `shim/java/` — 1,968 Java stub files mirroring Android API surface
-- `test-apps/mock/` — Mock OHBridge for JVM testing (no OHOS device needed)
-- `test-apps/02-headless-cli/src/HeadlessTest.java` — All self-validation tests
-- `database/api_compat.db` — SQLite DB with 4,617 Android API types and OH mappings
-- `scripts/create_issues.py` — Task generator (creates GitHub issues from DB)
-
-### If compilation fails
-The test runner compiles ALL shim files together. If you get errors from files you didn't change, those are pre-existing. Your changes must not add new errors. If you need to fix a pre-existing error to unblock your work, include that fix in your commit.
-
 ## Tier Definitions
 
 | Tier | What | Dependency | Priority |
 |------|------|------------|----------|
-| **A** | Pure Java data structures | None | **DO FIRST** |
+| **A** | Pure Java data structures | None | DO FIRST |
 | **B** | I/O with Java fallback | File system | Second |
 | **C** | System service wrappers | OHBridge | Third |
-| **D** | UI components | ArkUI | Last (skip for now) |
-
-### Tier A examples (pure Java, self-validating)
-Bundle, Intent, ContentValues, Uri, SparseArray, Base64, TextUtils, Color, Rect, Pair, LruCache, ComponentName, ArrayMap, Log, MatrixCursor
-
-### Tier B examples (I/O, Java fallback)
-SharedPreferences (→HashMap+file), SQLite (→in-memory), Environment, Handler, Looper, SystemClock, AtomicFile
-
-## Key Rules
-
-- **Don't break existing tests** — always run full suite before pushing
-- **One class per issue** — one branch per class, keeps merges clean
-- **Match AOSP signatures exactly** — apps compiled against real Android SDK
-- **Use pure Java for Tier A/B** — no JNI, no OHBridge, no native code
-- **Self-validating** — every shim must include tests proving it works
-- **Check for conflicts** — if your branch can't merge cleanly, rebase on main
-
-## Worker Optimization
-
-- **Claim 5-10 issues at once** — don't implement one-at-a-time
-- **Launch parallel agents** — each agent implements one shim class independently
-- **Verify baseline once** after the entire batch completes (not after each class)
-- **Close all in batch**, then claim the next batch immediately
-- With 5 parallel agents per CC session, 3 CC sessions = ~15 concurrent implementations
-- The bottleneck is context window, not concurrency — keep agents focused and independent
-
-```bash
-# Example: claim a batch of 5
-for n in 1 2 3 4 5; do
-  gh issue edit $n --repo A2OH/harmony-android-guide --remove-label todo --add-label in-progress
-done
-
-# Then use Claude Code agents to implement all 5 in parallel
-# Verify baseline once after all 5 are done
-cd test-apps && ./run-local-tests.sh headless
-
-# Close all 5
-for n in 1 2 3 4 5; do
-  gh issue close $n --repo A2OH/harmony-android-guide --comment "Implemented and tested"
-done
-```
-
-## Orchestration
-
-The task queue is managed by `scripts/create_issues.py`:
-```bash
-# Create Tier A issues
-python3 scripts/create_issues.py
-
-# Create Tier B issues (when Tier A is mostly done)
-python3 scripts/create_issues.py --tier b
-
-# Dry run (preview without creating)
-python3 scripts/create_issues.py --dry-run
-
-# Monitor progress
-gh issue list --repo A2OH/harmony-android-guide --label done --json number | python3 -c "import json,sys; print(len(json.load(sys.stdin)),'done')"
-gh issue list --repo A2OH/harmony-android-guide --label in-progress --json number | python3 -c "import json,sys; print(len(json.load(sys.stdin)),'in-progress')"
-gh issue list --repo A2OH/harmony-android-guide --label todo --json number | python3 -c "import json,sys; print(len(json.load(sys.stdin)),'todo')"
-```
+| **D** | UI components | ArkUI | Last (engine approach) |
 
 ## Project Key Paths
 
@@ -223,6 +214,6 @@ gh issue list --repo A2OH/harmony-android-guide --label todo --json number | pyt
 | UI test harness | `test-apps/03-ui-mockup/src/UITestApp.java` |
 | Test runner script | `test-apps/run-local-tests.sh` |
 | API compatibility database | `database/api_compat.db` |
-| Issue generator | `scripts/create_issues.py` |
 | Dalvik VM (x86_64) | `dalvik-port/build/dalvikvm` |
 | Dalvik VM (OHOS ARM32) | `dalvik-port/build-ohos-arm32/dalvikvm` |
+| AOSP source (local) | `/home/dspfac/aosp-android-11/frameworks/base/core/java/android/` |
