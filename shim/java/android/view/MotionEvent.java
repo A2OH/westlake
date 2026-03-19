@@ -44,6 +44,7 @@ public final class MotionEvent {
 
     // ── Flags ──
     public static final int FLAG_WINDOW_IS_OBSCURED = 0x1;
+    public static final int FLAG_IS_GENERATED_GESTURE = 0x8;
 
     // ── Classification constants ──
     public static final int CLASSIFICATION_NONE = 0;

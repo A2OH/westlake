@@ -250,4 +250,14 @@ public class Context {
     public final int getColor(int id) { return 0; }
     public android.view.Display getDisplay() { return null; }
     public int getUserId() { return 0; }
+    public int getDisplayId() { return 0; }
+    public String getOpPackageName() { return getPackageName(); }
+    public boolean isUiContext() { return true; }
+    public android.content.Intent registerReceiverAsUser(
+            android.content.BroadcastReceiver receiver, android.os.UserHandle user,
+            android.content.IntentFilter filter, String broadcastPermission,
+            android.os.Handler scheduler) { return null; }
+    public android.content.res.ColorStateList getColorStateList(int id) {
+        return android.content.res.ColorStateList.valueOf(0);
+    }
 }

@@ -57,7 +57,7 @@ public class DeviceAdminReceiver extends BroadcastReceiver {
      * Subclasses may override this or override the individual callbacks.
      */
     @Override
-    public void onReceive(Object context, Object intent) {
+    public void onReceive(android.content.Context context, android.content.Intent intent) {
         // stub — real dispatch would inspect intent action
     }
 }

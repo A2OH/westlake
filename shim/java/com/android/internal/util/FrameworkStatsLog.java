@@ -5,7 +5,10 @@ public class FrameworkStatsLog {
     public static final int TOUCH_GESTURE_CLASSIFIED__CLASSIFICATION__LONG_PRESS = 1;
     public static final int TOUCH_GESTURE_CLASSIFIED__CLASSIFICATION__SINGLE_TAP = 2;
     public static final int TOUCH_GESTURE_CLASSIFIED__CLASSIFICATION__UNKNOWN_CLASSIFICATION = 3;
+    public static final int TOUCH_GESTURE_CLASSIFIED__CLASSIFICATION__DOUBLE_TAP = 4;
+    public static final int TOUCH_GESTURE_CLASSIFIED__CLASSIFICATION__SCROLL = 5;
     public static final int TOUCH_GESTURE_CLASSIFIED = 177;
     public static void write(int code, String name, int classification) {}
+    public static void write(int code, String name, int a, int b, float c) {}
     public static void write(int... args) {}
 }

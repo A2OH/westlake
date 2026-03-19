@@ -144,4 +144,13 @@ public class Handler {
         msg.target = this;
         return msg;
     }
+
+    public Message obtainMessage(int what, int arg1, int arg2) {
+        Message msg = Message.obtain();
+        msg.what = what;
+        msg.arg1 = arg1;
+        msg.arg2 = arg2;
+        msg.target = this;
+        return msg;
+    }
 }

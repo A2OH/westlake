@@ -21,6 +21,7 @@ public class Build {
 
     public static class VERSION_CODES {
         public static final int BASE = 1;
+        public static final int DONUT = 4;
         public static final int ECLAIR = 7;
         public static final int FROYO = 8;
         public static final int GINGERBREAD = 9;

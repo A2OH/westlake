@@ -113,4 +113,12 @@ public class ViewConfiguration {
     public static int getHoverTooltipHideShortTimeout() { return 3000; }
     public static int getLongPressTooltipHideTimeout() { return 1500; }
     public static long getSendRecurringAccessibilityEventsInterval() { return 100; }
+    public static int getDoubleTapMinTime() { return 40; }
+    public static int getDoubleTapSlop() { return 100; }
+    public static int getMinimumFlingVelocity() { return 50; }
+    public static int getMaximumFlingVelocity() { return 8000; }
+    public static float getScrollFriction() { return 0.015f; }
+    public static int getTouchSlop() { return 8; }
+    public static float getAmbiguousGestureMultiplier() { return 2.0f; }
+    public int getScaledDoubleTapTouchSlop() { return TOUCH_SLOP; }
 }
