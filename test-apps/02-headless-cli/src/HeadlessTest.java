@@ -10667,7 +10667,7 @@ public class HeadlessTest {
         check("B34 CheckBox getText", "Accept terms".equals(cb.getText().toString()));
 
         // ── 10. RadioGroup still works with CompoundButton-based RadioButton ──
-        android.widget.RadioGroup rg = new android.widget.RadioGroup();
+        android.widget.RadioGroup rg = new android.widget.RadioGroup(new android.content.Context());
         android.widget.RadioButton r1 = new android.widget.RadioButton(new android.content.Context());
         r1.setId(101);
         android.widget.RadioButton r2 = new android.widget.RadioButton(new android.content.Context());

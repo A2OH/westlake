@@ -71,6 +71,11 @@ public class Calendar {
         return new GregorianCalendarImpl(jCal);
     }
 
+    public static Calendar getInstance(java.util.Locale locale) {
+        java.util.Calendar jCal = java.util.Calendar.getInstance(locale);
+        return new GregorianCalendarImpl(jCal);
+    }
+
     // ---- Instance methods ----
 
     public int get(int field) {

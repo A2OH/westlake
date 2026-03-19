@@ -17,6 +17,9 @@ public final class ObjectAnimator extends ValueAnimator {
     public static ObjectAnimator ofMultiFloat(Object p0, String p1, float[][] p2) { return new ObjectAnimator(); }
     public static ObjectAnimator ofMultiInt(Object p0, String p1, int[][] p2) { return new ObjectAnimator(); }
     public static ObjectAnimator ofObject(Object p0, String p1, TypeEvaluator p2, Object... p3) { return new ObjectAnimator(); }
+    public static ObjectAnimator ofPropertyValuesHolder(Object target, PropertyValuesHolder... values) { return new ObjectAnimator(); }
+    public void setTarget(Object target) {}
+    public Object getTarget() { return null; }
     public void setAutoCancel(boolean p0) {}
     public void setProperty(Property p0) {}
     public void setPropertyName(String p0) {}

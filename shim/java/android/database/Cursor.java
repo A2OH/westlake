@@ -46,4 +46,8 @@ public interface Cursor extends Closeable {
     void setNotificationUris(ContentResolver p0, java.util.List<Object> p1);
     void unregisterContentObserver(ContentObserver p0);
     void unregisterDataSetObserver(DataSetObserver p0);
+    @Deprecated
+    boolean requery();
+    @Deprecated
+    void deactivate();
 }

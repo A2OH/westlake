@@ -39,6 +39,11 @@ public class HandlerThread extends Thread {
         return quit();
     }
 
+    public Looper getLooper() {
+        waitUntilReady();
+        return Looper.myLooper();
+    }
+
     public int getThreadId() {
         return (int) getId();
     }

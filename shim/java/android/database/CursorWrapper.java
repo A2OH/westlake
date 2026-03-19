@@ -48,4 +48,6 @@ public class CursorWrapper implements Cursor {
     public void unregisterContentObserver(ContentObserver p0) {}
     public void unregisterDataSetObserver(DataSetObserver p0) {}
     public void setNotificationUris(ContentResolver p0, java.util.List<Object> p1) {}
+    public boolean requery() { return false; }
+    public void deactivate() {}
 }

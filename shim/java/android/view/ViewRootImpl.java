@@ -14,6 +14,7 @@ public class ViewRootImpl implements ViewParent {
     public static int sNewInsetsMode = NEW_INSETS_MODE_FULL;
     public Choreographer mChoreographer;
     public Surface mSurface = new Surface();
+    public android.content.res.CompatibilityInfo.Translator mTranslator;
     public WindowManager.LayoutParams mWindowAttributes = new WindowManager.LayoutParams();
     public int mCurScrollY;
     public Thread mThread = Thread.currentThread();
@@ -100,4 +101,30 @@ public class ViewRootImpl implements ViewParent {
     public void recomputeViewAttributes(View child) {}
     public View keyboardNavigationClusterSearch(View currentCluster, int direction) { return null; }
     public boolean requestChildRectangleOnScreen(View child, Rect rectangle, boolean immediate) { return false; }
+
+    // SurfaceView support
+    public SurfaceControl getBoundsLayer() { return new SurfaceControl(); }
+    public SurfaceControl getRenderSurfaceControl() { return new SurfaceControl(); }
+    public SurfaceControl.Transaction getBLASTSyncTransaction() { return new SurfaceControl.Transaction(); }
+    public boolean useBLAST() { return false; }
+    public boolean isDrawingToBLASTTransaction() { return false; }
+    public void setUseBLASTSyncTransaction() {}
+    public void addSurfaceChangedCallback(SurfaceChangedCallback callback) {}
+    public void removeSurfaceChangedCallback(SurfaceChangedCallback callback) {}
+    public void registerRtFrameCallback(FrameDrawingCallback callback) {}
+    public CharSequence getTitle() { return ""; }
+    public void drawPending() {}
+    public void pendingDrawFinished() {}
+    public android.os.IBinder getInputToken() { return null; }
+    public android.os.IBinder mLeashToken;
+
+    public interface SurfaceChangedCallback {
+        void surfaceCreated(SurfaceControl.Transaction t);
+        void surfaceReplaced(SurfaceControl.Transaction t);
+        void surfaceDestroyed();
+    }
+
+    public interface FrameDrawingCallback {
+        void onFrameDraw(long frame);
+    }
 }

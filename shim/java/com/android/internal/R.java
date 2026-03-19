@@ -633,6 +633,40 @@ public final class R {
 
         // Toolbar_Layout (for Toolbar.LayoutParams)
         public static final int[] Toolbar_LayoutParams = {};
+
+        // DatePicker
+        public static final int[] DatePicker = {};
+        public static final int DatePicker_dialogMode = 2400;
+        public static final int DatePicker_datePickerMode = 2401;
+        public static final int DatePicker_firstDayOfWeek = 2402;
+
+        // TimePicker
+        public static final int[] TimePicker = {};
+        public static final int TimePicker_dialogMode = 2500;
+        public static final int TimePicker_timePickerMode = 2501;
+
+        // CalendarView
+        public static final int[] CalendarView = {};
+        public static final int CalendarView_calendarViewMode = 2600;
+
+        // Gallery
+        public static final int[] Gallery = {};
+        public static final int Gallery_animationDuration = 2700;
+        public static final int Gallery_gravity = 2701;
+        public static final int Gallery_spacing = 2702;
+        public static final int Gallery_unselectedAlpha = 2703;
+
+        // StackView
+        public static final int[] StackView = {};
+        public static final int StackView_clickColor = 2800;
+        public static final int StackView_resOutColor = 2801;
+
+        // AdapterViewAnimator
+        public static final int[] AdapterViewAnimator = {};
+        public static final int AdapterViewAnimator_inAnimation = 2900;
+        public static final int AdapterViewAnimator_outAnimation = 2901;
+        public static final int AdapterViewAnimator_animateFirstView = 2902;
+        public static final int AdapterViewAnimator_loopViews = 2903;
     }
 
     public static final class attr {
@@ -698,6 +732,12 @@ public final class R {
         public static final int toolbarStyle = 428;
         public static final int state_empty = 429;
         public static final int state_last = 430;
+        public static final int datePickerStyle = 431;
+        public static final int timePickerStyle = 432;
+        public static final int calendarViewStyle = 433;
+        public static final int galleryStyle = 434;
+        public static final int stackViewStyle = 435;
+        public static final int videoViewStyle = 436;
     }
 
     public static final class id {
@@ -797,6 +837,11 @@ public final class R {
         public static final int not_checked = 353;
         public static final int negative_duration = 354;
         public static final int popup_window_default_title = 355;
+        public static final int VideoView_error_button = 356;
+        public static final int VideoView_error_text_invalid_progressive_playback = 357;
+        public static final int VideoView_error_text_unknown = 358;
+        public static final int am = 359;
+        public static final int pm = 360;
     }
 
     public static final class drawable {
@@ -823,12 +868,15 @@ public final class R {
     }
 
     public static final class integer {
+        public static final int date_picker_mode = 2400;
+        public static final int time_picker_mode = 2500;
     }
 
     public static final class array {
     }
 
     public static final class transition {
+        public static final int no_transition = 0;
     }
 
     public static final class anim {

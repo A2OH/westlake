@@ -77,6 +77,16 @@ public final class Looper {
         return 0;
     }
 
+    /** Quit the looper. No-op in engine mode. */
+    public void quit() {
+        // no-op
+    }
+
+    /** Quit the looper safely. No-op in engine mode. */
+    public void quitSafely() {
+        // no-op
+    }
+
     @Override
     public String toString() {
         return "Looper{thread=" + mThread.getName() + "}";

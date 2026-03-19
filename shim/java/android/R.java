@@ -21,6 +21,11 @@ public final class R {
         public static final int popupWindowStyle = 0;
         public static final int searchViewStyle = 0;
         public static final int toolbarStyle = 0;
+        public static final int datePickerStyle = 0;
+        public static final int timePickerStyle = 0;
+        public static final int calendarViewStyle = 0;
+        public static final int galleryStyle = 0;
+        public static final int videoViewStyle = 0;
         private attr() {}
     }
 
@@ -77,7 +82,16 @@ public final class R {
         public static final int not_checked = 0;
         public static final int negative_duration = 0;
         public static final int popup_window_default_title = 0;
+        public static final int VideoView_error_button = 0;
+        public static final int VideoView_error_text_invalid_progressive_playback = 0;
+        public static final int VideoView_error_text_unknown = 0;
         private string() {}
+    }
+
+    public static final class integer {
+        public static final int date_picker_mode = 0;
+        public static final int time_picker_mode = 0;
+        private integer() {}
     }
 
     public static final class drawable {
@@ -363,6 +377,33 @@ public final class R {
         // EdgeEffect
         public static final int[] EdgeEffect = {};
         public static final int EdgeEffect_colorEdgeEffect = 0;
+
+        // DatePicker
+        public static final int[] DatePicker = {};
+        public static final int DatePicker_dialogMode = 0;
+        public static final int DatePicker_datePickerMode = 0;
+        public static final int DatePicker_firstDayOfWeek = 0;
+
+        // TimePicker
+        public static final int[] TimePicker = {};
+        public static final int TimePicker_dialogMode = 0;
+        public static final int TimePicker_timePickerMode = 0;
+
+        // CalendarView
+        public static final int[] CalendarView = {};
+        public static final int CalendarView_calendarViewMode = 0;
+
+        // Gallery
+        public static final int[] Gallery = {};
+        public static final int Gallery_animationDuration = 0;
+        public static final int Gallery_gravity = 0;
+        public static final int Gallery_spacing = 0;
+        public static final int Gallery_unselectedAlpha = 0;
+
+        // StackView
+        public static final int[] StackView = {};
+        public static final int StackView_clickColor = 0;
+        public static final int StackView_resOutColor = 0;
 
         private styleable() {}
     }
