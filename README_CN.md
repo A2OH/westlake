@@ -1,8 +1,10 @@
+**[English](README.md)** | **[中文](README_CN.md)**
+
 # Westlake (西湖): 在 OpenHarmony 上运行 Android APK
 
 [![Tests](https://img.shields.io/badge/tests-2%2C476_pass-brightgreen)]()
 [![Shim Classes](https://img.shields.io/badge/shim_classes-2%2C056-blue)]()
-[![AOSP Lines](https://img.shields.io/badge/AOSP_framework-62%2C153_lines-orange)]()
+[![AOSP Lines](https://img.shields.io/badge/AOSP_framework-89%2C000%2B_lines-orange)]()
 [![Architecture](https://img.shields.io/badge/approach-engine_%7E15_bridges-purple)]()
 [![License](https://img.shields.io/badge/license-Apache_2.0-blue)]()
 
