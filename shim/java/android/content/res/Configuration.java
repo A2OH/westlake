@@ -37,5 +37,18 @@ public class Configuration {
     public int screenLayout = 0;
     public int fontScale = 1;
 
+    public Configuration() {}
+
+    public Configuration(Configuration o) {
+        this.orientation = o.orientation;
+        this.screenWidthDp = o.screenWidthDp;
+        this.screenHeightDp = o.screenHeightDp;
+        this.densityDpi = o.densityDpi;
+        this.locale = o.locale;
+        this.uiMode = o.uiMode;
+        this.screenLayout = o.screenLayout;
+        this.fontScale = o.fontScale;
+    }
+
     public boolean isScreenRound() { return false; }
 }

@@ -26,6 +26,6 @@ public abstract class ForwardingListener implements View.OnTouchListener, View.O
     @Override
     public void onViewDetachedFromWindow(View v) {}
 
-    public boolean onForwardingStarted() { return false; }
-    public boolean onForwardingStopped() { return false; }
+    protected boolean onForwardingStarted() { return false; }
+    protected boolean onForwardingStopped() { return false; }
 }

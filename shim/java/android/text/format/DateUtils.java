@@ -20,6 +20,15 @@ public class DateUtils {
     public static final int FORMAT_ABBREV_ALL = 0x80;
     public static final int FORMAT_ABBREV_MONTH = 0x40;
     public static final int FORMAT_NO_YEAR = 8;
+    public static final int FORMAT_24HOUR = 0x100;
+    public static final int FORMAT_ABBREV_WEEKDAY = 0x200;
+    public static final int FORMAT_ABBREV_RELATIVE = 0x400;
+    public static final int FORMAT_ABBREV_TIME = 0x800;
+    public static final int FORMAT_UTC = 0x1000;
+    public static final int FORMAT_NO_MONTH = 0x2000;
+    public static final int FORMAT_NO_NOON = 0x4000;
+    public static final int FORMAT_NO_MIDNIGHT = 0x8000;
+    public static final int FORMAT_NUMERIC_DATE = 0x10000;
 
     public static CharSequence getRelativeTimeSpanString(long timeMillis) {
         return "";

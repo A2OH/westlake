@@ -52,4 +52,6 @@ public class RecordingCanvas extends Canvas {
         return "RecordingCanvas(width=" + getWidth()
                 + ", height=" + getHeight() + ")";
     }
+
+    public void drawTextureLayer(android.view.TextureLayer layer) {}
 }

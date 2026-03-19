@@ -392,4 +392,7 @@ public class ActivityManager {
     public List<Object> getAppTasks() {
         return new ArrayList<Object>();
     }
+
+    /** Returns the user ID of the current foreground user. */
+    public static int getCurrentUser() { return 0; }
 }

@@ -12,6 +12,8 @@ public final class UserHandle {
 
     /** Sentinel: the "all users" pseudo-handle. */
     public static final UserHandle ALL = new UserHandle(-1);
+    /** The user id for all users. */
+    public static final int USER_ALL = -1;
 
     /** Sentinel: the current foreground user. */
     public static final UserHandle CURRENT = new UserHandle(-2);
