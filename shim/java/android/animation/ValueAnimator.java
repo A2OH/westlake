@@ -8,7 +8,7 @@ public class ValueAnimator extends Animator {
     public static final int REVERSE = 0;
     public void addUpdateListener(Object p0) {}
     public static boolean areAnimatorsEnabled() { return false; }
-    public Object clone() { return null; }
+    public ValueAnimator clone() { return null; }
     public float getAnimatedFraction() { return 0f; }
     public Object getAnimatedValue() { return null; }
     public Object getAnimatedValue(Object p0) { return null; }
@@ -24,7 +24,7 @@ public class ValueAnimator extends Animator {
     public static Object ofFloat(Object p0) { return null; }
     public static Object ofInt(Object p0) { return null; }
     public static Object ofObject(Object p0, Object p1) { return null; }
-    public static Object ofPropertyValuesHolder(Object p0) { return null; }
+    public static ValueAnimator ofPropertyValuesHolder(PropertyValuesHolder... values) { return new ValueAnimator(); }
     public void removeAllUpdateListeners() {}
     public void removeUpdateListener(Object p0) {}
     public void reverse() {}

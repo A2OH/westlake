@@ -37,6 +37,13 @@ public class AudioManager {
     public static final int AUDIOFOCUS_LOSS_TRANSIENT          = -2;
     public static final int AUDIOFOCUS_LOSS_TRANSIENT_CAN_DUCK = -3;
 
+    // ── AudioFocus gain types ───────────────────────────────────────
+
+    public static final int AUDIOFOCUS_GAIN_TRANSIENT = 2;
+    public static final int AUDIOFOCUS_GAIN_TRANSIENT_MAY_DUCK = 3;
+    public static final int AUDIOFOCUS_GAIN_TRANSIENT_EXCLUSIVE = 4;
+    public static final int AUDIOFOCUS_NONE = 0;
+
     // ── AudioFocus request results ─────────────────────────────────
 
     public static final int AUDIOFOCUS_REQUEST_GRANTED = 1;
@@ -137,7 +144,22 @@ public class AudioManager {
         return AUDIOFOCUS_REQUEST_GRANTED;
     }
 
+    public int requestAudioFocus(OnAudioFocusChangeListener listener,
+                                 AudioAttributes audioAttributes,
+                                 int durationHint,
+                                 int flags) {
+        return AUDIOFOCUS_REQUEST_GRANTED;
+    }
+
     public int abandonAudioFocus(OnAudioFocusChangeListener listener) {
+        return AUDIOFOCUS_REQUEST_GRANTED;
+    }
+
+    public int requestAudioFocus(AudioFocusRequest focusRequest) {
+        return AUDIOFOCUS_REQUEST_GRANTED;
+    }
+
+    public int abandonAudioFocusRequest(AudioFocusRequest focusRequest) {
         return AUDIOFOCUS_REQUEST_GRANTED;
     }
 }

@@ -130,6 +130,13 @@ public class Handler {
         return looper.getQueue().enqueueMessage(msg, when);
     }
 
+    public Message obtainMessage(int what) {
+        Message msg = Message.obtain();
+        msg.what = what;
+        msg.target = this;
+        return msg;
+    }
+
     public Message obtainMessage(int what, Object obj) {
         Message msg = Message.obtain();
         msg.what = what;

@@ -29,6 +29,7 @@ public class RemoteViewsAdapter extends BaseAdapter {
 
     public static class AsyncRemoteAdapterAction implements Runnable {
         public AsyncRemoteAdapterAction(AbsListView listView, Intent intent) {}
+        public AsyncRemoteAdapterAction(AdapterViewAnimator viewAnimator, Intent intent) {}
         @Override
         public void run() {}
     }

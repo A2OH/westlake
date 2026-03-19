@@ -109,5 +109,43 @@ public class SimpleMenu implements Menu {
             mChecked = checked;
             return this;
         }
+        @Override public int getGroupId() { return 0; }
+        @Override public int getOrder() { return 0; }
+        @Override public MenuItem setIcon(android.graphics.drawable.Drawable icon) { return this; }
+        @Override public android.graphics.drawable.Drawable getIcon() { return null; }
+        @Override public boolean isVisible() { return mVisible; }
+        @Override public boolean isEnabled() { return mEnabled; }
+        @Override public MenuItem setCheckable(boolean checkable) { return this; }
+        @Override public boolean isCheckable() { return false; }
+        @Override public boolean hasSubMenu() { return false; }
+        @Override public SubMenu getSubMenu() { return null; }
+        @Override public android.content.Intent getIntent() { return null; }
+        @Override public MenuItem setIntent(android.content.Intent intent) { return this; }
+        @Override public char getAlphabeticShortcut() { return 0; }
+        @Override public MenuItem setAlphabeticShortcut(char alphaChar) { return this; }
+        @Override public char getNumericShortcut() { return 0; }
+        @Override public MenuItem setNumericShortcut(char numericChar) { return this; }
+        @Override public MenuItem setShortcut(char numericChar, char alphaChar) { return this; }
+        @Override public ContextMenu.ContextMenuInfo getMenuInfo() { return null; }
+        @Override public void setShowAsAction(int actionEnum) {}
+        @Override public MenuItem setShowAsActionFlags(int actionEnum) { return this; }
+        @Override public MenuItem setActionView(View view) { return this; }
+        @Override public MenuItem setActionView(int resId) { return this; }
+        @Override public View getActionView() { return null; }
+        @Override public MenuItem setActionProvider(ActionProvider provider) { return this; }
+        @Override public ActionProvider getActionProvider() { return null; }
+        @Override public boolean expandActionView() { return false; }
+        @Override public boolean collapseActionView() { return false; }
+        @Override public boolean isActionViewExpanded() { return false; }
+        @Override public MenuItem setOnMenuItemClickListener(MenuItem.OnMenuItemClickListener listener) { return this; }
+        @Override public MenuItem setOnActionExpandListener(MenuItem.OnActionExpandListener listener) { return this; }
+        @Override public MenuItem setContentDescription(CharSequence contentDescription) { return this; }
+        @Override public CharSequence getContentDescription() { return null; }
+        @Override public MenuItem setTooltipText(CharSequence tooltipText) { return this; }
+        @Override public CharSequence getTooltipText() { return null; }
+        @Override public MenuItem setIconTintList(android.content.res.ColorStateList tint) { return this; }
+        @Override public android.content.res.ColorStateList getIconTintList() { return null; }
+        @Override public MenuItem setIconTintMode(android.graphics.PorterDuff.Mode mode) { return this; }
+        @Override public android.graphics.PorterDuff.Mode getIconTintMode() { return null; }
     }
 }

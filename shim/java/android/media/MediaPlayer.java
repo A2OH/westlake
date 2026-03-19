@@ -9,7 +9,7 @@ package android.media;
  * State machine: IDLE → INITIALIZED → PREPARING → PREPARED →
  *                STARTED → PAUSED → STOPPED → END
  */
-public class MediaPlayer {
+public class MediaPlayer implements SubtitleController.Listener {
 
     // ── State machine ──────────────────────────────────────────────
 
@@ -46,6 +46,26 @@ public class MediaPlayer {
     public interface OnBufferingUpdateListener {
         void onBufferingUpdate(MediaPlayer mp, int percent);
     }
+
+    public interface OnInfoListener {
+        boolean onInfo(MediaPlayer mp, int what, int extra);
+    }
+
+    public interface OnVideoSizeChangedListener {
+        void onVideoSizeChanged(MediaPlayer mp, int width, int height);
+    }
+
+    public interface OnTimedTextListener {
+        void onTimedText(MediaPlayer mp, Object text);
+    }
+
+    // Error/Info constants
+    public static final int MEDIA_ERROR_UNKNOWN = 1;
+    public static final int MEDIA_ERROR_NOT_VALID_FOR_PROGRESSIVE_PLAYBACK = 200;
+    public static final int MEDIA_ERROR_SERVER_DIED = 100;
+    public static final int MEDIA_INFO_UNKNOWN = 1;
+    public static final int MEDIA_INFO_UNSUPPORTED_SUBTITLE = 901;
+    public static final int MEDIA_INFO_SUBTITLE_TIMED_OUT = 902;
 
     // ── Fields ─────────────────────────────────────────────────────
 
@@ -96,6 +116,40 @@ public class MediaPlayer {
         callBridge("mediaPlayerSetDataSource", new Class<?>[]{long.class, String.class}, mHandle, path);
         mState = State.INITIALIZED;
     }
+
+    public void setDataSource(android.content.Context context, android.net.Uri uri) {
+        setDataSource(uri != null ? uri.toString() : "");
+    }
+
+    public void setDataSource(android.content.Context context, android.net.Uri uri,
+            java.util.Map<String, String> headers) throws java.io.IOException {
+        setDataSource(context, uri);
+    }
+
+    public void setDataSource(android.content.Context context, android.net.Uri uri,
+            java.util.Map<String, String> headers, java.util.List<java.net.HttpCookie> cookies)
+            throws java.io.IOException {
+        setDataSource(context, uri);
+    }
+
+    public void setDisplay(android.view.SurfaceHolder sh) {}
+    public void setScreenOnWhilePlaying(boolean screenOn) {}
+    public void setAudioAttributes(AudioAttributes attributes) {}
+    public void setAudioSessionId(int sessionId) {}
+    public int getAudioSessionId() { return 0; }
+    public int getVideoWidth() { return 0; }
+    public int getVideoHeight() { return 0; }
+    public void setSurface(android.view.Surface surface) {}
+    public void addSubtitleSource(java.io.InputStream is, MediaFormat format) {}
+    public MediaTimeProvider getMediaTimeProvider() { return null; }
+    public Metadata getMetadata(int filter, int flags) { return null; }
+    public void setSubtitleAnchor(SubtitleController controller, SubtitleController.Anchor anchor) {}
+
+    public static final int METADATA_ALL = 0;
+    public static final int BYPASS_METADATA_FILTER = 1;
+
+    // SubtitleController.Listener
+    public void onSubtitleTrackSelected(SubtitleTrack track) {}
 
     // ── Prepare ────────────────────────────────────────────────────
 
@@ -219,6 +273,10 @@ public class MediaPlayer {
     public void setOnBufferingUpdateListener(OnBufferingUpdateListener listener) {
         mOnBufferingUpdateListener = listener;
     }
+
+    public void setOnInfoListener(OnInfoListener listener) {}
+    public void setOnVideoSizeChangedListener(OnVideoSizeChangedListener listener) {}
+    public void setOnTimedTextListener(OnTimedTextListener listener) {}
 
     // ── State accessor ─────────────────────────────────────────────
 

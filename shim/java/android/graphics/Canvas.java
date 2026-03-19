@@ -368,6 +368,25 @@ public class Canvas {
         if (nativeCanvas != 0 && ownedCanvas) { OHBridge.canvasDestroy(nativeCanvas); nativeCanvas = 0; }
     }
 
+    // ── Clip query ──────────────────────────────────────────────────────────
+
+    public boolean getClipBounds(Rect bounds) {
+        if (bounds != null) {
+            bounds.set(0, 0, getWidth(), getHeight());
+        }
+        return true;
+    }
+
+    public Rect getClipBounds() {
+        Rect r = new Rect();
+        getClipBounds(r);
+        return r;
+    }
+
+    public void clipRectUnion(Rect rect) {
+        // no-op stub
+    }
+
     // ── Object overrides ─────────────────────────────────────────────────────
 
     @Override

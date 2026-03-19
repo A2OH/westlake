@@ -12,10 +12,12 @@ public class SuggestionsAdapter extends CursorAdapter {
 
     public SuggestionsAdapter(Context context, android.app.SearchableInfo searchable,
                               android.app.SearchManager searchManager) {
+        super(context, null, false);
     }
 
     public SuggestionsAdapter(Context context, SearchView searchView,
                               android.app.SearchableInfo searchable, java.util.WeakHashMap cache) {
+        super(context, null, false);
     }
 
     public static String getColumnString(Cursor c, String columnName) {

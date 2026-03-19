@@ -15,9 +15,17 @@ public class DateUtils {
 
     public static final int FORMAT_SHOW_TIME = 1;
     public static final int FORMAT_SHOW_DATE = 16;
+    public static final int FORMAT_SHOW_YEAR = 4;
+    public static final int FORMAT_SHOW_WEEKDAY = 2;
     public static final int FORMAT_ABBREV_ALL = 0x80;
+    public static final int FORMAT_ABBREV_MONTH = 0x40;
+    public static final int FORMAT_NO_YEAR = 8;
 
     public static CharSequence getRelativeTimeSpanString(long timeMillis) {
+        return "";
+    }
+
+    public static String formatDateTime(Object context, long millis, int flags) {
         return "";
     }
 

@@ -108,6 +108,18 @@ public class Bitmap {
     public boolean hasAlpha() { return true; }
     public int getDensity() { return 160; }
 
+    public Bitmap extractAlpha() {
+        return createBitmap(width, height, Config.ALPHA_8);
+    }
+
+    public Bitmap extractAlpha(Paint paint, int[] offsetXY) {
+        if (offsetXY != null && offsetXY.length >= 2) {
+            offsetXY[0] = 0;
+            offsetXY[1] = 0;
+        }
+        return createBitmap(width, height, Config.ALPHA_8);
+    }
+
     @Override
     public String toString() {
         return "Bitmap(" + width + "x" + height + ", " + config + ")";
