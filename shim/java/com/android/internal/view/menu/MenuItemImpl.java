@@ -61,4 +61,5 @@ public class MenuItemImpl implements MenuItem {
     public void setActionViewExpanded(boolean expanded) {}
     public boolean requiresActionButton() { return false; }
     public boolean requiresOverflow() { return false; }
+    public void setExclusiveCheckable(boolean exclusive) {}
 }

@@ -19,6 +19,8 @@ public interface Menu {
     public static final int CATEGORY_SYSTEM = 0x00020000;
     public static final int CATEGORY_SECONDARY = 0x00030000;
     public static final int CATEGORY_ALTERNATIVE = 0x00040000;
+    public static final int CATEGORY_MASK = 0xffff0000;
+    public static final int USER_MASK = 0x0000ffff;
 
     /** Add a menu item with the given title. Returns the new MenuItem. */
     MenuItem add(CharSequence title);

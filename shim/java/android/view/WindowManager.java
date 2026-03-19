@@ -6,6 +6,7 @@ public interface WindowManager extends ViewManager {
     /** Auto-generated stub. */
     public static class LayoutParams extends ViewGroup.LayoutParams {
         public LayoutParams() { super(0, 0); }
+        public LayoutParams(int w, int h) { super(w, h); this.width = w; this.height = h; }
         public android.graphics.Rect surfaceInsets = new android.graphics.Rect();
         public int type = 0;
         public int flags = 0;

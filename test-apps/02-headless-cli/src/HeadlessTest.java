@@ -10656,7 +10656,9 @@ public class HeadlessTest {
         rb.setChecked(true);
         check("B34 RadioButton setChecked(true)", rb.isChecked());
         rb.toggle();
-        check("B34 RadioButton toggle", !rb.isChecked());
+        // AOSP RadioButton.toggle() is a no-op when already checked
+        // (radio buttons cannot be unchecked by the user once checked)
+        check("B34 RadioButton toggle", rb.isChecked());
 
         // ── 8. RadioButton getText/setText (inherited from TextView) ──
         rb.setText("Option 1");
