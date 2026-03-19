@@ -1,9 +1,5 @@
 package android.widget;
-import android.view.View;
-import android.view.ViewGroup;
-import android.view.View;
-import android.view.ViewGroup;
-
+import android.content.Context;
 import android.view.View;
 import android.view.ViewGroup;
 import java.util.ArrayList;
@@ -13,59 +9,85 @@ import java.util.Comparator;
 import java.util.List;
 
 /**
- * Shim: android.widget.ArrayAdapter<Object> — adapter backed by a Java List.
+ * Shim: android.widget.ArrayAdapter<T> — adapter backed by a Java List.
  *
  * The resource ID and context are accepted for source compatibility but are not
  * used in this headless shim — getView() returns null, which callers must handle.
  */
-public class ArrayAdapter<Object> extends BaseAdapter {
+public class ArrayAdapter<T> extends BaseAdapter implements Filterable, ThemedSpinnerAdapter {
 
-    private final Object context;
+    private final Context context;
     private final int resource;
-    private final List<Object> objects;
+    private int dropDownResource;
+    private final List<T> objects;
 
-    public ArrayAdapter(Object context, int resource) {
+    public ArrayAdapter(Context context, int resource) {
         this.context = context;
         this.resource = resource;
+        this.dropDownResource = resource;
         this.objects = new ArrayList<>();
     }
 
     @SuppressWarnings("unchecked")
-    public ArrayAdapter(Object context, int resource, Object[] items) {
+    public ArrayAdapter(Context context, int resource, T[] items) {
         this.context = context;
         this.resource = resource;
+        this.dropDownResource = resource;
         this.objects = new ArrayList<>(Arrays.asList(items));
     }
 
-    public ArrayAdapter(Object context, int resource, List<Object> items) {
+    public ArrayAdapter(Context context, int resource, List<T> items) {
         this.context = context;
         this.resource = resource;
+        this.dropDownResource = resource;
+        this.objects = new ArrayList<>(items);
+    }
+
+    public ArrayAdapter(Context context, int resource, int textViewResourceId) {
+        this.context = context;
+        this.resource = resource;
+        this.dropDownResource = resource;
+        this.objects = new ArrayList<>();
+    }
+
+    public ArrayAdapter(Context context, int resource, int textViewResourceId, T[] items) {
+        this.context = context;
+        this.resource = resource;
+        this.dropDownResource = resource;
+        this.objects = new ArrayList<>(Arrays.asList(items));
+    }
+
+    public ArrayAdapter(Context context, int resource, int textViewResourceId, List<T> items) {
+        this.context = context;
+        this.resource = resource;
+        this.dropDownResource = resource;
         this.objects = new ArrayList<>(items);
     }
 
     // ── Mutation ──
 
-    public void add(Object object) {
+    public void add(T object) {
         objects.add(object);
         notifyDataSetChanged();
     }
 
-    public void addAll(Object... items) {
+    @SuppressWarnings("unchecked")
+    public void addAll(T... items) {
         Collections.addAll(objects, items);
         notifyDataSetChanged();
     }
 
-    public void addAll(List<Object> items) {
+    public void addAll(java.util.Collection<? extends T> items) {
         objects.addAll(items);
         notifyDataSetChanged();
     }
 
-    public void insert(Object object, int index) {
+    public void insert(T object, int index) {
         objects.add(index, object);
         notifyDataSetChanged();
     }
 
-    public void remove(Object object) {
+    public void remove(T object) {
         objects.remove(object);
         notifyDataSetChanged();
     }
@@ -75,13 +97,44 @@ public class ArrayAdapter<Object> extends BaseAdapter {
         notifyDataSetChanged();
     }
 
-    public void sort(Comparator<? super Object> comparator) {
+    public void sort(Comparator<? super T> comparator) {
         Collections.sort(objects, comparator);
         notifyDataSetChanged();
     }
 
-    public int getPosition(Object item) {
+    public int getPosition(T item) {
         return objects.indexOf(item);
+    }
+
+    public Context getContext() {
+        return context;
+    }
+
+    public void setDropDownViewResource(int resource) {
+        this.dropDownResource = resource;
+    }
+
+    public void setNotifyOnChange(boolean notifyOnChange) {
+        // stub
+    }
+
+    // ── ThemedSpinnerAdapter ──
+
+    @Override
+    public void setDropDownViewTheme(android.content.res.Resources.Theme theme) {
+        // stub
+    }
+
+    @Override
+    public android.content.res.Resources.Theme getDropDownViewTheme() {
+        return null;
+    }
+
+    // ── Filterable ──
+
+    @Override
+    public Filter getFilter() {
+        return null;
     }
 
     // ── BaseAdapter contract ──
@@ -90,15 +143,18 @@ public class ArrayAdapter<Object> extends BaseAdapter {
     public int getCount() { return objects.size(); }
 
     @Override
-    public Object getItem(int position) { return objects.get(position); }
+    public T getItem(int position) { return objects.get(position); }
 
     @Override
     public long getItemId(int position) { return position; }
 
-    /**
-     * Returns null in this shim. Real implementations inflate a TextView from
-     * the provided resource — resource inflation is not supported in headless mode.
-     */
     @Override
     public View getView(int position, View convertView, ViewGroup parent) { return null; }
+
+    @Override
+    public View getDropDownView(int position, View convertView, ViewGroup parent) { return null; }
+
+    public static ArrayAdapter<CharSequence> createFromResource(Context context, int textArrayResId, int textViewResId) {
+        return new ArrayAdapter<CharSequence>(context, textViewResId);
+    }
 }

@@ -91,6 +91,7 @@ public class AccessibilityNodeInfo {
         public static final AccessibilityAction ACTION_PAGE_LEFT = new AccessibilityAction(0x0100000a, null);
         public static final AccessibilityAction ACTION_PAGE_RIGHT = new AccessibilityAction(0x0100000b, null);
         public static final AccessibilityAction ACTION_PRESS_AND_HOLD = new AccessibilityAction(0x0100000c, null);
+        public static final AccessibilityAction ACTION_SCROLL_TO_POSITION = new AccessibilityAction(0x0100000d, null);
 
         private final int mActionId;
         private final CharSequence mLabel;
@@ -259,6 +260,56 @@ public class AccessibilityNodeInfo {
         public TouchDelegateInfo(java.util.Map<android.graphics.Region, android.view.View> targetMap) {}
         public int getRegionCount() { return 0; }
         public android.graphics.Region getRegionAt(int index) { return null; }
+    }
+
+    public static class CollectionInfo {
+        public static final int SELECTION_MODE_NONE = 0;
+        public static final int SELECTION_MODE_SINGLE = 1;
+        public static final int SELECTION_MODE_MULTIPLE = 2;
+        private int mRowCount, mColumnCount, mSelectionMode;
+        private boolean mHierarchical;
+        public static CollectionInfo obtain(int rowCount, int columnCount, boolean hierarchical) {
+            CollectionInfo info = new CollectionInfo();
+            info.mRowCount = rowCount;
+            info.mColumnCount = columnCount;
+            info.mHierarchical = hierarchical;
+            return info;
+        }
+        public static CollectionInfo obtain(int rowCount, int columnCount, boolean hierarchical, int selectionMode) {
+            CollectionInfo info = obtain(rowCount, columnCount, hierarchical);
+            info.mSelectionMode = selectionMode;
+            return info;
+        }
+        public int getRowCount() { return mRowCount; }
+        public int getColumnCount() { return mColumnCount; }
+        public boolean isHierarchical() { return mHierarchical; }
+        public int getSelectionMode() { return mSelectionMode; }
+    }
+
+    public static class CollectionItemInfo {
+        public static CollectionItemInfo obtain(int rowIndex, int rowSpan, int columnIndex, int columnSpan, boolean heading) {
+            return new CollectionItemInfo();
+        }
+        public static CollectionItemInfo obtain(int rowIndex, int rowSpan, int columnIndex, int columnSpan, boolean heading, boolean selected) {
+            return new CollectionItemInfo();
+        }
+        public int getRowIndex() { return 0; }
+        public int getRowSpan() { return 0; }
+        public int getColumnIndex() { return 0; }
+        public int getColumnSpan() { return 0; }
+        public boolean isHeading() { return false; }
+        public boolean isSelected() { return false; }
+    }
+
+    public static class RangeInfo {
+        public static final int RANGE_TYPE_INT = 0;
+        public static final int RANGE_TYPE_FLOAT = 1;
+        public static final int RANGE_TYPE_PERCENT = 2;
+        public static RangeInfo obtain(int type, float min, float max, float current) { return new RangeInfo(); }
+        public int getType() { return 0; }
+        public float getMin() { return 0; }
+        public float getMax() { return 0; }
+        public float getCurrent() { return 0; }
     }
 
     public static class ExtraRenderingInfo {

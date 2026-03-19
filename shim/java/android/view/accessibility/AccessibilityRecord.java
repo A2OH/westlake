@@ -115,4 +115,15 @@ public class AccessibilityRecord {
     public void setRemovedCount(int count) {}
     public void setBeforeText(CharSequence text) {}
     public void setPassword(boolean isPassword) {}
+    public void setChecked(boolean checked) {}
+    public void setFullScreen(boolean fullScreen) {}
+    public void setCurrentItemIndex(int index) {}
+    public void setSource(View root, int virtualDescendantId) {}
+    public int getAddedCount() { return 0; }
+    public int getRemovedCount() { return 0; }
+    public CharSequence getBeforeText() { return null; }
+    public boolean isPassword() { return false; }
+    public boolean isChecked() { return false; }
+    public boolean isFullScreen() { return false; }
+    public int getCurrentItemIndex() { return -1; }
 }

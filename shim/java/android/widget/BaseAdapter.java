@@ -19,15 +19,9 @@ import java.util.List;
  * implementations of areAllItemsEnabled() / isEnabled() so subclasses only need
  * to implement the four abstract methods.
  */
-public class BaseAdapter implements ListAdapter {
+public class BaseAdapter implements ListAdapter, SpinnerAdapter {
 
-    /** Simple observer interface (mirrors android.database.DataSetObserver). */
-    public interface DataSetObserver {
-        void onChanged();
-        void onInvalidated();
-    }
-
-    private final List<DataSetObserver> observers = new ArrayList<>();
+    private final List<android.database.DataSetObserver> observers = new ArrayList<>();
 
     // ── Abstract methods ──
 
@@ -60,23 +54,33 @@ public class BaseAdapter implements ListAdapter {
     @Override
     public boolean isEmpty() { return getCount() == 0; }
 
+    // ── SpinnerAdapter ──
+
+    @Override
+    public View getDropDownView(int position, View convertView, ViewGroup parent) {
+        return getView(position, convertView, parent);
+    }
+
+    @Override
+    public boolean hasStableIds() { return false; }
+
     // ── Observer management ──
 
-    public void registerDataSetObserver(DataSetObserver observer) {
+    public void registerDataSetObserver(android.database.DataSetObserver observer) {
         if (observer != null && !observers.contains(observer)) {
             observers.add(observer);
         }
     }
 
-    public void unregisterDataSetObserver(DataSetObserver observer) {
+    public void unregisterDataSetObserver(android.database.DataSetObserver observer) {
         observers.remove(observer);
     }
 
     public void notifyDataSetChanged() {
-        for (DataSetObserver o : observers) o.onChanged();
+        for (android.database.DataSetObserver o : observers) o.onChanged();
     }
 
     public void notifyDataSetInvalidated() {
-        for (DataSetObserver o : observers) o.onInvalidated();
+        for (android.database.DataSetObserver o : observers) o.onInvalidated();
     }
 }

@@ -243,4 +243,11 @@ public class Context {
     public Context createPackageContextAsUser(String packageName, int flags, android.os.UserHandle user) throws android.content.pm.PackageManager.NameNotFoundException { return this; }
     public void startActivityAsUser(android.content.Intent intent, android.os.UserHandle user) {}
     public boolean canLoadUnsafeResources() { return false; }
+
+    public final CharSequence getText(int resId) { return ""; }
+    public final String getString(int resId) { return ""; }
+    public final String getString(int resId, Object... formatArgs) { return ""; }
+    public final int getColor(int id) { return 0; }
+    public android.view.Display getDisplay() { return null; }
+    public int getUserId() { return 0; }
 }

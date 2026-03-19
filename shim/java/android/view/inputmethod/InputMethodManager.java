@@ -51,4 +51,7 @@ public class InputMethodManager {
     public void restartInput(View view) {
         // no-op
     }
+
+    public void displayCompletions(View view, CompletionInfo[] completions) {}
+    public void updateExtractedText(View view, int token, ExtractedText text) {}
 }

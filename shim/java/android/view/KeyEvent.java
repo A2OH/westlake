@@ -11,6 +11,7 @@ public class KeyEvent {
     // ── Action constants ──
     public static final int ACTION_DOWN = 0;
     public static final int ACTION_UP = 1;
+    public static final int ACTION_MULTIPLE = 2;
 
     // ── Flag constants ──
     public static final int FLAG_CANCELED = 0x20;

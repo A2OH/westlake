@@ -31,12 +31,12 @@ public class AdapterViewAnimator extends AdapterView {
 
     // ── Adapter ──
 
-    public void setAdapter(Object adapter) {
+    public void setAdapter(Adapter adapter) {
         this.adapter = adapter;
     }
 
-    public Object getAdapter() {
-        return null; // stub — no real adapter binding yet
+    public Adapter getAdapter() {
+        return (Adapter) adapter;
     }
 
     // ── AdapterView abstract contract ──
@@ -82,4 +82,7 @@ public class AdapterViewAnimator extends AdapterView {
     public void setAnimateFirstView(boolean animate) {
         this.animateFirstView = animate;
     }
+
+    public android.view.View getSelectedView() { return null; }
+    public void setSelection(int position) {}
 }

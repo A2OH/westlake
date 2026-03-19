@@ -25,5 +25,5 @@ public interface SpinnerAdapter extends Adapter {
      * @param parent      The parent that this view will eventually be attached to.
      * @return A View corresponding to the data at the specified position.
      */
-    View getDropDownView(int position, Object convertView, Object parent);
+    View getDropDownView(int position, View convertView, ViewGroup parent);
 }

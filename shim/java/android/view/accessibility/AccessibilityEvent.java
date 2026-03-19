@@ -128,6 +128,10 @@ public class AccessibilityEvent extends AccessibilityRecord {
     public int getScrollDeltaX() { return mScrollDeltaX; }
     public int getScrollDeltaY() { return mScrollDeltaY; }
 
+    public void appendRecord(AccessibilityRecord record) {
+        // stub: AOSP AdapterView calls this
+    }
+
     @Override
     public String toString() {
         return "AccessibilityEvent{type=0x" + Integer.toHexString(mEventType)

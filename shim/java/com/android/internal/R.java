@@ -373,6 +373,87 @@ public final class R {
         public static final int TextAppearance_shadowRadius = 273;
         public static final int TextAppearance_textAllCaps = 274;
 
+        // AbsSpinner
+        public static final int[] AbsSpinner = {};
+        public static final int AbsSpinner_entries = 600;
+
+        // Spinner
+        public static final int[] Spinner = {};
+        public static final int Spinner_dropDownWidth = 601;
+        public static final int Spinner_popupBackground = 602;
+        public static final int Spinner_prompt = 603;
+        public static final int Spinner_gravity = 604;
+        public static final int Spinner_disableChildrenWhenDisabled = 605;
+        public static final int Spinner_popupPromptView = 606;
+        public static final int Spinner_popupTheme = 650;
+        public static final int Spinner_spinnerMode = 651;
+        public static final int Spinner_dropDownSelector = 652;
+
+        // TableLayout
+        public static final int[] TableLayout = {};
+        public static final int TableLayout_stretchColumns = 607;
+        public static final int TableLayout_shrinkColumns = 608;
+        public static final int TableLayout_collapseColumns = 609;
+
+        // TableRow
+        public static final int[] TableRow = {};
+        public static final int[] TableRow_Cell = {};
+        public static final int TableRow_Cell_layout_column = 610;
+        public static final int TableRow_Cell_layout_span = 611;
+
+        // CheckedTextView
+        public static final int[] CheckedTextView = {};
+        public static final int CheckedTextView_checked = 612;
+        public static final int CheckedTextView_checkMark = 613;
+        public static final int CheckedTextView_checkMarkTint = 614;
+        public static final int CheckedTextView_checkMarkTintMode = 615;
+        public static final int CheckedTextView_checkMarkGravity = 616;
+
+        // ViewStub
+        public static final int[] ViewStub = {};
+        public static final int ViewStub_id = 616;
+        public static final int ViewStub_inflatedId = 617;
+        public static final int ViewStub_layout = 618;
+
+        // AutoCompleteTextView
+        public static final int[] AutoCompleteTextView = {};
+        public static final int AutoCompleteTextView_completionHint = 619;
+        public static final int AutoCompleteTextView_completionHintView = 620;
+        public static final int AutoCompleteTextView_completionThreshold = 621;
+        public static final int AutoCompleteTextView_dropDownSelector = 622;
+        public static final int AutoCompleteTextView_dropDownAnchor = 623;
+        public static final int AutoCompleteTextView_dropDownWidth = 624;
+        public static final int AutoCompleteTextView_dropDownHeight = 625;
+        public static final int AutoCompleteTextView_inputType = 626;
+        public static final int AutoCompleteTextView_popupTheme = 627;
+
+        // GridLayout
+        public static final int[] GridLayout = {};
+        public static final int GridLayout_rowCount = 628;
+        public static final int GridLayout_columnCount = 629;
+        public static final int GridLayout_useDefaultMargins = 630;
+        public static final int GridLayout_alignmentMode = 631;
+        public static final int GridLayout_rowOrderPreserved = 632;
+        public static final int GridLayout_columnOrderPreserved = 633;
+        public static final int GridLayout_orientation = 634;
+        public static final int[] GridLayout_Layout = {};
+        public static final int GridLayout_Layout_layout_column = 700;
+        public static final int GridLayout_Layout_layout_columnSpan = 701;
+        public static final int GridLayout_Layout_layout_columnWeight = 702;
+        public static final int GridLayout_Layout_layout_row = 703;
+        public static final int GridLayout_Layout_layout_rowSpan = 704;
+        public static final int GridLayout_Layout_layout_rowWeight = 705;
+        public static final int GridLayout_Layout_layout_gravity = 706;
+
+        // GridView
+        public static final int[] GridView = {};
+        public static final int GridView_horizontalSpacing = 635;
+        public static final int GridView_verticalSpacing = 636;
+        public static final int GridView_columnWidth = 637;
+        public static final int GridView_numColumns = 638;
+        public static final int GridView_stretchMode = 639;
+        public static final int GridView_gravity = 640;
+
         // Theme
         public static final int[] Theme = {};
     }
@@ -398,6 +479,14 @@ public final class R {
         public static final int seekBarStyle = 291;
         public static final int progressBarStyle = 292;
         public static final int autofilledHighlight = 293;
+        public static final int state_checked = 294;
+        public static final int checkedTextViewStyle = 295;
+        public static final int spinnerStyle = 296;
+        public static final int dropDownSpinnerStyle = 297;
+        public static final int absListViewStyle = 298;
+        public static final int gridViewStyle = 299;
+        public static final int gridLayoutStyle = 301;
+        public static final int tableLayoutStyle = 302;
         public static final int listPreferredItemHeight = 294;
         public static final int selectableItemBackground = 295;
         // RelativeLayout attrs
@@ -461,16 +550,22 @@ public final class R {
         public static final int textAssist = 312;
         public static final int accessibilityActionPageUp = 313;
         public static final int accessibilityActionPageDown = 314;
+        public static final int accessibilityActionScrollToPosition = 315;
     }
 
     public static final class layout {
         public static final int simple_list_item_1 = 293;
         public static final int simple_list_item_2 = 294;
+        public static final int simple_spinner_item = 295;
+        public static final int simple_spinner_dropdown_item = 296;
+        public static final int typing_filter = 297;
+        public static final int simple_dropdown_hint = 298;
     }
 
     public static final class dimen {
         public static final int config_scrollbarSize = 295;
         public static final int config_viewConfigurationTouchSlop = 296;
+        public static final int default_gap = 297;
     }
 
     public static final class string {
@@ -494,9 +589,15 @@ public final class R {
         public static final int scrollbar_handle_horizontal = 304;
         public static final int scroll_indicator_material = 305;
         public static final int indicator_input_error = 306;
+        public static final int list_selector_background = 307;
     }
 
     public static final class color {
+    }
+
+    public static final class style {
+        public static final int Animation_TypingFilter = 700;
+        public static final int Animation_TypingFilterRestore = 701;
     }
 
     public static final class bool {

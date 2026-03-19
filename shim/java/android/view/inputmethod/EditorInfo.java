@@ -31,6 +31,8 @@ public class EditorInfo {
     public static final int TYPE_NUMBER_FLAG_SIGNED = InputType.TYPE_NUMBER_FLAG_SIGNED;
     public static final int TYPE_NUMBER_FLAG_DECIMAL = InputType.TYPE_NUMBER_FLAG_DECIMAL;
     public static final int TYPE_NUMBER_VARIATION_PASSWORD = InputType.TYPE_NUMBER_VARIATION_PASSWORD;
+    public static final int TYPE_TEXT_VARIATION_FILTER = InputType.TYPE_TEXT_VARIATION_FILTER;
+    public static final int TYPE_TEXT_FLAG_AUTO_COMPLETE = InputType.TYPE_TEXT_FLAG_AUTO_COMPLETE;
     public static final int TYPE_DATETIME_VARIATION_DATE = InputType.TYPE_DATETIME_VARIATION_DATE;
     public static final int TYPE_DATETIME_VARIATION_TIME = InputType.TYPE_DATETIME_VARIATION_TIME;
 

@@ -39,4 +39,6 @@ public interface Adapter {
     int getViewTypeCount();
 
     boolean isEmpty();
+
+    default CharSequence[] getAutofillOptions() { return null; }
 }

@@ -20,4 +20,11 @@ public class GridLayoutAnimationController {
     public void setDirection(Object p0) {}
     public void setDirectionPriority(Object p0) {}
     public void setRowDelay(Object p0) {}
+
+    public static class AnimationParameters extends LayoutAnimationController.AnimationParameters {
+        public int column;
+        public int row;
+        public int columnsCount;
+        public int rowsCount;
+    }
 }
