@@ -24,11 +24,9 @@ public class ActionMenuView extends LinearLayout {
     }
 
     /**
-     * Returns the Menu associated with this view. In this shim the returned
-     * object is always {@code null}; cast to {@code android.view.Menu} in
-     * production code guarded by a null-check.
+     * Returns the Menu associated with this view.
      */
-    public Object getMenu() {
+    public android.view.Menu getMenu() {
         return null;
     }
 
@@ -36,15 +34,17 @@ public class ActionMenuView extends LinearLayout {
      * Hides all items not currently showing and shows the overflow menu if
      * there are items to display.
      */
-    public void showOverflowMenu() {
+    public boolean showOverflowMenu() {
         // no-op stub
+        return false;
     }
 
     /**
      * Hides the overflow menu if it is currently showing.
      */
-    public void hideOverflowMenu() {
+    public boolean hideOverflowMenu() {
         // no-op stub
+        return false;
     }
 
     /**
@@ -53,6 +53,17 @@ public class ActionMenuView extends LinearLayout {
     public boolean isOverflowMenuShowing() {
         return false;
     }
+
+    public boolean isOverflowMenuShowPending() { return false; }
+    public boolean isOverflowReserved() { return false; }
+    public void dismissPopupMenus() {}
+    public void setExpandedActionViewsExclusive(boolean exclusive) {}
+    public void setPopupTheme(int resId) {}
+    public com.android.internal.view.menu.MenuBuilder peekMenu() { return null; }
+    public android.graphics.drawable.Drawable getOverflowIcon() { return null; }
+    public void setOverflowIcon(android.graphics.drawable.Drawable icon) {}
+    public void setMenuCallbacks(com.android.internal.view.menu.MenuPresenter.Callback pcb,
+                                  com.android.internal.view.menu.MenuBuilder.Callback mcb) {}
 
     /**
      * Registers a callback for menu-item click events.

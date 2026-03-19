@@ -58,6 +58,44 @@ public class SearchableInfo {
         return false;
     }
 
+    /** Returns the IME options for the search field. */
+    public int getImeOptions() { return 0; }
+
+    /** Returns the input type for the search field. */
+    public int getInputType() { return 0; }
+
+    /** Returns the ComponentName of the searchable activity. */
+    public android.content.ComponentName getSearchActivity() { return null; }
+
+    /** Returns the intent action to use for suggestions. */
+    public String getSuggestIntentAction() { return null; }
+
+    /** Returns the intent data to use for suggestions. */
+    public String getSuggestIntentData() { return null; }
+
+    /** Returns the voice language ID. */
+    public int getVoiceLanguageId() { return 0; }
+
+    /** Returns the voice language mode ID. */
+    public int getVoiceLanguageModeId() { return 0; }
+
+    /** Returns the max number of voice results. */
+    public int getVoiceMaxResults() { return 1; }
+
+    /** Returns the voice prompt text ID. */
+    public int getVoicePromptTextId() { return 0; }
+
+    /** Returns an action key info for the given keycode. */
+    public ActionKeyInfo findActionKey(int keyCode) { return null; }
+
+    /** Inner class for action key metadata. */
+    public static class ActionKeyInfo {
+        public int getKeyCode() { return 0; }
+        public String getQueryActionMsg() { return null; }
+        public String getSuggestActionMsg() { return null; }
+        public String getSuggestActionMsgColumn() { return null; }
+    }
+
     @Override
     public String toString() {
         return "SearchableInfo{authority=" + getSuggestAuthority() + "}";

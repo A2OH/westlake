@@ -9,7 +9,7 @@ import android.animation.TimeInterpolator;
  * end, like a ball dropped on the floor. Implements the standard Android
  * piecewise bounce formula.
  */
-public class BounceInterpolator implements TimeInterpolator {
+public class BounceInterpolator implements Interpolator {
 
     public BounceInterpolator() {}
 

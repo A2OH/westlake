@@ -456,6 +456,183 @@ public final class R {
 
         // Theme
         public static final int[] Theme = {};
+        public static final int Theme_disabledAlpha = 900;
+
+        // ProgressBar
+        public static final int[] ProgressBar = {};
+        public static final int ProgressBar_indeterminate = 1000;
+        public static final int ProgressBar_indeterminateBehavior = 1001;
+        public static final int ProgressBar_indeterminateDrawable = 1002;
+        public static final int ProgressBar_indeterminateDuration = 1003;
+        public static final int ProgressBar_indeterminateOnly = 1004;
+        public static final int ProgressBar_indeterminateTint = 1005;
+        public static final int ProgressBar_indeterminateTintMode = 1006;
+        public static final int ProgressBar_interpolator = 1007;
+        public static final int ProgressBar_max = 1008;
+        public static final int ProgressBar_maxHeight = 1009;
+        public static final int ProgressBar_maxWidth = 1010;
+        public static final int ProgressBar_min = 1011;
+        public static final int ProgressBar_minHeight = 1012;
+        public static final int ProgressBar_minWidth = 1013;
+        public static final int ProgressBar_mirrorForRtl = 1014;
+        public static final int ProgressBar_progress = 1015;
+        public static final int ProgressBar_progressBackgroundTint = 1016;
+        public static final int ProgressBar_progressBackgroundTintMode = 1017;
+        public static final int ProgressBar_progressDrawable = 1018;
+        public static final int ProgressBar_progressTint = 1019;
+        public static final int ProgressBar_progressTintMode = 1020;
+        public static final int ProgressBar_secondaryProgress = 1021;
+        public static final int ProgressBar_secondaryProgressTint = 1022;
+        public static final int ProgressBar_secondaryProgressTintMode = 1023;
+
+        // CompoundButton
+        public static final int[] CompoundButton = {};
+        public static final int CompoundButton_button = 1100;
+        public static final int CompoundButton_buttonTint = 1101;
+        public static final int CompoundButton_buttonTintMode = 1102;
+        public static final int CompoundButton_checked = 1103;
+
+        // Switch
+        public static final int[] Switch = {};
+        public static final int Switch_showText = 1200;
+        public static final int Switch_splitTrack = 1201;
+        public static final int Switch_switchMinWidth = 1202;
+        public static final int Switch_switchPadding = 1203;
+        public static final int Switch_switchTextAppearance = 1204;
+        public static final int Switch_textOff = 1205;
+        public static final int Switch_textOn = 1206;
+        public static final int Switch_thumb = 1207;
+        public static final int Switch_thumbTextPadding = 1208;
+        public static final int Switch_thumbTint = 1209;
+        public static final int Switch_thumbTintMode = 1210;
+        public static final int Switch_track = 1211;
+        public static final int Switch_trackTint = 1212;
+        public static final int Switch_trackTintMode = 1213;
+
+        // SeekBar / AbsSeekBar
+        public static final int[] SeekBar = {};
+        public static final int SeekBar_splitTrack = 1300;
+        public static final int SeekBar_thumb = 1301;
+        public static final int SeekBar_thumbOffset = 1302;
+        public static final int SeekBar_thumbTint = 1303;
+        public static final int SeekBar_thumbTintMode = 1304;
+        public static final int SeekBar_tickMark = 1305;
+        public static final int SeekBar_tickMarkTint = 1306;
+        public static final int SeekBar_tickMarkTintMode = 1307;
+        public static final int SeekBar_useDisabledAlpha = 1308;
+
+        // HorizontalScrollView
+        public static final int[] HorizontalScrollView = {};
+        public static final int HorizontalScrollView_fillViewport = 1400;
+
+        // AbsoluteLayout
+        public static final int[] AbsoluteLayout_Layout = {};
+        public static final int AbsoluteLayout_Layout_layout_x = 1500;
+        public static final int AbsoluteLayout_Layout_layout_y = 1501;
+
+        // ExpandableListView
+        public static final int[] ExpandableListView = {};
+        public static final int ExpandableListView_childDivider = 1600;
+        public static final int ExpandableListView_childIndicator = 1601;
+        public static final int ExpandableListView_childIndicatorEnd = 1602;
+        public static final int ExpandableListView_childIndicatorLeft = 1603;
+        public static final int ExpandableListView_childIndicatorRight = 1604;
+        public static final int ExpandableListView_childIndicatorStart = 1605;
+        public static final int ExpandableListView_groupIndicator = 1606;
+        public static final int ExpandableListView_indicatorEnd = 1607;
+        public static final int ExpandableListView_indicatorLeft = 1608;
+        public static final int ExpandableListView_indicatorRight = 1609;
+        public static final int ExpandableListView_indicatorStart = 1610;
+
+        // RadioGroup
+        public static final int[] RadioGroup = {};
+        public static final int RadioGroup_checkedButton = 1700;
+        public static final int RadioGroup_orientation = 1701;
+
+        // Chronometer
+        public static final int[] Chronometer = {};
+        public static final int Chronometer_format = 1800;
+        public static final int Chronometer_countDown = 1801;
+
+        // PopupWindow
+        public static final int[] PopupWindow = {};
+        public static final int PopupWindow_overlapAnchor = 1900;
+        public static final int PopupWindow_popupAnimationStyle = 1901;
+        public static final int PopupWindow_popupBackground = 1902;
+        public static final int PopupWindow_popupElevation = 1903;
+        public static final int PopupWindow_popupEnterTransition = 1904;
+        public static final int PopupWindow_popupExitTransition = 1905;
+
+        // SearchView
+        public static final int[] SearchView = {};
+        public static final int SearchView_closeIcon = 2000;
+        public static final int SearchView_commitIcon = 2001;
+        public static final int SearchView_defaultQueryHint = 2002;
+        public static final int SearchView_goIcon = 2003;
+        public static final int SearchView_iconifiedByDefault = 2004;
+        public static final int SearchView_imeOptions = 2005;
+        public static final int SearchView_inputType = 2006;
+        public static final int SearchView_layout = 2007;
+        public static final int SearchView_maxWidth = 2008;
+        public static final int SearchView_queryBackground = 2009;
+        public static final int SearchView_queryHint = 2010;
+        public static final int SearchView_searchHintIcon = 2011;
+        public static final int SearchView_searchIcon = 2012;
+        public static final int SearchView_submitBackground = 2013;
+        public static final int SearchView_suggestionRowLayout = 2014;
+        public static final int SearchView_voiceIcon = 2015;
+
+        // Toolbar
+        public static final int[] Toolbar = {};
+        public static final int Toolbar_buttonGravity = 2100;
+        public static final int Toolbar_collapseContentDescription = 2101;
+        public static final int Toolbar_collapseIcon = 2102;
+        public static final int Toolbar_contentInsetEnd = 2103;
+        public static final int Toolbar_contentInsetEndWithActions = 2104;
+        public static final int Toolbar_contentInsetLeft = 2105;
+        public static final int Toolbar_contentInsetRight = 2106;
+        public static final int Toolbar_contentInsetStart = 2107;
+        public static final int Toolbar_contentInsetStartWithNavigation = 2108;
+        public static final int Toolbar_gravity = 2109;
+        public static final int Toolbar_logo = 2110;
+        public static final int Toolbar_logoDescription = 2111;
+        public static final int Toolbar_maxButtonHeight = 2112;
+        public static final int Toolbar_navigationButtonStyle = 2113;
+        public static final int Toolbar_navigationContentDescription = 2114;
+        public static final int Toolbar_navigationIcon = 2115;
+        public static final int Toolbar_popupTheme = 2116;
+        public static final int Toolbar_subtitle = 2117;
+        public static final int Toolbar_subtitleTextAppearance = 2118;
+        public static final int Toolbar_subtitleTextColor = 2119;
+        public static final int Toolbar_title = 2120;
+        public static final int Toolbar_titleMargin = 2121;
+        public static final int Toolbar_titleMarginBottom = 2122;
+        public static final int Toolbar_titleMarginEnd = 2123;
+        public static final int Toolbar_titleMarginStart = 2124;
+        public static final int Toolbar_titleMarginTop = 2125;
+        public static final int Toolbar_titleTextAppearance = 2126;
+        public static final int Toolbar_titleTextColor = 2127;
+
+        // NumberPicker
+        public static final int[] NumberPicker = {};
+        public static final int NumberPicker_hideWheelUntilFocused = 2200;
+        public static final int NumberPicker_internalLayout = 2201;
+        public static final int NumberPicker_internalMaxHeight = 2202;
+        public static final int NumberPicker_internalMaxWidth = 2203;
+        public static final int NumberPicker_internalMinHeight = 2204;
+        public static final int NumberPicker_internalMinWidth = 2205;
+        public static final int NumberPicker_selectionDivider = 2206;
+        public static final int NumberPicker_selectionDividerHeight = 2207;
+        public static final int NumberPicker_selectionDividersDistance = 2208;
+        public static final int NumberPicker_solidColor = 2209;
+        public static final int NumberPicker_virtualButtonPressedDrawable = 2210;
+
+        // EdgeEffect
+        public static final int[] EdgeEffect = {};
+        public static final int EdgeEffect_colorEdgeEffect = 2300;
+
+        // Toolbar_Layout (for Toolbar.LayoutParams)
+        public static final int[] Toolbar_LayoutParams = {};
     }
 
     public static final class attr {
@@ -513,6 +690,14 @@ public final class R {
         public static final int layout_toLeftOf = 420;
         public static final int layout_toRightOf = 421;
         public static final int layout_toStartOf = 422;
+        public static final int expandableListViewStyle = 423;
+        public static final int horizontalScrollViewStyle = 424;
+        public static final int numberPickerStyle = 425;
+        public static final int popupWindowStyle = 426;
+        public static final int searchViewStyle = 427;
+        public static final int toolbarStyle = 428;
+        public static final int state_empty = 429;
+        public static final int state_last = 430;
     }
 
     public static final class id {
@@ -551,6 +736,22 @@ public final class R {
         public static final int accessibilityActionPageUp = 313;
         public static final int accessibilityActionPageDown = 314;
         public static final int accessibilityActionScrollToPosition = 315;
+        public static final int progress = 316;
+        public static final int secondaryProgress = 317;
+        public static final int background = 318;
+        public static final int increment = 319;
+        public static final int decrement = 320;
+        public static final int numberpicker_input = 321;
+        public static final int search_button = 322;
+        public static final int search_close_btn = 323;
+        public static final int search_edit_frame = 324;
+        public static final int search_go_btn = 325;
+        public static final int search_mag_icon = 326;
+        public static final int search_plate = 327;
+        public static final int search_src_text = 328;
+        public static final int search_voice_btn = 329;
+        public static final int submit_area = 330;
+        public static final int accessibilityActionSetProgress = 331;
     }
 
     public static final class layout {
@@ -560,12 +761,20 @@ public final class R {
         public static final int simple_spinner_dropdown_item = 296;
         public static final int typing_filter = 297;
         public static final int simple_dropdown_hint = 298;
+        public static final int number_picker = 350;
+        public static final int search_view = 351;
+        public static final int search_dropdown_item_icons_2line = 352;
     }
 
     public static final class dimen {
         public static final int config_scrollbarSize = 295;
         public static final int config_viewConfigurationTouchSlop = 296;
         public static final int default_gap = 297;
+        public static final int dropdownitem_icon_width = 350;
+        public static final int dropdownitem_text_padding_left = 351;
+        public static final int search_view_preferred_height = 352;
+        public static final int search_view_preferred_width = 353;
+        public static final int seekbar_thumb_exclusion_max_size = 354;
     }
 
     public static final class string {
@@ -582,6 +791,12 @@ public final class R {
         public static final int textAssist = 307;
         public static final int failed_to_copy_to_clipboard = 308;
         public static final int keyboardview_keycode_enter = 309;
+        public static final int capital_on = 350;
+        public static final int capital_off = 351;
+        public static final int checked = 352;
+        public static final int not_checked = 353;
+        public static final int negative_duration = 354;
+        public static final int popup_window_default_title = 355;
     }
 
     public static final class drawable {
@@ -598,6 +813,9 @@ public final class R {
     public static final class style {
         public static final int Animation_TypingFilter = 700;
         public static final int Animation_TypingFilterRestore = 701;
+        public static final int Animation_DropDownDown = 702;
+        public static final int Animation_DropDownUp = 703;
+        public static final int Animation_PopupWindow = 704;
     }
 
     public static final class bool {
@@ -608,5 +826,12 @@ public final class R {
     }
 
     public static final class array {
+    }
+
+    public static final class transition {
+    }
+
+    public static final class anim {
+        public static final int linear_interpolator = 800;
     }
 }

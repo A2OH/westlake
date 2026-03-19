@@ -84,24 +84,24 @@ const EXTERNAL_DOCS: Record<string, { repo: string; enPath: string; zhPath: stri
     zhPath: '03-AI-AGENT-PLAYBOOK-CN.md',
   },
   'engine/architecture': {
-    repo: 'A2OH/harmony-android-guide',
-    enPath: '02-ANDROID-AS-ENGINE.md',
-    zhPath: '02-ANDROID-AS-ENGINE-CN.md',
+    repo: 'A2OH/westlake',
+    enPath: 'docs/engine/ARCHITECTURE.md',
+    zhPath: 'docs/engine/ARCHITECTURE_CN.md',
   },
   'engine/execution-plan': {
-    repo: 'A2OH/harmony-android-guide',
-    enPath: '03-ENGINE-EXECUTION-PLAN.md',
-    zhPath: '03-ENGINE-EXECUTION-PLAN.md',
+    repo: 'A2OH/westlake',
+    enPath: 'docs/engine/EXECUTION-PLAN.md',
+    zhPath: 'docs/engine/EXECUTION-PLAN.md',
   },
   'engine/real-apk-status': {
-    repo: 'A2OH/harmony-android-guide',
-    enPath: 'docs/REAL-APK-STATUS.md',
-    zhPath: 'docs/REAL-APK-STATUS.md',
+    repo: 'A2OH/westlake',
+    enPath: 'docs/engine/REAL-APK-STATUS.md',
+    zhPath: 'docs/engine/REAL-APK-STATUS.md',
   },
   'engine/mockdonalds-plan': {
-    repo: 'A2OH/harmony-android-guide',
-    enPath: 'docs/MOCKDONALDS-PLAN.md',
-    zhPath: 'docs/MOCKDONALDS-PLAN.md',
+    repo: 'A2OH/westlake',
+    enPath: 'docs/engine/MOCKDONALDS-PLAN.md',
+    zhPath: 'docs/engine/MOCKDONALDS-PLAN.md',
   },
 };
 

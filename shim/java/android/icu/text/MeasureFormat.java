@@ -3,6 +3,13 @@ package android.icu.text;
 public class MeasureFormat {
     public MeasureFormat() {}
 
+    public enum FormatWidth {
+        WIDE,
+        SHORT,
+        NARROW,
+        NUMERIC;
+    }
+
     public boolean equals(Object p0) { return false; }
     public Object format(Object p0, Object p1, Object p2) { return null; }
     public Object formatMeasurePerUnit(Object p0, Object p1, Object p2, Object p3) { return null; }

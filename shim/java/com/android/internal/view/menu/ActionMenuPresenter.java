@@ -1,0 +1,21 @@
+package com.android.internal.view.menu;
+
+import android.content.Context;
+import android.view.ViewGroup;
+
+/** Stub for AOSP ActionMenuPresenter. */
+public class ActionMenuPresenter implements MenuPresenter {
+    public ActionMenuPresenter() {}
+    public ActionMenuPresenter(Context context) {}
+
+    public void initForMenu(Context context, MenuBuilder menu) {}
+    public MenuView getMenuView(ViewGroup root) { return null; }
+    public void updateMenuView(boolean cleared) {}
+    public void setCallback(MenuPresenter.Callback cb) {}
+    public boolean onSubMenuSelected(SubMenuBuilder subMenu) { return false; }
+    public void onCloseMenu(MenuBuilder menu, boolean allMenusAreClosing) {}
+    public boolean flagActionItems() { return false; }
+    public boolean expandItemActionView(MenuBuilder menu, MenuItemImpl item) { return false; }
+    public boolean collapseItemActionView(MenuBuilder menu, MenuItemImpl item) { return false; }
+    public int getId() { return 0; }
+}

@@ -9,7 +9,7 @@ import android.animation.TimeInterpolator;
  * end value, then returns. Higher tension means a larger overshoot.
  * Formula (Hermite overshoot): t * t * ((tension + 1) * t - tension).
  */
-public class OvershootInterpolator implements TimeInterpolator {
+public class OvershootInterpolator implements Interpolator {
 
     private static final float DEFAULT_TENSION = 2.0f;
 

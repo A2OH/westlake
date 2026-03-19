@@ -129,4 +129,30 @@ public class ActionBar {
     public interface OnNavigationListener {
         boolean onNavigationItemSelected(int itemPosition, long itemId);
     }
+
+    // -------------------------------------------------------------------------
+    // Inner: LayoutParams
+    // -------------------------------------------------------------------------
+
+    public static class LayoutParams extends android.view.ViewGroup.MarginLayoutParams {
+        public int gravity = -1;
+
+        public LayoutParams(android.content.Context c, android.util.AttributeSet attrs) {
+            super(c, attrs);
+        }
+        public LayoutParams(int width, int height) {
+            super(width, height);
+        }
+        public LayoutParams(int width, int height, int gravity) {
+            super(width, height);
+            this.gravity = gravity;
+        }
+        public LayoutParams(LayoutParams source) {
+            super(source);
+            this.gravity = source.gravity;
+        }
+        public LayoutParams(android.view.ViewGroup.LayoutParams source) {
+            super(source);
+        }
+    }
 }

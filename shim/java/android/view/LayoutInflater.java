@@ -316,4 +316,9 @@ public class LayoutInflater {
     public void setFactory(Object factory) {}
     public void setFactory2(Object factory) {}
     public void setFilter(Filter filter) {}
+
+    /** Inner Filter interface for allowed class filtering during inflation. */
+    public interface Filter {
+        boolean onLoadClass(Class clazz);
+    }
 }

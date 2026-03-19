@@ -232,7 +232,7 @@ public class Context {
         return new android.content.res.TypedArray();
     }
 
-    public android.graphics.drawable.Drawable getDrawable(int id) { return null; }
+    public android.graphics.drawable.Drawable getDrawable(int id) { return new android.graphics.drawable.ColorDrawable(0); }
     public android.content.res.Resources.Theme getTheme() { return new android.content.res.Resources.Theme(); }
     public boolean isAutofillCompatibilityEnabled() { return false; }
     public AutofillOptions getAutofillOptions() { return null; }

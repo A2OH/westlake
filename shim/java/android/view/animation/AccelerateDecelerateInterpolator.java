@@ -9,7 +9,7 @@ import android.animation.TimeInterpolator;
  * starts and ends slowly, accelerating through the middle. Uses a cosine
  * sigmoid: (cos(π + input * π) / 2.0) + 0.5.
  */
-public class AccelerateDecelerateInterpolator implements TimeInterpolator {
+public class AccelerateDecelerateInterpolator implements Interpolator {
 
     public AccelerateDecelerateInterpolator() {}
 

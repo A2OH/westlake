@@ -109,6 +109,9 @@ public class Animation {
     public void setListenerHandler(android.os.Handler handler) {}
     public void detach() {}
 
+    public void setInterpolator(Interpolator interpolator) {}
+    public Interpolator getInterpolator() { return null; }
+
     // ── AnimationListener interface ──
 
     public interface AnimationListener {

@@ -51,4 +51,8 @@ public class TransitionManager {
     public static TransitionManager getInstance() {
         return sInstance;
     }
+
+    public static void endTransitions(ViewGroup sceneRoot) {
+        // no-op stub
+    }
 }

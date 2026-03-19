@@ -8,7 +8,7 @@ import android.animation.TimeInterpolator;
  * Android-compatible DecelerateInterpolator shim. The rate of change starts
  * quickly and then decelerates. Formula: 1 - (1 - t)^(2 * factor).
  */
-public class DecelerateInterpolator implements TimeInterpolator {
+public class DecelerateInterpolator implements Interpolator {
 
     private final float mFactor;
 

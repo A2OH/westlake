@@ -1,5 +1,7 @@
 package android.view.animation;
 
-public interface Interpolator {
+import android.animation.TimeInterpolator;
+
+public interface Interpolator extends TimeInterpolator {
 
 }
