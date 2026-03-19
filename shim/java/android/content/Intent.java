@@ -806,4 +806,26 @@ public class Intent implements Cloneable, Parcelable {
         if (type == null) return null;
         return type.trim().toLowerCase(java.util.Locale.US);
     }
+
+    /**
+     * Stub for Intent.FilterComparison - compares Intents by filter data.
+     */
+    public static final class FilterComparison {
+        private final Intent mIntent;
+        public FilterComparison(Intent intent) {
+            mIntent = intent;
+        }
+        public Intent getIntent() { return mIntent; }
+        @Override
+        public int hashCode() { return mIntent == null ? 0 : mIntent.filterHashCode(); }
+        @Override
+        public boolean equals(Object obj) {
+            if (obj instanceof FilterComparison) {
+                Intent other = ((FilterComparison)obj).mIntent;
+                return mIntent == other || (mIntent != null && mIntent.filterEquals(other));
+            }
+            return false;
+        }
+    }
+
 }

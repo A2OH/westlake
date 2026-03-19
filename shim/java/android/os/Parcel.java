@@ -120,4 +120,83 @@ public class Parcel {
 
     public boolean readBoolean() { return readInt() != 0; }
     public void writeBoolean(boolean val) { writeInt(val ? 1 : 0); }
+
+    public byte readByte() {
+        try { return mDis.readByte(); } catch (Exception e) { return 0; }
+    }
+
+    public void writeByte(byte val) {
+        try { mDos.writeByte(val); } catch (IOException e) {}
+    }
+
+    public Object readValue(ClassLoader loader) {
+        int type = readInt();
+        switch (type) {
+            case 0: return null;
+            case 1: return readInt();
+            case 2: return readLong();
+            case 3: return readFloat();
+            case 4: return readDouble();
+            case 5: return readString();
+            case 6: return readBoolean();
+            default: return null;
+        }
+    }
+
+    public void writeValue(Object v) {
+        if (v == null) { writeInt(0); return; }
+        if (v instanceof Integer) { writeInt(1); writeInt((Integer) v); }
+        else if (v instanceof Long) { writeInt(2); writeLong((Long) v); }
+        else if (v instanceof Float) { writeInt(3); writeFloat((Float) v); }
+        else if (v instanceof Double) { writeInt(4); writeDouble((Double) v); }
+        else if (v instanceof String) { writeInt(5); writeString((String) v); }
+        else if (v instanceof Boolean) { writeInt(6); writeBoolean((Boolean) v); }
+        else { writeInt(0); }
+    }
+
+    public int dataPosition() { return mDataPos; }
+    public int dataAvail() { return dataSize() - mDataPos; }
+    public int dataCapacity() { return dataSize(); }
+
+    public void writeParcelable(Parcelable p, int flags) {
+        if (p == null) { writeString(null); return; }
+        writeString(p.getClass().getName());
+        p.writeToParcel(this, flags);
+    }
+
+    @SuppressWarnings("unchecked")
+    public <T extends Parcelable> T readParcelable(ClassLoader loader) {
+        return null; // stub
+    }
+
+    public void writeBundle(Bundle val) {
+        if (val == null) { writeInt(-1); return; }
+        writeInt(0); // stub
+    }
+
+    public Bundle readBundle() { return new Bundle(); }
+    public Bundle readBundle(ClassLoader loader) { return new Bundle(); }
+
+    public android.util.SparseBooleanArray readSparseBooleanArray() {
+        return new android.util.SparseBooleanArray();
+    }
+
+    public void writeSparseBooleanArray(android.util.SparseBooleanArray val) {
+        // stub
+    }
+
+    public android.util.SparseArray readSparseArray(ClassLoader loader) {
+        return new android.util.SparseArray();
+    }
+
+    @SuppressWarnings("unchecked")
+    public <T extends Parcelable> T readTypedObject(Parcelable.Creator<T> c) {
+        return null;
+    }
+
+    public void writeTypedObject(Parcelable val, int flags) {
+        if (val == null) { writeInt(0); return; }
+        writeInt(1);
+        val.writeToParcel(this, flags);
+    }
 }

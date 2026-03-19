@@ -31,7 +31,7 @@ public class Gallery extends AdapterView {
     public static final int SPACING_NORMAL   = 0;
     public static final int SPACING_GALLERY  = 1;
 
-    private ListAdapter adapter;
+    private Adapter adapter;
     private int selectedPosition = 0;
     private int spacing = 0;
     private float unselectedAlpha = 0.5f;
@@ -49,12 +49,12 @@ public class Gallery extends AdapterView {
 
     // ── Adapter ──
 
-    public void setAdapter(ListAdapter adapter) {
+    public void setAdapter(Adapter adapter) {
         this.adapter = adapter;
         this.selectedPosition = 0;
     }
 
-    public ListAdapter getAdapter() {
+    public Adapter getAdapter() {
         return adapter;
     }
 
@@ -123,4 +123,6 @@ public class Gallery extends AdapterView {
     public void scrollBy(int amount) {
         // no-op stub
     }
+
+    public View getSelectedView() { return null; }
 }

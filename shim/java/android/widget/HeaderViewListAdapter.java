@@ -25,36 +25,21 @@ public class HeaderViewListAdapter implements WrapperListAdapter {
      * top (header) or bottom (footer) of the list, with an optional data object
      * and an isSelectable flag.
      */
-    public static class FixedViewInfo {
-        public View   view;
-        public Object data;
-        public boolean isSelectable;
-
-        public FixedViewInfo(View view, Object data, boolean isSelectable) {
-            this.view         = view;
-            this.data         = data;
-            this.isSelectable = isSelectable;
-        }
-    }
-
+    // Use ListView.FixedViewInfo as the canonical type
     // ── State ────────────────────────────────────────────────────────────────
 
-    private final List<FixedViewInfo> mHeaderViewInfos;
-    private final List<FixedViewInfo> mFooterViewInfos;
+    private final ArrayList<ListView.FixedViewInfo> mHeaderViewInfos;
+    private final ArrayList<ListView.FixedViewInfo> mFooterViewInfos;
     private final ListAdapter         mAdapter;
 
     /** Sentinel empty list used when callers pass null. */
-    private static final List<FixedViewInfo> EMPTY = new ArrayList<>(0);
+    private static final ArrayList<ListView.FixedViewInfo> EMPTY = new ArrayList<>(0);
 
     // ── Constructor ──────────────────────────────────────────────────────────
 
-    /**
-     * @param headerViewInfos  header row descriptors (may be null)
-     * @param footerViewInfos  footer row descriptors (may be null)
-     * @param adapter          the core data adapter (may be null)
-     */
-    public HeaderViewListAdapter(List<FixedViewInfo> headerViewInfos,
-                                 List<FixedViewInfo> footerViewInfos,
+    @SuppressWarnings("unchecked")
+    public HeaderViewListAdapter(ArrayList<ListView.FixedViewInfo> headerViewInfos,
+                                 ArrayList<ListView.FixedViewInfo> footerViewInfos,
                                  ListAdapter adapter) {
         this.mHeaderViewInfos = (headerViewInfos != null) ? headerViewInfos : EMPTY;
         this.mFooterViewInfos = (footerViewInfos != null) ? footerViewInfos : EMPTY;
@@ -159,8 +144,8 @@ public class HeaderViewListAdapter implements WrapperListAdapter {
     public boolean areAllItemsEnabled() {
         // Headers/footers may be non-selectable; delegate the rest to the adapter.
         if (mAdapter != null && !mAdapter.areAllItemsEnabled()) return false;
-        for (FixedViewInfo fi : mHeaderViewInfos) { if (!fi.isSelectable) return false; }
-        for (FixedViewInfo fi : mFooterViewInfos) { if (!fi.isSelectable) return false; }
+        for (ListView.FixedViewInfo fi : mHeaderViewInfos) { if (!fi.isSelectable) return false; }
+        for (ListView.FixedViewInfo fi : mFooterViewInfos) { if (!fi.isSelectable) return false; }
         return true;
     }
 
@@ -180,5 +165,46 @@ public class HeaderViewListAdapter implements WrapperListAdapter {
             return mFooterViewInfos.get(footerIndex).isSelectable;
         }
         return false;
+    }
+
+    @Override
+    public boolean hasStableIds() {
+        return mAdapter != null && mAdapter.hasStableIds();
+    }
+
+    @Override
+    public void registerDataSetObserver(android.database.DataSetObserver observer) {
+        if (mAdapter != null) mAdapter.registerDataSetObserver(observer);
+    }
+
+    @Override
+    public void unregisterDataSetObserver(android.database.DataSetObserver observer) {
+        if (mAdapter != null) mAdapter.unregisterDataSetObserver(observer);
+    }
+
+    public boolean removeHeader(View v) {
+        for (int i = 0; i < mHeaderViewInfos.size(); i++) {
+            ListView.FixedViewInfo info = mHeaderViewInfos.get(i);
+            if (info.view == v) {
+                mHeaderViewInfos.remove(i);
+                return true;
+            }
+        }
+        return false;
+    }
+
+    public boolean removeFooter(View v) {
+        for (int i = 0; i < mFooterViewInfos.size(); i++) {
+            ListView.FixedViewInfo info = mFooterViewInfos.get(i);
+            if (info.view == v) {
+                mFooterViewInfos.remove(i);
+                return true;
+            }
+        }
+        return false;
+    }
+
+    public Filter getFilter() {
+        return null;
     }
 }

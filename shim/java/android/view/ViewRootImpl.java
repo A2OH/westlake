@@ -23,6 +23,7 @@ public class ViewRootImpl implements ViewParent {
     public static boolean isViewDescendantOf(View child, View parent) { return false; }
     public WindowInsetsController getInsetsController() { return null; }
     public View getAccessibilityFocusedHost() { return null; }
+    public android.view.accessibility.AccessibilityNodeInfo getAccessibilityFocusedVirtualView() { return null; }
     public void requestTransitionStart(Transition transition) {}
     public void requestTransitionStart(android.animation.LayoutTransition transition) {}
 

@@ -80,4 +80,13 @@ public class RemoteViews {
     public Object apply(Object context, Object parent) {
         return null;
     }
+
+    /**
+     * Stub for RemoteViews.OnClickHandler.
+     */
+    public static class OnClickHandler {
+        public boolean onClickHandler(View view, PendingIntent pendingIntent, android.content.Intent fillInIntent) {
+            return true;
+        }
+    }
 }

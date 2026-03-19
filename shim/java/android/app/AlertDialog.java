@@ -24,7 +24,7 @@ public class AlertDialog {
     public boolean isCancelable() { return mCancelable; }
 
     public Object getButton(Object p0) { return null; }
-    public Object getListView() { return null; }
+    public android.widget.ListView getListView() { return null; }
     public void setButton(Object p0, Object p1, Object p2) {}
     public void setCustomTitle(Object p0) {}
     public void setIcon(Object p0) {}
@@ -33,9 +33,12 @@ public class AlertDialog {
     public void setMessage(Object p0) { if (p0 instanceof CharSequence) mMessage = (CharSequence) p0; }
     public void setView(Object p0) {}
     public void setView(Object p0, Object p1, Object p2, Object p3, Object p4) {}
+    public boolean isShowing() { return false; }
     public void show() {}
     public void dismiss() {}
     public void cancel() {}
+    public void setOnDismissListener(DialogInterface.OnDismissListener listener) {}
+    public android.view.Window getWindow() { return null; }
 
     public static class Builder {
         private Context mContext;
@@ -70,6 +73,7 @@ public class AlertDialog {
         }
         public Builder setItems(CharSequence[] items, DialogInterface.OnClickListener listener) { return this; }
         public Builder setSingleChoiceItems(CharSequence[] items, int checkedItem, DialogInterface.OnClickListener listener) { return this; }
+        public Builder setSingleChoiceItems(android.widget.ListAdapter adapter, int checkedItem, DialogInterface.OnClickListener listener) { return this; }
         public Builder setMultiChoiceItems(CharSequence[] items, boolean[] checkedItems, DialogInterface.OnMultiChoiceClickListener listener) { return this; }
 
         public AlertDialog create() {

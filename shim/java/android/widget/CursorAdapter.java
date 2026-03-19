@@ -16,7 +16,7 @@ public class CursorAdapter extends BaseAdapter implements Filterable, ThemedSpin
     public CharSequence convertToString(Cursor p0) { return null; }
     public int getCount() { return 0; }
     public Cursor getCursor() { return null; }
-    public Object getDropDownViewTheme() { return null; }
+    public android.content.res.Resources.Theme getDropDownViewTheme() { return null; }
     public Filter getFilter() { return null; }
     public FilterQueryProvider getFilterQueryProvider() { return null; }
     public Object getItem(int p0) { return null; }
@@ -25,7 +25,7 @@ public class CursorAdapter extends BaseAdapter implements Filterable, ThemedSpin
     public View newDropDownView(Context p0, Cursor p1, ViewGroup p2) { return null; }
     public View newView(Context p0, Cursor p1, ViewGroup p2) { return null; }
     public void onContentChanged() {}
-    public void setDropDownViewTheme(Object p0) {}
+    public void setDropDownViewTheme(android.content.res.Resources.Theme p0) {}
     public void setFilterQueryProvider(FilterQueryProvider p0) {}
     public Cursor swapCursor(Cursor p0) { return null; }
     public View getDropDownView(int position, Object convertView, Object parent) { return null; }

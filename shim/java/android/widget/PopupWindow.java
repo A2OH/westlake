@@ -31,6 +31,16 @@ public class PopupWindow {
     /** Default constructor. */
     public PopupWindow() {}
 
+    /** Constructor with context. */
+    public PopupWindow(android.content.Context context) {}
+
+    /** Constructor with context and attrs. */
+    public PopupWindow(android.content.Context context, android.util.AttributeSet attrs) {}
+
+    public PopupWindow(android.content.Context context, android.util.AttributeSet attrs, int defStyleAttr) {}
+
+    public PopupWindow(android.content.Context context, android.util.AttributeSet attrs, int defStyleAttr, int defStyleRes) {}
+
     /** Constructor with content view. */
     public PopupWindow(View contentView) {
         this.contentView = contentView;
@@ -151,13 +161,33 @@ public class PopupWindow {
 
     // ── Dismiss listener ──
 
-    public interface Object {
+    public interface OnDismissListener {
         void onDismiss();
     }
 
-    private Object onDismissListener;
+    private OnDismissListener onDismissListener;
 
-    public void setOnDismissListener(Object listener) {
+    public void setOnDismissListener(OnDismissListener listener) {
         this.onDismissListener = listener;
     }
+
+    public void setBackgroundDrawable(android.graphics.drawable.Drawable d) {}
+    public android.graphics.drawable.Drawable getBackground() { return null; }
+    public void setInputMethodMode(int mode) {}
+    public int getInputMethodMode() { return 0; }
+    public void setSoftInputMode(int mode) {}
+    public void setAnimationStyle(int animationStyle) {}
+    public void setElevation(float elevation) {}
+    public float getElevation() { return 0; }
+    public void setClippingEnabled(boolean enabled) {}
+    public boolean isClippingEnabled() { return true; }
+    public void setOverlapAnchor(boolean overlapAnchor) {}
+    public void setTouchable(boolean touchable) {}
+    public boolean isTouchable() { return true; }
+    public void update() {}
+    public void update(int x, int y, int width, int height) {}
+
+    public static final int INPUT_METHOD_FROM_FOCUSABLE = 0;
+    public static final int INPUT_METHOD_NEEDED = 1;
+    public static final int INPUT_METHOD_NOT_NEEDED = 2;
 }

@@ -33,13 +33,16 @@ public class AdapterViewFlipper extends AdapterView {
 
     // ── Adapter ──
 
-    public void setAdapter(Object adapter) {
+    public void setAdapter(Adapter adapter) {
         this.adapter = adapter;
     }
 
-    public Object getAdapter() {
-        return adapter;
+    public Adapter getAdapter() {
+        return (Adapter) adapter;
     }
+
+    public android.view.View getSelectedView() { return null; }
+    public void setSelection(int position) {}
 
     // ── Navigation ──
 

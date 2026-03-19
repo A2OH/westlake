@@ -108,4 +108,7 @@ public class StackView extends AdapterView {
     public void setAutoAdvanceViewId(int viewId) {
         // no-op stub — real impl registers with AppWidgetHost
     }
+
+    public View getSelectedView() { return null; }
+    public void setSelection(int position) {}
 }

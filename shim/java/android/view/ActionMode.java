@@ -72,9 +72,9 @@ public class ActionMode {
     }
 
     /**
-     * Object interface for action mode events.
+     * Callback interface for action mode events.
      */
-    public interface Object {
+    public interface Callback {
         /** Called when an action mode is first created. */
         boolean onCreateActionMode(ActionMode mode, Menu menu);
 
@@ -88,6 +88,7 @@ public class ActionMode {
         void onDestroyActionMode(ActionMode mode);
     }
 
-    /** Auto-generated stub. */
-    public static interface Callback {}
+    public int getType() { return TYPE_PRIMARY; }
+    public void setType(int type) {}
+    public boolean isTitleOptional() { return false; }
 }

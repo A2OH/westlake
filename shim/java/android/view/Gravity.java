@@ -39,6 +39,20 @@ public class Gravity {
     public static final int CLIP_HORIZONTAL = AXIS_CLIP << AXIS_X_SHIFT;
 
     /**
+     * Returns true if the given gravity has a horizontal component.
+     */
+    public static boolean isHorizontal(int gravity) {
+        return gravity > 0 && (gravity & RELATIVE_HORIZONTAL_GRAVITY_MASK) != 0;
+    }
+
+    /**
+     * Returns true if the given gravity has a vertical component.
+     */
+    public static boolean isVertical(int gravity) {
+        return gravity > 0 && (gravity & VERTICAL_GRAVITY_MASK) != 0;
+    }
+
+    /**
      * Convert START/END to LEFT/RIGHT based on layout direction.
      * For our shim, we always assume LTR (layoutDirection == 0).
      */

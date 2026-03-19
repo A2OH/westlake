@@ -56,4 +56,5 @@ public abstract class ViewStructure {
     public void setTextIdEntry(String entry) {}
     public void setMaxTextEms(int maxEms) {}
     public void setMinTextEms(int minEms) {}
+    public void setAutofillOptions(CharSequence[] options) {}
 }

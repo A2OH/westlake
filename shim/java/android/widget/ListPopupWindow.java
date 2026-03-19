@@ -1,8 +1,8 @@
 package android.widget;
-import android.view.View;
-import android.view.View;
-import java.util.Set;
 
+import android.content.Context;
+import android.graphics.drawable.Drawable;
+import android.util.AttributeSet;
 import android.view.View;
 
 /**
@@ -10,80 +10,117 @@ import android.view.View;
  * A popup window that displays a list of items. All operations are stubs;
  * no native UI is created in this migration shim.
  */
-public class ListPopupWindow {
+public class ListPopupWindow implements com.android.internal.view.menu.ShowableListMenu {
 
     public static final int MATCH_PARENT = -1;
     public static final int WRAP_CONTENT = -2;
+    public static final int POSITION_PROMPT_ABOVE = 0;
+    public static final int POSITION_PROMPT_BELOW = 1;
 
     public static final int INPUT_METHOD_FROM_FOCUSABLE = 0;
     public static final int INPUT_METHOD_NEEDED         = 1;
     public static final int INPUT_METHOD_NOT_NEEDED     = 2;
 
-    private Object mAdapter;
+    private ListAdapter mAdapter;
     private View mAnchorView;
     private int mWidth = WRAP_CONTENT;
     private int mHeight = WRAP_CONTENT;
     private boolean mShowing = false;
     private boolean mModal = false;
+    private int mHorizontalOffset;
+    private int mVerticalOffset;
     private AdapterView.OnItemClickListener mOnItemClickListener;
+    private PopupWindow.OnDismissListener mOnDismissListener;
+    private View mPromptView;
+    private int mPromptPosition;
 
-    /**
-     * Create a new ListPopupWindow anchored to the given context.
-     *
-     * @param context the context (typed as Object for cross-package compatibility)
-     */
-    public ListPopupWindow(Object context) {}
+    public ListPopupWindow(Context context) {}
+    public ListPopupWindow(Context context, AttributeSet attrs) {}
+    public ListPopupWindow(Context context, AttributeSet attrs, int defStyleAttr) {}
+    public ListPopupWindow(Context context, AttributeSet attrs, int defStyleAttr, int defStyleRes) {}
 
-    /** Set the adapter that provides the data and the views for items. */
-    public void setAdapter(Object adapter) {
+    public void setAdapter(ListAdapter adapter) {
         mAdapter = adapter;
     }
 
-    /** Set the view that the popup should be positioned relative to. */
     public void setAnchorView(View anchor) {
         mAnchorView = anchor;
     }
 
-    /** Set the width of the popup window in pixels. Use MATCH_PARENT or WRAP_CONTENT. */
-    public void setWidth(int width) {
-        mWidth = width;
-    }
+    public View getAnchorView() { return mAnchorView; }
 
-    /** Set the height of the popup window in pixels. Use MATCH_PARENT or WRAP_CONTENT. */
-    public void setHeight(int height) {
-        mHeight = height;
-    }
+    public void setWidth(int width) { mWidth = width; }
+    public int getWidth() { return mWidth; }
+    public void setHeight(int height) { mHeight = height; }
+    public int getHeight() { return mHeight; }
 
-    /** Show the popup list. Stub: marks as showing. */
-    public void show() {
-        mShowing = true;
-    }
+    public void setHorizontalOffset(int offset) { mHorizontalOffset = offset; }
+    public int getHorizontalOffset() { return mHorizontalOffset; }
+    public void setVerticalOffset(int offset) { mVerticalOffset = offset; }
+    public int getVerticalOffset() { return mVerticalOffset; }
 
-    /** Dismiss the popup list. Stub: marks as not showing. */
-    public void dismiss() {
-        mShowing = false;
-    }
+    @Override
+    public void show() { mShowing = true; }
 
-    /** Returns true if the popup is currently showing. */
-    public boolean isShowing() {
-        return mShowing;
-    }
+    @Override
+    public void dismiss() { mShowing = false; }
 
-    /** Set a listener to receive item-click events on the popup list. */
+    @Override
+    public boolean isShowing() { return mShowing; }
+
     public void setOnItemClickListener(AdapterView.OnItemClickListener listener) {
         mOnItemClickListener = listener;
     }
 
-    /** Set whether the popup should be modal (intercepts all touch events). */
-    public void setModal(boolean modal) {
-        mModal = modal;
+    public void setOnDismissListener(PopupWindow.OnDismissListener listener) {
+        mOnDismissListener = listener;
     }
 
-    /**
-     * Returns the ListView displayed within the popup window.
-     * Stub: returns null.
-     */
-    public ListView getListView() {
-        return null;
+    public void setModal(boolean modal) { mModal = modal; }
+    public boolean isModal() { return mModal; }
+
+    @Override
+    public ListView getListView() { return null; }
+
+    public void setListSelector(Drawable selector) {}
+    public void setBackgroundDrawable(Drawable d) {}
+    public Drawable getBackground() { return null; }
+
+    public void setContentWidth(int width) { mWidth = width; }
+    public void setInputMethodMode(int mode) {}
+    public int getInputMethodMode() { return 0; }
+    public void setSoftInputMode(int mode) {}
+    public void setEpicenterBounds(android.graphics.Rect bounds) {}
+
+    public void setPromptView(View prompt) { mPromptView = prompt; }
+    public void setPromptPosition(int position) { mPromptPosition = position; }
+
+    public void setSelection(int position) {}
+    public int getSelectedItemPosition() { return -1; }
+    public Object getSelectedItem() { return null; }
+    public long getSelectedItemId() { return -1; }
+    public View getSelectedView() { return null; }
+
+    public boolean performItemClick(int position) { return false; }
+
+    public void clearListSelection() {}
+    public boolean isInputMethodNotNeeded() { return false; }
+
+    public void postShow() { show(); }
+
+    public int measureHeightOfChildren(int widthMeasureSpec, int startPosition,
+            int endPosition, int maxHeight, int disallowPartialChildPosition) {
+        return 0;
     }
+
+    public void setAnimationStyle(int animationStyle) {}
+    public int getAnimationStyle() { return 0; }
+    public boolean isDropDownAlwaysVisible() { return false; }
+    public void setDropDownAlwaysVisible(boolean dropDownAlwaysVisible) {}
+    public boolean onKeyUp(int keyCode, android.view.KeyEvent event) { return false; }
+    public boolean onKeyDown(int keyCode, android.view.KeyEvent event) { return false; }
+    public boolean onKeyPreIme(int keyCode, android.view.KeyEvent event) { return false; }
+    public void setForceIgnoreOutsideTouch(boolean forceIgnoreOutsideTouch) {}
+    public void setDropDownGravity(int gravity) {}
+    public void setListItemExpandMax(int max) {}
 }

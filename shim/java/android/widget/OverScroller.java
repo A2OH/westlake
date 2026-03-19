@@ -29,6 +29,10 @@ public class OverScroller {
     /** Create an OverScroller using the default interpolator. */
     public OverScroller() {}
 
+    public OverScroller(android.content.Context context) {}
+
+    public OverScroller(android.content.Context context, android.view.animation.Interpolator interpolator) {}
+
     /**
      * Create an OverScroller with a custom interpolator.
      *
@@ -201,4 +205,9 @@ public class OverScroller {
 
     /** Returns true if the scroller is over the scroll limits. Always false. */
     public boolean isOverScrolled() { return false; }
+
+    public void setInterpolator(android.view.animation.Interpolator interpolator) {}
+    public void setFriction(float friction) {}
+
+    public boolean isScrollingInDirection(int xvel, float yvel) { return false; }
 }

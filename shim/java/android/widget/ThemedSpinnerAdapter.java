@@ -1,5 +1,8 @@
 package android.widget;
 
+import android.content.res.Resources;
+
 public interface ThemedSpinnerAdapter extends SpinnerAdapter {
-    void setDropDownViewTheme(Object p0);
+    void setDropDownViewTheme(Resources.Theme theme);
+    Resources.Theme getDropDownViewTheme();
 }
