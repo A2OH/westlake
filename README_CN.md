@@ -171,34 +171,117 @@ Android View.draw(Canvas)              Android View → ArkUI Node
 
 ## 快速开始
 
-### 前置条件
-
-```bash
-# Java (JDK 8+, JDK 21 works)
-javac -version
-java -version
-
-# GitHub CLI (用于 issue 跟踪)
-gh auth status
-```
-
-### 运行测试
-
 ```bash
 git clone https://github.com/A2OH/westlake.git
 cd westlake
 
-# 运行所有测试套件（编译 2,056 个 shim 文件 + mock bridge + 测试）
-cd test-apps && ./run-local-tests.sh
+# 运行所有测试（无需设备）
+cd test-apps && ./run-local-tests.sh headless
 
-# 或分别运行：
-./run-local-tests.sh headless      # 2,470 tests
-./run-local-tests.sh ui            # 53 tests
-./run-local-tests.sh mockdonalds   # 14 tests (端到端)
-./run-local-tests.sh realapk       # 5 tests (APK 管线)
+# 预期结果：2470+ PASS，0 FAIL（UI/E2E 套件有少量已知失败）
 ```
 
-### 在 Dalvik VM 上运行 (x86_64)
+### 前置条件
+
+- **JDK 21**（JDK 11+ 可用；JDK 8 适用于非 AOSP 代码）
+- **GitHub CLI**（`gh`）已认证 -- 用于 issue 跟踪
+- **约 2 GB 磁盘空间**
+- 无头测试不需要 Android SDK
+- 不需要 OpenHarmony 设备 -- 所有测试在主机 JVM 上运行
+
+```bash
+javac -version    # 需要 JDK 11+
+java -version
+gh auth status    # 必须已认证
+```
+
+---
+
+## 构建与测试指南
+
+### 1. 无头测试（主机 JVM）
+
+主要测试套件。编译所有 2,056 个 shim 类 + AOSP 框架代码 + mock OHBridge + 测试工具，然后在主机 JVM 上运行。
+
+```bash
+cd test-apps && ./run-local-tests.sh headless
+```
+
+运行 2,470+ 测试，覆盖：Activity 生命周期、View 测量/布局/绘制、触摸事件分发、SQLite 内存数据库、SharedPreferences、Intent/Bundle 往返、Fragment 事务、Service 绑定、BroadcastReceiver、ContentProvider CRUD、Handler/Looper、AsyncTask、Canvas 绘制操作等。
+
+### 2. UI 模拟测试
+
+```bash
+./run-local-tests.sh ui
+# 53 项检查：View 树构建、measure specs、layout params、无头渲染
+```
+
+### 3. MockDonalds 应用测试
+
+端到端餐厅应用，验证完整技术栈：
+
+```bash
+./run-local-tests.sh mockdonalds
+# 14 项检查：SQLite 菜单数据库、ListView adapter、Intent extras、
+# 购物车逻辑、结账流程、Activity 生命周期、Canvas 渲染
+```
+
+### 4. 真实 APK 管线测试
+
+测试 APK 解包、二进制 AXML manifest 解析、资源表解析和 Activity 启动：
+
+```bash
+./run-local-tests.sh realapk
+# 26 项检查：ActivityThread、MiniServer、resources.arsc 解析、View 树
+```
+
+### 5. 全部测试
+
+```bash
+./run-local-tests.sh all
+# 运行：headless + ui + mockdonalds + realapk
+```
+
+### 6. 像素渲染（PNG 截图）
+
+闭环视觉调试：将 Activity 渲染到 Canvas，捕获绘制日志，通过 Java2D 渲染为 PNG。
+
+```bash
+mkdir -p test-apps/build-frame-dump
+JAVA_FILES=$(find test-apps/mock -name "*.java")
+JAVA_FILES="$JAVA_FILES $(find shim/java -name '*.java' ! -path '*/ohos/shim/bridge/OHBridge.java')"
+JAVA_FILES="$JAVA_FILES $(find test-apps/04-mockdonalds/src -name '*.java')"
+JAVA_FILES="$JAVA_FILES $(find test-apps/11-frame-dump/src -name '*.java')"
+javac -d test-apps/build-frame-dump \
+  -sourcepath "test-apps/mock:shim/java:test-apps/04-mockdonalds/src:test-apps/11-frame-dump/src" \
+  $JAVA_FILES
+java -cp test-apps/build-frame-dump FrameDumper
+# 输出 PNG 截图到 /tmp/mockdonalds-menu.png 等
+```
+
+### 7. 使用 aapt 构建真实 APK
+
+测试完整的 APK-to-Dalvik 管线（需要 AOSP 预构建工具）：
+
+```bash
+AAPT=/path/to/aosp/prebuilts/sdk/tools/linux/bin/aapt
+ANDROID_JAR=/path/to/aosp/prebuilts/sdk/19/public/android.jar
+DX_JAR=/path/to/aosp/prebuilts/sdk/tools/linux/lib/dx.jar
+
+# 编译资源
+$AAPT package -f -m -S res -M AndroidManifest.xml -I $ANDROID_JAR -J gen -F app.apk
+
+# 编译 Java
+javac -d classes --release 8 -cp $ANDROID_JAR src/**/*.java gen/R.java
+
+# 构建 DEX
+java -jar $DX_JAR --dex --output=classes.dex classes
+
+# 打包 APK
+python3 -c "import zipfile; z=zipfile.ZipFile('app.apk','a'); z.write('classes.dex')"
+```
+
+### 8. 在 Dalvik VM 上运行 (x86_64)
 
 ```bash
 cd dalvik-port
@@ -206,8 +289,17 @@ export ANDROID_DATA=/tmp/android-data ANDROID_ROOT=/tmp/android-root
 mkdir -p $ANDROID_DATA/dalvik-cache $ANDROID_ROOT/bin
 
 ./build/dalvikvm -Xverify:none -Xdexopt:none \
-  -Xbootclasspath:$(pwd)/core-android-x86.jar \
-  -classpath hello.dex HelloAndroid
+  -Xbootclasspath:$(pwd)/core-android-x86.jar:/path/to/aosp-shim.dex \
+  -classpath /path/to/app.dex \
+  com.example.app.MainActivity
+```
+
+### 9. 在 OHOS QEMU ARM32 上运行
+
+```bash
+# 参见 A2OH/openharmony-wsl 了解 QEMU 设置
+# 注入文件到 QEMU userdata：
+bash dalvik-port/deploy-mockdonalds-qemu.sh
 ```
 
 ---

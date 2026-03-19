@@ -171,34 +171,117 @@ Best for: Games, custom drawing           Best for: Standard widgets
 
 ## Quick Start
 
-### Prerequisites
-
-```bash
-# Java (JDK 8+, JDK 21 works)
-javac -version
-java -version
-
-# GitHub CLI (for issue tracking)
-gh auth status
-```
-
-### Run Tests
-
 ```bash
 git clone https://github.com/A2OH/westlake.git
 cd westlake
 
-# Run all test suites (compiles 2,056 shim files + mock bridge + tests)
-cd test-apps && ./run-local-tests.sh
+# Run all tests (no device needed)
+cd test-apps && ./run-local-tests.sh headless
 
-# Or run individually:
-./run-local-tests.sh headless      # 2,470 tests
-./run-local-tests.sh ui            # 53 tests
-./run-local-tests.sh mockdonalds   # 14 tests (end-to-end)
-./run-local-tests.sh realapk       # 5 tests (APK pipeline)
+# Expected: 2470+ PASS, 0 FAIL (some known failures in UI/E2E suites)
 ```
 
-### Run on Dalvik VM (x86_64)
+### Prerequisites
+
+- **JDK 21** (JDK 11+ works; JDK 8 works for non-AOSP code)
+- **GitHub CLI** (`gh`) authenticated -- for issue tracking
+- **~2 GB disk space**
+- No Android SDK needed for headless testing
+- No OpenHarmony device needed -- all tests run on host JVM
+
+```bash
+javac -version    # Need JDK 11+
+java -version
+gh auth status    # Must be authenticated
+```
+
+---
+
+## Build & Test Instructions
+
+### 1. Headless Tests (Host JVM)
+
+The primary test suite. Compiles all 2,056 shim classes + AOSP framework code + mock OHBridge + test harnesses, then runs them on the host JVM.
+
+```bash
+cd test-apps && ./run-local-tests.sh headless
+```
+
+Runs 2,470+ tests covering: Activity lifecycle, View measure/layout/draw, touch event dispatch, SQLite in-memory database, SharedPreferences, Intent/Bundle round-trips, Fragment transactions, Service binding, BroadcastReceiver, ContentProvider CRUD, Handler/Looper, AsyncTask, Canvas draw operations, and more.
+
+### 2. UI Mockup Test
+
+```bash
+./run-local-tests.sh ui
+# 53 checks: View tree construction, measure specs, layout params, headless rendering
+```
+
+### 3. MockDonalds App Test
+
+End-to-end restaurant app exercising the full stack:
+
+```bash
+./run-local-tests.sh mockdonalds
+# 14 checks: SQLite menu DB, ListView adapter, Intent extras, Cart logic,
+# Checkout flow, Activity lifecycle, Canvas rendering
+```
+
+### 4. Real APK Pipeline Test
+
+Tests APK unpacking, binary AXML manifest parsing, resource table parsing, and Activity launch:
+
+```bash
+./run-local-tests.sh realapk
+# 26 checks: ActivityThread, MiniServer, resources.arsc parsing, View tree
+```
+
+### 5. All Tests
+
+```bash
+./run-local-tests.sh all
+# Runs: headless + ui + mockdonalds + realapk
+```
+
+### 6. Pixel Rendering (PNG Screenshots)
+
+Closed-loop visual debugging: render an Activity to Canvas, capture draw log, render to PNG via Java2D.
+
+```bash
+mkdir -p test-apps/build-frame-dump
+JAVA_FILES=$(find test-apps/mock -name "*.java")
+JAVA_FILES="$JAVA_FILES $(find shim/java -name '*.java' ! -path '*/ohos/shim/bridge/OHBridge.java')"
+JAVA_FILES="$JAVA_FILES $(find test-apps/04-mockdonalds/src -name '*.java')"
+JAVA_FILES="$JAVA_FILES $(find test-apps/11-frame-dump/src -name '*.java')"
+javac -d test-apps/build-frame-dump \
+  -sourcepath "test-apps/mock:shim/java:test-apps/04-mockdonalds/src:test-apps/11-frame-dump/src" \
+  $JAVA_FILES
+java -cp test-apps/build-frame-dump FrameDumper
+# Outputs PNG screenshots to /tmp/mockdonalds-menu.png etc.
+```
+
+### 7. Build a Real APK with aapt
+
+For testing the full APK-to-Dalvik pipeline (requires AOSP prebuilts):
+
+```bash
+AAPT=/path/to/aosp/prebuilts/sdk/tools/linux/bin/aapt
+ANDROID_JAR=/path/to/aosp/prebuilts/sdk/19/public/android.jar
+DX_JAR=/path/to/aosp/prebuilts/sdk/tools/linux/lib/dx.jar
+
+# Compile resources
+$AAPT package -f -m -S res -M AndroidManifest.xml -I $ANDROID_JAR -J gen -F app.apk
+
+# Compile Java
+javac -d classes --release 8 -cp $ANDROID_JAR src/**/*.java gen/R.java
+
+# Build DEX
+java -jar $DX_JAR --dex --output=classes.dex classes
+
+# Package APK
+python3 -c "import zipfile; z=zipfile.ZipFile('app.apk','a'); z.write('classes.dex')"
+```
+
+### 8. Run on Dalvik VM (x86_64)
 
 ```bash
 cd dalvik-port
@@ -206,8 +289,17 @@ export ANDROID_DATA=/tmp/android-data ANDROID_ROOT=/tmp/android-root
 mkdir -p $ANDROID_DATA/dalvik-cache $ANDROID_ROOT/bin
 
 ./build/dalvikvm -Xverify:none -Xdexopt:none \
-  -Xbootclasspath:$(pwd)/core-android-x86.jar \
-  -classpath hello.dex HelloAndroid
+  -Xbootclasspath:$(pwd)/core-android-x86.jar:/path/to/aosp-shim.dex \
+  -classpath /path/to/app.dex \
+  com.example.app.MainActivity
+```
+
+### 9. Run on OHOS QEMU ARM32
+
+```bash
+# See A2OH/openharmony-wsl for QEMU setup
+# Inject files into QEMU userdata:
+bash dalvik-port/deploy-mockdonalds-qemu.sh
 ```
 
 ---
