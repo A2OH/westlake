@@ -418,14 +418,124 @@ westlake/
 
 ---
 
-## Dependencies
+## Dependencies & Full Setup
 
-Westlake is built on two companion projects:
+Westlake depends on three external codebases. Here's how to get everything:
+
+### Companion Repositories (A2OH)
 
 | Project | Repository | Purpose |
 |---------|-----------|---------|
 | **OpenHarmony on WSL** | [A2OH/openharmony-wsl](https://github.com/A2OH/openharmony-wsl) | Build and run OHOS on QEMU ARM32 without hardware |
 | **Dalvik Universal** | [A2OH/dalvik-universal](https://github.com/A2OH/dalvik-universal) | Portable Dalvik VM for x86_64 and OHOS ARM32/aarch64 |
+
+### External Dependencies
+
+#### 1. AOSP Source (required for Option B AOSP class compilation)
+
+```bash
+# ~80GB download, ~200GB disk space
+mkdir -p ~/aosp-android-11 && cd ~/aosp-android-11
+repo init -u https://android.googlesource.com/platform/manifest -b android-11.0.0_r1
+repo sync -c -j8 --no-tags
+
+# Only the framework source is needed:
+# frameworks/base/core/java/android/  (~300K lines of Java)
+# prebuilts/sdk/tools/linux/bin/aapt   (APK builder)
+# prebuilts/sdk/19/public/android.jar  (compile target)
+# prebuilts/sdk/tools/linux/lib/dx.jar (DEX converter)
+```
+
+Alternatively, download just the needed files (~500MB instead of 80GB):
+```bash
+# Minimal: just the framework Java source + SDK tools
+git clone --depth 1 --filter=blob:none --sparse \
+  https://android.googlesource.com/platform/frameworks/base \
+  -b android-11.0.0_r1 ~/aosp-framework
+cd ~/aosp-framework && git sparse-checkout set core/java/android
+```
+
+#### 2. OpenHarmony Source (required for QEMU testing)
+
+```bash
+# ~50GB download — see A2OH/openharmony-wsl for full instructions
+mkdir -p ~/openharmony && cd ~/openharmony
+repo init -u https://gitee.com/openharmony/manifest.git -b master --no-repo-verify
+repo sync -c -j8 --no-tags
+```
+
+#### 3. Dalvik VM Source (required for building dalvikvm binary)
+
+```bash
+git clone https://github.com/A2OH/dalvik-universal.git ~/dalvik-kitkat
+cd ~/dalvik-kitkat
+make TARGET=x86_64    # Build for host Linux
+# Output: build/dalvikvm (x86_64 ELF)
+```
+
+### Quick Setup (headless testing only — no AOSP/OHOS needed)
+
+For just running the test suite on host JVM, you only need:
+
+```bash
+# 1. Clone westlake
+git clone https://github.com/A2OH/westlake.git
+cd westlake
+
+# 2. Verify JDK
+java -version    # JDK 11+ required (JDK 21 recommended)
+
+# 3. Run tests
+cd test-apps && ./run-local-tests.sh headless
+# Expected: 2,500+ PASS, 0 FAIL
+```
+
+No AOSP source, no OpenHarmony, no Dalvik VM needed for headless testing. Everything compiles and runs on host JVM with the mock OHBridge.
+
+### Full Setup (APK on Dalvik on OHOS)
+
+```bash
+# 1. Clone all repos
+git clone https://github.com/A2OH/westlake.git ~/westlake
+git clone https://github.com/A2OH/dalvik-universal.git ~/dalvik-kitkat
+git clone https://github.com/A2OH/openharmony-wsl.git ~/openharmony-wsl
+
+# 2. Build Dalvik VM
+cd ~/dalvik-kitkat && make TARGET=x86_64
+
+# 3. Build shim DEX (requires AOSP source for Option B classes)
+cd ~/westlake
+javac -d /tmp/shim-classes --release 11 \
+  -sourcepath shim/java \
+  $(find shim/java -name '*.java')
+# Convert to DEX (requires dx from AOSP SDK tools)
+java -jar ~/aosp-android-11/prebuilts/sdk/tools/linux/lib/dx.jar \
+  --dex --no-optimize --output=/tmp/aosp-shim.dex /tmp/shim-classes
+
+# 4. Run on Dalvik
+cd ~/dalvik-kitkat
+export ANDROID_DATA=/tmp/android-data ANDROID_ROOT=/tmp/android-root
+mkdir -p $ANDROID_DATA/dalvik-cache $ANDROID_ROOT/bin
+./build/dalvikvm -Xverify:none -Xdexopt:none \
+  -Xbootclasspath:$(pwd)/core-android-x86.jar:/tmp/aosp-shim.dex \
+  -classpath /path/to/your-app.dex \
+  com.example.app.MainActivity
+
+# 5. For OHOS QEMU: see A2OH/openharmony-wsl README
+```
+
+### Environment Variables
+
+```bash
+# Set these in your shell profile for convenience:
+export AOSP_ROOT=~/aosp-android-11
+export OHOS_ROOT=~/openharmony
+export DALVIK_ROOT=~/dalvik-kitkat
+export WESTLAKE_ROOT=~/westlake
+export AAPT=$AOSP_ROOT/prebuilts/sdk/tools/linux/bin/aapt
+export ANDROID_JAR=$AOSP_ROOT/prebuilts/sdk/19/public/android.jar
+export DX_JAR=$AOSP_ROOT/prebuilts/sdk/tools/linux/lib/dx.jar
+```
 
 ---
 

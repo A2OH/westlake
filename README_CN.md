@@ -414,14 +414,114 @@ westlake/
 
 ---
 
-## 依赖项目
+## 依赖与完整搭建
 
-Westlake (西湖) 基于两个配套项目构建：
+Westlake依赖三个外部代码库。以下是完整获取方式：
+
+### 配套仓库（A2OH）
 
 | 项目 | 仓库 | 用途 |
 |------|------|------|
-| **OpenHarmony on WSL** | [A2OH/openharmony-wsl](https://github.com/A2OH/openharmony-wsl) | 无需硬件，在 QEMU ARM32 上构建和运行 OHOS |
-| **Dalvik Universal** | [A2OH/dalvik-universal](https://github.com/A2OH/dalvik-universal) | 可移植 Dalvik VM，支持 x86_64 和 OHOS ARM32/aarch64 |
+| **OpenHarmony on WSL** | [A2OH/openharmony-wsl](https://github.com/A2OH/openharmony-wsl) | 无需硬件，在QEMU ARM32上构建和运行OHOS |
+| **Dalvik Universal** | [A2OH/dalvik-universal](https://github.com/A2OH/dalvik-universal) | 可移植Dalvik VM，支持x86_64和OHOS ARM32/aarch64 |
+
+### 外部依赖
+
+#### 1. AOSP源码（Option B AOSP类编译需要）
+
+```bash
+# 约80GB下载，约200GB磁盘空间
+mkdir -p ~/aosp-android-11 && cd ~/aosp-android-11
+repo init -u https://android.googlesource.com/platform/manifest -b android-11.0.0_r1
+repo sync -c -j8 --no-tags
+
+# 仅需框架源码：
+# frameworks/base/core/java/android/  （约30万行Java）
+# prebuilts/sdk/tools/linux/bin/aapt   （APK构建工具）
+# prebuilts/sdk/19/public/android.jar  （编译目标）
+# prebuilts/sdk/tools/linux/lib/dx.jar （DEX转换器）
+```
+
+#### 2. OpenHarmony源码（QEMU测试需要）
+
+```bash
+# 约50GB下载——详见 A2OH/openharmony-wsl
+mkdir -p ~/openharmony && cd ~/openharmony
+repo init -u https://gitee.com/openharmony/manifest.git -b master --no-repo-verify
+repo sync -c -j8 --no-tags
+```
+
+#### 3. Dalvik VM源码（构建dalvikvm二进制需要）
+
+```bash
+git clone https://github.com/A2OH/dalvik-universal.git ~/dalvik-kitkat
+cd ~/dalvik-kitkat
+make TARGET=x86_64    # 为主机Linux构建
+# 输出: build/dalvikvm (x86_64 ELF)
+```
+
+### 快速搭建（仅运行测试——不需要AOSP/OHOS）
+
+仅运行测试套件，只需要：
+
+```bash
+# 1. 克隆westlake
+git clone https://github.com/A2OH/westlake.git
+cd westlake
+
+# 2. 验证JDK
+java -version    # 需要JDK 11+（推荐JDK 21）
+
+# 3. 运行测试
+cd test-apps && ./run-local-tests.sh headless
+# 预期: 2,500+ PASS, 0 FAIL
+```
+
+无需AOSP源码、OpenHarmony或Dalvik VM即可运行测试。一切在主机JVM上使用mock OHBridge编译运行。
+
+### 完整搭建（APK在Dalvik上运行于OHOS）
+
+```bash
+# 1. 克隆所有仓库
+git clone https://github.com/A2OH/westlake.git ~/westlake
+git clone https://github.com/A2OH/dalvik-universal.git ~/dalvik-kitkat
+git clone https://github.com/A2OH/openharmony-wsl.git ~/openharmony-wsl
+
+# 2. 构建Dalvik VM
+cd ~/dalvik-kitkat && make TARGET=x86_64
+
+# 3. 构建shim DEX（需要AOSP源码用于Option B类）
+cd ~/westlake
+javac -d /tmp/shim-classes --release 11 \
+  -sourcepath shim/java \
+  $(find shim/java -name '*.java')
+java -jar ~/aosp-android-11/prebuilts/sdk/tools/linux/lib/dx.jar \
+  --dex --no-optimize --output=/tmp/aosp-shim.dex /tmp/shim-classes
+
+# 4. 在Dalvik上运行
+cd ~/dalvik-kitkat
+export ANDROID_DATA=/tmp/android-data ANDROID_ROOT=/tmp/android-root
+mkdir -p $ANDROID_DATA/dalvik-cache $ANDROID_ROOT/bin
+./build/dalvikvm -Xverify:none -Xdexopt:none \
+  -Xbootclasspath:$(pwd)/core-android-x86.jar:/tmp/aosp-shim.dex \
+  -classpath /path/to/your-app.dex \
+  com.example.app.MainActivity
+
+# 5. OHOS QEMU运行: 详见 A2OH/openharmony-wsl README
+```
+
+### 环境变量
+
+```bash
+# 在shell配置文件中设置以下变量：
+export AOSP_ROOT=~/aosp-android-11
+export OHOS_ROOT=~/openharmony
+export DALVIK_ROOT=~/dalvik-kitkat
+export WESTLAKE_ROOT=~/westlake
+export AAPT=$AOSP_ROOT/prebuilts/sdk/tools/linux/bin/aapt
+export ANDROID_JAR=$AOSP_ROOT/prebuilts/sdk/19/public/android.jar
+export DX_JAR=$AOSP_ROOT/prebuilts/sdk/tools/linux/lib/dx.jar
+```
 
 ---
 
