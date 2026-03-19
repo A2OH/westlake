@@ -4,11 +4,12 @@
 
 This project runs **unmodified Android APKs on OpenHarmony** using:
 1. **Dalvik VM** -- KitKat-era VM ported to 64-bit (x86_64, OHOS aarch64, OHOS ARM32)
-2. **Java Shim Layer** -- 2,056 `android.*` classes (126,625 lines) covering the Android API surface
-3. **AOSP Framework** -- 62,153 lines of unmodified AOSP code (View, ViewGroup, TextView, ListView, etc.)
+2. **AOSP Framework** -- 89,000+ lines of unmodified AOSP code across 24 files (View, ViewGroup, TextView, LinearLayout, ListView, GridView, Spinner, etc.)
+3. **Stub Layer** -- ~140 minimal stub files for system service dependencies (ViewRootImpl, AccessibilityManager, etc.)
 4. **OHBridge** -- JNI bridge (169 methods) routing Android API calls to OHOS native APIs
+5. **MiniServer** -- Lightweight replacement for Android SystemServer (6 managers, ~2000 lines)
 
-The engine approach: 99% of Android API calls stay inside the VM. Only ~15 HAL-level boundaries cross to native code via JNI.
+The engine approach: 99% of Android API calls stay inside the VM as pure Java. Only ~15 HAL-level boundaries cross to native code via JNI.
 
 ## Key Skills for Building This Project
 
@@ -18,7 +19,7 @@ Copy ENTIRE AOSP .java files unmodified. Never cherry-pick methods or modify AOS
 
 - Source: `/home/dspfac/aosp-android-11/frameworks/base/core/java/android/`
 - Target: `shim/java/android/` (same package path)
-- Currently: 62,153+ lines across 10+ AOSP files (View, ViewGroup, TextView, AbsListView, ListView, etc.)
+- Currently: 89,000+ lines across 24 AOSP files (View, ViewGroup, TextView, AbsListView, ListView, GridView, Spinner, etc.)
 - When AOSP code references missing classes, create stub files that compile but return defaults
 - Use `scripts/aosp-stub-gen.py` to auto-generate stubs from compile errors
 - Fix compile errors in TEST code or STUB code, NEVER in AOSP code
@@ -101,20 +102,18 @@ dexdump -f app.apk | grep "Class descriptor"
 # Cross-reference against shim layer for gap report
 ```
 
-### 7. Distributed Task Queue (GitHub Issues)
-
-Multiple workers implement shim classes in parallel via GitHub Issues:
+### 7. Running on Dalvik VM
 
 ```bash
-# List available tasks
-gh issue list --repo A2OH/harmony-android-guide --label todo --label tier-a --limit 10
+cd dalvik-port
+export ANDROID_DATA=/tmp/android-data ANDROID_ROOT=/tmp/android-root
+mkdir -p $ANDROID_DATA/dalvik-cache $ANDROID_ROOT/bin
 
-# Claim a task
-gh issue edit $ISSUE --repo A2OH/harmony-android-guide --remove-label todo --add-label in-progress
-
-# After implementation + tests pass:
-gh issue close $ISSUE --repo A2OH/harmony-android-guide --comment "Done"
-gh issue edit $ISSUE --repo A2OH/harmony-android-guide --remove-label in-progress --add-label done
+# Run with AOSP shim DEX on bootclasspath
+./build/dalvikvm -Xverify:none -Xdexopt:none \
+  -Xbootclasspath:$(pwd)/core-android-x86.jar:/path/to/aosp-shim.dex \
+  -classpath /path/to/app.dex \
+  com.example.app.MainActivity
 ```
 
 ## Important Constraints
@@ -174,34 +173,7 @@ westlake/
 | Build DEX for Dalvik | `javac --release 8` then `dx --dex` (or `d8` for release 11) |
 | Render PNG screenshot | `java -cp build FrameDumper` -> `/tmp/*.png` |
 | Analyze an APK | `dexdump` -> categorize types -> gap report |
-| Implement a shim class | Read issue, read skill file, implement, write test, verify |
-
-## Conversion Skills
-
-Query the DB for the right skill file:
-```bash
-sqlite3 database/api_compat.db "SELECT ap.skill FROM android_types at2 JOIN android_packages ap ON at2.package_id = ap.id WHERE at2.full_name = 'YourClassName'"
-```
-
-| Skill | Covers |
-|-------|--------|
-| `A2OH-LIFECYCLE` | Activity, Service, BroadcastReceiver, Intent, Bundle, ContentProvider |
-| `A2OH-UI-REWRITE` | View, Widget, Animation, Layout, Transition |
-| `A2OH-DATA-LAYER` | SQLite, Cursor, Provider |
-| `A2OH-DEVICE-API` | Sensors, Camera, Bluetooth, Location, Telephony, NFC |
-| `A2OH-MEDIA` | MediaPlayer, Audio, DRM, Speech |
-| `A2OH-NETWORKING` | Connectivity, WiFi, HTTP |
-| `A2OH-JAVA-TO-ARKTS` | Text, Util, Graphics (pure logic), Annotation, ICU |
-| `A2OH-CONFIG` | Print, Security, System services, WebKit |
-
-## Tier Definitions
-
-| Tier | What | Dependency | Priority |
-|------|------|------------|----------|
-| **A** | Pure Java data structures | None | DO FIRST |
-| **B** | I/O with Java fallback | File system | Second |
-| **C** | System service wrappers | OHBridge | Third |
-| **D** | UI components | ArkUI | Last (engine approach) |
+| Add AOSP class to engine | Copy from AOSP, stub deps, compile, test (Option B) |
 
 ## Project Key Paths
 
