@@ -436,6 +436,25 @@ JNIEXPORT void JNICALL Java_com_ohos_shim_bridge_OHBridge_fontSetSize(JNIEnv*, j
     SWFont *f = (SWFont*)(uintptr_t)h;
     if (f && f != (SWFont*)1) f->size = sz;
 }
+JNIEXPORT jfloat JNICALL Java_com_ohos_shim_bridge_OHBridge_fontMeasureText(JNIEnv* env, jclass, jlong h, jstring jtext) {
+    SWFont *f = (SWFont*)(uintptr_t)h;
+    if (!f || f == (SWFont*)1 || !jtext || !g_sw_font_loaded) return 0.0f;
+    const char *text = env->GetStringUTFChars(jtext, NULL);
+    if (!text) return 0.0f;
+    float scale = stbtt_ScaleForPixelHeight(&g_sw_font, f->size);
+    float width = 0.0f;
+    for (int i = 0; text[i]; i++) {
+        int advance, lsb;
+        stbtt_GetCodepointHMetrics(&g_sw_font, (unsigned char)text[i], &advance, &lsb);
+        width += advance * scale;
+        if (text[i + 1]) {
+            int kern = stbtt_GetCodepointKernAdvance(&g_sw_font, (unsigned char)text[i], (unsigned char)text[i + 1]);
+            width += kern * scale;
+        }
+    }
+    env->ReleaseStringUTFChars(jtext, text);
+    return width;
+}
 
 /* ── Path JNI — real path state ── */
 
@@ -549,6 +568,7 @@ static JNINativeMethod gOHBridgeMethods[] = {
     OHBM("fontCreate", "()J", Java_com_ohos_shim_bridge_OHBridge_fontCreate),
     OHBM("fontDestroy", "(J)V", Java_com_ohos_shim_bridge_OHBridge_fontDestroy),
     OHBM("fontSetSize", "(JF)V", Java_com_ohos_shim_bridge_OHBridge_fontSetSize),
+    OHBM("fontMeasureText", "(JLjava/lang/String;)F", Java_com_ohos_shim_bridge_OHBridge_fontMeasureText),
     OHBM("pathCreate", "()J", Java_com_ohos_shim_bridge_OHBridge_pathCreate),
     OHBM("pathDestroy", "(J)V", Java_com_ohos_shim_bridge_OHBridge_pathDestroy),
     OHBM("pathMoveTo", "(JFF)V", Java_com_ohos_shim_bridge_OHBridge_pathMoveTo),

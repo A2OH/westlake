@@ -123,4 +123,5 @@ public class ViewConfiguration {
     public int getScaledDoubleTapTouchSlop() { return TOUCH_SLOP; }
     public int getScaledMinimumScalingSpan() { return 170; }
     public static long getZoomControlsTimeout() { return 3000L; }
+    public int getScaledEdgeSlop() { return 12; }
 }

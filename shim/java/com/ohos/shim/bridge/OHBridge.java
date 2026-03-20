@@ -297,6 +297,7 @@ public class OHBridge {
     public static native long fontCreate();
     public static native void fontDestroy(long font);
     public static native void fontSetSize(long font, float size);
+    public static native float fontMeasureText(long font, String text);
 
     // ── Vibrator ──────────────────────────────────────────────────
 

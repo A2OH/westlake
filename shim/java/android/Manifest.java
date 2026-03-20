@@ -43,6 +43,7 @@ public final class Manifest {
         public static final String READ_MEDIA_AUDIO = "android.permission.READ_MEDIA_AUDIO";
 
         public static final String INTERACT_ACROSS_USERS_FULL = "android.permission.INTERACT_ACROSS_USERS_FULL";
+        public static final String CONFIGURE_DISPLAY_COLOR_MODE = "android.permission.CONFIGURE_DISPLAY_COLOR_MODE";
         private permission() {}
     }
 

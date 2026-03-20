@@ -3,6 +3,7 @@ import android.animation.Animator;
 import android.animation.Animator;
 
 import android.animation.Animator;
+import android.animation.TimeInterpolator;
 
 /**
  * Android-compatible ViewAnimationUtils shim.
@@ -21,8 +22,11 @@ public final class ViewAnimationUtils {
         @Override public void start() {}
         @Override public void cancel() {}
         @Override public void end() {}
+        @Override public long getStartDelay() { return 0; }
+        @Override public void setStartDelay(long startDelay) {}
         @Override public long getDuration() { return 0; }
         @Override public Animator setDuration(long duration) { return this; }
+        @Override public void setInterpolator(TimeInterpolator value) {}
         @Override public boolean isRunning() { return false; }
         @Override public boolean isStarted() { return false; }
     }

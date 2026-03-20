@@ -1,77 +1,119 @@
 package android.animation;
 
-/**
- * Android-compatible PropertyValuesHolder shim.
- * Holds a property name and a set of values for use with ObjectAnimator.
- * Pure Java stub — no animation is driven on OpenHarmony.
- */
-public class PropertyValuesHolder {
+import android.graphics.Path;
+import android.util.Property;
 
-    private String mPropertyName;
-    private Object[] mValues;
+/** Stub for AOSP compilation. */
+public class PropertyValuesHolder implements Cloneable {
+    String mPropertyName;
+    protected Property mProperty;
+    Class mValueType;
+    Keyframes mKeyframes = null;
+    TypeEvaluator mEvaluator;
+    Object mAnimatedValue;
 
-    private PropertyValuesHolder(String propertyName) {
-        mPropertyName = propertyName;
-    }
-
-    // ── Factory methods ──
-
-    public static PropertyValuesHolder ofFloat(String propertyName, float... values) {
-        PropertyValuesHolder pvh = new PropertyValuesHolder(propertyName);
-        pvh.mValues = new Object[values.length];
-        for (int i = 0; i < values.length; i++) {
-            pvh.mValues[i] = values[i];
-        }
-        return pvh;
+    private PropertyValuesHolder(String propertyName) { mPropertyName = propertyName; }
+    private PropertyValuesHolder(Property property) {
+        mProperty = property;
+        if (property != null) mPropertyName = property.getName();
     }
 
     public static PropertyValuesHolder ofInt(String propertyName, int... values) {
-        PropertyValuesHolder pvh = new PropertyValuesHolder(propertyName);
-        pvh.mValues = new Object[values.length];
-        for (int i = 0; i < values.length; i++) {
-            pvh.mValues[i] = values[i];
-        }
-        return pvh;
+        return new PropertyValuesHolder(propertyName);
     }
-
-    public static PropertyValuesHolder ofObject(String propertyName, Object evaluator, Object... values) {
-        PropertyValuesHolder pvh = new PropertyValuesHolder(propertyName);
-        pvh.mValues = values != null ? values.clone() : new Object[0];
-        return pvh;
+    public static PropertyValuesHolder ofInt(Property<?, Integer> property, int... values) {
+        return new PropertyValuesHolder(property);
     }
-
+    public static PropertyValuesHolder ofMultiInt(String propertyName, int[][] values) {
+        return new PropertyValuesHolder(propertyName);
+    }
+    public static PropertyValuesHolder ofMultiInt(String propertyName, Path path) {
+        return new PropertyValuesHolder(propertyName);
+    }
+    public static PropertyValuesHolder ofMultiInt(String propertyName,
+            TypeConverter converter, TypeEvaluator evaluator, Keyframe... values) {
+        return new PropertyValuesHolder(propertyName);
+    }
+    public static PropertyValuesHolder ofMultiInt(String propertyName,
+            TypeConverter converter, TypeEvaluator evaluator, Object... values) {
+        return new PropertyValuesHolder(propertyName);
+    }
+    public static PropertyValuesHolder ofFloat(String propertyName, float... values) {
+        return new PropertyValuesHolder(propertyName);
+    }
+    public static PropertyValuesHolder ofFloat(Property<?, Float> property, float... values) {
+        return new PropertyValuesHolder(property);
+    }
+    public static PropertyValuesHolder ofMultiFloat(String propertyName, float[][] values) {
+        return new PropertyValuesHolder(propertyName);
+    }
+    public static PropertyValuesHolder ofMultiFloat(String propertyName, Path path) {
+        return new PropertyValuesHolder(propertyName);
+    }
+    public static PropertyValuesHolder ofMultiFloat(String propertyName,
+            TypeConverter converter, TypeEvaluator evaluator, Keyframe... values) {
+        return new PropertyValuesHolder(propertyName);
+    }
+    public static PropertyValuesHolder ofMultiFloat(String propertyName,
+            TypeConverter converter, TypeEvaluator evaluator, Object... values) {
+        return new PropertyValuesHolder(propertyName);
+    }
+    public static PropertyValuesHolder ofObject(String propertyName,
+            TypeEvaluator evaluator, Object... values) {
+        return new PropertyValuesHolder(propertyName);
+    }
+    public static PropertyValuesHolder ofObject(String propertyName,
+            TypeConverter converter, Path path) {
+        return new PropertyValuesHolder(propertyName);
+    }
+    public static PropertyValuesHolder ofObject(Property property,
+            TypeEvaluator evaluator, Object... values) {
+        return new PropertyValuesHolder(property);
+    }
+    public static PropertyValuesHolder ofObject(Property property,
+            TypeConverter converter, TypeEvaluator evaluator, Object... values) {
+        return new PropertyValuesHolder(property);
+    }
+    public static PropertyValuesHolder ofObject(Property property,
+            TypeConverter converter, Path path) {
+        return new PropertyValuesHolder(property);
+    }
     public static PropertyValuesHolder ofKeyframe(String propertyName, Keyframe... values) {
-        PropertyValuesHolder pvh = new PropertyValuesHolder(propertyName);
-        pvh.mValues = values != null ? values.clone() : new Object[0];
-        return pvh;
+        return new PropertyValuesHolder(propertyName);
+    }
+    public static PropertyValuesHolder ofKeyframe(Property property, Keyframe... values) {
+        return new PropertyValuesHolder(property);
+    }
+    public static PropertyValuesHolder ofKeyframes(String propertyName, Keyframes keyframes) {
+        return new PropertyValuesHolder(propertyName);
+    }
+    public static PropertyValuesHolder ofKeyframes(Property property, Keyframes keyframes) {
+        return new PropertyValuesHolder(property);
     }
 
-    // ── Accessors ──
+    public void setPropertyName(String propertyName) { mPropertyName = propertyName; }
+    public String getPropertyName() { return mPropertyName; }
+    public void setProperty(Property property) { mProperty = property; }
 
-    public String getPropertyName() {
-        return mPropertyName;
-    }
+    public void setIntValues(int... values) {}
+    public void setFloatValues(float... values) {}
+    public void setKeyframes(Keyframe... values) {}
+    public void setObjectValues(Object... values) {}
+    public void setEvaluator(TypeEvaluator evaluator) { mEvaluator = evaluator; }
+    public void setConverter(TypeConverter converter) {}
 
-    public void setPropertyName(String propertyName) {
-        mPropertyName = propertyName;
-    }
+    public Object getAnimatedValue() { return mAnimatedValue; }
 
-    public void setFloatValues(float... values) {
-        mValues = new Object[values.length];
-        for (int i = 0; i < values.length; i++) {
-            mValues[i] = values[i];
-        }
-    }
-
-    public void setIntValues(int... values) {
-        mValues = new Object[values.length];
-        for (int i = 0; i < values.length; i++) {
-            mValues[i] = values[i];
-        }
-    }
+    void init() {}
+    void setupSetter(Class targetClass) {}
+    void setupGetter(Class targetClass) {}
 
     @Override
-    public String toString() {
-        return "PropertyValuesHolder{property=" + mPropertyName + "}";
+    public PropertyValuesHolder clone() {
+        try {
+            return (PropertyValuesHolder) super.clone();
+        } catch (CloneNotSupportedException e) {
+            throw new AssertionError();
+        }
     }
 }

@@ -1,7 +1,9 @@
 package android.text.method;
 
 public class DialerKeyListener extends NumberKeyListener {
-    public static final int CHARACTERS = 0;
+    public static final char[] CHARACTERS = new char[] {
+        '0', '1', '2', '3', '4', '5', '6', '7', '8', '9', '#', '*', '+', '-', '(', ')', ',', '/', 'N', '.', ' ', ';'
+    };
 
     public DialerKeyListener() {}
 

@@ -617,4 +617,11 @@ public class OHBridge {
     public static void dispatchNodeEvent(int eventId, long nodeHandle, int eventKind, String stringData) {
         // No-op in mock - AOSP View doesn't have onNativeEvent
     }
+
+    // ── Font measurement ──
+
+    public static float fontMeasureText(long font, String text) {
+        if (text == null) return 0f;
+        return text.length() * 8.0f; // rough estimate: 8px per char
+    }
 }

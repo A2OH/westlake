@@ -1,7 +1,17 @@
 package android.animation;
 
-public class TypeConverter {
-    public TypeConverter(Object p0, Object p1) {}
+/** Stub for AOSP compilation. Converts between value types in animations. */
+public abstract class TypeConverter<T, V> {
+    private Class<T> mFromClass;
+    private Class<V> mToClass;
 
-    public Object convert(Object p0) { return null; }
+    public TypeConverter(Class<T> fromClass, Class<V> toClass) {
+        mFromClass = fromClass;
+        mToClass = toClass;
+    }
+
+    public Class<T> getSourceType() { return mFromClass; }
+    public Class<V> getTargetType() { return mToClass; }
+
+    public abstract V convert(T value);
 }

@@ -36,4 +36,7 @@ public final class Trace {
     public static void setCounter(String counterName, long counterValue) {}
     public static void traceBegin(long traceTag, String methodName) {}
     public static void traceEnd(long traceTag) {}
+    public static void asyncTraceBegin(long traceTag, String methodName, int cookie) {}
+    public static void asyncTraceEnd(long traceTag, String methodName, int cookie) {}
+    public static void traceCounter(long traceTag, String counterName, int counterValue) {}
 }

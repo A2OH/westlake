@@ -1,13 +1,24 @@
 package android.view;
 import android.graphics.Canvas;
 import android.graphics.Rect;
-import android.graphics.Canvas;
-import android.graphics.Rect;
+
+import java.lang.annotation.Retention;
+import java.lang.annotation.RetentionPolicy;
 
 /**
  * Android-compatible Surface shim. Stub implementation.
  */
 public class Surface {
+
+    public static final int ROTATION_0 = 0;
+    public static final int ROTATION_90 = 1;
+    public static final int ROTATION_180 = 2;
+    public static final int ROTATION_270 = 3;
+
+    /** Stub annotation for AOSP compilation. */
+    @Retention(RetentionPolicy.SOURCE)
+    public @interface Rotation {}
+
     private final String mName;
 
     public Surface() { mName = "Surface"; }

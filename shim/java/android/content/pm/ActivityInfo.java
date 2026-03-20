@@ -2,7 +2,15 @@ package android.content.pm;
 import android.os.Parcelable;
 import android.util.Printer;
 
+import java.lang.annotation.Retention;
+import java.lang.annotation.RetentionPolicy;
+
 public class ActivityInfo extends ComponentInfo implements Parcelable {
+
+    /** Stub annotation for AOSP compilation. Marks configuration change bitmask fields. */
+    @Retention(RetentionPolicy.SOURCE)
+    public @interface Config {}
+
     public static final int COLOR_MODE_DEFAULT = 0;
     public static final int COLOR_MODE_HDR = 0;
     public static final int COLOR_MODE_WIDE_COLOR_GAMUT = 0;

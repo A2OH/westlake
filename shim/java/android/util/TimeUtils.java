@@ -1,6 +1,8 @@
 package android.util;
 
 public class TimeUtils {
+    public static final long NANOS_PER_MS = 1000000L;
+
     public TimeUtils() {}
 
     public static java.util.TimeZone getTimeZone(int offset, boolean dst, long when, String country) {
@@ -26,4 +28,8 @@ public class TimeUtils {
     }
 
     public static boolean isTimeBetween(Object p0, Object p1, Object p2) { return false; }
+
+    public static String formatUptime(long millis) {
+        return formatDuration(millis);
+    }
 }

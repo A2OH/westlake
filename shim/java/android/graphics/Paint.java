@@ -175,15 +175,24 @@ public class Paint {
      */
     public float measureText(String text) {
         if (text == null || text.length() == 0) return 0f;
+        // Try native stb_truetype measurement via OHBridge
+        try {
+            long f = com.ohos.shim.bridge.OHBridge.fontCreate();
+            if (f != 0) {
+                com.ohos.shim.bridge.OHBridge.fontSetSize(f, textSize);
+                float w = com.ohos.shim.bridge.OHBridge.fontMeasureText(f, text);
+                com.ohos.shim.bridge.OHBridge.fontDestroy(f);
+                if (w > 0) return w;
+            }
+        } catch (Throwable t) { /* fall through */ }
+        // Try Java2D (host JVM only)
         try {
             Object obj = getAwtFontMetrics();
             if (obj != null) {
                 java.awt.FontMetrics awtFm = (java.awt.FontMetrics) obj;
                 return awtFm.stringWidth(text);
             }
-        } catch (Throwable t) {
-            // fall through
-        }
+        } catch (Throwable t) { /* fall through */ }
         return text.length() * textSize * 0.6f;
     }
 
