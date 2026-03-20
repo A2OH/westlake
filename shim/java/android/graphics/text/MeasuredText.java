@@ -17,6 +17,7 @@ import android.graphics.Rect;
 public class MeasuredText {
 
     private final char[] mChars;
+    private float[] mWidths;
 
     // ── Private constructor — use Builder ──────────────────────────────────
 
@@ -31,9 +32,24 @@ public class MeasuredText {
         return mChars.clone();
     }
 
-    /** Stub: returns 0f for the width of the given range. */
+    /** Returns the sum of character widths in the given range. */
     public float getWidth(int start, int end) {
-        return 0f;
+        if (mWidths == null) return 0f;
+        float w = 0f;
+        for (int i = start; i < end && i < mWidths.length; i++) {
+            w += mWidths[i];
+        }
+        return w;
+    }
+
+    /** Returns per-character widths array (may be null). */
+    public float[] getCharWidths() {
+        return mWidths;
+    }
+
+    /** Set per-character widths (called by MeasuredParagraph). */
+    public void setCharWidths(float[] widths) {
+        mWidths = widths;
     }
 
     /** Stub: fills {@code bounds} with zeros for the given range. */

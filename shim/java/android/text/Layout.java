@@ -1980,8 +1980,13 @@ public abstract class Layout {
      */
     public void getSelectionPath(int start, int end, Path dest) {
         dest.reset();
-        getSelection(start, end, (left, top, right, bottom, textSelectionLayout) ->
-                dest.addRect(left, top, right, bottom, Path.Direction.CW));
+        getSelection(start, end, new SelectionRectangleConsumer() {
+            @Override
+            public void accept(float left, float top, float right, float bottom,
+                    @TextSelectionLayout int textSelectionLayout) {
+                dest.addRect(left, top, right, bottom, Path.Direction.CW);
+            }
+        });
     }
 
     /**

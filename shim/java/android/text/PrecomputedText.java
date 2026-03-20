@@ -233,10 +233,9 @@ public class PrecomputedText implements Spannable {
     }
 
     public ParagraphInfo[] getParagraphInfo() {
-        ParagraphInfo[] info = new ParagraphInfo[1];
-        info[0] = new ParagraphInfo(mText.length(),
-            MeasuredParagraph.buildForBidi(mText, 0, mText.length(), null, null));
-        return info;
+        TextPaint paint = (mParams != null) ? mParams.getTextPaint() : null;
+        TextDirectionHeuristic textDir = (mParams != null) ? mParams.getTextDirection() : null;
+        return createMeasuredParagraphs(mText, mParams, 0, mText.length(), false);
     }
 
     public @Params.CheckResultUsableResult int checkResultUsable(int start, int end,
@@ -247,10 +246,37 @@ public class PrecomputedText implements Spannable {
 
     public static ParagraphInfo[] createMeasuredParagraphs(CharSequence text, Params params,
             int start, int end, boolean computeLayout) {
-        ParagraphInfo[] info = new ParagraphInfo[1];
-        info[0] = new ParagraphInfo(end,
-            MeasuredParagraph.buildForBidi(text, start, end, null, null));
-        return info;
+        // Split text into paragraphs at hard line breaks
+        java.util.List<ParagraphInfo> infoList = new java.util.ArrayList<ParagraphInfo>();
+        TextPaint paint = (params != null) ? params.getTextPaint() : null;
+        TextDirectionHeuristic textDir = (params != null) ? params.getTextDirection() : null;
+        int paraStart = start;
+        for (int i = start; i < end; i++) {
+            if (text.charAt(i) == '\n') {
+                int paraEnd = i + 1;
+                infoList.add(new ParagraphInfo(paraEnd,
+                    MeasuredParagraph.buildForStaticLayout(paint, text, paraStart, paraEnd,
+                        textDir, false, computeLayout, null)));
+                paraStart = paraEnd;
+            }
+        }
+        // Final paragraph (or only paragraph if no newlines)
+        if (paraStart < end) {
+            infoList.add(new ParagraphInfo(end,
+                MeasuredParagraph.buildForStaticLayout(paint, text, paraStart, end,
+                    textDir, false, computeLayout, null)));
+        }
+        if (infoList.isEmpty()) {
+            // Empty text
+            infoList.add(new ParagraphInfo(end,
+                MeasuredParagraph.buildForStaticLayout(paint, text, start, end,
+                    textDir, false, computeLayout, null)));
+        }
+        ParagraphInfo[] result = new ParagraphInfo[infoList.size()];
+        for (int i = 0; i < result.length; i++) {
+            result[i] = infoList.get(i);
+        }
+        return result;
     }
 
     public void getBounds(int start, int end, android.graphics.Rect bounds) {

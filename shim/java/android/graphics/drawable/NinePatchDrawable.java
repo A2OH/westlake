@@ -437,9 +437,12 @@ public class NinePatchDrawable extends Drawable {
                     density = value.density;
                 }
                 ImageDecoder.Source source = ImageDecoder.createSource(r, is, density);
-                bitmap = ImageDecoder.decodeBitmap(source, (decoder, info, src) -> {
-                    decoder.setOutPaddingRect(padding);
-                    decoder.setAllocator(ImageDecoder.ALLOCATOR_SOFTWARE);
+                bitmap = ImageDecoder.decodeBitmap(source, new ImageDecoder.OnHeaderDecodedListener() {
+                    @Override
+                    public void onHeaderDecoded(ImageDecoder decoder, ImageDecoder.ImageInfo info, ImageDecoder.Source src) {
+                        decoder.setOutPaddingRect(padding);
+                        decoder.setAllocator(ImageDecoder.ALLOCATOR_SOFTWARE);
+                    }
                 });
 
                 is.close();
