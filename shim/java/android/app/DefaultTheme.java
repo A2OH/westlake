@@ -34,7 +34,7 @@ import android.widget.ToggleButton;
  *
  * Matches KitKat Holo Light rendering:
  * - Light gray (#F5F5F5) background
- * - Gray header text (#757575), dark body text (#212121)
+ * - Light gray header text (#BDBDBD), medium gray body text (#757575)
  * - Dark gradient buttons with white centered text
  * - Small 24dp checkbox/radio icons left of text on same line
  * - Thin 4dp progress bar, thin 2dp seek track with round thumb
@@ -49,9 +49,9 @@ public class DefaultTheme {
     public static final int COLOR_ACCENT = 0xFF33B5E5;       // Holo blue
     public static final int COLOR_BUTTON_DARK = 0xFF4A4A4A;   // Dark button bg (Holo)
     public static final int COLOR_BUTTON_PRESSED = 0xFFBBBBBB;
-    public static final int COLOR_TEXT_PRIMARY = 0xFF212121;   // Near black (body text)
-    public static final int COLOR_TEXT_SECONDARY = 0xFF757575; // Gray (headers)
-    public static final int COLOR_TEXT_HINT = 0xFF9E9E9E;
+    public static final int COLOR_TEXT_PRIMARY = 0xFF757575;   // Medium gray (body text)
+    public static final int COLOR_TEXT_SECONDARY = 0xFFBDBDBD; // Light gray (headers)
+    public static final int COLOR_TEXT_HINT = 0xFFBDBDBD;      // Same as secondary
     public static final int COLOR_DIVIDER = 0xFFBDBDBD;
     public static final int COLOR_BG = 0xFFF5F5F5;            // Off-white background
     public static final int COLOR_TRACK = 0xFFBDBDBD;          // Gray track
@@ -163,13 +163,15 @@ public class DefaultTheme {
     // ── Button ──────────────────────────────────────────────────────────
 
     private static void applyButtonTheme(Button btn) {
-        // Holo button: dark solid background, white centered text, rounded corners
-        GradientDrawable bg = new GradientDrawable();
-        bg.setColor(COLOR_BUTTON_DARK);   // Dark gray like Holo buttons
+        // Holo button: dark gradient background, white centered text, rounded corners
+        GradientDrawable bg = new GradientDrawable(
+            GradientDrawable.Orientation.TOP_BOTTOM,
+            new int[]{0xFF636363, 0xFF404040});
         bg.setCornerRadius(8);             // 4dp radius (slightly rounded)
         btn.setBackground(bg);
         btn.setPadding(24, 16, 24, 16);
         btn.setTextColor(0xFFFFFFFF);      // White text always
+        btn.setGravity(Gravity.CENTER);    // Center text like AOSP default
     }
 
     // ── CheckBox ────────────────────────────────────────────────────────
@@ -402,16 +404,16 @@ public class DefaultTheme {
 
     private static void applyToggleTheme(ToggleButton tb) {
         if (tb.getBackground() != null) return;
-        // Holo toggle: distinct ON (blue) / OFF (gray) visual
+        // Holo toggle: distinct ON (blue) / OFF (light gray) visual
         // Start with OFF state appearance
         GradientDrawable bg = new GradientDrawable();
-        bg.setColor(COLOR_TOGGLE_OFF);
-        bg.setCornerRadius(8);
+        bg.setColor(0xFFCCCCCC);           // Light gray for OFF state
+        bg.setCornerRadius(4);
         tb.setBackground(bg);
         tb.setPadding(24, 16, 24, 16);
         if (tb.getTextOn() == null) tb.setTextOn("ON");
         if (tb.getTextOff() == null) tb.setTextOff("OFF");
-        tb.setTextColor(0xFFFFFFFF); // White text on dark bg
+        tb.setTextColor(0xFF666666);       // Dark gray text on light bg
     }
 
     // ── EditText ────────────────────────────────────────────────────────
@@ -419,7 +421,7 @@ public class DefaultTheme {
     private static void applyEditTextTheme(EditText et) {
         // EditText Holo look: thin blue underline at bottom ONLY
         et.setBackground(new EditTextUnderlineDrawable());
-        et.setPadding(4, 8, 4, 12);
+        et.setPadding(8, 16, 8, 16);
         if (et.getCurrentTextColor() == 0) {
             et.setTextColor(COLOR_TEXT_PRIMARY);
         }
