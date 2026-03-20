@@ -1062,8 +1062,8 @@ public final class R {
     public static final class attr {
         public static final int state_above_anchor = 275;
         public static final int state_expanded = 276;
-        public static final int state_multiline = 277;
-        public static final int state_pressed = 278;
+        public static final int state_multiline = 0x010100aa;
+        public static final int state_pressed = 0x010100a7;
         public static final int textEditSuggestionItemLayout = 278;
         public static final int textEditSuggestionContainerLayout = 279;
         public static final int textEditSuggestionHighlightStyle = 280;
@@ -1080,7 +1080,7 @@ public final class R {
         public static final int seekBarStyle = 291;
         public static final int progressBarStyle = 292;
         public static final int autofilledHighlight = 293;
-        public static final int state_checked = 294;
+        public static final int state_checked = 0x010100a0;
         public static final int checkedTextViewStyle = 295;
         public static final int spinnerStyle = 296;
         public static final int dropDownSpinnerStyle = 297;
@@ -1120,8 +1120,8 @@ public final class R {
         public static final int popupWindowStyle = 426;
         public static final int searchViewStyle = 427;
         public static final int toolbarStyle = 428;
-        public static final int state_empty = 429;
-        public static final int state_last = 430;
+        public static final int state_empty = 0x010100a9;
+        public static final int state_last = 0x010100a6;
         public static final int datePickerStyle = 431;
         public static final int timePickerStyle = 432;
         public static final int calendarViewStyle = 433;
@@ -1139,12 +1139,12 @@ public final class R {
         public static final int magnifierStyle = 445;
         public static final int drawable = 446;
         public static final int id = 447;
-        public static final int state_focused = 448;
-        public static final int state_selected = 449;
-        public static final int state_enabled = 450;
-        public static final int state_activated = 451;
-        public static final int state_window_focused = 452;
-        public static final int state_hovered = 453;
+        public static final int state_focused = 0x0101009c;
+        public static final int state_selected = 0x010100a1;
+        public static final int state_enabled = 0x0101009e;
+        public static final int state_activated = 0x010102fe;
+        public static final int state_window_focused = 0x0101009d;
+        public static final int state_hovered = 0x01010367;
     }
 
     public static final class id {

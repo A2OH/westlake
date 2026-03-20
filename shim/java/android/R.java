@@ -11,10 +11,10 @@ public final class R {
     public static final class attr {
         public static final int autofilledHighlight = 0;
         public static final int selectableItemBackground = 0;
-        public static final int state_pressed = 0;
-        public static final int state_multiline = 0;
-        public static final int state_empty = 0;
-        public static final int state_last = 0;
+        public static final int state_pressed = 0x010100a7;
+        public static final int state_multiline = 0x010100aa;
+        public static final int state_empty = 0x010100a9;
+        public static final int state_last = 0x010100a6;
         public static final int expandableListViewStyle = 0;
         public static final int horizontalScrollViewStyle = 0;
         public static final int numberPickerStyle = 0;
@@ -28,19 +28,19 @@ public final class R {
         public static final int videoViewStyle = 0;
         public static final int drawable = 0;
         public static final int id = 0;
-        public static final int state_focused = 0;
-        public static final int state_selected = 0;
-        public static final int state_enabled = 0;
-        public static final int state_checked = 0;
-        public static final int state_activated = 0;
-        public static final int state_window_focused = 0;
-        public static final int state_first = 0;
-        public static final int state_middle = 0;
-        public static final int state_single = 0;
-        public static final int state_accelerated = 0;
-        public static final int state_hovered = 0;
-        public static final int state_drag_can_accept = 0;
-        public static final int state_drag_hovered = 0;
+        public static final int state_focused = 0x0101009c;
+        public static final int state_selected = 0x010100a1;
+        public static final int state_enabled = 0x0101009e;
+        public static final int state_checked = 0x010100a0;
+        public static final int state_activated = 0x010102fe;
+        public static final int state_window_focused = 0x0101009d;
+        public static final int state_first = 0x010100a4;
+        public static final int state_middle = 0x010100a5;
+        public static final int state_single = 0x01010103;
+        public static final int state_accelerated = 0x0101031b;
+        public static final int state_hovered = 0x01010367;
+        public static final int state_drag_can_accept = 0x01010368;
+        public static final int state_drag_hovered = 0x01010369;
         private attr() {}
     }
 

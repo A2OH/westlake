@@ -161,6 +161,9 @@ public class Activity extends Context {
         android.view.View decorView = mWindow.getDecorView();
         if (decorView == null) return;
 
+        // Apply default Holo-Light theme to widgets that have no drawables
+        DefaultTheme.applyToViewTree(decorView);
+
         int wSpec = android.view.View.MeasureSpec.makeMeasureSpec(mSurfaceWidth, android.view.View.MeasureSpec.EXACTLY);
         int hSpec = android.view.View.MeasureSpec.makeMeasureSpec(mSurfaceHeight, android.view.View.MeasureSpec.EXACTLY);
         decorView.measure(wSpec, hSpec);
