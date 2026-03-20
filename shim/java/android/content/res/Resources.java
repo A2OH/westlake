@@ -325,4 +325,12 @@ public class Resources {
 
     /** Return an AssetManager instance (stub returns null). */
     public AssetManager getAssets() { return null; }
+
+    /** Stub for AOSP Display.java compilation. */
+    public android.view.DisplayAdjustments getDisplayAdjustments() {
+        return new android.view.DisplayAdjustments();
+    }
+
+    /** Stub for AOSP Display.java compilation. */
+    public boolean hasOverrideDisplayAdjustments() { return false; }
 }

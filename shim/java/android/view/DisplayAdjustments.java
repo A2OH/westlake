@@ -27,6 +27,7 @@ public class DisplayAdjustments {
     public DisplayCutout getDisplayCutout(DisplayCutout cutout) { return cutout; }
     public void adjustSize(Point size, int rotation) {}
     public void adjustMetrics(DisplayMetrics metrics, int rotation) {}
+    public Object getFixedRotationAdjustments() { return null; }
 
     public boolean equals(Object o) {
         if (this == o) return true;

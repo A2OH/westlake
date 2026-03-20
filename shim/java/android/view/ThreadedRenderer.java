@@ -12,4 +12,8 @@ public class ThreadedRenderer {
     public android.graphics.Rect surfaceInsets = new android.graphics.Rect();
     public void destroyHardwareResources(View view) {}
     public TextureLayer createTextureLayer() { return new TextureLayer(); }
+
+    public static final String DEBUG_FPS_DIVISOR = "debug.hwui.fps_divisor";
+
+    public static void setFPSDivisor(int divisor) {}
 }

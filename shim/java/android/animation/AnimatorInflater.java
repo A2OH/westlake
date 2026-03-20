@@ -1,23 +1,9 @@
 package android.animation;
-
 import android.content.Context;
-import android.content.res.Resources;
 
-/** Stub for AOSP compilation. */
 public class AnimatorInflater {
-    public static Animator loadAnimator(Context context, int id) throws Resources.NotFoundException {
-        return new ValueAnimator();
-    }
-    public static Animator loadAnimator(Resources resources, Resources.Theme theme, int id)
-            throws Resources.NotFoundException {
-        return new ValueAnimator();
-    }
-    public static Animator loadAnimator(Resources resources, Resources.Theme theme, int id,
-            float pathErrorScale) throws Resources.NotFoundException {
-        return new ValueAnimator();
-    }
-    public static StateListAnimator loadStateListAnimator(Context context, int id)
-            throws Resources.NotFoundException {
-        return new StateListAnimator();
-    }
+    public AnimatorInflater() {}
+
+    public static Animator loadAnimator(Context p0, int p1) { return null; }
+    public static StateListAnimator loadStateListAnimator(Context p0, int p1) { return null; }
 }

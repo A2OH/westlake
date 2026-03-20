@@ -53,4 +53,10 @@ public class AnimationUtils {
     public static long currentAnimationTimeMillis() {
         return System.nanoTime() / 1_000_000L;
     }
+
+    /** Lock the animation clock to a specific time (for testing). */
+    public static void lockAnimationClock(long timeMillis) {}
+
+    /** Unlock the animation clock. */
+    public static void unlockAnimationClock() {}
 }

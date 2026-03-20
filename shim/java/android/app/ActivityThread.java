@@ -53,6 +53,14 @@ public class ActivityThread {
     }
 
     /**
+     * Returns the Application for this process (static convenience).
+     */
+    public static Application currentApplication() {
+        ActivityThread thread = currentActivityThread();
+        return thread != null ? thread.mApplication : null;
+    }
+
+    /**
      * Returns the Application object for this process.
      * May be null if called before Application.onCreate().
      */

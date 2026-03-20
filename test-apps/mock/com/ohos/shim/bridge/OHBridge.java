@@ -622,6 +622,20 @@ public class OHBridge {
 
     public static float fontMeasureText(long font, String text) {
         if (text == null) return 0f;
-        return text.length() * 8.0f; // rough estimate: 8px per char
+        Float size = sHandleFontSizes.get(font);
+        float fontSize = (size != null) ? size : 14.0f;
+        // Proportional measurement: wider chars get more weight
+        float total = 0f;
+        for (int i = 0; i < text.length(); i++) {
+            char c = text.charAt(i);
+            float w;
+            if (c == ' ') w = 0.25f;
+            else if (c == 'i' || c == 'l' || c == '!' || c == '|' || c == '.' || c == ',') w = 0.3f;
+            else if (c == 'W' || c == 'M' || c == 'm' || c == 'w') w = 0.75f;
+            else if (c >= 'A' && c <= 'Z') w = 0.65f;
+            else w = 0.55f;
+            total += w * fontSize;
+        }
+        return total;
     }
 }

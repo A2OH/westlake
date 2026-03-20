@@ -12,6 +12,12 @@ public class PathKeyframes implements Keyframes {
 
     public void setEvaluator(TypeEvaluator evaluator) {}
     public Class getType() { return android.graphics.PointF.class; }
+
+    public Keyframes.IntKeyframes createXIntKeyframes() { return new IntKeyframesBase(); }
+    public Keyframes.IntKeyframes createYIntKeyframes() { return new IntKeyframesBase(); }
+    public Keyframes.FloatKeyframes createXFloatKeyframes() { return new FloatKeyframesBase(); }
+    public Keyframes.FloatKeyframes createYFloatKeyframes() { return new FloatKeyframesBase(); }
+
     public Object getValue(float fraction) {
         return new PointF(0, 0);
     }

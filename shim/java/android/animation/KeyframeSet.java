@@ -60,8 +60,8 @@ public class KeyframeSet implements Keyframes {
         return new KeyframeSet(keyframes);
     }
 
-    public static Keyframes ofPath(Path path) {
-        return new KeyframeSet(Keyframe.ofObject(0f), Keyframe.ofObject(1f));
+    public static PathKeyframes ofPath(Path path) {
+        return new PathKeyframes(path);
     }
 
     public void setEvaluator(TypeEvaluator evaluator) {

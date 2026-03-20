@@ -1,9 +1,14 @@
 package android.animation;
 
-public class BidirectionalTypeConverter {
-    public BidirectionalTypeConverter() {}
+/** Stub for AOSP compilation. Two-way type converter for animations. */
+public abstract class BidirectionalTypeConverter<T, V> extends TypeConverter<T, V> {
+    public BidirectionalTypeConverter(Class<T> fromClass, Class<V> toClass) {
+        super(fromClass, toClass);
+    }
 
-    public Object convertBack(Object p0) { return null; }
-    public Object invert() { return null; }
-    public float evaluate(Object p0, Object p1, Object p2) { return 0f; }
+    public abstract T convertBack(V value);
+
+    public BidirectionalTypeConverter<V, T> invert() {
+        return null;
+    }
 }
