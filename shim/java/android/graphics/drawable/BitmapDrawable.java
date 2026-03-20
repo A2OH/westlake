@@ -167,8 +167,11 @@ public class BitmapDrawable extends Drawable {
         Bitmap bitmap = null;
         try (FileInputStream stream = new FileInputStream(filepath)) {
             bitmap = ImageDecoder.decodeBitmap(ImageDecoder.createSource(res, stream),
-                    (decoder, info, src) -> {
-                decoder.setAllocator(ImageDecoder.ALLOCATOR_SOFTWARE);
+                    new ImageDecoder.OnHeaderDecodedListener() {
+                @Override
+                public void onHeaderDecoded(ImageDecoder decoder, ImageDecoder.ImageInfo info, ImageDecoder.Source src) {
+                    decoder.setAllocator(ImageDecoder.ALLOCATOR_SOFTWARE);
+                }
             });
         } catch (Exception e) {
             /*  do nothing. This matches the behavior of BitmapFactory.decodeFile()
@@ -200,8 +203,11 @@ public class BitmapDrawable extends Drawable {
         Bitmap bitmap = null;
         try {
             bitmap = ImageDecoder.decodeBitmap(ImageDecoder.createSource(res, is),
-                    (decoder, info, src) -> {
-                decoder.setAllocator(ImageDecoder.ALLOCATOR_SOFTWARE);
+                    new ImageDecoder.OnHeaderDecodedListener() {
+                @Override
+                public void onHeaderDecoded(ImageDecoder decoder, ImageDecoder.ImageInfo info, ImageDecoder.Source src) {
+                    decoder.setAllocator(ImageDecoder.ALLOCATOR_SOFTWARE);
+                }
             });
         } catch (Exception e) {
             /*  do nothing. This matches the behavior of BitmapFactory.decodeStream()
@@ -843,8 +849,11 @@ public class BitmapDrawable extends Drawable {
             Bitmap bitmap = null;
             try (InputStream is = r.openRawResource(srcResId, value)) {
                 ImageDecoder.Source source = ImageDecoder.createSource(r, is, density);
-                bitmap = ImageDecoder.decodeBitmap(source, (decoder, info, src) -> {
-                    decoder.setAllocator(ImageDecoder.ALLOCATOR_SOFTWARE);
+                bitmap = ImageDecoder.decodeBitmap(source, new ImageDecoder.OnHeaderDecodedListener() {
+                    @Override
+                    public void onHeaderDecoded(ImageDecoder decoder, ImageDecoder.ImageInfo info, ImageDecoder.Source src) {
+                        decoder.setAllocator(ImageDecoder.ALLOCATOR_SOFTWARE);
+                    }
                 });
             } catch (Exception e) {
                 // Do nothing and pick up the error below.

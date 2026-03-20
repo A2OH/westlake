@@ -1299,11 +1299,17 @@ public abstract class Drawable {
                 source = ImageDecoder.createSource(res, is);
             }
 
-            return ImageDecoder.decodeDrawable(source, (decoder, info, src) -> {
-                decoder.setAllocator(ImageDecoder.ALLOCATOR_SOFTWARE);
-                decoder.setOnPartialImageListener((e) -> {
-                    return e.getError() == ImageDecoder.DecodeException.SOURCE_INCOMPLETE;
-                });
+            return ImageDecoder.decodeDrawable(source, new ImageDecoder.OnHeaderDecodedListener() {
+                @Override
+                public void onHeaderDecoded(ImageDecoder decoder, ImageDecoder.ImageInfo info, ImageDecoder.Source src) {
+                    decoder.setAllocator(ImageDecoder.ALLOCATOR_SOFTWARE);
+                    decoder.setOnPartialImageListener(new ImageDecoder.OnPartialImageListener() {
+                        @Override
+                        public boolean onPartialImage(ImageDecoder.DecodeException e) {
+                            return e.getError() == ImageDecoder.DecodeException.SOURCE_INCOMPLETE;
+                        }
+                    });
+                }
             });
         } catch (IOException e) {
             /*  do nothing.

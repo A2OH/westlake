@@ -11,6 +11,8 @@ public class MeasuredParagraph {
     private char[] mChars;
     private float[] mWidths;
     private int mTextLength;
+    private int mParaStart;  // absolute start position in source text
+    private int mParaEnd;    // absolute end position in source text
     private Paint mPaint;
 
     private MeasuredParagraph() {}
@@ -19,6 +21,8 @@ public class MeasuredParagraph {
             TextDirectionHeuristic textDir, MeasuredParagraph recycle) {
         MeasuredParagraph mp = (recycle != null) ? recycle : new MeasuredParagraph();
         mp.mTextLength = end - start;
+        mp.mParaStart = start;
+        mp.mParaEnd = end;
         mp.mChars = new char[mp.mTextLength];
         TextUtils.getChars(text, start, end, mp.mChars, 0);
         mp.mWidths = new float[mp.mTextLength];
@@ -66,14 +70,38 @@ public class MeasuredParagraph {
     }
 
     public android.util.IntArray getSpanEndCache() {
-        return new android.util.IntArray();
+        // AOSP StaticLayout expects absolute positions in source text.
+        // Return one span covering the whole paragraph.
+        android.util.IntArray arr = new android.util.IntArray();
+        arr.add(mParaEnd);
+        return arr;
     }
 
     public android.util.IntArray getFontMetrics() {
-        return new android.util.IntArray();
+        // 4 entries per span: top, bottom, ascent, descent.
+        // Must match span count from getSpanEndCache().
+        android.util.IntArray arr = new android.util.IntArray();
+        int fontSize = (mPaint != null) ? (int) mPaint.getTextSize() : 14;
+        int ascent = -fontSize;
+        int descent = fontSize / 4;
+        if (descent < 1) descent = 4;
+        arr.add(ascent);       // top
+        arr.add(descent);      // bottom
+        arr.add(ascent);       // ascent
+        arr.add(descent);      // descent
+        return arr;
     }
 
-    public android.graphics.text.MeasuredText getMeasuredText() { return null; }
+    public android.graphics.text.MeasuredText getMeasuredText() {
+        android.graphics.text.MeasuredText.Builder b =
+            new android.graphics.text.MeasuredText.Builder(
+                new String(mChars != null ? mChars : new char[0]));
+        android.graphics.text.MeasuredText mt = b.build();
+        if (mWidths != null) {
+            mt.setCharWidths(mWidths);
+        }
+        return mt;
+    }
 
     public void recycle() {
         mChars = null;
