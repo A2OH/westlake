@@ -56,11 +56,21 @@ public class FocusFinder {
     final Rect mOtherRect = new Rect();
     final Rect mBestCandidateRect = new Rect();
     private final UserSpecifiedFocusComparator mUserSpecifiedFocusComparator =
-            new UserSpecifiedFocusComparator((r, v) -> isValidId(v.getNextFocusForwardId())
-                            ? v.findUserSetNextFocus(r, View.FOCUS_FORWARD) : null);
+            new UserSpecifiedFocusComparator(new UserSpecifiedFocusComparator.NextFocusGetter() {
+                @Override
+                public View get(View r, View v) {
+                    return isValidId(v.getNextFocusForwardId())
+                            ? v.findUserSetNextFocus(r, View.FOCUS_FORWARD) : null;
+                }
+            });
     private final UserSpecifiedFocusComparator mUserSpecifiedClusterComparator =
-            new UserSpecifiedFocusComparator((r, v) -> isValidId(v.getNextClusterForwardId())
-                    ? v.findUserSetNextKeyboardNavigationCluster(r, View.FOCUS_FORWARD) : null);
+            new UserSpecifiedFocusComparator(new UserSpecifiedFocusComparator.NextFocusGetter() {
+                @Override
+                public View get(View r, View v) {
+                    return isValidId(v.getNextClusterForwardId())
+                            ? v.findUserSetNextKeyboardNavigationCluster(r, View.FOCUS_FORWARD) : null;
+                }
+            });
     private final FocusSorter mFocusSorter = new FocusSorter();
 
     private final ArrayList<View> mTempList = new ArrayList<View>();
@@ -789,34 +799,40 @@ public class FocusFinder {
         private int mRtlMult;
         private HashMap<View, Rect> mRectByView = null;
 
-        private Comparator<View> mTopsComparator = (first, second) -> {
-            if (first == second) {
-                return 0;
-            }
+        private Comparator<View> mTopsComparator = new Comparator<View>() {
+            @Override
+            public int compare(View first, View second) {
+                if (first == second) {
+                    return 0;
+                }
 
-            Rect firstRect = mRectByView.get(first);
-            Rect secondRect = mRectByView.get(second);
+                Rect firstRect = mRectByView.get(first);
+                Rect secondRect = mRectByView.get(second);
 
-            int result = firstRect.top - secondRect.top;
-            if (result == 0) {
-                return firstRect.bottom - secondRect.bottom;
+                int result = firstRect.top - secondRect.top;
+                if (result == 0) {
+                    return firstRect.bottom - secondRect.bottom;
+                }
+                return result;
             }
-            return result;
         };
 
-        private Comparator<View> mSidesComparator = (first, second) -> {
-            if (first == second) {
-                return 0;
-            }
+        private Comparator<View> mSidesComparator = new Comparator<View>() {
+            @Override
+            public int compare(View first, View second) {
+                if (first == second) {
+                    return 0;
+                }
 
-            Rect firstRect = mRectByView.get(first);
-            Rect secondRect = mRectByView.get(second);
+                Rect firstRect = mRectByView.get(first);
+                Rect secondRect = mRectByView.get(second);
 
-            int result = firstRect.left - secondRect.left;
-            if (result == 0) {
-                return firstRect.right - secondRect.right;
+                int result = firstRect.left - secondRect.left;
+                if (result == 0) {
+                    return firstRect.right - secondRect.right;
+                }
+                return mRtlMult * result;
             }
-            return mRtlMult * result;
         };
 
         public void sort(View[] views, int start, int end, ViewGroup root, boolean isRtl) {

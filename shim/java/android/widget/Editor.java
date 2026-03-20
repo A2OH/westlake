@@ -2400,7 +2400,12 @@ public class Editor {
             // Make the toolbar outside-touchable so that it can be dismissed when the user clicks
             // outside of it.
             ((FloatingActionMode) mTextActionMode).setOutsideTouchable(true,
-                    () -> stopTextActionMode());
+                    new Runnable() {
+                        @Override
+                        public void run() {
+                            stopTextActionMode();
+                        }
+                    });
         }
 
         final boolean selectionStarted = mTextActionMode != null;
@@ -4559,13 +4564,16 @@ public class Editor {
             mAnimator = ValueAnimator.ofFloat(0, 1);
             mAnimator.setDuration(DURATION);
             mAnimator.setInterpolator(new LinearInterpolator());
-            mAnimator.addUpdateListener((animation) -> {
-                // Interpolate to find the current position of the magnifier.
-                mAnimationCurrentX = mAnimationStartX
-                        + (mLastX - mAnimationStartX) * animation.getAnimatedFraction();
-                mAnimationCurrentY = mAnimationStartY
-                        + (mLastY - mAnimationStartY) * animation.getAnimatedFraction();
-                mMagnifier.show(mAnimationCurrentX, mAnimationCurrentY);
+            mAnimator.addUpdateListener(new ValueAnimator.AnimatorUpdateListener() {
+                @Override
+                public void onAnimationUpdate(ValueAnimator animation) {
+                    // Interpolate to find the current position of the magnifier.
+                    mAnimationCurrentX = mAnimationStartX
+                            + (mLastX - mAnimationStartX) * animation.getAnimatedFraction();
+                    mAnimationCurrentY = mAnimationStartY
+                            + (mLastY - mAnimationStartY) * animation.getAnimatedFraction();
+                    mMagnifier.show(mAnimationCurrentX, mAnimationCurrentY);
+                }
             });
         }
 
