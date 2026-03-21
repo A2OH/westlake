@@ -16,6 +16,7 @@
 #include <stdint.h>
 #include <fcntl.h>
 #include <unistd.h>
+#include <errno.h>
 #include <sys/stat.h>
 #include <sys/mman.h>
 
@@ -38,8 +39,13 @@ static void ensure_framebuffer(int w, int h) {
 
 static void flush_framebuffer() {
     if (!g_framebuffer) return;
+    /* Ensure parent directory exists */
+    mkdir("/data/a2oh", 0777);
     int fd = open(CANVAS_OUTPUT, O_WRONLY | O_CREAT | O_TRUNC, 0666);
-    if (fd < 0) return;
+    if (fd < 0) {
+        ALOGW("flush_framebuffer: open(%s) failed: %s", CANVAS_OUTPUT, strerror(errno));
+        return;
+    }
     /* Write header: width, height */
     write(fd, &g_framebuffer->width, 4);
     write(fd, &g_framebuffer->height, 4);
@@ -229,6 +235,7 @@ JNIEXPORT void JNICALL Java_com_ohos_shim_bridge_OHBridge_canvasDestroy(JNIEnv*,
         /* Flush bitmap to file for init binary to read */
         if (c->bitmap) {
             /* Try multiple paths */
+            mkdir("/data/a2oh", 0777);
             int fd = open(CANVAS_OUTPUT, O_WRONLY | O_CREAT | O_TRUNC, 0666);
             if (fd >= 0) {
                 int w = c->bitmap->width, h = c->bitmap->height;
