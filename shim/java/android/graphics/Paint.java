@@ -259,20 +259,36 @@ public class Paint {
 
     public FontMetrics getFontMetrics() {
         FontMetrics fm = new FontMetrics();
+        /* Try native stb_truetype metrics via OHBridge */
+        try {
+            long f = com.ohos.shim.bridge.OHBridge.fontCreate();
+            if (f != 0) {
+                com.ohos.shim.bridge.OHBridge.fontSetSize(f, textSize);
+                float[] m = com.ohos.shim.bridge.OHBridge.fontGetMetrics(f);
+                com.ohos.shim.bridge.OHBridge.fontDestroy(f);
+                if (m != null && m.length >= 3) {
+                    fm.ascent  = m[0];
+                    fm.descent = m[1];
+                    fm.leading = m[2];
+                    fm.top     = fm.ascent - 2;
+                    fm.bottom  = fm.descent + 1;
+                    return fm;
+                }
+            }
+        } catch (Throwable t) { /* fall through */ }
+        /* Try Java2D (host JVM only) */
         try {
             Object obj = getAwtFontMetrics();
             if (obj != null) {
                 java.awt.FontMetrics awtFm = (java.awt.FontMetrics) obj;
-                fm.ascent  = -awtFm.getAscent();     // Android ascent is negative
+                fm.ascent  = -awtFm.getAscent();
                 fm.descent = awtFm.getDescent();
                 fm.leading = awtFm.getLeading();
                 fm.top     = fm.ascent - 2;
                 fm.bottom  = fm.descent + 1;
                 return fm;
             }
-        } catch (Throwable t) {
-            // fall through to approximation
-        }
+        } catch (Throwable t) { /* fall through */ }
         fm.top     = -textSize * 1.08f;
         fm.ascent  = -textSize * 0.93f;
         fm.descent =  textSize * 0.24f;
