@@ -10579,7 +10579,7 @@ public class View implements Drawable.Callback, KeyEvent.Callback,
             if (stateDescription == null) {
                 return;
             }
-        } else if (mStateDescription.equals(stateDescription)) {
+        } else if (TextUtils.equals(mStateDescription, stateDescription)) {
             return;
         }
         mStateDescription = stateDescription;
@@ -10617,7 +10617,7 @@ public class View implements Drawable.Callback, KeyEvent.Callback,
             if (contentDescription == null) {
                 return;
             }
-        } else if (mContentDescription.equals(contentDescription)) {
+        } else if (TextUtils.equals(mContentDescription, contentDescription)) {
             return;
         }
         mContentDescription = contentDescription;
