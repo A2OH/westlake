@@ -30,13 +30,6 @@
 // The object_array.h (non-inl) header still provides declarations.
 #define ART_RUNTIME_MIRROR_OBJECT_ARRAY_INL_H_
 
-// HACK: Pre-include runtime.h via our shadow to ensure the constexpr-safe
-// OFFSETOF_MEMBER (returning 0) is used. Without this, same-directory includes
-// from art/runtime/ may find the real runtime.h first with __builtin_offsetof.
-// We include it from the pre-included header so it's always processed first.
-// Note: this requires all runtime.h dependencies to be available, which they
-// should be since we include cstring/cstdlib/cmath above.
-
 // ART compact DEX level (needed by dex2oat)
 #ifndef ART_DEFAULT_COMPACT_DEX_LEVEL
 #define ART_DEFAULT_COMPACT_DEX_LEVEL fast

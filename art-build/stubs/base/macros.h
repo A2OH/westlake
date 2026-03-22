@@ -14,4 +14,10 @@
 #undef OFFSETOF_MEMBER
 #define OFFSETOF_MEMBER(t, f) __builtin_offsetof(t, f)
 
+// GCC 13 cannot allocate registers for cmpxchg16b inline asm when the function
+// is marked always_inline (dex_cache.h:539). Since this is a host compiler build,
+// removing always_inline is safe - GCC -O2 will still inline where profitable.
+#undef ALWAYS_INLINE
+#define ALWAYS_INLINE
+
 #endif  // STUB_BASE_MACROS_WRAPPER_H_
