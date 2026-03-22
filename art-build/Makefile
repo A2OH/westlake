@@ -42,6 +42,11 @@ CXXFLAGS = -std=c++17 -O2 -w -mcx16 -fPIC \
   -I$(AOSP)/external/vixl/src \
   -I$(AOSP)/external/lzma/C \
   -I$(ART)/sigchainlib \
+  -I$(AOSP)/libnativehelper/platform_include \
+  -I$(ART)/libnativebridge/include \
+  -I$(AOSP)/system/core/libbacktrace/include \
+  -I$(ART)/libnativeloader/include \
+  -I$(AOSP)/external/icu/icu4c/source/common \
   -DART_DEFAULT_GC_TYPE_IS_CMS \
   -DBUILDING_LIBART \
   -DART_BASE_ADDRESS=0x70000000 \
@@ -138,13 +143,15 @@ RUNTIME_SRCS_ALL = $(filter-out %_test.cc %_fuzzer.cc %_bench.cc,$(wildcard \
   $(ART)/runtime/jni/*.cc \
   $(ART)/runtime/mirror/*.cc \
   $(ART)/runtime/native/*.cc \
+  $(ART)/runtime/dex/*.cc \
+  $(ART)/runtime/ti/*.cc \
   $(ART)/runtime/verifier/*.cc))
-RUNTIME_EXCLUDE = %backtrace_helper.cc %check_jni.cc %fault_handler.cc \
-  %native_stack_dump.cc %signal_catcher.cc %trace.cc \
+RUNTIME_EXCLUDE = %backtrace_helper.cc \
+  %native_stack_dump.cc \
   %thread_linux.cc %asm_support_check.cc \
   %runtime_android.cc \
   %arch/arm/thread_arm.cc %arch/arm64/thread_arm64.cc %arch/x86/thread_x86.cc \
-  %mterp/nterp_stub.cc \
+  %mterp/nterp_stub.cc %mterp/mterp_stub.cc \
   %arch/arm/entrypoints_init_arm.cc %arch/arm64/entrypoints_init_arm64.cc \
   %arch/x86/entrypoints_init_x86.cc \
   %arch/arm/context_arm.cc %arch/arm64/context_arm64.cc %arch/x86/context_x86.cc \
@@ -158,7 +165,7 @@ DEXLAYOUT_SRCS = $(filter-out %_test.cc %_fuzzer.cc %dexlayout_main.cc %dexdiag.
 DEXLAYOUT_OBJS = $(patsubst $(ART)/%.cc,$(BUILDDIR)/%.o,$(DEXLAYOUT_SRCS))
 
 # ============ libelffile ============
-ELFFILE_SRCS = $(filter-out %_test.cc,$(wildcard $(ART)/libelffile/elf/*.cc))
+ELFFILE_SRCS = $(filter-out %_test.cc %xz_utils.cc,$(wildcard $(ART)/libelffile/elf/*.cc $(ART)/libelffile/stream/*.cc))
 ELFFILE_OBJS = $(patsubst $(ART)/%.cc,$(BUILDDIR)/%.o,$(ELFFILE_SRCS))
 
 # ============ libprofile ============
@@ -253,7 +260,7 @@ link-stubs: $(STUBS_OBJ)
 	@echo "=== link stubs ==="
 	@echo "Compiled: link_stubs.o"
 
-link: all
+link: all ziparchive sigchain
 	@echo "=== Linking dex2oat ==="
 	@mkdir -p $(BUILDDIR)/bin
 	$(HOSTLD) -o $(BUILDDIR)/bin/dex2oat \
@@ -268,10 +275,40 @@ link: all
 	  $$(find $(BUILDDIR)/dexlayout -name '*.o') \
 	  $$(find $(BUILDDIR)/vixl -name '*.o') \
 	  $$(find $(BUILDDIR)/android-base -name '*.o') \
+	  $$(find $(BUILDDIR)/ziparchive -name '*.o') \
+	  $(BUILDDIR)/sigchain/sigchain.o \
+	  $$(find $(BUILDDIR)/generated -name '*.o') \
 	  $(STUBS_OBJ) \
-	  $(LDFLAGS)
+	  $(BUILDDIR)/stubs/fault_handler_stubs.o \
+	  $(BUILDDIR)/stubs/template_instantiations.o \
+	  $(LDFLAGS) -lrt
 	@echo "Built: $(BUILDDIR)/bin/dex2oat"
 	@ls -lh $(BUILDDIR)/bin/dex2oat
+
+ziparchive:
+	@mkdir -p $(BUILDDIR)/ziparchive
+	@for f in zip_archive.cc zip_archive_stream_entry.cc; do \
+	  $(CXX) -std=c++17 -O2 -w -fPIC \
+	    -stdlib=libc++ -nostdinc++ -isystem $(LIBCXX) \
+	    -I$(AOSP)/system/core/libziparchive/include \
+	    -I$(AOSP)/system/core/base/include \
+	    -I$(AOSP)/system/logging/liblog/include \
+	    -I$(AOSP)/system/core/liblog/include \
+	    -I$(AOSP)/external/zlib \
+	    -DANDROID \
+	    -c $(AOSP)/system/core/libziparchive/$$f \
+	    -o $(BUILDDIR)/ziparchive/$${f%.cc}.o 2>&1 && echo "OK: $$f" || echo "FAIL: $$f"; \
+	done
+
+sigchain:
+	@mkdir -p $(BUILDDIR)/sigchain
+	@$(CXX) -std=c++17 -O2 -w -fPIC \
+	  -stdlib=libc++ -nostdinc++ -isystem $(LIBCXX) \
+	  -I$(ART)/sigchainlib \
+	  -I$(AOSP)/system/core/base/include \
+	  -I$(AOSP)/system/logging/liblog/include \
+	  -c $(ART)/sigchainlib/sigchain.cc \
+	  -o $(BUILDDIR)/sigchain/sigchain.o 2>&1 && echo "OK: sigchain.cc" || echo "FAIL: sigchain.cc"
 
 status:
 	@echo "=== Build Status ==="
