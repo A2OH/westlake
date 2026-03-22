@@ -2,7 +2,7 @@
 
 # Performance Gap Analysis: Running Real APKs on OHOS
 
-**Date:** 2026-03-20 | **Updated:** 2026-03-22
+**Date:** 2026-03-20 | **Updated:** 2026-03-22 (real Dalvik vs ART benchmark data added)
 
 ---
 
