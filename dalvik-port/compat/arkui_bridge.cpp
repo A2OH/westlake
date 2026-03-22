@@ -113,8 +113,41 @@ SKFP(void, RoundRectDestroy, OH_RoundRect*);
 
 #define SK_RESOLVE(name) sk_##name = (decltype(sk_##name))dlsym(g_skia_lib, "OH_Drawing_" #name)
 
-/* When linked with -DHAVE_SKIA_STATIC, OH_Drawing symbols are resolved at link time */
+/* When linked with -DHAVE_SKIA_STATIC, call Skia C++ API directly (bypass OH_Drawing C wrapper) */
 #ifdef HAVE_SKIA_STATIC
+#include "include/core/SkCanvas.h"
+#include "include/core/SkBitmap.h"
+#include "include/core/SkPaint.h"
+#include "include/core/SkPath.h"
+#include "include/core/SkFont.h"
+#include "include/core/SkTextBlob.h"
+#include "include/core/SkTypeface.h"
+#include "include/core/SkFontMgr.h"
+#include "include/core/SkRect.h"
+#include "include/core/SkRRect.h"
+#include "include/core/SkString.h"
+#include "include/core/SkData.h"
+/* Skia direct canvas wrapper */
+struct SkiaDirectCanvas {
+    SkBitmap skBitmap;
+    SkCanvas *skCanvas;
+    SkPaint fillPaint;
+    SkPaint strokePaint;
+    SkFont skFont;
+    sk_sp<SkTypeface> typeface;
+    int width, height;
+};
+static sk_sp<SkTypeface> g_skTypeface;
+static void ensure_sk_typeface() {
+    if (g_skTypeface) return;
+    auto data = SkData::MakeFromFileName(FONT_PATH);
+    if (data) g_skTypeface = SkTypeface::MakeFromData(data);
+    if (!g_skTypeface) g_skTypeface = SkTypeface::MakeDefault();
+}
+#endif
+
+#ifdef HAVE_SKIA_STATIC_OH_DRAWING_UNUSED
+/* Original OH_Drawing extern declarations — kept for reference but not used */
 extern "C" {
 OH_Bitmap* OH_Drawing_BitmapCreate(void);
 void OH_Drawing_BitmapDestroy(OH_Bitmap*);
@@ -185,33 +218,10 @@ static void try_load_skia() {
     g_skia_tried = 1;
 
 #ifdef HAVE_SKIA_STATIC
-    /* Symbols resolved at link time — assign directly */
-    SK_STATIC_ASSIGN(BitmapCreate); SK_STATIC_ASSIGN(BitmapDestroy); SK_STATIC_ASSIGN(BitmapBuild);
-    SK_STATIC_ASSIGN(BitmapGetWidth); SK_STATIC_ASSIGN(BitmapGetHeight); SK_STATIC_ASSIGN(BitmapGetPixels);
-    SK_STATIC_ASSIGN(CanvasCreate); SK_STATIC_ASSIGN(CanvasDestroy); SK_STATIC_ASSIGN(CanvasBind);
-    SK_STATIC_ASSIGN(CanvasAttachPen); SK_STATIC_ASSIGN(CanvasDetachPen);
-    SK_STATIC_ASSIGN(CanvasAttachBrush); SK_STATIC_ASSIGN(CanvasDetachBrush);
-    SK_STATIC_ASSIGN(CanvasSave); SK_STATIC_ASSIGN(CanvasRestore);
-    SK_STATIC_ASSIGN(CanvasDrawLine); SK_STATIC_ASSIGN(CanvasDrawRect); SK_STATIC_ASSIGN(CanvasDrawCircle);
-    SK_STATIC_ASSIGN(CanvasDrawOval); SK_STATIC_ASSIGN(CanvasDrawArc); SK_STATIC_ASSIGN(CanvasDrawRoundRect);
-    SK_STATIC_ASSIGN(CanvasDrawPath); SK_STATIC_ASSIGN(CanvasDrawTextBlob); SK_STATIC_ASSIGN(CanvasDrawBitmap);
-    SK_STATIC_ASSIGN(CanvasClipRect); SK_STATIC_ASSIGN(CanvasTranslate); SK_STATIC_ASSIGN(CanvasScale);
-    SK_STATIC_ASSIGN(CanvasRotate); SK_STATIC_ASSIGN(CanvasClear);
-    SK_STATIC_ASSIGN(PenCreate); SK_STATIC_ASSIGN(PenDestroy); SK_STATIC_ASSIGN(PenSetColor);
-    SK_STATIC_ASSIGN(PenSetWidth); SK_STATIC_ASSIGN(PenSetAntiAlias);
-    SK_STATIC_ASSIGN(BrushCreate); SK_STATIC_ASSIGN(BrushDestroy); SK_STATIC_ASSIGN(BrushSetColor);
-    SK_STATIC_ASSIGN(BrushSetAntiAlias);
-    SK_STATIC_ASSIGN(FontCreate); SK_STATIC_ASSIGN(FontDestroy); SK_STATIC_ASSIGN(FontSetTypeface);
-    SK_STATIC_ASSIGN(FontSetTextSize); SK_STATIC_ASSIGN(FontGetMetrics);
-    SK_STATIC_ASSIGN(TypefaceCreateDefault); SK_STATIC_ASSIGN(TypefaceCreateFromFile); SK_STATIC_ASSIGN(TypefaceDestroy);
-    SK_STATIC_ASSIGN(TextBlobCreateFromString); SK_STATIC_ASSIGN(TextBlobDestroy);
-    SK_STATIC_ASSIGN(PathCreate); SK_STATIC_ASSIGN(PathDestroy); SK_STATIC_ASSIGN(PathMoveTo);
-    SK_STATIC_ASSIGN(PathLineTo); SK_STATIC_ASSIGN(PathCubicTo); SK_STATIC_ASSIGN(PathQuadTo);
-    SK_STATIC_ASSIGN(PathClose); SK_STATIC_ASSIGN(PathReset);
-    SK_STATIC_ASSIGN(RectCreate); SK_STATIC_ASSIGN(RectDestroy);
-    SK_STATIC_ASSIGN(RoundRectCreate); SK_STATIC_ASSIGN(RoundRectDestroy);
+    /* Skia C++ API linked directly — use SkiaDirectCanvas instead of OH_Drawing */
     g_skia_ok = 1;
-    fprintf(stderr, "OH_Drawing: STATIC LINK (Skia backend)\n");
+    ensure_sk_typeface();
+    fprintf(stderr, "Skia: STATIC LINK (direct SkCanvas API)\n");
     return;
 #endif
 
