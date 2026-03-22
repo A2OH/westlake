@@ -43,7 +43,7 @@ static void flush_framebuffer() {
     mkdir("/data/a2oh", 0777);
     int fd = open(CANVAS_OUTPUT, O_WRONLY | O_CREAT | O_TRUNC, 0666);
     if (fd < 0) {
-        ALOGW("flush_framebuffer: open(%s) failed: %s", CANVAS_OUTPUT, strerror(errno));
+        fprintf(stderr, "flush_framebuffer: open(%s) failed: %s", CANVAS_OUTPUT, strerror(errno));
         return;
     }
     /* Write header: width, height */
