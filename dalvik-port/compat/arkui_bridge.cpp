@@ -26,6 +26,157 @@
 #include "stb_truetype.h"
 #include "software_canvas.h"
 
+/* ── OH_Drawing (Skia) dynamic loading ── */
+/* All OH_Drawing functions loaded via dlopen at runtime.
+ * If available, canvas operations use real Skia. Otherwise falls back to stb_truetype. */
+
+typedef void OH_Canvas;
+typedef void OH_Bitmap;
+typedef void OH_Pen;
+typedef void OH_Brush;
+typedef void OH_Path;
+typedef void OH_Font;
+typedef void OH_Typeface;
+typedef void OH_TextBlob;
+typedef void OH_Rect;
+typedef void OH_RoundRect;
+typedef struct { int colorFormat; int alphaFormat; } OH_BitmapFormat;
+typedef struct { float flags,top,ascent,descent,bottom,leading,avgCharWidth,maxCharWidth,
+    xMin,xMax,xHeight,capHeight,ulThick,ulPos,stThick,stPos; } OH_FontMetrics;
+
+static void *g_skia_lib = NULL;
+static int g_skia_tried = 0;
+static int g_skia_ok = 0;
+
+/* Function pointers */
+#define SKFP(ret, name, ...) static ret (*sk_##name)(__VA_ARGS__) = NULL
+SKFP(OH_Bitmap*, BitmapCreate, void);
+SKFP(void, BitmapDestroy, OH_Bitmap*);
+SKFP(void, BitmapBuild, OH_Bitmap*, uint32_t, uint32_t, const OH_BitmapFormat*);
+SKFP(uint32_t, BitmapGetWidth, OH_Bitmap*);
+SKFP(uint32_t, BitmapGetHeight, OH_Bitmap*);
+SKFP(void*, BitmapGetPixels, OH_Bitmap*);
+SKFP(OH_Canvas*, CanvasCreate, void);
+SKFP(void, CanvasDestroy, OH_Canvas*);
+SKFP(void, CanvasBind, OH_Canvas*, OH_Bitmap*);
+SKFP(void, CanvasAttachPen, OH_Canvas*, const OH_Pen*);
+SKFP(void, CanvasDetachPen, OH_Canvas*);
+SKFP(void, CanvasAttachBrush, OH_Canvas*, const OH_Brush*);
+SKFP(void, CanvasDetachBrush, OH_Canvas*);
+SKFP(void, CanvasSave, OH_Canvas*);
+SKFP(void, CanvasRestore, OH_Canvas*);
+SKFP(void, CanvasDrawLine, OH_Canvas*, float, float, float, float);
+SKFP(void, CanvasDrawRect, OH_Canvas*, const OH_Rect*);
+SKFP(void, CanvasDrawCircle, OH_Canvas*, const void*, float);
+SKFP(void, CanvasDrawOval, OH_Canvas*, const OH_Rect*);
+SKFP(void, CanvasDrawArc, OH_Canvas*, const OH_Rect*, float, float);
+SKFP(void, CanvasDrawRoundRect, OH_Canvas*, const OH_RoundRect*);
+SKFP(void, CanvasDrawPath, OH_Canvas*, const OH_Path*);
+SKFP(void, CanvasDrawTextBlob, OH_Canvas*, const OH_TextBlob*, float, float);
+SKFP(void, CanvasDrawBitmap, OH_Canvas*, const OH_Bitmap*, float, float);
+SKFP(void, CanvasClipRect, OH_Canvas*, const OH_Rect*, int, int);
+SKFP(void, CanvasTranslate, OH_Canvas*, float, float);
+SKFP(void, CanvasScale, OH_Canvas*, float, float);
+SKFP(void, CanvasRotate, OH_Canvas*, float, float, float);
+SKFP(void, CanvasClear, OH_Canvas*, uint32_t);
+SKFP(OH_Pen*, PenCreate, void);
+SKFP(void, PenDestroy, OH_Pen*);
+SKFP(void, PenSetColor, OH_Pen*, uint32_t);
+SKFP(void, PenSetWidth, OH_Pen*, float);
+SKFP(void, PenSetAntiAlias, OH_Pen*, int);
+SKFP(OH_Brush*, BrushCreate, void);
+SKFP(void, BrushDestroy, OH_Brush*);
+SKFP(void, BrushSetColor, OH_Brush*, uint32_t);
+SKFP(void, BrushSetAntiAlias, OH_Brush*, int);
+SKFP(OH_Font*, FontCreate, void);
+SKFP(void, FontDestroy, OH_Font*);
+SKFP(void, FontSetTypeface, OH_Font*, OH_Typeface*);
+SKFP(void, FontSetTextSize, OH_Font*, float);
+SKFP(float, FontGetMetrics, OH_Font*, OH_FontMetrics*);
+SKFP(OH_Typeface*, TypefaceCreateDefault, void);
+SKFP(OH_Typeface*, TypefaceCreateFromFile, const char*, int);
+SKFP(void, TypefaceDestroy, OH_Typeface*);
+SKFP(OH_TextBlob*, TextBlobCreateFromString, const char*, const OH_Font*, int);
+SKFP(void, TextBlobDestroy, OH_TextBlob*);
+SKFP(OH_Path*, PathCreate, void);
+SKFP(void, PathDestroy, OH_Path*);
+SKFP(void, PathMoveTo, OH_Path*, float, float);
+SKFP(void, PathLineTo, OH_Path*, float, float);
+SKFP(void, PathCubicTo, OH_Path*, float, float, float, float, float, float);
+SKFP(void, PathQuadTo, OH_Path*, float, float, float, float);
+SKFP(void, PathClose, OH_Path*);
+SKFP(void, PathReset, OH_Path*);
+SKFP(OH_Rect*, RectCreate, float, float, float, float);
+SKFP(void, RectDestroy, OH_Rect*);
+SKFP(OH_RoundRect*, RoundRectCreate, const OH_Rect*, float, float);
+SKFP(void, RoundRectDestroy, OH_RoundRect*);
+
+#define SK_RESOLVE(name) sk_##name = (decltype(sk_##name))dlsym(g_skia_lib, "OH_Drawing_" #name)
+
+static void try_load_skia() {
+    if (g_skia_tried) return;
+    g_skia_tried = 1;
+    const char *paths[] = {
+        "lib2d_graphics.z.so",
+        "/system/lib/platformsdk/lib2d_graphics.z.so",
+        "/system/lib/lib2d_graphics.z.so",
+        NULL
+    };
+    for (int i = 0; paths[i]; i++) {
+        g_skia_lib = dlopen(paths[i], RTLD_NOW);
+        if (g_skia_lib) {
+            fprintf(stderr, "OH_Drawing: loaded %s\n", paths[i]);
+            break;
+        }
+    }
+    if (!g_skia_lib) {
+        fprintf(stderr, "OH_Drawing: not available, using stb_truetype fallback\n");
+        return;
+    }
+    SK_RESOLVE(BitmapCreate); SK_RESOLVE(BitmapDestroy); SK_RESOLVE(BitmapBuild);
+    SK_RESOLVE(BitmapGetWidth); SK_RESOLVE(BitmapGetHeight); SK_RESOLVE(BitmapGetPixels);
+    SK_RESOLVE(CanvasCreate); SK_RESOLVE(CanvasDestroy); SK_RESOLVE(CanvasBind);
+    SK_RESOLVE(CanvasAttachPen); SK_RESOLVE(CanvasDetachPen);
+    SK_RESOLVE(CanvasAttachBrush); SK_RESOLVE(CanvasDetachBrush);
+    SK_RESOLVE(CanvasSave); SK_RESOLVE(CanvasRestore);
+    SK_RESOLVE(CanvasDrawLine); SK_RESOLVE(CanvasDrawRect); SK_RESOLVE(CanvasDrawCircle);
+    SK_RESOLVE(CanvasDrawOval); SK_RESOLVE(CanvasDrawArc); SK_RESOLVE(CanvasDrawRoundRect);
+    SK_RESOLVE(CanvasDrawPath); SK_RESOLVE(CanvasDrawTextBlob); SK_RESOLVE(CanvasDrawBitmap);
+    SK_RESOLVE(CanvasClipRect); SK_RESOLVE(CanvasTranslate); SK_RESOLVE(CanvasScale);
+    SK_RESOLVE(CanvasRotate); SK_RESOLVE(CanvasClear);
+    SK_RESOLVE(PenCreate); SK_RESOLVE(PenDestroy); SK_RESOLVE(PenSetColor);
+    SK_RESOLVE(PenSetWidth); SK_RESOLVE(PenSetAntiAlias);
+    SK_RESOLVE(BrushCreate); SK_RESOLVE(BrushDestroy); SK_RESOLVE(BrushSetColor);
+    SK_RESOLVE(BrushSetAntiAlias);
+    SK_RESOLVE(FontCreate); SK_RESOLVE(FontDestroy); SK_RESOLVE(FontSetTypeface);
+    SK_RESOLVE(FontSetTextSize); SK_RESOLVE(FontGetMetrics);
+    SK_RESOLVE(TypefaceCreateDefault); SK_RESOLVE(TypefaceCreateFromFile); SK_RESOLVE(TypefaceDestroy);
+    SK_RESOLVE(TextBlobCreateFromString); SK_RESOLVE(TextBlobDestroy);
+    SK_RESOLVE(PathCreate); SK_RESOLVE(PathDestroy); SK_RESOLVE(PathMoveTo); SK_RESOLVE(PathLineTo);
+    SK_RESOLVE(PathCubicTo); SK_RESOLVE(PathQuadTo); SK_RESOLVE(PathClose); SK_RESOLVE(PathReset);
+    SK_RESOLVE(RectCreate); SK_RESOLVE(RectDestroy);
+    SK_RESOLVE(RoundRectCreate); SK_RESOLVE(RoundRectDestroy);
+    /* Minimum check: need at least canvas + bitmap + text */
+    g_skia_ok = (sk_CanvasCreate && sk_BitmapCreate && sk_BitmapBuild &&
+                 sk_CanvasBind && sk_CanvasDrawTextBlob && sk_FontCreate);
+    fprintf(stderr, "OH_Drawing: %s\n", g_skia_ok ? "READY (Skia backend)" : "INCOMPLETE (fallback to stb)");
+}
+
+/* Skia canvas wrapper — holds both OH_Drawing objects and SWCanvas fallback */
+typedef struct {
+    /* Skia objects (non-NULL if g_skia_ok) */
+    OH_Canvas *skCanvas;
+    OH_Bitmap *skBitmap;
+    OH_Pen *skPen;
+    OH_Brush *skBrush;
+    OH_Font *skFont;
+    OH_Typeface *skTypeface;
+    int skW, skH;
+    /* Software fallback (always available) */
+    SWCanvas *sw;
+    SWBitmap *swBitmap; /* owned by the Bitmap JNI handle, not us */
+} HybridCanvas;
+
 /* ── Shared framebuffer for output ── */
 static SWBitmap *g_framebuffer = NULL;
 static const char *CANVAS_OUTPUT = "/data/a2oh/canvas_out.bin";
@@ -268,108 +419,168 @@ JNIEXPORT jint JNICALL Java_com_ohos_shim_bridge_OHBridge_bitmapBlitToFb0(JNIEnv
 /* ── Canvas JNI — real software renderer ── */
 
 JNIEXPORT jlong JNICALL Java_com_ohos_shim_bridge_OHBridge_canvasCreate(JNIEnv*, jclass, jlong bmpH) {
+    try_load_skia();
     SWBitmap *bmp = (SWBitmap*)(uintptr_t)bmpH;
     if (!bmp) {
-        /* Default 1280x800 framebuffer */
         ensure_framebuffer(1280, 800);
         bmp = g_framebuffer;
     }
-    /* Try to load font */
-    sw_load_font(FONT_PATH);
-    sw_load_font("/font.ttf");
-    sw_load_font("/system/fonts/DroidSans.ttf");
 
-    SWCanvas *c = sw_canvas_create(bmp);
-    /* Test pattern: red bar + white block to verify pixel rendering */
-    if (c && c->bitmap && c->bitmap->pixels) {
-        int w = c->bitmap->width, h = c->bitmap->height;
-        for (int i = 0; i < w * h; i++) c->bitmap->pixels[i] = 0xFFF5F5F5;
-        for (int y = 0; y < 40 && y < h; y++)
-            for (int x = 0; x < w; x++)
-                c->bitmap->pixels[y * w + x] = 0xFFE53935;
-        for (int y = 50; y < 80 && y < h; y++)
-            for (int x = 10; x < 300 && x < w; x++)
-                c->bitmap->pixels[y * w + x] = 0xFFFFFFFF;
+    HybridCanvas *hc = (HybridCanvas*)calloc(1, sizeof(HybridCanvas));
+    hc->swBitmap = bmp;
+
+    if (g_skia_ok) {
+        /* Create Skia canvas bound to a Skia bitmap of the same size */
+        hc->skBitmap = sk_BitmapCreate();
+        OH_BitmapFormat fmt = {4 /* RGBA_8888 */, 2 /* PREMUL */};
+        sk_BitmapBuild(hc->skBitmap, bmp->width, bmp->height, &fmt);
+        hc->skCanvas = sk_CanvasCreate();
+        sk_CanvasBind(hc->skCanvas, hc->skBitmap);
+        hc->skPen = sk_PenCreate ? sk_PenCreate() : NULL;
+        hc->skBrush = sk_BrushCreate ? sk_BrushCreate() : NULL;
+        hc->skFont = sk_FontCreate();
+        if (sk_TypefaceCreateFromFile)
+            hc->skTypeface = sk_TypefaceCreateFromFile(FONT_PATH, 0);
+        if (!hc->skTypeface && sk_TypefaceCreateDefault)
+            hc->skTypeface = sk_TypefaceCreateDefault();
+        if (hc->skTypeface && sk_FontSetTypeface)
+            sk_FontSetTypeface(hc->skFont, hc->skTypeface);
+        hc->skW = bmp->width;
+        hc->skH = bmp->height;
+        fprintf(stderr, "canvasCreate: Skia backend %dx%d\n", bmp->width, bmp->height);
+    } else {
+        /* Software fallback */
+        sw_load_font(FONT_PATH);
+        sw_load_font("/font.ttf");
+        sw_load_font("/system/fonts/DroidSans.ttf");
+        hc->sw = sw_canvas_create(bmp);
+        fprintf(stderr, "canvasCreate: stb_truetype fallback %dx%d\n", bmp->width, bmp->height);
     }
-    return (jlong)(uintptr_t)c;
+    return (jlong)(uintptr_t)hc;
 }
 
 JNIEXPORT void JNICALL Java_com_ohos_shim_bridge_OHBridge_canvasDestroy(JNIEnv*, jclass, jlong h) {
-    SWCanvas *c = (SWCanvas*)(uintptr_t)h;
-    if (c) {
-        /* Flush bitmap to file for init binary to read */
-        if (c->bitmap) {
-            /* Try multiple paths */
-            mkdir("/data/a2oh", 0777);
-            int fd = open(CANVAS_OUTPUT, O_WRONLY | O_CREAT | O_TRUNC, 0666);
-            if (fd >= 0) {
-                int w = c->bitmap->width, h = c->bitmap->height;
-                write(fd, &w, 4);
-                write(fd, &h, 4);
-                /* Write test pattern directly — NOT from bitmap->pixels */
-                uint32_t *testbuf = (uint32_t*)malloc(w * 4);
-                if (testbuf) {
-                    for (int y = 0; y < h; y++) {
-                        uint32_t color;
-                        if (y < 40) color = 0xFFE53935;       /* red bar */
-                        else if (y < 80) color = 0xFF4CAF50;  /* green bar */
-                        else color = 0xFFF5F5F5;              /* dark blue */
-                        for (int x = 0; x < w; x++) testbuf[x] = color;
-                        write(fd, testbuf, w * 4);
-                    }
-                    free(testbuf);
+    HybridCanvas *hc = (HybridCanvas*)(uintptr_t)h;
+    if (!hc) return;
+    if (hc->skCanvas) {
+        /* Copy Skia pixels back to SWBitmap so bitmapWriteToFile/BlitToFb0 work */
+        if (hc->skBitmap && hc->swBitmap && sk_BitmapGetPixels) {
+            void *skPx = sk_BitmapGetPixels(hc->skBitmap);
+            if (skPx) {
+                int n = hc->swBitmap->width * hc->swBitmap->height;
+                /* Skia uses RGBA, SWBitmap uses ARGB — convert */
+                uint32_t *src = (uint32_t*)skPx;
+                uint32_t *dst = hc->swBitmap->pixels;
+                for (int i = 0; i < n; i++) {
+                    uint32_t rgba = src[i];
+                    uint8_t r = rgba & 0xFF, g = (rgba>>8)&0xFF, b = (rgba>>16)&0xFF, a = (rgba>>24)&0xFF;
+                    dst[i] = (a << 24) | (r << 16) | (g << 8) | b;
                 }
-                close(fd);
             }
         }
-        free(c);
+        if (sk_FontDestroy && hc->skFont) sk_FontDestroy(hc->skFont);
+        if (sk_TypefaceDestroy && hc->skTypeface) sk_TypefaceDestroy(hc->skTypeface);
+        if (sk_PenDestroy && hc->skPen) sk_PenDestroy(hc->skPen);
+        if (sk_BrushDestroy && hc->skBrush) sk_BrushDestroy(hc->skBrush);
+        sk_CanvasDestroy(hc->skCanvas);
+        sk_BitmapDestroy(hc->skBitmap);
     }
+    if (hc->sw) free(hc->sw);
+    free(hc);
 }
 
 JNIEXPORT void JNICALL Java_com_ohos_shim_bridge_OHBridge_canvasDrawColor(JNIEnv*, jclass, jlong h, jint argb) {
-    SWCanvas *c = (SWCanvas*)(uintptr_t)h;
-    if (!c || !c->bitmap) return;
-    uint32_t color = (uint32_t)argb;
-    int n = c->bitmap->width * c->bitmap->height;
-    for (int i = 0; i < n; i++) c->bitmap->pixels[i] = color;
-    canvas_log("drawColor 0x%08X\n", argb);
+    HybridCanvas *hc = (HybridCanvas*)(uintptr_t)h;
+    if (!hc) return;
+    if (hc->skCanvas && sk_CanvasClear) {
+        sk_CanvasClear(hc->skCanvas, (uint32_t)argb);
+    } else if (hc->sw && hc->sw->bitmap) {
+        uint32_t color = (uint32_t)argb;
+        int n = hc->sw->bitmap->width * hc->sw->bitmap->height;
+        for (int i = 0; i < n; i++) hc->sw->bitmap->pixels[i] = color;
+    }
 }
 
 JNIEXPORT void JNICALL Java_com_ohos_shim_bridge_OHBridge_canvasDrawRect(
     JNIEnv*, jclass, jlong ch, jfloat l, jfloat t, jfloat r, jfloat b, jlong penH, jlong brushH) {
-    SWCanvas *c = (SWCanvas*)(uintptr_t)ch;
-    if (!c) return;
+    HybridCanvas *hc = (HybridCanvas*)(uintptr_t)ch;
+    if (!hc) return;
     SWBrush *brush = (SWBrush*)(uintptr_t)brushH;
     SWPen *pen = (SWPen*)(uintptr_t)penH;
-    if (brush && brush != (SWBrush*)1) sw_canvas_fill_rect(c, l, t, r, b, (uint32_t)brush->color);
-    if (pen && pen != (SWPen*)1) sw_canvas_stroke_rect(c, l, t, r, b, (uint32_t)pen->color, pen->width);
-    canvas_log("drawRect %.0f,%.0f,%.0f,%.0f pen=%p brush=%p\n", l, t, r, b, pen, brush);
+    if (hc->skCanvas && sk_RectCreate) {
+        OH_Rect *rect = sk_RectCreate(l, t, r, b);
+        if (brush && brush != (SWBrush*)1) {
+            sk_BrushSetColor(hc->skBrush, (uint32_t)brush->color);
+            sk_BrushSetAntiAlias(hc->skBrush, 1);
+            sk_CanvasAttachBrush(hc->skCanvas, hc->skBrush);
+            sk_CanvasDrawRect(hc->skCanvas, rect);
+            sk_CanvasDetachBrush(hc->skCanvas);
+        }
+        if (pen && pen != (SWPen*)1) {
+            sk_PenSetColor(hc->skPen, (uint32_t)pen->color);
+            sk_PenSetWidth(hc->skPen, pen->width);
+            sk_PenSetAntiAlias(hc->skPen, 1);
+            sk_CanvasAttachPen(hc->skCanvas, hc->skPen);
+            sk_CanvasDrawRect(hc->skCanvas, rect);
+            sk_CanvasDetachPen(hc->skCanvas);
+        }
+        sk_RectDestroy(rect);
+    } else if (hc->sw) {
+        if (brush && brush != (SWBrush*)1) sw_canvas_fill_rect(hc->sw, l, t, r, b, (uint32_t)brush->color);
+        if (pen && pen != (SWPen*)1) sw_canvas_stroke_rect(hc->sw, l, t, r, b, (uint32_t)pen->color, pen->width);
+    }
 }
 
 JNIEXPORT void JNICALL Java_com_ohos_shim_bridge_OHBridge_canvasDrawCircle(
     JNIEnv*, jclass, jlong ch, jfloat cx, jfloat cy, jfloat r, jlong penH, jlong brushH) {
-    SWCanvas *c = (SWCanvas*)(uintptr_t)ch;
-    if (!c) return;
+    HybridCanvas *hc = (HybridCanvas*)(uintptr_t)ch;
+    if (!hc) return;
     SWBrush *brush = (SWBrush*)(uintptr_t)brushH;
-    if (brush && brush != (SWBrush*)1) sw_canvas_fill_circle(c, cx, cy, r, (uint32_t)brush->color);
-    canvas_log("drawCircle %.0f,%.0f r=%.0f\n", cx, cy, r);
+    SWPen *pen = (SWPen*)(uintptr_t)penH;
+    if (hc->skCanvas && sk_CanvasDrawCircle) {
+        float pt[2] = {cx, cy};
+        if (brush && brush != (SWBrush*)1) {
+            sk_BrushSetColor(hc->skBrush, (uint32_t)brush->color);
+            sk_CanvasAttachBrush(hc->skCanvas, hc->skBrush);
+            sk_CanvasDrawCircle(hc->skCanvas, pt, r);
+            sk_CanvasDetachBrush(hc->skCanvas);
+        }
+        if (pen && pen != (SWPen*)1) {
+            sk_PenSetColor(hc->skPen, (uint32_t)pen->color);
+            sk_PenSetWidth(hc->skPen, pen->width);
+            sk_CanvasAttachPen(hc->skCanvas, hc->skPen);
+            sk_CanvasDrawCircle(hc->skCanvas, pt, r);
+            sk_CanvasDetachPen(hc->skCanvas);
+        }
+    } else if (hc->sw) {
+        if (brush && brush != (SWBrush*)1) sw_canvas_fill_circle(hc->sw, cx, cy, r, (uint32_t)brush->color);
+    }
 }
 
 JNIEXPORT void JNICALL Java_com_ohos_shim_bridge_OHBridge_canvasDrawLine(
     JNIEnv*, jclass, jlong ch, jfloat x1, jfloat y1, jfloat x2, jfloat y2, jlong penH) {
-    SWCanvas *c = (SWCanvas*)(uintptr_t)ch;
+    HybridCanvas *hc = (HybridCanvas*)(uintptr_t)ch;
     SWPen *pen = (SWPen*)(uintptr_t)penH;
-    if (!c) return;
-    float w = (pen && pen != (SWPen*)1) ? pen->width : 1.0f;
-    uint32_t color = (pen && pen != (SWPen*)1) ? (uint32_t)pen->color : 0xFF000000;
-    sw_canvas_draw_line(c, x1, y1, x2, y2, color, w);
-    canvas_log("drawLine %.0f,%.0f -> %.0f,%.0f\n", x1, y1, x2, y2);
+    if (!hc) return;
+    if (hc->skCanvas && sk_CanvasDrawLine) {
+        uint32_t color = (pen && pen != (SWPen*)1) ? (uint32_t)pen->color : 0xFF000000;
+        float w = (pen && pen != (SWPen*)1) ? pen->width : 1.0f;
+        sk_PenSetColor(hc->skPen, color);
+        sk_PenSetWidth(hc->skPen, w);
+        sk_CanvasAttachPen(hc->skCanvas, hc->skPen);
+        sk_CanvasDrawLine(hc->skCanvas, x1, y1, x2, y2);
+        sk_CanvasDetachPen(hc->skCanvas);
+    } else if (hc->sw) {
+        float w = (pen && pen != (SWPen*)1) ? pen->width : 1.0f;
+        uint32_t color = (pen && pen != (SWPen*)1) ? (uint32_t)pen->color : 0xFF000000;
+        sw_canvas_draw_line(hc->sw, x1, y1, x2, y2, color, w);
+    }
 }
 
 JNIEXPORT void JNICALL Java_com_ohos_shim_bridge_OHBridge_canvasDrawText(
     JNIEnv* env, jclass, jlong ch, jstring jtext, jfloat x, jfloat y, jlong fontH, jlong penH, jlong brushH) {
-    SWCanvas *c = (SWCanvas*)(uintptr_t)ch;
-    if (!c || !jtext) return;
+    HybridCanvas *hc = (HybridCanvas*)(uintptr_t)ch;
+    if (!hc || !jtext) return;
     const char *text = env->GetStringUTFChars(jtext, NULL);
     if (!text) return;
     SWFont *f = (SWFont*)(uintptr_t)fontH;
@@ -379,81 +590,140 @@ JNIEXPORT void JNICALL Java_com_ohos_shim_bridge_OHBridge_canvasDrawText(
     uint32_t color = 0xFF000000;
     if (brush && brush != (SWBrush*)1) color = (uint32_t)brush->color;
     else if (pen && pen != (SWPen*)1) color = (uint32_t)pen->color;
-    sw_canvas_draw_text(c, text, x, y, size, color);
-    canvas_log("drawText \"%s\" at %.0f,%.0f size=%.0f color=0x%08X\n", text, x, y, size, color);
+
+    if (hc->skCanvas && sk_TextBlobCreateFromString && sk_CanvasDrawTextBlob) {
+        sk_FontSetTextSize(hc->skFont, size);
+        OH_TextBlob *blob = sk_TextBlobCreateFromString(text, hc->skFont, 0);
+        if (blob) {
+            sk_BrushSetColor(hc->skBrush, color);
+            sk_BrushSetAntiAlias(hc->skBrush, 1);
+            sk_CanvasAttachBrush(hc->skCanvas, hc->skBrush);
+            sk_CanvasDrawTextBlob(hc->skCanvas, blob, x, y);
+            sk_CanvasDetachBrush(hc->skCanvas);
+            sk_TextBlobDestroy(blob);
+        }
+    } else if (hc->sw) {
+        sw_canvas_draw_text(hc->sw, text, x, y, size, color);
+    }
     env->ReleaseStringUTFChars(jtext, text);
 }
 
 JNIEXPORT void JNICALL Java_com_ohos_shim_bridge_OHBridge_canvasDrawBitmap(
     JNIEnv*, jclass, jlong ch, jlong bmpH, jfloat x, jfloat y) {
-    SWCanvas *c = (SWCanvas*)(uintptr_t)ch;
+    HybridCanvas *hc = (HybridCanvas*)(uintptr_t)ch;
     SWBitmap *src = (SWBitmap*)(uintptr_t)bmpH;
-    if (!c || !c->bitmap || !src) return;
-    int W = c->bitmap->width, H = c->bitmap->height;
-    int dx = (int)(x * c->sx + c->tx), dy = (int)(y * c->sy + c->ty);
-    for (int row = 0; row < src->height && dy + row < H; row++)
-        for (int col = 0; col < src->width && dx + col < W; col++)
-            if (dx + col >= 0 && dy + row >= 0)
-                sw_pixel_blend(&c->bitmap->pixels[(dy + row) * W + (dx + col)],
-                               src->pixels[row * src->width + col]);
-    canvas_log("drawBitmap at %.0f,%.0f\n", x, y);
+    if (!hc || !src) return;
+    /* Skia drawBitmap would need a separate Skia bitmap — use SW fallback for now */
+    if (hc->sw && hc->sw->bitmap) {
+        int W = hc->sw->bitmap->width, H = hc->sw->bitmap->height;
+        int dx = (int)(x * hc->sw->sx + hc->sw->tx), dy = (int)(y * hc->sw->sy + hc->sw->ty);
+        for (int row = 0; row < src->height && dy + row < H; row++)
+            for (int col = 0; col < src->width && dx + col < W; col++)
+                if (dx + col >= 0 && dy + row >= 0)
+                    sw_pixel_blend(&hc->sw->bitmap->pixels[(dy + row) * W + (dx + col)],
+                                   src->pixels[row * src->width + col]);
+    }
 }
 
 JNIEXPORT void JNICALL Java_com_ohos_shim_bridge_OHBridge_canvasDrawPath(
     JNIEnv*, jclass, jlong ch, jlong pathH, jlong penH, jlong brushH) {
-    /* Path rendering is complex — for now just log it */
-    canvas_log("drawPath path=%ld\n", (long)pathH);
+    HybridCanvas *hc = (HybridCanvas*)(uintptr_t)ch;
+    if (!hc) return;
+    if (hc->skCanvas && sk_CanvasDrawPath) {
+        SWBrush *brush = (SWBrush*)(uintptr_t)brushH;
+        SWPen *pen = (SWPen*)(uintptr_t)penH;
+        /* pathH is an SWPath with sw_path_* — can't pass directly to Skia */
+        /* TODO: convert SWPath to OH_Drawing_Path */
+    }
 }
 
 JNIEXPORT void JNICALL Java_com_ohos_shim_bridge_OHBridge_canvasSave(JNIEnv*, jclass, jlong ch) {
-    SWCanvas *c = (SWCanvas*)(uintptr_t)ch;
-    if (c) sw_canvas_save(c);
+    HybridCanvas *hc = (HybridCanvas*)(uintptr_t)ch;
+    if (!hc) return;
+    if (hc->skCanvas && sk_CanvasSave) sk_CanvasSave(hc->skCanvas);
+    if (hc->sw) sw_canvas_save(hc->sw);
 }
 
 JNIEXPORT void JNICALL Java_com_ohos_shim_bridge_OHBridge_canvasRestore(JNIEnv*, jclass, jlong ch) {
-    SWCanvas *c = (SWCanvas*)(uintptr_t)ch;
-    if (c) sw_canvas_restore(c);
+    HybridCanvas *hc = (HybridCanvas*)(uintptr_t)ch;
+    if (!hc) return;
+    if (hc->skCanvas && sk_CanvasRestore) sk_CanvasRestore(hc->skCanvas);
+    if (hc->sw) sw_canvas_restore(hc->sw);
 }
 
 JNIEXPORT void JNICALL Java_com_ohos_shim_bridge_OHBridge_canvasTranslate(JNIEnv*, jclass, jlong ch, jfloat dx, jfloat dy) {
-    SWCanvas *c = (SWCanvas*)(uintptr_t)ch;
-    if (c) { c->tx += dx * c->sx; c->ty += dy * c->sy; }
+    HybridCanvas *hc = (HybridCanvas*)(uintptr_t)ch;
+    if (!hc) return;
+    if (hc->skCanvas && sk_CanvasTranslate) sk_CanvasTranslate(hc->skCanvas, dx, dy);
+    if (hc->sw) { hc->sw->tx += dx * hc->sw->sx; hc->sw->ty += dy * hc->sw->sy; }
 }
 
 JNIEXPORT void JNICALL Java_com_ohos_shim_bridge_OHBridge_canvasScale(JNIEnv*, jclass, jlong ch, jfloat sx, jfloat sy) {
-    SWCanvas *c = (SWCanvas*)(uintptr_t)ch;
-    if (c) { c->sx *= sx; c->sy *= sy; }
+    HybridCanvas *hc = (HybridCanvas*)(uintptr_t)ch;
+    if (!hc) return;
+    if (hc->skCanvas && sk_CanvasScale) sk_CanvasScale(hc->skCanvas, sx, sy);
+    if (hc->sw) { hc->sw->sx *= sx; hc->sw->sy *= sy; }
 }
 
-JNIEXPORT void JNICALL Java_com_ohos_shim_bridge_OHBridge_canvasRotate(JNIEnv*, jclass, jlong, jfloat, jfloat, jfloat) {
-    /* Rotation not implemented in software renderer yet */
+JNIEXPORT void JNICALL Java_com_ohos_shim_bridge_OHBridge_canvasRotate(JNIEnv*, jclass, jlong ch, jfloat deg, jfloat px, jfloat py) {
+    HybridCanvas *hc = (HybridCanvas*)(uintptr_t)ch;
+    if (hc && hc->skCanvas && sk_CanvasRotate) sk_CanvasRotate(hc->skCanvas, deg, px, py);
 }
 
 JNIEXPORT void JNICALL Java_com_ohos_shim_bridge_OHBridge_canvasClipRect(JNIEnv*, jclass, jlong ch, jfloat l, jfloat t, jfloat r, jfloat b) {
-    SWCanvas *c = (SWCanvas*)(uintptr_t)ch;
-    if (!c) return;
-    float cl = l * c->sx + c->tx, ct = t * c->sy + c->ty;
-    float cr = r * c->sx + c->tx, cb = b * c->sy + c->ty;
-    if (cl > c->clipL) c->clipL = cl;
-    if (ct > c->clipT) c->clipT = ct;
-    if (cr < c->clipR) c->clipR = cr;
-    if (cb < c->clipB) c->clipB = cb;
+    HybridCanvas *hc = (HybridCanvas*)(uintptr_t)ch;
+    if (!hc) return;
+    if (hc->skCanvas && sk_CanvasClipRect && sk_RectCreate) {
+        OH_Rect *rect = sk_RectCreate(l, t, r, b);
+        sk_CanvasClipRect(hc->skCanvas, rect, 1 /* INTERSECT */, 1);
+        sk_RectDestroy(rect);
+    }
+    if (hc->sw) {
+        float cl = l * hc->sw->sx + hc->sw->tx, ct = t * hc->sw->sy + hc->sw->ty;
+        float cr = r * hc->sw->sx + hc->sw->tx, cb = b * hc->sw->sy + hc->sw->ty;
+        if (cl > hc->sw->clipL) hc->sw->clipL = cl;
+        if (ct > hc->sw->clipT) hc->sw->clipT = ct;
+        if (cr < hc->sw->clipR) hc->sw->clipR = cr;
+        if (cb < hc->sw->clipB) hc->sw->clipB = cb;
+    }
 }
 
 JNIEXPORT void JNICALL Java_com_ohos_shim_bridge_OHBridge_canvasClipPath(JNIEnv*, jclass, jlong, jlong) {}
 JNIEXPORT void JNICALL Java_com_ohos_shim_bridge_OHBridge_canvasConcat(JNIEnv*, jclass, jlong, jfloatArray) {}
 
 JNIEXPORT void JNICALL Java_com_ohos_shim_bridge_OHBridge_canvasDrawArc(
-    JNIEnv*, jclass, jlong, jfloat, jfloat, jfloat, jfloat, jfloat, jfloat, jboolean, jlong, jlong) {
-    canvas_log("drawArc (not impl)\n");
+    JNIEnv*, jclass, jlong ch, jfloat l, jfloat t, jfloat r, jfloat b, jfloat startAngle, jfloat sweepAngle, jboolean, jlong penH, jlong brushH) {
+    HybridCanvas *hc = (HybridCanvas*)(uintptr_t)ch;
+    if (hc && hc->skCanvas && sk_CanvasDrawArc && sk_RectCreate) {
+        SWPen *pen = (SWPen*)(uintptr_t)penH;
+        if (pen && pen != (SWPen*)1) {
+            OH_Rect *rect = sk_RectCreate(l, t, r, b);
+            sk_PenSetColor(hc->skPen, (uint32_t)pen->color);
+            sk_PenSetWidth(hc->skPen, pen->width);
+            sk_CanvasAttachPen(hc->skCanvas, hc->skPen);
+            sk_CanvasDrawArc(hc->skCanvas, rect, startAngle, sweepAngle);
+            sk_CanvasDetachPen(hc->skCanvas);
+            sk_RectDestroy(rect);
+        }
+    }
 }
 JNIEXPORT void JNICALL Java_com_ohos_shim_bridge_OHBridge_canvasDrawOval(
     JNIEnv*, jclass, jlong ch, jfloat l, jfloat t, jfloat r, jfloat b, jlong penH, jlong brushH) {
-    /* Approximate oval as circle */
-    SWCanvas *c = (SWCanvas*)(uintptr_t)ch;
+    HybridCanvas *hc = (HybridCanvas*)(uintptr_t)ch;
+    if (!hc) return;
     SWBrush *brush = (SWBrush*)(uintptr_t)brushH;
-    if (c && brush && brush != (SWBrush*)1)
-        sw_canvas_fill_circle(c, (l + r) / 2, (t + b) / 2, (r - l) / 2, (uint32_t)brush->color);
+    if (hc->skCanvas && sk_CanvasDrawOval && sk_RectCreate) {
+        OH_Rect *rect = sk_RectCreate(l, t, r, b);
+        if (brush && brush != (SWBrush*)1) {
+            sk_BrushSetColor(hc->skBrush, (uint32_t)brush->color);
+            sk_CanvasAttachBrush(hc->skCanvas, hc->skBrush);
+            sk_CanvasDrawOval(hc->skCanvas, rect);
+            sk_CanvasDetachBrush(hc->skCanvas);
+        }
+        sk_RectDestroy(rect);
+    } else if (hc->sw && brush && brush != (SWBrush*)1) {
+        sw_canvas_fill_circle(hc->sw, (l+r)/2, (t+b)/2, (r-l)/2, (uint32_t)brush->color);
+    }
 }
 JNIEXPORT void JNICALL Java_com_ohos_shim_bridge_OHBridge_canvasDrawRoundRect(
     JNIEnv*, jclass, jlong ch, jfloat l, jfloat t, jfloat r, jfloat b, jfloat rx, jfloat ry, jlong penH, jlong brushH) {
