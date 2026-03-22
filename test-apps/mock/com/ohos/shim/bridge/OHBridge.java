@@ -471,6 +471,11 @@ public class OHBridge {
     public static void fontDestroy(long font) {}
     private static final ConcurrentHashMap<Long, Float> sHandleFontSizes = new ConcurrentHashMap<>();
     public static void fontSetSize(long font, float size) { sHandleFontSizes.put(font, size); }
+    public static float[] fontGetMetrics(long font) {
+        Float size = sHandleFontSizes.get(font);
+        float s = (size != null) ? size : 14f;
+        return new float[]{-s * 0.8f, s * 0.2f, s * 0.1f}; // ascent, descent, leading
+    }
 
     // ── Surface mock ──
 
