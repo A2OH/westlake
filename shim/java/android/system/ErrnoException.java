@@ -42,7 +42,7 @@ public class ErrnoException extends Exception {
     }
 
     /** Basic errno-to-string mapping matching POSIX / Linux. */
-    private static String strerror(int errno) {
+    static String strerror(int errno) {
         switch (errno) {
             case OsConstants.EPERM:   return "Operation not permitted";
             case OsConstants.ENOENT:  return "No such file or directory";

@@ -321,13 +321,56 @@ Java_com_ohos_shim_bridge_OHBridge_canvasDrawRoundRect(
 }
 
 extern "C" JNIEXPORT void JNICALL
-Java_com_ohos_shim_bridge_OHBridge_canvasDrawPath(JNIEnv*, jclass, jlong, jlong, jlong, jlong) {
-    /* TODO: convert SWPath to SkPath */
+Java_com_ohos_shim_bridge_OHBridge_canvasDrawPath(
+    JNIEnv*, jclass, jlong ch, jlong pathH, jlong penH, jlong brushH) {
+    SkCanvas2 *sc = (SkCanvas2*)(uintptr_t)ch;
+    if (!sc || !pathH) return;
+    /* Convert SWPath segments to SkPath */
+    /* SWPath stores segments as: type(int), followed by coords */
+    /* type: 0=moveTo(x,y), 1=lineTo(x,y), 2=quadTo(x1,y1,x2,y2), */
+    /*       3=cubicTo(x1,y1,x2,y2,x3,y3), 4=close */
+    struct SWPathSeg { int type; float coords[6]; };
+    struct SWPath { int count; int capacity; SWPathSeg *segs; };
+    SWPath *sp = (SWPath*)(uintptr_t)pathH;
+    if (!sp || !sp->segs || sp->count == 0) return;
+
+    SkPath skPath;
+    for (int i = 0; i < sp->count; i++) {
+        SWPathSeg *s = &sp->segs[i];
+        switch (s->type) {
+            case 0: skPath.moveTo(s->coords[0], s->coords[1]); break;
+            case 1: skPath.lineTo(s->coords[0], s->coords[1]); break;
+            case 2: skPath.quadTo(s->coords[0], s->coords[1], s->coords[2], s->coords[3]); break;
+            case 3: skPath.cubicTo(s->coords[0], s->coords[1], s->coords[2], s->coords[3],
+                                   s->coords[4], s->coords[5]); break;
+            case 4: skPath.close(); break;
+        }
+    }
+    SWBrush *brush = (SWBrush*)(uintptr_t)brushH;
+    SWPen *pen = (SWPen*)(uintptr_t)penH;
+    if (brush && brush != (SWBrush*)1)
+        sc->canvas->drawPath(skPath, makeFill(brush->color));
+    if (pen && pen != (SWPen*)1)
+        sc->canvas->drawPath(skPath, makeStroke(pen->color, pen->width));
 }
 
 extern "C" JNIEXPORT void JNICALL
-Java_com_ohos_shim_bridge_OHBridge_canvasDrawBitmap(JNIEnv*, jclass, jlong, jlong, jfloat, jfloat) {
-    /* TODO */
+Java_com_ohos_shim_bridge_OHBridge_canvasDrawBitmap(
+    JNIEnv*, jclass, jlong ch, jlong bmpH, jfloat x, jfloat y) {
+    SkCanvas2 *sc = (SkCanvas2*)(uintptr_t)ch;
+    SWBitmap *src = (SWBitmap*)(uintptr_t)bmpH;
+    if (!sc || !src || !src->pixels) return;
+    /* Manual pixel blit — SkCanvas::drawImage needs full SkImage pipeline */
+    int dx = (int)x, dy = (int)y;
+    int dw = sc->w, dh = sc->h;
+    SWBitmap *dst = (SWBitmap*)sc->swBitmap;
+    if (!dst || !dst->pixels) return;
+    for (int row = 0; row < src->height && dy+row < dh; row++)
+        for (int col = 0; col < src->width && dx+col < dw; col++)
+            if (dx+col >= 0 && dy+row >= 0) {
+                uint32_t sp = src->pixels[row * src->width + col];
+                if ((sp >> 24) > 0) dst->pixels[(dy+row)*dw + dx+col] = sp;
+            }
 }
 
 extern "C" JNIEXPORT void JNICALL
@@ -392,5 +435,61 @@ extern "C" JNIEXPORT void JNICALL
 Java_com_ohos_shim_bridge_OHBridge_canvasClipPath(JNIEnv*, jclass, jlong, jlong) {}
 extern "C" JNIEXPORT void JNICALL
 Java_com_ohos_shim_bridge_OHBridge_canvasConcat(JNIEnv*, jclass, jlong, jfloatArray) {}
+
+/* ── Font JNI (Skia-backed, overrides stb versions) ── */
+
+extern "C" JNIEXPORT jlong JNICALL
+Java_com_ohos_shim_bridge_OHBridge_fontCreate(JNIEnv*, jclass) {
+    SWFont *f = (SWFont*)calloc(1, sizeof(SWFont));
+    f->size = 16.0f;
+    return (jlong)(uintptr_t)f;
+}
+
+extern "C" JNIEXPORT void JNICALL
+Java_com_ohos_shim_bridge_OHBridge_fontDestroy(JNIEnv*, jclass, jlong h) {
+    if (h) free((void*)(uintptr_t)h);
+}
+
+extern "C" JNIEXPORT void JNICALL
+Java_com_ohos_shim_bridge_OHBridge_fontSetSize(JNIEnv*, jclass, jlong h, jfloat sz) {
+    SWFont *f = (SWFont*)(uintptr_t)h;
+    if (f) f->size = sz;
+}
+
+extern "C" JNIEXPORT jfloat JNICALL
+Java_com_ohos_shim_bridge_OHBridge_fontMeasureText(JNIEnv* env, jclass, jlong h, jstring jtext) {
+    SWFont *f = (SWFont*)(uintptr_t)h;
+    if (!f || !jtext) return 0;
+    const char *text = env->GetStringUTFChars(jtext, NULL);
+    if (!text) return 0;
+    ensure_typeface();
+    SkFont skFont;
+    if (g_typeface) skFont.setTypeface(sk_ref_sp(g_typeface));
+    skFont.setSize(f->size);
+    float width = skFont.measureText(text, strlen(text), SkTextEncoding::kUTF8);
+    env->ReleaseStringUTFChars(jtext, text);
+    return width;
+}
+
+extern "C" JNIEXPORT jfloatArray JNICALL
+Java_com_ohos_shim_bridge_OHBridge_fontGetMetrics(JNIEnv* env, jclass, jlong h) {
+    jfloatArray result = env->NewFloatArray(3);
+    if (!result) return NULL;
+    float metrics[3] = {0, 0, 0};
+    SWFont *f = (SWFont*)(uintptr_t)h;
+    if (f) {
+        ensure_typeface();
+        SkFont skFont;
+        if (g_typeface) skFont.setTypeface(sk_ref_sp(g_typeface));
+        skFont.setSize(f->size);
+        SkFontMetrics fm;
+        skFont.getMetrics(&fm);
+        metrics[0] = fm.fAscent;   /* negative */
+        metrics[1] = fm.fDescent;  /* positive */
+        metrics[2] = fm.fLeading;
+    }
+    env->SetFloatArrayRegion(result, 0, 3, metrics);
+    return result;
+}
 
 #endif /* HAVE_SKIA_STATIC */

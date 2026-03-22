@@ -462,6 +462,11 @@ JNIEXPORT void JNICALL Java_com_ohos_shim_bridge_OHBridge_canvasConcat(JNIEnv*, 
 JNIEXPORT void JNICALL Java_com_ohos_shim_bridge_OHBridge_canvasDrawArc(JNIEnv*, jclass, jlong, jfloat, jfloat, jfloat, jfloat, jfloat, jfloat, jboolean, jlong, jlong);
 JNIEXPORT void JNICALL Java_com_ohos_shim_bridge_OHBridge_canvasDrawOval(JNIEnv*, jclass, jlong, jfloat, jfloat, jfloat, jfloat, jlong, jlong);
 JNIEXPORT void JNICALL Java_com_ohos_shim_bridge_OHBridge_canvasDrawRoundRect(JNIEnv*, jclass, jlong, jfloat, jfloat, jfloat, jfloat, jfloat, jfloat, jlong, jlong);
+JNIEXPORT jlong JNICALL Java_com_ohos_shim_bridge_OHBridge_fontCreate(JNIEnv*, jclass);
+JNIEXPORT void JNICALL Java_com_ohos_shim_bridge_OHBridge_fontDestroy(JNIEnv*, jclass, jlong);
+JNIEXPORT void JNICALL Java_com_ohos_shim_bridge_OHBridge_fontSetSize(JNIEnv*, jclass, jlong, jfloat);
+JNIEXPORT jfloat JNICALL Java_com_ohos_shim_bridge_OHBridge_fontMeasureText(JNIEnv*, jclass, jlong, jstring);
+JNIEXPORT jfloatArray JNICALL Java_com_ohos_shim_bridge_OHBridge_fontGetMetrics(JNIEnv*, jclass, jlong);
 }
 #endif
 
@@ -935,7 +940,8 @@ JNIEXPORT void JNICALL Java_com_ohos_shim_bridge_OHBridge_brushSetColor(JNIEnv*,
     if (b && b != (SWBrush*)1) b->color = argb;
 }
 
-/* ── Font JNI — real state tracking ── */
+#ifndef HAVE_SKIA_STATIC
+/* ── Font JNI — real state tracking (skipped when Skia provides these) ── */
 
 JNIEXPORT jlong JNICALL Java_com_ohos_shim_bridge_OHBridge_fontCreate(JNIEnv*, jclass) {
     SWFont *f = (SWFont*)calloc(1, sizeof(SWFont));
@@ -989,6 +995,8 @@ JNIEXPORT jfloatArray JNICALL Java_com_ohos_shim_bridge_OHBridge_fontGetMetrics(
     env->SetFloatArrayRegion(result, 0, 3, metrics);
     return result;
 }
+
+#endif /* !HAVE_SKIA_STATIC font */
 
 /* ── Path JNI — real path state ── */
 
