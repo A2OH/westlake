@@ -9,6 +9,19 @@
 #include <cstdlib>
 #include <cmath>
 #include <functional>
+#include <signal.h>
+
+// Prevent AOSP strlcpy.h from conflicting with glibc's strlcpy (glibc 2.38+)
+// The system already provides strlcpy, so skip AOSP's static inline version.
+#define ART_LIBARTBASE_BASE_STRLCPY_H_
+
+// ART image base address ASLR deltas (used by image_space.cc)
+#ifndef ART_BASE_ADDRESS_MIN_DELTA
+#define ART_BASE_ADDRESS_MIN_DELTA (-0x1000000)
+#endif
+#ifndef ART_BASE_ADDRESS_MAX_DELTA
+#define ART_BASE_ADDRESS_MAX_DELTA 0x1000000
+#endif
 
 // ART frame size limit (used by instruction_set.cc)
 #ifndef ART_FRAME_SIZE_LIMIT
@@ -23,12 +36,8 @@
 // For GCC compatibility with offsetof
 #include <cstdint>
 
-// HACK: Skip object_array-inl.h entirely.
-// It contains a const-correctness violation that GCC rejects:
-// ObjectArray::cend() const calls non-const Array::GetLength().
-// The compiler code never uses cbegin/cend/ConstIterate.
-// The object_array.h (non-inl) header still provides declarations.
-#define ART_RUNTIME_MIRROR_OBJECT_ARRAY_INL_H_
+// NOTE: object_array-inl.h is now included (needed by runtime's heap.cc).
+// AOSP clang handles the const-correctness in cbegin/cend fine.
 
 // ART compact DEX level (needed by dex2oat)
 #ifndef ART_DEFAULT_COMPACT_DEX_LEVEL
