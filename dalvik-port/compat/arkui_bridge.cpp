@@ -26,6 +26,8 @@
 #include "stb_truetype.h"
 #include "software_canvas.h"
 
+static const char *FONT_PATH = "/data/a2oh/font.ttf";
+
 /* ── OH_Drawing (Skia) dynamic loading ── */
 /* All OH_Drawing functions loaded via dlopen at runtime.
  * If available, canvas operations use real Skia. Otherwise falls back to stb_truetype. */
@@ -290,7 +292,6 @@ typedef struct {
 /* ── Shared framebuffer for output ── */
 static SWBitmap *g_framebuffer = NULL;
 static const char *CANVAS_OUTPUT = "/data/a2oh/canvas_out.bin";
-static const char *FONT_PATH = "/data/a2oh/font.ttf";
 
 static void ensure_framebuffer(int w, int h) {
     if (g_framebuffer && g_framebuffer->width == w && g_framebuffer->height == h) return;
@@ -430,7 +431,42 @@ JNIEXPORT void JNICALL Java_com_ohos_shim_bridge_OHBridge_nodeUnregisterEvent(JN
 }
 JNIEXPORT void JNICALL Java_com_ohos_shim_bridge_OHBridge_nodeMarkDirty(JNIEnv*, jclass, jlong, jint) {}
 
-/* ── Bitmap JNI — real pixel buffer ── */
+#ifdef HAVE_SKIA_STATIC
+/* Forward declarations — these are provided by skia_canvas_direct.cpp */
+extern "C" {
+JNIEXPORT jlong JNICALL Java_com_ohos_shim_bridge_OHBridge_bitmapCreate(JNIEnv*, jclass, jint, jint, jint);
+JNIEXPORT void JNICALL Java_com_ohos_shim_bridge_OHBridge_bitmapDestroy(JNIEnv*, jclass, jlong);
+JNIEXPORT jint JNICALL Java_com_ohos_shim_bridge_OHBridge_bitmapGetWidth(JNIEnv*, jclass, jlong);
+JNIEXPORT jint JNICALL Java_com_ohos_shim_bridge_OHBridge_bitmapGetHeight(JNIEnv*, jclass, jlong);
+JNIEXPORT void JNICALL Java_com_ohos_shim_bridge_OHBridge_bitmapSetPixel(JNIEnv*, jclass, jlong, jint, jint, jint);
+JNIEXPORT jint JNICALL Java_com_ohos_shim_bridge_OHBridge_bitmapGetPixel(JNIEnv*, jclass, jlong, jint, jint);
+JNIEXPORT jint JNICALL Java_com_ohos_shim_bridge_OHBridge_bitmapWriteToFile(JNIEnv*, jclass, jlong, jstring);
+JNIEXPORT jint JNICALL Java_com_ohos_shim_bridge_OHBridge_bitmapBlitToFb0(JNIEnv*, jclass, jlong, jint);
+JNIEXPORT jlong JNICALL Java_com_ohos_shim_bridge_OHBridge_canvasCreate(JNIEnv*, jclass, jlong);
+JNIEXPORT void JNICALL Java_com_ohos_shim_bridge_OHBridge_canvasDestroy(JNIEnv*, jclass, jlong);
+JNIEXPORT void JNICALL Java_com_ohos_shim_bridge_OHBridge_canvasDrawColor(JNIEnv*, jclass, jlong, jint);
+JNIEXPORT void JNICALL Java_com_ohos_shim_bridge_OHBridge_canvasDrawRect(JNIEnv*, jclass, jlong, jfloat, jfloat, jfloat, jfloat, jlong, jlong);
+JNIEXPORT void JNICALL Java_com_ohos_shim_bridge_OHBridge_canvasDrawCircle(JNIEnv*, jclass, jlong, jfloat, jfloat, jfloat, jlong, jlong);
+JNIEXPORT void JNICALL Java_com_ohos_shim_bridge_OHBridge_canvasDrawLine(JNIEnv*, jclass, jlong, jfloat, jfloat, jfloat, jfloat, jlong);
+JNIEXPORT void JNICALL Java_com_ohos_shim_bridge_OHBridge_canvasDrawPath(JNIEnv*, jclass, jlong, jlong, jlong, jlong);
+JNIEXPORT void JNICALL Java_com_ohos_shim_bridge_OHBridge_canvasDrawBitmap(JNIEnv*, jclass, jlong, jlong, jfloat, jfloat);
+JNIEXPORT void JNICALL Java_com_ohos_shim_bridge_OHBridge_canvasDrawText(JNIEnv*, jclass, jlong, jstring, jfloat, jfloat, jlong, jlong, jlong);
+JNIEXPORT void JNICALL Java_com_ohos_shim_bridge_OHBridge_canvasSave(JNIEnv*, jclass, jlong);
+JNIEXPORT void JNICALL Java_com_ohos_shim_bridge_OHBridge_canvasRestore(JNIEnv*, jclass, jlong);
+JNIEXPORT void JNICALL Java_com_ohos_shim_bridge_OHBridge_canvasTranslate(JNIEnv*, jclass, jlong, jfloat, jfloat);
+JNIEXPORT void JNICALL Java_com_ohos_shim_bridge_OHBridge_canvasScale(JNIEnv*, jclass, jlong, jfloat, jfloat);
+JNIEXPORT void JNICALL Java_com_ohos_shim_bridge_OHBridge_canvasRotate(JNIEnv*, jclass, jlong, jfloat, jfloat, jfloat);
+JNIEXPORT void JNICALL Java_com_ohos_shim_bridge_OHBridge_canvasClipRect(JNIEnv*, jclass, jlong, jfloat, jfloat, jfloat, jfloat);
+JNIEXPORT void JNICALL Java_com_ohos_shim_bridge_OHBridge_canvasClipPath(JNIEnv*, jclass, jlong, jlong);
+JNIEXPORT void JNICALL Java_com_ohos_shim_bridge_OHBridge_canvasConcat(JNIEnv*, jclass, jlong, jfloatArray);
+JNIEXPORT void JNICALL Java_com_ohos_shim_bridge_OHBridge_canvasDrawArc(JNIEnv*, jclass, jlong, jfloat, jfloat, jfloat, jfloat, jfloat, jfloat, jboolean, jlong, jlong);
+JNIEXPORT void JNICALL Java_com_ohos_shim_bridge_OHBridge_canvasDrawOval(JNIEnv*, jclass, jlong, jfloat, jfloat, jfloat, jfloat, jlong, jlong);
+JNIEXPORT void JNICALL Java_com_ohos_shim_bridge_OHBridge_canvasDrawRoundRect(JNIEnv*, jclass, jlong, jfloat, jfloat, jfloat, jfloat, jfloat, jfloat, jlong, jlong);
+}
+#endif
+
+#ifndef HAVE_SKIA_STATIC
+/* ── Bitmap JNI — real pixel buffer (skipped when Skia provides these) ── */
 
 JNIEXPORT jlong JNICALL Java_com_ohos_shim_bridge_OHBridge_bitmapCreate(JNIEnv*, jclass, jint w, jint h, jint fmt) {
     (void)fmt;
@@ -842,6 +878,8 @@ JNIEXPORT void JNICALL Java_com_ohos_shim_bridge_OHBridge_canvasDrawRoundRect(
     if (c && brush && brush != (SWBrush*)1)
         sw_canvas_fill_roundrect(c, l, t, r, b, rx, ry, (uint32_t)brush->color);
 }
+
+#endif /* !HAVE_SKIA_STATIC */
 
 /* ── Surface stubs (not used in headless mode) ── */
 JNIEXPORT jlong JNICALL Java_com_ohos_shim_bridge_OHBridge_surfaceCreate(JNIEnv*, jclass, jlong, jint, jint) { return 0; }

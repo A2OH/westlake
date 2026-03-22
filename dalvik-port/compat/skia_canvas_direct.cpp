@@ -38,13 +38,19 @@
 
 static const char *FONT_PATH = "/data/a2oh/font.ttf";
 
-/* ── Global typeface ── */
-static sk_sp<SkTypeface> g_typeface;
+/* ── Global typeface (raw pointer to avoid C++ global constructor) ── */
+static SkTypeface *g_typeface = nullptr;
 static void ensure_typeface() {
     if (g_typeface) return;
     auto data = SkData::MakeFromFileName(FONT_PATH);
-    if (data) g_typeface = SkTypeface::MakeFromData(data);
-    if (!g_typeface) g_typeface = SkTypeface::MakeDefault();
+    if (data) {
+        auto tf = SkTypeface::MakeFromData(data);
+        if (tf) { g_typeface = tf.release(); }
+    }
+    if (!g_typeface) {
+        auto tf = SkTypeface::MakeDefault();
+        if (tf) { g_typeface = tf.release(); }
+    }
 }
 
 /* ── Skia Canvas wrapper ── */
@@ -125,6 +131,53 @@ Java_com_ohos_shim_bridge_OHBridge_bitmapSetPixel(JNIEnv*, jclass, jlong h, jint
         sb->pixels[y * sb->width + x] = (uint32_t)argb;
 }
 
+/* ── Bulk pixel operations ── */
+
+extern "C" JNIEXPORT jint JNICALL
+Java_com_ohos_shim_bridge_OHBridge_bitmapWriteToFile(JNIEnv* env, jclass, jlong h, jstring jpath) {
+    SWBitmap *b = (SWBitmap*)(uintptr_t)h;
+    if (!b || !b->pixels) return -1;
+    const char *path = env->GetStringUTFChars(jpath, NULL);
+    if (!path) return -2;
+    mkdir("/data/a2oh", 0777);
+    int fd = open(path, O_WRONLY | O_CREAT | O_TRUNC, 0666);
+    env->ReleaseStringUTFChars(jpath, path);
+    if (fd < 0) return -3;
+    int w = b->width, h2 = b->height;
+    write(fd, &w, 4); write(fd, &h2, 4);
+    write(fd, b->pixels, w * h2 * 4);
+    close(fd);
+    return w * h2;
+}
+
+extern "C" JNIEXPORT jint JNICALL
+Java_com_ohos_shim_bridge_OHBridge_bitmapBlitToFb0(JNIEnv*, jclass, jlong h, jint scrollY) {
+    SWBitmap *b = (SWBitmap*)(uintptr_t)h;
+    if (!b || !b->pixels) return -1;
+    int fb = open("/dev/fb0", O_RDWR);
+    if (fb < 0) return -2;
+    int fbW = 1280, fbH = 800, fbSize = fbW * fbH * 4;
+    uint32_t *fbMem = (uint32_t*)mmap(NULL, fbSize, PROT_READ|PROT_WRITE, MAP_SHARED, fb, 0);
+    if (fbMem == MAP_FAILED) {
+        lseek(fb, 0, SEEK_SET);
+        for (int y = 0; y < fbH; y++) {
+            int sy = y + scrollY;
+            if (sy >= 0 && sy < b->height && b->width >= fbW)
+                write(fb, &b->pixels[sy * b->width], fbW * 4);
+        }
+        close(fb); return fbW * fbH;
+    }
+    for (int y = 0; y < fbH; y++) {
+        int sy = y + scrollY;
+        if (sy >= 0 && sy < b->height) {
+            int cw = (b->width < fbW) ? b->width : fbW;
+            memcpy(&fbMem[y * fbW], &b->pixels[sy * b->width], cw * 4);
+        } else memset(&fbMem[y * fbW], 0xF5, fbW * 4);
+    }
+    munmap(fbMem, fbSize); close(fb);
+    return fbW * fbH;
+}
+
 /* ── Canvas JNI (Skia-direct) ── */
 
 extern "C" JNIEXPORT jlong JNICALL
@@ -144,7 +197,7 @@ Java_com_ohos_shim_bridge_OHBridge_canvasCreate(JNIEnv*, jclass, jlong bmpH) {
 
     /* Setup font */
     ensure_typeface();
-    if (g_typeface) sc->font.setTypeface(g_typeface);
+    if (g_typeface) sc->font.setTypeface(sk_ref_sp(g_typeface));
     sc->font.setSize(16);
     sc->font.setEdging(SkFont::Edging::kAntiAlias);
 
@@ -229,6 +282,22 @@ Java_com_ohos_shim_bridge_OHBridge_canvasDrawText(
     if (blob) sc->canvas->drawTextBlob(blob, x, y, makeFill(color));
 
     env->ReleaseStringUTFChars(jtext, text);
+}
+
+extern "C" JNIEXPORT void JNICALL
+Java_com_ohos_shim_bridge_OHBridge_canvasDrawRoundRect(
+    JNIEnv*, jclass, jlong ch, jfloat l, jfloat t, jfloat r, jfloat b, jfloat rx, jfloat ry, jlong penH, jlong brushH) {
+    SkCanvas2 *sc = (SkCanvas2*)(uintptr_t)ch;
+    if (!sc) return;
+    SkRect rect = SkRect::MakeLTRB(l, t, r, b);
+    SkRRect rrect;
+    rrect.setRectXY(rect, rx, ry);
+    SWBrush *brush = (SWBrush*)(uintptr_t)brushH;
+    SWPen *pen = (SWPen*)(uintptr_t)penH;
+    if (brush && brush != (SWBrush*)1)
+        sc->canvas->drawRRect(rrect, makeFill(brush->color));
+    if (pen && pen != (SWPen*)1)
+        sc->canvas->drawRRect(rrect, makeStroke(pen->color, pen->width));
 }
 
 extern "C" JNIEXPORT void JNICALL
