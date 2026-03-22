@@ -291,6 +291,10 @@ public class OHBridge {
     public static native int bitmapGetHeight(long bitmap);
     public static native void bitmapSetPixel(long bitmap, int x, int y, int argb);
     public static native int bitmapGetPixel(long bitmap, int x, int y);
+    /** Bulk write entire bitmap to file (header + pixels). Returns pixel count or negative on error. */
+    public static native int bitmapWriteToFile(long bitmap, String path);
+    /** Blit bitmap to /dev/fb0 at given scroll offset. Returns pixel count or negative on error. */
+    public static native int bitmapBlitToFb0(long bitmap, int scrollY);
 
     // ── OH_Drawing: Font / TextBlob ─────────────────────────────
 

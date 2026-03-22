@@ -200,6 +200,71 @@ JNIEXPORT jint JNICALL Java_com_ohos_shim_bridge_OHBridge_bitmapGetPixel(JNIEnv*
     return 0;
 }
 
+/* ── Bulk pixel operations (no per-pixel JNI crossing) ── */
+
+JNIEXPORT jint JNICALL Java_com_ohos_shim_bridge_OHBridge_bitmapWriteToFile(JNIEnv* env, jclass, jlong h, jstring jpath) {
+    SWBitmap *b = (SWBitmap*)(uintptr_t)h;
+    if (!b || !b->pixels) return -1;
+    const char *path = env->GetStringUTFChars(jpath, NULL);
+    if (!path) return -2;
+    mkdir("/data/a2oh", 0777);
+    int fd = open(path, O_WRONLY | O_CREAT | O_TRUNC, 0666);
+    env->ReleaseStringUTFChars(jpath, path);
+    if (fd < 0) return -3;
+    int w = b->width, h2 = b->height;
+    write(fd, &w, 4);
+    write(fd, &h2, 4);
+    write(fd, b->pixels, w * h2 * 4);
+    close(fd);
+    return w * h2;
+}
+
+JNIEXPORT jint JNICALL Java_com_ohos_shim_bridge_OHBridge_bitmapBlitToFb0(JNIEnv*, jclass, jlong h, jint scrollY) {
+    SWBitmap *b = (SWBitmap*)(uintptr_t)h;
+    if (!b || !b->pixels) return -1;
+    /* Try /dev/fb0 first, then mknod */
+    int fb = open("/dev/fb0", O_RDWR);
+    if (fb < 0) {
+        mkdir("/dev", 0755);
+        mknod("/dev/fb0", S_IFCHR | 0666, (dev_t)((29 << 8) | 0));
+        fb = open("/dev/fb0", O_RDWR);
+    }
+    if (fb < 0) return -2;
+    /* Get framebuffer size via ioctl or assume 1280x800 */
+    int fbW = 1280, fbH = 800;
+    int fbSize = fbW * fbH * 4;
+    uint32_t *fbMem = (uint32_t*)mmap(NULL, fbSize, PROT_READ | PROT_WRITE, MAP_SHARED, fb, 0);
+    if (fbMem == MAP_FAILED) {
+        /* Fallback: write sequentially */
+        lseek(fb, 0, SEEK_SET);
+        for (int y = 0; y < fbH; y++) {
+            int sy = y + scrollY;
+            if (sy >= 0 && sy < b->height && b->width >= fbW)
+                write(fb, &b->pixels[sy * b->width], fbW * 4);
+            else {
+                uint32_t blank[1280];
+                memset(blank, 0xF5, fbW * 4); /* light gray */
+                write(fb, blank, fbW * 4);
+            }
+        }
+        close(fb);
+        return fbW * fbH;
+    }
+    /* mmap blit — fast */
+    for (int y = 0; y < fbH; y++) {
+        int sy = y + scrollY;
+        if (sy >= 0 && sy < b->height) {
+            int copyW = (b->width < fbW) ? b->width : fbW;
+            memcpy(&fbMem[y * fbW], &b->pixels[sy * b->width], copyW * 4);
+        } else {
+            memset(&fbMem[y * fbW], 0xF5, fbW * 4);
+        }
+    }
+    munmap(fbMem, fbSize);
+    close(fb);
+    return fbW * fbH;
+}
+
 /* ── Canvas JNI — real software renderer ── */
 
 JNIEXPORT jlong JNICALL Java_com_ohos_shim_bridge_OHBridge_canvasCreate(JNIEnv*, jclass, jlong bmpH) {
@@ -586,6 +651,8 @@ static JNINativeMethod gOHBridgeMethods[] = {
     OHBM("bitmapGetHeight", "(J)I", Java_com_ohos_shim_bridge_OHBridge_bitmapGetHeight),
     OHBM("bitmapSetPixel", "(JIII)V", Java_com_ohos_shim_bridge_OHBridge_bitmapSetPixel),
     OHBM("bitmapGetPixel", "(JII)I", Java_com_ohos_shim_bridge_OHBridge_bitmapGetPixel),
+    OHBM("bitmapWriteToFile", "(JLjava/lang/String;)I", Java_com_ohos_shim_bridge_OHBridge_bitmapWriteToFile),
+    OHBM("bitmapBlitToFb0", "(JI)I", Java_com_ohos_shim_bridge_OHBridge_bitmapBlitToFb0),
     OHBM("canvasCreate", "(J)J", Java_com_ohos_shim_bridge_OHBridge_canvasCreate),
     OHBM("canvasDestroy", "(J)V", Java_com_ohos_shim_bridge_OHBridge_canvasDestroy),
     OHBM("canvasDrawColor", "(JI)V", Java_com_ohos_shim_bridge_OHBridge_canvasDrawColor),
