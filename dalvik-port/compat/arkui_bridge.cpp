@@ -113,9 +113,109 @@ SKFP(void, RoundRectDestroy, OH_RoundRect*);
 
 #define SK_RESOLVE(name) sk_##name = (decltype(sk_##name))dlsym(g_skia_lib, "OH_Drawing_" #name)
 
+/* When linked with -DHAVE_SKIA_STATIC, OH_Drawing symbols are resolved at link time */
+#ifdef HAVE_SKIA_STATIC
+extern "C" {
+OH_Bitmap* OH_Drawing_BitmapCreate(void);
+void OH_Drawing_BitmapDestroy(OH_Bitmap*);
+void OH_Drawing_BitmapBuild(OH_Bitmap*, uint32_t, uint32_t, const OH_BitmapFormat*);
+uint32_t OH_Drawing_BitmapGetWidth(OH_Bitmap*);
+uint32_t OH_Drawing_BitmapGetHeight(OH_Bitmap*);
+void* OH_Drawing_BitmapGetPixels(OH_Bitmap*);
+OH_Canvas* OH_Drawing_CanvasCreate(void);
+void OH_Drawing_CanvasDestroy(OH_Canvas*);
+void OH_Drawing_CanvasBind(OH_Canvas*, OH_Bitmap*);
+void OH_Drawing_CanvasAttachPen(OH_Canvas*, const OH_Pen*);
+void OH_Drawing_CanvasDetachPen(OH_Canvas*);
+void OH_Drawing_CanvasAttachBrush(OH_Canvas*, const OH_Brush*);
+void OH_Drawing_CanvasDetachBrush(OH_Canvas*);
+void OH_Drawing_CanvasSave(OH_Canvas*);
+void OH_Drawing_CanvasRestore(OH_Canvas*);
+void OH_Drawing_CanvasDrawLine(OH_Canvas*, float, float, float, float);
+void OH_Drawing_CanvasDrawRect(OH_Canvas*, const OH_Rect*);
+void OH_Drawing_CanvasDrawCircle(OH_Canvas*, const void*, float);
+void OH_Drawing_CanvasDrawOval(OH_Canvas*, const OH_Rect*);
+void OH_Drawing_CanvasDrawArc(OH_Canvas*, const OH_Rect*, float, float);
+void OH_Drawing_CanvasDrawRoundRect(OH_Canvas*, const OH_RoundRect*);
+void OH_Drawing_CanvasDrawPath(OH_Canvas*, const OH_Path*);
+void OH_Drawing_CanvasDrawTextBlob(OH_Canvas*, const OH_TextBlob*, float, float);
+void OH_Drawing_CanvasDrawBitmap(OH_Canvas*, const OH_Bitmap*, float, float);
+void OH_Drawing_CanvasClipRect(OH_Canvas*, const OH_Rect*, int, int);
+void OH_Drawing_CanvasTranslate(OH_Canvas*, float, float);
+void OH_Drawing_CanvasScale(OH_Canvas*, float, float);
+void OH_Drawing_CanvasRotate(OH_Canvas*, float, float, float);
+void OH_Drawing_CanvasClear(OH_Canvas*, uint32_t);
+OH_Pen* OH_Drawing_PenCreate(void);
+void OH_Drawing_PenDestroy(OH_Pen*);
+void OH_Drawing_PenSetColor(OH_Pen*, uint32_t);
+void OH_Drawing_PenSetWidth(OH_Pen*, float);
+void OH_Drawing_PenSetAntiAlias(OH_Pen*, int);
+OH_Brush* OH_Drawing_BrushCreate(void);
+void OH_Drawing_BrushDestroy(OH_Brush*);
+void OH_Drawing_BrushSetColor(OH_Brush*, uint32_t);
+void OH_Drawing_BrushSetAntiAlias(OH_Brush*, int);
+OH_Font* OH_Drawing_FontCreate(void);
+void OH_Drawing_FontDestroy(OH_Font*);
+void OH_Drawing_FontSetTypeface(OH_Font*, OH_Typeface*);
+void OH_Drawing_FontSetTextSize(OH_Font*, float);
+float OH_Drawing_FontGetMetrics(OH_Font*, OH_FontMetrics*);
+OH_Typeface* OH_Drawing_TypefaceCreateDefault(void);
+OH_Typeface* OH_Drawing_TypefaceCreateFromFile(const char*, int);
+void OH_Drawing_TypefaceDestroy(OH_Typeface*);
+OH_TextBlob* OH_Drawing_TextBlobCreateFromString(const char*, const OH_Font*, int);
+void OH_Drawing_TextBlobDestroy(OH_TextBlob*);
+OH_Path* OH_Drawing_PathCreate(void);
+void OH_Drawing_PathDestroy(OH_Path*);
+void OH_Drawing_PathMoveTo(OH_Path*, float, float);
+void OH_Drawing_PathLineTo(OH_Path*, float, float);
+void OH_Drawing_PathCubicTo(OH_Path*, float, float, float, float, float, float);
+void OH_Drawing_PathQuadTo(OH_Path*, float, float, float, float);
+void OH_Drawing_PathClose(OH_Path*);
+void OH_Drawing_PathReset(OH_Path*);
+OH_Rect* OH_Drawing_RectCreate(float, float, float, float);
+void OH_Drawing_RectDestroy(OH_Rect*);
+OH_RoundRect* OH_Drawing_RoundRectCreate(const OH_Rect*, float, float);
+void OH_Drawing_RoundRectDestroy(OH_RoundRect*);
+}
+#define SK_STATIC_ASSIGN(name) sk_##name = OH_Drawing_##name
+#endif
+
 static void try_load_skia() {
     if (g_skia_tried) return;
     g_skia_tried = 1;
+
+#ifdef HAVE_SKIA_STATIC
+    /* Symbols resolved at link time — assign directly */
+    SK_STATIC_ASSIGN(BitmapCreate); SK_STATIC_ASSIGN(BitmapDestroy); SK_STATIC_ASSIGN(BitmapBuild);
+    SK_STATIC_ASSIGN(BitmapGetWidth); SK_STATIC_ASSIGN(BitmapGetHeight); SK_STATIC_ASSIGN(BitmapGetPixels);
+    SK_STATIC_ASSIGN(CanvasCreate); SK_STATIC_ASSIGN(CanvasDestroy); SK_STATIC_ASSIGN(CanvasBind);
+    SK_STATIC_ASSIGN(CanvasAttachPen); SK_STATIC_ASSIGN(CanvasDetachPen);
+    SK_STATIC_ASSIGN(CanvasAttachBrush); SK_STATIC_ASSIGN(CanvasDetachBrush);
+    SK_STATIC_ASSIGN(CanvasSave); SK_STATIC_ASSIGN(CanvasRestore);
+    SK_STATIC_ASSIGN(CanvasDrawLine); SK_STATIC_ASSIGN(CanvasDrawRect); SK_STATIC_ASSIGN(CanvasDrawCircle);
+    SK_STATIC_ASSIGN(CanvasDrawOval); SK_STATIC_ASSIGN(CanvasDrawArc); SK_STATIC_ASSIGN(CanvasDrawRoundRect);
+    SK_STATIC_ASSIGN(CanvasDrawPath); SK_STATIC_ASSIGN(CanvasDrawTextBlob); SK_STATIC_ASSIGN(CanvasDrawBitmap);
+    SK_STATIC_ASSIGN(CanvasClipRect); SK_STATIC_ASSIGN(CanvasTranslate); SK_STATIC_ASSIGN(CanvasScale);
+    SK_STATIC_ASSIGN(CanvasRotate); SK_STATIC_ASSIGN(CanvasClear);
+    SK_STATIC_ASSIGN(PenCreate); SK_STATIC_ASSIGN(PenDestroy); SK_STATIC_ASSIGN(PenSetColor);
+    SK_STATIC_ASSIGN(PenSetWidth); SK_STATIC_ASSIGN(PenSetAntiAlias);
+    SK_STATIC_ASSIGN(BrushCreate); SK_STATIC_ASSIGN(BrushDestroy); SK_STATIC_ASSIGN(BrushSetColor);
+    SK_STATIC_ASSIGN(BrushSetAntiAlias);
+    SK_STATIC_ASSIGN(FontCreate); SK_STATIC_ASSIGN(FontDestroy); SK_STATIC_ASSIGN(FontSetTypeface);
+    SK_STATIC_ASSIGN(FontSetTextSize); SK_STATIC_ASSIGN(FontGetMetrics);
+    SK_STATIC_ASSIGN(TypefaceCreateDefault); SK_STATIC_ASSIGN(TypefaceCreateFromFile); SK_STATIC_ASSIGN(TypefaceDestroy);
+    SK_STATIC_ASSIGN(TextBlobCreateFromString); SK_STATIC_ASSIGN(TextBlobDestroy);
+    SK_STATIC_ASSIGN(PathCreate); SK_STATIC_ASSIGN(PathDestroy); SK_STATIC_ASSIGN(PathMoveTo);
+    SK_STATIC_ASSIGN(PathLineTo); SK_STATIC_ASSIGN(PathCubicTo); SK_STATIC_ASSIGN(PathQuadTo);
+    SK_STATIC_ASSIGN(PathClose); SK_STATIC_ASSIGN(PathReset);
+    SK_STATIC_ASSIGN(RectCreate); SK_STATIC_ASSIGN(RectDestroy);
+    SK_STATIC_ASSIGN(RoundRectCreate); SK_STATIC_ASSIGN(RoundRectDestroy);
+    g_skia_ok = 1;
+    fprintf(stderr, "OH_Drawing: STATIC LINK (Skia backend)\n");
+    return;
+#endif
+
+    /* Dynamic loading fallback */
     const char *paths[] = {
         "lib2d_graphics.z.so",
         "/system/lib/platformsdk/lib2d_graphics.z.so",
