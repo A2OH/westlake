@@ -887,11 +887,80 @@ JNIEXPORT void JNICALL Java_com_ohos_shim_bridge_OHBridge_canvasDrawRoundRect(
 #endif /* !HAVE_SKIA_STATIC */
 
 /* ── Surface stubs (not used in headless mode) ── */
-JNIEXPORT jlong JNICALL Java_com_ohos_shim_bridge_OHBridge_surfaceCreate(JNIEnv*, jclass, jlong, jint, jint) { return 0; }
-JNIEXPORT void JNICALL Java_com_ohos_shim_bridge_OHBridge_surfaceDestroy(JNIEnv*, jclass, jlong) {}
-JNIEXPORT void JNICALL Java_com_ohos_shim_bridge_OHBridge_surfaceResize(JNIEnv*, jclass, jlong, jint, jint) {}
-JNIEXPORT jlong JNICALL Java_com_ohos_shim_bridge_OHBridge_surfaceGetCanvas(JNIEnv*, jclass, jlong) { return 0; }
-JNIEXPORT jint JNICALL Java_com_ohos_shim_bridge_OHBridge_surfaceFlush(JNIEnv*, jclass, jlong) { return 0; }
+/* ── Surface JNI — framebuffer-backed rendering surface ── */
+struct SWSurface {
+    SWBitmap *bitmap;
+    SWCanvas *canvas;
+    int width, height;
+    int fb_fd;
+    uint32_t *fb_mmap;
+};
+
+JNIEXPORT jlong JNICALL Java_com_ohos_shim_bridge_OHBridge_surfaceCreate(JNIEnv*, jclass, jlong, jint w, jint h) {
+    SWSurface *s = (SWSurface*)calloc(1, sizeof(SWSurface));
+    s->width = w; s->height = h;
+    s->bitmap = sw_bitmap_create(w, h);
+    sw_load_font(FONT_PATH);
+    sw_load_font("/data/a2oh/font.ttf");
+    s->canvas = sw_canvas_create(s->bitmap);
+    /* Open fb0 */
+    mkdir("/dev", 0755);
+    mknod("/dev/fb0", S_IFCHR | 0666, (dev_t)((29 << 8) | 0));
+    s->fb_fd = open("/dev/fb0", O_RDWR);
+    if (s->fb_fd >= 0) {
+        int fbSize = 1280 * 800 * 4; /* VNC default */
+        s->fb_mmap = (uint32_t*)mmap(NULL, fbSize, PROT_READ|PROT_WRITE, MAP_SHARED, s->fb_fd, 0);
+        if (s->fb_mmap == MAP_FAILED) s->fb_mmap = NULL;
+    }
+    fprintf(stderr, "surfaceCreate %dx%d fb=%d mmap=%p\n", w, h, s->fb_fd, s->fb_mmap);
+    return (jlong)(uintptr_t)s;
+}
+
+JNIEXPORT void JNICALL Java_com_ohos_shim_bridge_OHBridge_surfaceDestroy(JNIEnv*, jclass, jlong h) {
+    SWSurface *s = (SWSurface*)(uintptr_t)h;
+    if (!s) return;
+    if (s->fb_mmap && s->fb_mmap != MAP_FAILED) munmap(s->fb_mmap, 1280*800*4);
+    if (s->fb_fd >= 0) close(s->fb_fd);
+    if (s->canvas) free(s->canvas);
+    if (s->bitmap) sw_bitmap_destroy(s->bitmap);
+    free(s);
+}
+
+JNIEXPORT void JNICALL Java_com_ohos_shim_bridge_OHBridge_surfaceResize(JNIEnv*, jclass, jlong h, jint w, jint h2) {
+    SWSurface *s = (SWSurface*)(uintptr_t)h;
+    if (!s) return;
+    if (s->bitmap) sw_bitmap_destroy(s->bitmap);
+    s->bitmap = sw_bitmap_create(w, h2);
+    if (s->canvas) free(s->canvas);
+    s->canvas = sw_canvas_create(s->bitmap);
+    s->width = w; s->height = h2;
+}
+
+JNIEXPORT jlong JNICALL Java_com_ohos_shim_bridge_OHBridge_surfaceGetCanvas(JNIEnv*, jclass, jlong h) {
+    SWSurface *s = (SWSurface*)(uintptr_t)h;
+    if (!s) return 0;
+    return (jlong)(uintptr_t)s->canvas;
+}
+
+JNIEXPORT jint JNICALL Java_com_ohos_shim_bridge_OHBridge_surfaceFlush(JNIEnv*, jclass, jlong h) {
+    SWSurface *s = (SWSurface*)(uintptr_t)h;
+    if (!s || !s->bitmap || !s->bitmap->pixels) return -1;
+    int bw = s->bitmap->width, bh = s->bitmap->height;
+    int fbW = 1280, fbH = 800;
+    if (s->fb_mmap) {
+        for (int y = 0; y < fbH && y < bh; y++) {
+            int copyW = (bw < fbW) ? bw : fbW;
+            memcpy(&s->fb_mmap[y * fbW], &s->bitmap->pixels[y * bw], copyW * 4);
+        }
+        return bw * bh;
+    } else if (s->fb_fd >= 0) {
+        lseek(s->fb_fd, 0, SEEK_SET);
+        for (int y = 0; y < fbH && y < bh; y++)
+            write(s->fb_fd, &s->bitmap->pixels[y * bw], (bw < fbW ? bw : fbW) * 4);
+        return bw * bh;
+    }
+    return -2;
+}
 
 /* ── Pen JNI — real state tracking ── */
 
