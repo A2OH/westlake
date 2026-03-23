@@ -71,7 +71,11 @@ public class MiniActivityManager {
         Activity activity;
         try {
             Class<?> cls = mRegisteredClasses.get(className);
-            if (cls == null) cls = Thread.currentThread().getContextClassLoader().loadClass(className);
+            if (cls == null) {
+                ClassLoader cl = MiniActivityManager.class.getClassLoader();
+                if (cl == null) cl = ClassLoader.getSystemClassLoader();
+                cls = cl.loadClass(className);
+            }
             activity = (Activity) cls.newInstance();
         } catch (ClassNotFoundException e) {
             Log.e(TAG, "Activity class not found: " + className);
