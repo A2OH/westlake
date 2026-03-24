@@ -104,6 +104,7 @@ public class WestlakeActivity extends Activity implements SurfaceHolder.Callback
     }
 
     private void runEngine() {
+        android.os.Looper.prepare();
         try {
             Log.i(TAG, "Extracting DEX files...");
             File cacheDir = getCacheDir();

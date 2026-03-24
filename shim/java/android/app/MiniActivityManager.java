@@ -216,27 +216,72 @@ public class MiniActivityManager {
 
     private void performCreate(ActivityRecord r, Bundle savedInstanceState) {
         Log.d(TAG, "  performCreate: " + r.component.getClassName());
-        r.activity.onCreate(savedInstanceState);
+        try {
+            r.activity.onCreate(savedInstanceState);
+        } catch (IllegalAccessError e) {
+            // On real Android, Activity.onCreate is protected — use reflection
+            try {
+                java.lang.reflect.Method m = Activity.class.getDeclaredMethod("onCreate", Bundle.class);
+                m.setAccessible(true);
+                m.invoke(r.activity, savedInstanceState);
+            } catch (Exception ex) {
+                Throwable cause = ex.getCause() != null ? ex.getCause() : ex;
+                Log.e(TAG, "performCreate failed: " + cause.getClass().getSimpleName() + ": " + cause.getMessage());
+                cause.printStackTrace();
+            }
+        }
     }
 
     private void performStart(ActivityRecord r) {
         Log.d(TAG, "  performStart: " + r.component.getClassName());
         ShimCompat.setActivityField(r.activity, "mStarted", Boolean.TRUE);
-        r.activity.onStart();
+        try {
+            r.activity.onStart();
+        } catch (IllegalAccessError e) {
+            try {
+                java.lang.reflect.Method m = Activity.class.getDeclaredMethod("onStart");
+                m.setAccessible(true);
+                m.invoke(r.activity);
+            } catch (Exception ex) { Log.e(TAG, "performonStart reflection failed: " + ex); }
+        }
     }
 
     private void performResume(ActivityRecord r) {
         Log.d(TAG, "  performResume: " + r.component.getClassName());
         ShimCompat.setActivityField(r.activity, "mResumed", Boolean.TRUE);
         mResumed = r;
-        r.activity.onResume();
-        r.activity.onPostResume();
+        try {
+            r.activity.onResume();
+        } catch (IllegalAccessError e) {
+            try {
+                java.lang.reflect.Method m = Activity.class.getDeclaredMethod("onResume");
+                m.setAccessible(true);
+                m.invoke(r.activity);
+            } catch (Exception ex) { Log.e(TAG, "performonResume reflection failed: " + ex); }
+        }
+        try {
+            r.activity.onPostResume();
+        } catch (IllegalAccessError e) {
+            try {
+                java.lang.reflect.Method m = Activity.class.getDeclaredMethod("onPostResume");
+                m.setAccessible(true);
+                m.invoke(r.activity);
+            } catch (Exception ex) { /* onPostResume is optional */ }
+        }
     }
 
     private void performPause(ActivityRecord r) {
         Log.d(TAG, "  performPause: " + r.component.getClassName());
         ShimCompat.setActivityField(r.activity, "mResumed", Boolean.FALSE);
-        r.activity.onPause();
+        try {
+            r.activity.onPause();
+        } catch (IllegalAccessError e) {
+            try {
+                java.lang.reflect.Method m = Activity.class.getDeclaredMethod("onPause");
+                m.setAccessible(true);
+                m.invoke(r.activity);
+            } catch (Exception ex) { Log.e(TAG, "performonPause reflection failed: " + ex); }
+        }
         if (r == mResumed) {
             mResumed = null;
         }
@@ -246,18 +291,42 @@ public class MiniActivityManager {
         if (ShimCompat.getActivityBooleanField(r.activity, "mStarted", false) == false) return;
         Log.d(TAG, "  performStop: " + r.component.getClassName());
         ShimCompat.setActivityField(r.activity, "mStarted", Boolean.FALSE);
-        r.activity.onStop();
+        try {
+            r.activity.onStop();
+        } catch (IllegalAccessError e) {
+            try {
+                java.lang.reflect.Method m = Activity.class.getDeclaredMethod("onStop");
+                m.setAccessible(true);
+                m.invoke(r.activity);
+            } catch (Exception ex) { Log.e(TAG, "performonStop reflection failed: " + ex); }
+        }
     }
 
     private void performDestroy(ActivityRecord r) {
         Log.d(TAG, "  performDestroy: " + r.component.getClassName());
         ShimCompat.setActivityField(r.activity, "mDestroyed", Boolean.TRUE);
-        r.activity.onDestroy();
+        try {
+            r.activity.onDestroy();
+        } catch (IllegalAccessError e) {
+            try {
+                java.lang.reflect.Method m = Activity.class.getDeclaredMethod("onDestroy");
+                m.setAccessible(true);
+                m.invoke(r.activity);
+            } catch (Exception ex) { Log.e(TAG, "performonDestroy reflection failed: " + ex); }
+        }
     }
 
     private void performRestart(ActivityRecord r) {
         Log.d(TAG, "  performRestart: " + r.component.getClassName());
-        r.activity.onRestart();
+        try {
+            r.activity.onRestart();
+        } catch (IllegalAccessError e) {
+            try {
+                java.lang.reflect.Method m = Activity.class.getDeclaredMethod("onRestart");
+                m.setAccessible(true);
+                m.invoke(r.activity);
+            } catch (Exception ex) { /* optional */ }
+        }
     }
 
     // ── Internal ────────────────────────────────────────────────────────────

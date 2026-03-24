@@ -37,10 +37,15 @@ public class MiniServer {
         mActivityManager = new MiniActivityManager(this);
         mServiceManager = new MiniServiceManager(this);
         mPackageManager = new MiniPackageManager(packageName);
-        SystemServiceRegistry.init();
-        // Register LayoutInflater as a system service
-        SystemServiceRegistry.registerService(Context.LAYOUT_INFLATER_SERVICE,
-                new LayoutInflater(mApplication));
+        try {
+            SystemServiceRegistry.init();
+            // Register LayoutInflater as a system service
+            SystemServiceRegistry.registerService(Context.LAYOUT_INFLATER_SERVICE,
+                    new LayoutInflater(mApplication));
+        } catch (NoSuchMethodError | NoClassDefFoundError e) {
+            // On real Android, SystemServiceRegistry is already initialized
+            android.util.Log.w("MiniServer", "SystemServiceRegistry.init() skipped: " + e.getClass().getSimpleName());
+        }
     }
 
     /** Initialize the MiniServer singleton. Call once at engine startup. */
