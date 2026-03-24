@@ -73,8 +73,13 @@ public class MockDonaldsApp {
      * Simple render loop: re-render the current Activity's view tree.
      * Touch events arrive via OHBridge.dispatchTouchEvent() from native.
      */
+    private static final String TOUCH_PATH = "/sdcard/westlake_touch.dat";
+
     private static void renderLoop(Activity initialActivity, MiniActivityManager am) {
         long frameCount = 0;
+        int lastTouchSeq = -1;
+        java.io.File touchFile = new java.io.File(TOUCH_PATH);
+
         while (true) {
             try {
                 Thread.sleep(16); // ~60fps
@@ -88,11 +93,43 @@ public class MockDonaldsApp {
                 break;
             }
 
-            // Re-render if the view tree is dirty
+            // Check for touch events
+            try {
+                if (touchFile.exists() && touchFile.length() == 16) {
+                    java.io.FileInputStream fis = new java.io.FileInputStream(touchFile);
+                    byte[] buf = new byte[16];
+                    fis.read(buf);
+                    fis.close();
+                    java.nio.ByteBuffer bb = java.nio.ByteBuffer.wrap(buf);
+                    bb.order(java.nio.ByteOrder.LITTLE_ENDIAN);
+                    int action = bb.getInt();
+                    int x = bb.getInt();
+                    int y = bb.getInt();
+                    int seq = bb.getInt();
+                    if (seq != lastTouchSeq) {
+                        lastTouchSeq = seq;
+                        // Map action: 0=DOWN, 1=UP, 2=MOVE
+                        int motionAction = action; // MotionEvent.ACTION_DOWN=0, UP=1, MOVE=2
+                        android.view.MotionEvent me = android.view.MotionEvent.obtain(
+                            0, 0, motionAction, (float)x, (float)y, 0);
+                        current.dispatchTouchEvent(me);
+                        if (action == 1) { // UP — re-render after click
+                            current = am.getResumedActivity(); // activity may have changed
+                            if (current != null) {
+                                current.renderFrame();
+                                System.out.println("[MockDonaldsApp] Touch UP at (" + x + "," + y + ") → " +
+                                    current.getClass().getSimpleName());
+                            }
+                        }
+                    }
+                }
+            } catch (Exception e) { /* ignore touch read errors */ }
+
+            // Re-render
             current.renderFrame();
             frameCount++;
 
-            if (frameCount % 600 == 0) { // Log every ~10 seconds
+            if (frameCount % 600 == 0) {
                 System.out.println("[MockDonaldsApp] Frame " + frameCount
                         + " activity=" + current.getClass().getSimpleName());
             }
