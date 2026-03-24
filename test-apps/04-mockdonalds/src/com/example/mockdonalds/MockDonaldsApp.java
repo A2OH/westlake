@@ -54,12 +54,39 @@ public class MockDonaldsApp {
         // Create rendering surface and do initial render
         if (nativeOk) {
             System.out.println("[MockDonaldsApp] Creating surface " + SURFACE_WIDTH + "x" + SURFACE_HEIGHT);
-            menuActivity.onSurfaceCreated(0, SURFACE_WIDTH, SURFACE_HEIGHT);
-            menuActivity.renderFrame();
-            // Debug: dump view tree bounds
-            android.view.View decor = menuActivity.getWindow().getDecorView();
-            dumpViewBounds(decor, 0);
-            System.out.println("[MockDonaldsApp] Initial frame rendered");
+            // Try shim rendering first (works on our custom dalvikvm)
+            boolean shimRendering = false;
+            try {
+                java.lang.reflect.Method m = menuActivity.getClass().getMethod("onSurfaceCreated", long.class, int.class, int.class);
+                m.invoke(menuActivity, 0L, SURFACE_WIDTH, SURFACE_HEIGHT);
+                m = menuActivity.getClass().getMethod("renderFrame");
+                m.invoke(menuActivity);
+                shimRendering = true;
+            } catch (Exception e) {
+                // On real Android: get the root view and display it natively
+                System.out.println("[MockDonaldsApp] Using native Android rendering");
+                try {
+                    // MenuActivity stored root view in WestlakeActivity.shimRootView
+                    final android.view.View root = com.westlake.host.WestlakeActivity.shimRootView;
+                    if (root != null) {
+                        com.westlake.host.WestlakeActivity.instance.runOnUiThread(new Runnable() {
+                            public void run() {
+                                // Remove from any existing parent first
+                                if (root.getParent() != null) {
+                                    ((android.view.ViewGroup)root.getParent()).removeView(root);
+                                }
+                                com.westlake.host.WestlakeActivity.instance.setContentView(root);
+                                System.out.println("[MockDonaldsApp] Native content view set: " + root.getClass().getSimpleName());
+                            }
+                        });
+                    } else {
+                        System.out.println("[MockDonaldsApp] No shimRootView available");
+                    }
+                } catch (Exception ex) {
+                    System.out.println("[MockDonaldsApp] Native rendering setup failed: " + ex);
+                }
+            }
+            System.out.println("[MockDonaldsApp] Initial frame rendered (shim=" + shimRendering + ")");
 
             // Enter render loop - wait for touch events from native side
             System.out.println("[MockDonaldsApp] Entering event loop...");
@@ -133,7 +160,8 @@ public class MockDonaldsApp {
                             touchFile.delete(); // prevent re-read
                             System.out.println("[MockDonaldsApp] Click at (" + x + "," + y + ")");
                             // Find the clickable view at (x,y) and click it directly
-                            android.view.View decor = current.getWindow().getDecorView();
+                            android.view.View decor = null;
+                            try { decor = current.getWindow().getDecorView(); } catch (Exception e3) {}
                             android.view.View target = findViewAt(decor, x, y);
                             if (target != null) {
                                 System.out.println("[MockDonaldsApp] Hit: " + target.getClass().getSimpleName()
@@ -168,10 +196,16 @@ public class MockDonaldsApp {
                             Activity next = am.getResumedActivity();
                             if (next != null) {
                                 if (next != current) {
-                                    next.onSurfaceCreated(0, SURFACE_WIDTH, SURFACE_HEIGHT);
+                                    try {
+                                        java.lang.reflect.Method sc = next.getClass().getMethod("onSurfaceCreated", long.class, int.class, int.class);
+                                        sc.invoke(next, 0L, SURFACE_WIDTH, SURFACE_HEIGHT);
+                                    } catch (Exception e2) {}
                                     System.out.println("[MockDonaldsApp] Navigated to " + next.getClass().getSimpleName());
                                 }
-                                next.renderFrame();
+                                try {
+                                    java.lang.reflect.Method rf = next.getClass().getMethod("renderFrame");
+                                    rf.invoke(next);
+                                } catch (Exception e2) {}
                                 // Signal C to write new PNG
                             }
                         } else if (seq != lastTouchSeq) {

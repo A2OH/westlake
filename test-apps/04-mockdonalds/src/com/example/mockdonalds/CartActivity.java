@@ -20,12 +20,12 @@ public class CartActivity extends Activity {
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
-        super.onCreate(savedInstanceState);
+        try { super.onCreate(savedInstanceState); } catch (Exception e) {}
 
         cartManager = new CartManager(this);
         cartItems = cartManager.getCartItems();
 
-        LinearLayout root = new LinearLayout(new android.content.Context());
+        LinearLayout root = new LinearLayout(getContext());
         root.setOrientation(LinearLayout.VERTICAL);
 
         TextView header = new TextView(getApplicationContext());
@@ -50,7 +50,7 @@ public class CartActivity extends Activity {
         totalView.setTextColor(0xFFFF0000);
         root.addView(totalView);
 
-        Button checkoutBtn = new Button(new android.content.Context());
+        Button checkoutBtn = new Button(getContext());
         checkoutBtn.setText("Checkout");
         checkoutBtn.setOnClickListener(new android.view.View.OnClickListener() {
             @Override public void onClick(android.view.View v) {
@@ -66,7 +66,7 @@ public class CartActivity extends Activity {
         });
         root.addView(checkoutBtn);
 
-        Button backBtn = new Button(new android.content.Context());
+        Button backBtn = new Button(getContext());
         backBtn.setText("Back to Menu");
         backBtn.setOnClickListener(new android.view.View.OnClickListener() {
             @Override public void onClick(android.view.View v) { finish(); }
@@ -97,7 +97,7 @@ public class CartActivity extends Activity {
         @Override
         public View getView(int position, View convertView, ViewGroup parent) {
             CartManager.CartItem item = cartItems.get(position);
-            LinearLayout row = new LinearLayout(new android.content.Context());
+            LinearLayout row = new LinearLayout(getContext());
             row.setOrientation(LinearLayout.HORIZONTAL);
 
             TextView nameView = new TextView(getApplicationContext());

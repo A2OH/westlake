@@ -20,15 +20,42 @@ public class MenuActivity extends Activity {
     private TextView cartCountView;
 
     @Override
-    protected void onCreate(Bundle savedInstanceState) {
-        super.onCreate(savedInstanceState);
+    private android.content.Context getContext() {
+        try { return getApplicationContext(); } catch (Exception e) {}
+        try {
+            Class<?> host = Class.forName("com.westlake.host.WestlakeActivity");
+            return (android.content.Context) host.getField("instance").get(null);
+        } catch (Exception e) {}
+        try { return new android.content.Context(); } catch (Exception|Error e) {}
+        return null;
+    }
 
-        dbHelper = new MenuDbHelper(this);
-        cartManager = new CartManager(this);
-        menuItems = dbHelper.getAllItems();
+    protected void onCreate(Bundle savedInstanceState) {
+        try {
+            super.onCreate(savedInstanceState);
+        } catch (Exception e) {
+            // On real Android, Activity internals may not be fully initialized
+        }
+
+        try {
+            dbHelper = new MenuDbHelper(this);
+            cartManager = new CartManager(this);
+            menuItems = dbHelper.getAllItems();
+        } catch (Exception | NoSuchMethodError e) {
+            // Database not available on real Android — use hardcoded menu
+            menuItems = new java.util.ArrayList<>();
+            menuItems.add(new MenuItem(1, "Big Mock Burger", "Delicious", 5.99, "Burgers"));
+            menuItems.add(new MenuItem(2, "Quarter Mocker", "Classic", 4.99, "Burgers"));
+            menuItems.add(new MenuItem(3, "Mock Nuggets (6)", "Crispy", 3.49, "Sides"));
+            menuItems.add(new MenuItem(4, "Mock Fries (L)", "Golden", 2.99, "Sides"));
+            menuItems.add(new MenuItem(5, "Mock Cola (L)", "Refreshing", 1.99, "Drinks"));
+            menuItems.add(new MenuItem(6, "Mock Shake", "Creamy", 3.99, "Drinks"));
+            menuItems.add(new MenuItem(7, "Mock Flurry", "Sweet", 2.49, "Desserts"));
+            menuItems.add(new MenuItem(8, "Apple Mock Pie", "Warm", 1.49, "Desserts"));
+        }
 
         // Build UI programmatically
-        LinearLayout root = new LinearLayout(new android.content.Context());
+        LinearLayout root = new LinearLayout(getContext());
         root.setOrientation(LinearLayout.VERTICAL);
 
         // Header
@@ -63,7 +90,7 @@ public class MenuActivity extends Activity {
         root.addView(listView);
 
         // Cart button with fixed height
-        Button cartBtn = new Button(new android.content.Context());
+        Button cartBtn = new Button(getContext());
         cartBtn.setText("View Cart");
         cartBtn.setTextSize(18);
         cartBtn.setOnClickListener(new android.view.View.OnClickListener() {
@@ -77,6 +104,12 @@ public class MenuActivity extends Activity {
         root.addView(cartBtn);
 
         setContentView(root);
+        // Also store for host activity to pick up when running on real Android
+        try {
+            Class<?> host = Class.forName("com.westlake.host.WestlakeActivity");
+            java.lang.reflect.Field f = host.getField("shimRootView");
+            f.set(null, root);
+        } catch (Exception e) { /* not running in host APK */ }
     }
 
     @Override
@@ -103,7 +136,7 @@ public class MenuActivity extends Activity {
         @Override
         public View getView(int position, View convertView, ViewGroup parent) {
             MenuItem item = menuItems.get(position);
-            LinearLayout row = new LinearLayout(new android.content.Context());
+            LinearLayout row = new LinearLayout(getContext());
             row.setOrientation(LinearLayout.HORIZONTAL);
 
             TextView nameView = new TextView(getApplicationContext());
