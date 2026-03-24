@@ -51,6 +51,9 @@ public class WestlakeActivity extends Activity implements SurfaceHolder.Callback
     public static Object shimActivity;
     public static Method shimDispatchTouch;
 
+    // Store the shim's root view — set by intercepted setContentView
+    public static android.view.View shimRootView;
+
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);

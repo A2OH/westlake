@@ -15,7 +15,7 @@ public class CheckoutActivity extends Activity {
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
-        super.onCreate(savedInstanceState);
+        try { super.onCreate(savedInstanceState); } catch (Exception e) {}
 
         Intent intent = getIntent();
         total = intent.getStringExtra("total");
@@ -24,7 +24,7 @@ public class CheckoutActivity extends Activity {
         CartManager cart = new CartManager(this);
         orderNumber = cart.checkout();
 
-        LinearLayout root = new LinearLayout(new android.content.Context());
+        LinearLayout root = new LinearLayout(getContext());
         root.setOrientation(LinearLayout.VERTICAL);
 
         TextView header = new TextView(getApplicationContext());
@@ -48,7 +48,7 @@ public class CheckoutActivity extends Activity {
         thankYou.setTextSize(14);
         root.addView(thankYou);
 
-        Button doneBtn = new Button(new android.content.Context());
+        Button doneBtn = new Button(getContext());
         doneBtn.setText("Done");
         doneBtn.setOnClickListener(new android.view.View.OnClickListener() {
             @Override public void onClick(android.view.View v) {
