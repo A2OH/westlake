@@ -56,6 +56,9 @@ public class MockDonaldsApp {
             System.out.println("[MockDonaldsApp] Creating surface " + SURFACE_WIDTH + "x" + SURFACE_HEIGHT);
             menuActivity.onSurfaceCreated(0, SURFACE_WIDTH, SURFACE_HEIGHT);
             menuActivity.renderFrame();
+            // Debug: dump view tree bounds
+            android.view.View decor = menuActivity.getWindow().getDecorView();
+            dumpViewBounds(decor, 0);
             System.out.println("[MockDonaldsApp] Initial frame rendered");
 
             // Enter render loop - wait for touch events from native side
@@ -128,14 +131,38 @@ public class MockDonaldsApp {
                         if (seq != lastTouchSeq && action == 1) { // Only process UP (click)
                             lastTouchSeq = seq;
                             System.out.println("[MockDonaldsApp] Click at (" + x + "," + y + ")");
-                            // Send DOWN then UP for proper click handling
-                            long now = System.currentTimeMillis();
-                            android.view.MotionEvent down = android.view.MotionEvent.obtain(
-                                now, now, 0, (float)x, (float)y, 0);
-                            current.dispatchTouchEvent(down);
-                            android.view.MotionEvent up = android.view.MotionEvent.obtain(
-                                now, now + 50, 1, (float)x, (float)y, 0);
-                            current.dispatchTouchEvent(up);
+                            // Find the clickable view at (x,y) and click it directly
+                            android.view.View decor = current.getWindow().getDecorView();
+                            android.view.View target = findViewAt(decor, x, y);
+                            if (target != null) {
+                                System.out.println("[MockDonaldsApp] Hit: " + target.getClass().getSimpleName()
+                                    + " bounds=(" + target.getLeft() + "," + target.getTop() + ")");
+                                // If it's a ListView item, use performItemClick
+                                android.view.ViewParent parent = target.getParent();
+                                while (parent != null) {
+                                    if (parent instanceof android.widget.ListView) {
+                                        android.widget.ListView lv = (android.widget.ListView) parent;
+                                        int pos = lv.getPositionForView(target);
+                                        if (pos >= 0) {
+                                            System.out.println("[MockDonaldsApp] ListView item " + pos + " clicked");
+                                            lv.performItemClick(target, pos, pos);
+                                        }
+                                        break;
+                                    }
+                                    if (parent instanceof android.view.View) {
+                                        parent = ((android.view.View) parent).getParent();
+                                    } else {
+                                        break;
+                                    }
+                                }
+                                // Also try regular click
+                                target.performClick();
+                            } else {
+                                // Fallback: dispatch DOWN+UP
+                                long now = System.currentTimeMillis();
+                                current.dispatchTouchEvent(android.view.MotionEvent.obtain(now, now, 0, (float)x, (float)y, 0));
+                                current.dispatchTouchEvent(android.view.MotionEvent.obtain(now, now+50, 1, (float)x, (float)y, 0));
+                            }
                             // Activity may have changed after click
                             Activity next = am.getResumedActivity();
                             if (next != null) {
@@ -164,5 +191,39 @@ public class MockDonaldsApp {
             }
         }
         System.out.println("[MockDonaldsApp] Render loop ended after " + frameCount + " frames");
+    }
+
+    /** Find the deepest view containing the given point (absolute coords) */
+    private static android.view.View findViewAt(android.view.View v, int x, int y) {
+        if (!(v instanceof android.view.ViewGroup)) {
+            return v; // leaf view
+        }
+        android.view.ViewGroup vg = (android.view.ViewGroup) v;
+        for (int i = vg.getChildCount() - 1; i >= 0; i--) {
+            android.view.View child = vg.getChildAt(i);
+            // Convert to child-local coordinates
+            int cx = x - child.getLeft() + child.getScrollX();
+            int cy = y - child.getTop() + child.getScrollY();
+            if (cx >= 0 && cx < child.getWidth() && cy >= 0 && cy < child.getHeight()) {
+                return findViewAt(child, cx, cy);
+            }
+        }
+        return v; // no child hit, return this ViewGroup itself
+    }
+
+    private static void dumpViewBounds(android.view.View v, int depth) {
+        String indent = "";
+        for (int i = 0; i < depth; i++) indent += "  ";
+        String name = v.getClass().getSimpleName();
+        System.out.println("[LAYOUT] " + indent + name
+            + " bounds=(" + v.getLeft() + "," + v.getTop() + ")-(" + v.getRight() + "," + v.getBottom() + ")"
+            + " size=" + v.getWidth() + "x" + v.getHeight()
+            + (v instanceof android.view.ViewGroup ? " children=" + ((android.view.ViewGroup)v).getChildCount() : ""));
+        if (v instanceof android.view.ViewGroup) {
+            android.view.ViewGroup vg = (android.view.ViewGroup) v;
+            for (int i = 0; i < vg.getChildCount(); i++) {
+                dumpViewBounds(vg.getChildAt(i), depth + 1);
+            }
+        }
     }
 }
