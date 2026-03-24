@@ -125,17 +125,28 @@ public class MockDonaldsApp {
                         int x = bb.getInt();
                         int y = bb.getInt();
                         int seq = bb.getInt();
-                        if (seq != lastTouchSeq) {
+                        if (seq != lastTouchSeq && action == 1) { // Only process UP (click)
                             lastTouchSeq = seq;
-                            System.out.println("[MockDonaldsApp] Touch action=" + action
-                                + " at (" + x + "," + y + ") seq=" + seq);
-                            android.view.MotionEvent me = android.view.MotionEvent.obtain(
-                                0, 0, action, (float)x, (float)y, 0);
-                            current.dispatchTouchEvent(me);
-                            if (action == 1) {
-                                current = am.getResumedActivity();
-                                if (current != null) current.renderFrame();
+                            System.out.println("[MockDonaldsApp] Click at (" + x + "," + y + ")");
+                            // Send DOWN then UP for proper click handling
+                            long now = System.currentTimeMillis();
+                            android.view.MotionEvent down = android.view.MotionEvent.obtain(
+                                now, now, 0, (float)x, (float)y, 0);
+                            current.dispatchTouchEvent(down);
+                            android.view.MotionEvent up = android.view.MotionEvent.obtain(
+                                now, now + 50, 1, (float)x, (float)y, 0);
+                            current.dispatchTouchEvent(up);
+                            // Activity may have changed after click
+                            Activity next = am.getResumedActivity();
+                            if (next != null) {
+                                if (next != current) {
+                                    next.onSurfaceCreated(0, SURFACE_WIDTH, SURFACE_HEIGHT);
+                                    System.out.println("[MockDonaldsApp] Navigated to " + next.getClass().getSimpleName());
+                                }
+                                next.renderFrame();
                             }
+                        } else if (seq != lastTouchSeq) {
+                            lastTouchSeq = seq; // consume DOWN/MOVE without processing
                         }
                     }
                 } catch (Exception e) {

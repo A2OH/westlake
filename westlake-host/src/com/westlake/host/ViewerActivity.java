@@ -33,13 +33,11 @@ public class ViewerActivity extends Activity {
     }
 
     public boolean dispatchTouchEvent(MotionEvent event) {
-        float x = event.getX() * FB_W / iv.getWidth();
-        float y = event.getY() * FB_H / iv.getHeight();
-        int action = 2;
-        if (event.getAction() == MotionEvent.ACTION_DOWN) action = 0;
-        else if (event.getAction() == MotionEvent.ACTION_UP) action = 1;
-        writeTouchEvent(action, (int)x, (int)y);
-        try { new java.io.FileOutputStream(getExternalFilesDir(null).getAbsolutePath() + "/touched").close(); } catch(Exception ex){}
+        if (event.getAction() == MotionEvent.ACTION_UP) {
+            float x = event.getX() * FB_W / iv.getWidth();
+            float y = event.getY() * FB_H / iv.getHeight();
+            writeTouchEvent(1, (int)x, (int)y);
+        }
         return true;
     }
 
