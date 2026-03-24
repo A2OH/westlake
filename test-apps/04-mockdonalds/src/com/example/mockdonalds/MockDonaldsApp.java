@@ -34,6 +34,24 @@ public class MockDonaldsApp {
 
         // Initialize MiniServer (replaces Android SystemServer)
         MiniServer.init("com.example.mockdonalds");
+
+        // Get context from host activity
+        android.content.Context appCtx = null;
+        try {
+            Class<?> host = Class.forName("com.westlake.host.WestlakeActivity");
+            appCtx = (android.content.Context) host.getField("instance").get(null);
+        } catch (Exception e) {}
+
+        // If running on phone with real Android, use MockApp directly
+        if (appCtx != null) {
+            System.out.println("[MockDonaldsApp] Running with native Android Views");
+            MockApp.init(appCtx);
+            MockApp.showMenu();
+            System.out.println("[MockDonaldsApp] Menu displayed");
+            // Keep thread alive
+            while (true) { try { Thread.sleep(1000); } catch (Exception e) { break; } }
+            return;
+        }
         MiniServer server = MiniServer.get();
         MiniActivityManager am = server.getActivityManager();
         System.out.println("[MockDonaldsApp] MiniServer initialized");
