@@ -76,6 +76,13 @@ public class MenuActivity extends Activity {
                 return row;
             }
         });
+        listView.setOnItemClickListener(new android.widget.AdapterView.OnItemClickListener() {
+            public void onItemClick(android.widget.AdapterView<?> parent, View view, int pos, long id) {
+                MenuItem item = menuItems.get(pos);
+                // Show item detail in a new view
+                showItemDetail(fCtx, item);
+            }
+        });
         root.addView(listView, new LinearLayout.LayoutParams(
             ViewGroup.LayoutParams.MATCH_PARENT, 0, 1));
 
@@ -91,6 +98,85 @@ public class MenuActivity extends Activity {
         } catch (Exception e) {}
 
         try { setContentView(root); } catch (Exception e) {}
+    }
+
+    private void showItemDetail(final Context ctx, final MenuItem item) {
+        LinearLayout detail = new LinearLayout(ctx);
+        detail.setOrientation(LinearLayout.VERTICAL);
+        detail.setBackgroundColor(0xFFFFFFFF);
+        detail.setPadding(32, 32, 32, 32);
+
+        TextView title = new TextView(ctx);
+        title.setText(item.name);
+        title.setTextSize(32);
+        title.setTextColor(0xFF000000);
+        detail.addView(title);
+
+        TextView desc = new TextView(ctx);
+        desc.setText(item.description);
+        desc.setTextSize(18);
+        desc.setTextColor(0xFF666666);
+        desc.setPadding(0, 16, 0, 16);
+        detail.addView(desc);
+
+        TextView price = new TextView(ctx);
+        price.setText("$" + String.format("%.2f", item.price));
+        price.setTextSize(28);
+        price.setTextColor(0xFF4CAF50);
+        price.setPadding(0, 0, 0, 32);
+        detail.addView(price);
+
+        Button addBtn = new Button(ctx);
+        addBtn.setText("Add to Cart");
+        addBtn.setTextSize(20);
+        addBtn.setOnClickListener(new View.OnClickListener() {
+            public void onClick(View v) {
+                // Go back to menu
+                try {
+                    Class<?> host = Class.forName("com.westlake.host.WestlakeActivity");
+                    Object shimRoot = host.getField("shimRootView").get(null);
+                    if (shimRoot instanceof View) {
+                        // Restore menu view
+                        final View menuView = (View) shimRoot;
+                        Object inst = host.getField("instance").get(null);
+                        if (inst instanceof Activity) {
+                            ((Activity) inst).runOnUiThread(new Runnable() {
+                                public void run() {
+                                    if (menuView.getParent() != null)
+                                        ((ViewGroup) menuView.getParent()).removeView(menuView);
+                                    try {
+                                        Class<?> h = Class.forName("com.westlake.host.WestlakeActivity");
+                                        ((Activity) h.getField("instance").get(null)).setContentView(menuView);
+                                    } catch (Exception ex) {}
+                                }
+                            });
+                        }
+                    }
+                } catch (Exception e) {}
+            }
+        });
+        detail.addView(addBtn);
+
+        Button backBtn = new Button(ctx);
+        backBtn.setText("← Back to Menu");
+        backBtn.setTextSize(16);
+        backBtn.setOnClickListener(new View.OnClickListener() {
+            public void onClick(View v) {
+                // Same as add — go back to menu
+                addBtn.performClick();
+            }
+        });
+        detail.addView(backBtn);
+
+        // Show detail view
+        try {
+            Class<?> host = Class.forName("com.westlake.host.WestlakeActivity");
+            final Activity hostAct = (Activity) host.getField("instance").get(null);
+            final View detailView = detail;
+            hostAct.runOnUiThread(new Runnable() {
+                public void run() { hostAct.setContentView(detailView); }
+            });
+        } catch (Exception e) {}
     }
 
     public List<MenuItem> getMenuItems() { return menuItems; }
