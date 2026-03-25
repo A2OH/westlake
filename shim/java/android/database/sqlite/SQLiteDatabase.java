@@ -103,16 +103,26 @@ public final class SQLiteDatabase extends SQLiteClosable {
     private SQLiteTransactionListener transactionListener;
     private int transactionNestingDepth;
 
+    // Phone bridge: real framework SQLiteDatabase object (null if in-memory shim)
+    Object realDb;
+
     // -- Constructor ----------------------------------------------------------
 
     public SQLiteDatabase() {
         this.path = ":memory:";
+        if (SQLiteBridge.isOnPhone()) {
+            realDb = SQLiteBridge.openRealDatabase(":memory:");
+        }
     }
 
     private SQLiteDatabase(String path, int flags) {
         this.path = path != null ? path : ":memory:";
         this.flags = flags;
         this.readOnly = (flags & OPEN_READONLY) != 0;
+        if (SQLiteBridge.isOnPhone()) {
+            realDb = SQLiteBridge.openRealDatabase(this.path);
+            if (realDb != null) System.out.println("[SQLiteDatabase] Using real SQLite for: " + this.path);
+        }
     }
 
     // -- Static factory methods -----------------------------------------------
@@ -181,6 +191,7 @@ public final class SQLiteDatabase extends SQLiteClosable {
     // -- Transaction management -----------------------------------------------
 
     public void beginTransaction() {
+        if (realDb != null) { SQLiteBridge.beginTransaction(realDb); return; }
         beginTransactionWithListener(null);
     }
 
@@ -208,6 +219,7 @@ public final class SQLiteDatabase extends SQLiteClosable {
     }
 
     public void setTransactionSuccessful() {
+        if (realDb != null) { SQLiteBridge.setTransactionSuccessful(realDb); return; }
         throwIfNotOpen();
         if (!inTransaction) {
             throw new IllegalStateException("no transaction pending");
@@ -216,6 +228,7 @@ public final class SQLiteDatabase extends SQLiteClosable {
     }
 
     public void endTransaction() {
+        if (realDb != null) { SQLiteBridge.endTransaction(realDb); return; }
         throwIfNotOpen();
         if (!inTransaction) {
             throw new IllegalStateException("no transaction pending");
@@ -265,10 +278,12 @@ public final class SQLiteDatabase extends SQLiteClosable {
     }
 
     public int getVersion() {
+        if (realDb != null) return SQLiteBridge.getVersion(realDb);
         return version;
     }
 
     public void setVersion(int version) {
+        if (realDb != null) { SQLiteBridge.setVersion(realDb, version); return; }
         throwIfNotOpen();
         this.version = version;
     }
@@ -367,12 +382,14 @@ public final class SQLiteDatabase extends SQLiteClosable {
     public void execSQL(String sql) {
         throwIfNotOpen();
         if (sql == null) throw new IllegalArgumentException("sql must not be null");
+        if (realDb != null) { SQLiteBridge.execSQL(realDb, sql); return; }
         parseAndExecDDL(sql);
     }
 
     public void execSQL(String sql, Object[] bindArgs) {
         throwIfNotOpen();
         if (sql == null) throw new IllegalArgumentException("sql must not be null");
+        if (realDb != null) { SQLiteBridge.execSQL(realDb, sql, bindArgs); return; }
         parseAndExecDDL(sql);
     }
 
@@ -497,6 +514,7 @@ public final class SQLiteDatabase extends SQLiteClosable {
     // -- Insert ---------------------------------------------------------------
 
     public long insert(String table, String nullColumnHack, ContentValues values) {
+        if (realDb != null) return SQLiteBridge.insert(realDb, table, nullColumnHack, values);
         try {
             return insertWithOnConflict(table, nullColumnHack, values, CONFLICT_NONE);
         } catch (Exception e) {
@@ -578,6 +596,7 @@ public final class SQLiteDatabase extends SQLiteClosable {
     // -- Update ---------------------------------------------------------------
 
     public int update(String table, ContentValues values, String whereClause, String[] whereArgs) {
+        if (realDb != null) return SQLiteBridge.update(realDb, table, values, whereClause, whereArgs);
         return updateWithOnConflict(table, values, whereClause, whereArgs, CONFLICT_NONE);
     }
 
@@ -609,6 +628,7 @@ public final class SQLiteDatabase extends SQLiteClosable {
     // -- Delete ---------------------------------------------------------------
 
     public int delete(String table, String whereClause, String[] whereArgs) {
+        if (realDb != null) return SQLiteBridge.delete(realDb, table, whereClause, whereArgs);
         throwIfNotOpen();
         if (table == null) throw new IllegalArgumentException("table must not be null");
 
@@ -646,6 +666,7 @@ public final class SQLiteDatabase extends SQLiteClosable {
     }
 
     public Cursor query(String table, String[] columns, String selection, String[] selectionArgs, String groupBy, String having, String orderBy) {
+        if (realDb != null) return SQLiteBridge.query(realDb, table, columns, selection, selectionArgs, groupBy, having, orderBy);
         return queryInternal(table, columns, selection, selectionArgs, orderBy, null);
     }
 
@@ -737,6 +758,7 @@ public final class SQLiteDatabase extends SQLiteClosable {
     // -- Raw queries ----------------------------------------------------------
 
     public Cursor rawQuery(String sql, String[] selectionArgs) {
+        if (realDb != null) return SQLiteBridge.rawQuery(realDb, sql, selectionArgs);
         return rawQueryInternal(sql, selectionArgs);
     }
 
