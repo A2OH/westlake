@@ -263,6 +263,15 @@ public class MockApp {
             public void onClick(View v) { show(XmlTestHelper.testXmlInflation(ctx)); }
         });
         root.addView(xmlBtn);
+        Button calcBtn = new Button(ctx);
+        calcBtn.setText("\uD83E\uDDEE Test Calculator APK Layout");
+        calcBtn.setTextSize(13);
+        calcBtn.setTextColor(SECONDARY);
+        calcBtn.setBackgroundColor(0xFFE3F2FD);
+        calcBtn.setOnClickListener(new View.OnClickListener() {
+            public void onClick(View v) { show(XmlTestHelper.testCalcLayout(ctx)); }
+        });
+        root.addView(calcBtn);
         menuView = root;
         show(root);
     }
