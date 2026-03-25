@@ -141,15 +141,85 @@ object ApkRunner {
                 val actInstance = actClass.newInstance()
                 steps.add("✅ Activity instance created")
 
-                // Attach base context via reflection (like Android's ActivityThread does)
+                // Set up the Activity manually instead of calling attach()
+                // attach() has too many framework dependencies (token, ActivityThread, etc.)
+                // Instead: attachBaseContext + create Window + set fields directly
                 try {
+                    // 1. attachBaseContext
                     val attachBase = android.content.ContextWrapper::class.java
                         .getDeclaredMethod("attachBaseContext", android.content.Context::class.java)
                     attachBase.isAccessible = true
                     attachBase.invoke(actInstance, apkContext)
-                    steps.add("✅ Base context attached")
+                    steps.add("✅ attachBaseContext")
+
+                    // 2. Set mComponent
+                    val compField = android.app.Activity::class.java.getDeclaredField("mComponent")
+                    compField.isAccessible = true
+                    compField.set(actInstance, android.content.ComponentName(
+                        launcherActivity.substringBeforeLast(".").substringBeforeLast("."),
+                        launcherActivity))
+                    steps.add("✅ mComponent set")
+
+                    // 3. Set mApplication
+                    val appField = android.app.Activity::class.java.getDeclaredField("mApplication")
+                    appField.isAccessible = true
+                    appField.set(actInstance, activity.application)
+
+                    // 4. Create PhoneWindow and set mWindow
+                    val phoneWindowClass = Class.forName("com.android.internal.policy.PhoneWindow")
+                    val pw = phoneWindowClass.getConstructor(android.content.Context::class.java)
+                        .newInstance(apkContext)
+                    val windowField = android.app.Activity::class.java.getDeclaredField("mWindow")
+                    windowField.isAccessible = true
+                    windowField.set(actInstance, pw)
+                    steps.add("✅ PhoneWindow created")
+
+                    // 5. Set window callback to the activity
+                    (pw as android.view.Window).setCallback(actInstance as android.view.Window.Callback)
+
+                    // 6. Set mUiThread
+                    try {
+                        val uiField = android.app.Activity::class.java.getDeclaredField("mUiThread")
+                        uiField.isAccessible = true
+                        uiField.set(actInstance, Thread.currentThread())
+                    } catch (_: Exception) {}
+
+                    // 7. Set mToken from host activity
+                    try {
+                        val tokenField = android.app.Activity::class.java.getDeclaredField("mToken")
+                        tokenField.isAccessible = true
+                        val hostTokenField = android.app.Activity::class.java.getDeclaredField("mToken")
+                        hostTokenField.isAccessible = true
+                        tokenField.set(actInstance, hostTokenField.get(activity))
+                    } catch (_: Exception) {}
+
+                    // 8. Set mIntent
+                    try {
+                        val intentField = android.app.Activity::class.java.getDeclaredField("mIntent")
+                        intentField.isAccessible = true
+                        intentField.set(actInstance, android.content.Intent())
+                    } catch (_: Exception) {}
+
+                    // 9. Set mActivityInfo (FragmentActivity reads parentActivityName from it)
+                    try {
+                        val aiField = android.app.Activity::class.java.getDeclaredField("mActivityInfo")
+                        aiField.isAccessible = true
+                        val actInfo = android.content.pm.ActivityInfo()
+                        actInfo.packageName = launcherActivity.substringBeforeLast(".").substringBeforeLast(".")
+                        actInfo.name = launcherActivity
+                        actInfo.parentActivityName = ""
+                        actInfo.taskAffinity = actInfo.packageName
+                        actInfo.launchMode = 0
+                        actInfo.theme = android.R.style.Theme
+                        aiField.set(actInstance, actInfo)
+                    } catch (_: Exception) {}
+
+                    steps.add("✅ Activity fully initialized")
+
                 } catch (e: Exception) {
-                    steps.add("⚠️ attachBaseContext: ${e.javaClass.simpleName}")
+                    val cause = e.cause ?: e
+                    steps.add("❌ Init failed: ${cause.javaClass.simpleName}: ${cause.message?.take(150)}")
+                    Log.e(TAG, "Activity init failed", cause)
                 }
 
                 // Try calling onCreate
