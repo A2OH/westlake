@@ -40,10 +40,10 @@ class WestlakeActivity : ComponentActivity() {
     companion object {
         private const val TAG = "Westlake"
 
-        @JvmStatic
+        @JvmField
         var instance: WestlakeActivity? = null
 
-        @JvmStatic
+        @JvmField
         var shimRootView: View? = null
 
         // For native bridge compatibility
@@ -61,6 +61,45 @@ class WestlakeActivity : ComponentActivity() {
 
     var engineClassLoader: ClassLoader? = null
 
+    /** Launch a custom app from the engine DEX by calling its init+show methods */
+    fun launchCustomApp(className: String, initMethod: String?, showMethod: String) {
+        val cl = engineClassLoader
+        if (cl == null) {
+            Log.e(TAG, "launchCustomApp: engineClassLoader is null!")
+            return
+        }
+        Log.i(TAG, "launchCustomApp: $className init=$initMethod show=$showMethod")
+        try {
+            val appClass = cl.loadClass(className)
+            if (initMethod != null) {
+                try {
+                    appClass.getMethod(initMethod, android.content.Context::class.java).invoke(null, this)
+                    Log.i(TAG, "  init() called OK")
+                } catch (_: NoSuchMethodException) {
+                    Log.w(TAG, "  no init(Context) method")
+                }
+            }
+            try {
+                appClass.getMethod(showMethod, android.content.Context::class.java).invoke(null, this)
+                Log.i(TAG, "  show(Context) called OK")
+            } catch (_: NoSuchMethodException) {
+                try {
+                    appClass.getMethod(showMethod).invoke(null)
+                    Log.i(TAG, "  show() called OK")
+                } catch (e2: Exception) {
+                    Log.e(TAG, "  show failed: $e2")
+                }
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "launchCustomApp $className: $e", e)
+        }
+    }
+
+    /** Return to Compose home */
+    fun showHome() {
+        setContent { WestlakeHome() }
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         instance = this
@@ -76,6 +115,7 @@ class WestlakeActivity : ComponentActivity() {
     }
 
     private fun loadEngine() {
+        android.os.Looper.prepare()
         try {
             Log.i(TAG, "Extracting DEX files...")
             val cacheDir = cacheDir
@@ -152,10 +192,10 @@ class WestlakeActivity : ComponentActivity() {
 fun WestlakeHome() {
     val apps = remember {
         listOf(
-            AppInfo("MockDonalds", "Restaurant ordering", Color(0xFFDA291C), "com.example.mockdonalds.MockApp"),
-            AppInfo("Dialer", "Phone dialer", Color(0xFF1565C0), "com.example.dialer.DialerEntry"),
-            AppInfo("Social Feed", "Social media", Color(0xFF1877F2), "com.example.socialfeed.SocialFeedApp"),
-            AppInfo("Huawei Calc", "Calculator (real APK)", Color(0xFF6A1B9A), "com.example.mockdonalds.XmlTestHelper"),
+            AppInfo("MockDonalds", "Restaurant ordering", Color(0xFFDA291C), "com.example.mockdonalds.MockApp", "init", "showMenu"),
+            AppInfo("Dialer", "Phone dialer", Color(0xFF1565C0), "com.example.dialer.DialerEntry", null, "launch"),
+            AppInfo("Social Feed", "Social media", Color(0xFF1877F2), "com.example.socialfeed.SocialFeedApp", "init", "showFeed"),
+            AppInfo("Huawei Calc", "Calculator (real APK)", Color(0xFF6A1B9A), "com.example.mockdonalds.XmlTestHelper", null, "loadHuaweiCalculator"),
         )
     }
 
@@ -230,15 +270,7 @@ fun AppCard(app: AppInfo) {
         modifier = Modifier
             .fillMaxWidth()
             .clickable {
-                // Launch custom app via reflection
-                activity?.let { act ->
-                    try {
-                        val cl = act.engineClassLoader ?: return@let
-                        // ... launch logic
-                    } catch (e: Exception) {
-                        Log.e("Westlake", "Launch ${app.name}: $e")
-                    }
-                }
+                activity?.launchCustomApp(app.className, app.initMethod, app.showMethod)
             },
         shape = RoundedCornerShape(16.dp),
         colors = CardDefaults.cardColors(containerColor = Color(0xFF2D2D44))
@@ -310,5 +342,5 @@ fun RealAppCard(app: RealAppInfo) {
     }
 }
 
-data class AppInfo(val name: String, val description: String, val color: Color, val className: String)
+data class AppInfo(val name: String, val description: String, val color: Color, val className: String, val initMethod: String? = "init", val showMethod: String = "showMenu")
 data class RealAppInfo(val name: String, val packageName: String, val activityName: String, val color: Color)
