@@ -231,6 +231,48 @@ public class MockApp {
         div.setBackgroundColor(DIVIDER);
         root.addView(div, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(1)));
 
+        // App launcher buttons (ABOVE menu list so they're visible)
+        LinearLayout appsRow = new LinearLayout(ctx);
+        appsRow.setOrientation(LinearLayout.HORIZONTAL);
+        appsRow.setPadding(dp(8), dp(6), dp(8), dp(6));
+        appsRow.setBackgroundColor(WHITE);
+
+        Button dialerBtn = new Button(ctx);
+        dialerBtn.setText("\uD83D\uDCDE Dialer");
+        dialerBtn.setTextSize(13);
+        dialerBtn.setTextColor(WHITE);
+        dialerBtn.setBackground(roundRect(0xFF1565C0, 8));
+        dialerBtn.setPadding(dp(12), dp(8), dp(12), dp(8));
+        dialerBtn.setOnClickListener(new View.OnClickListener() {
+            public void onClick(View v) {
+                com.example.dialer.DialerEntry.launch(ctx);
+            }
+        });
+        LinearLayout.LayoutParams dlp = new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1);
+        dlp.setMargins(dp(4), 0, dp(4), 0);
+        dialerBtn.setLayoutParams(dlp);
+        appsRow.addView(dialerBtn);
+
+        Button calcAppBtn = new Button(ctx);
+        calcAppBtn.setText("\uD83E\uDDEE Calculator");
+        calcAppBtn.setTextSize(13);
+        calcAppBtn.setTextColor(WHITE);
+        calcAppBtn.setBackground(roundRect(0xFF2E7D32, 8));
+        calcAppBtn.setPadding(dp(12), dp(8), dp(12), dp(8));
+        calcAppBtn.setOnClickListener(new View.OnClickListener() {
+            public void onClick(View v) { show(XmlTestHelper.loadCalculatorApp(ctx)); }
+        });
+        LinearLayout.LayoutParams clp = new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1);
+        clp.setMargins(dp(4), 0, dp(4), 0);
+        calcAppBtn.setLayoutParams(clp);
+        appsRow.addView(calcAppBtn);
+
+        root.addView(appsRow);
+
+        View div2 = new View(ctx);
+        div2.setBackgroundColor(DIVIDER);
+        root.addView(div2, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(1)));
+
         // Menu list
         final List<MenuItem> items = new ArrayList<>(menu);
         ListView list = new ListView(ctx);
@@ -252,38 +294,6 @@ public class MockApp {
             }
         });
         root.addView(list, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, 0, 1));
-
-        // App launcher buttons (below menu list)
-        LinearLayout appsRow = new LinearLayout(ctx);
-        appsRow.setOrientation(LinearLayout.VERTICAL);
-        appsRow.setPadding(dp(8), dp(4), dp(8), dp(4));
-        appsRow.setBackgroundColor(WHITE);
-
-        Button dialerBtn = new Button(ctx);
-        dialerBtn.setText("\uD83D\uDCDE Dialer App");
-        dialerBtn.setTextSize(14);
-        dialerBtn.setTextColor(WHITE);
-        dialerBtn.setBackground(roundRect(0xFF1565C0, 8));
-        dialerBtn.setPadding(dp(16), dp(10), dp(16), dp(10));
-        dialerBtn.setOnClickListener(new View.OnClickListener() {
-            public void onClick(View v) {
-                com.example.dialer.DialerEntry.launch(ctx);
-            }
-        });
-        appsRow.addView(dialerBtn);
-
-        Button calcAppBtn = new Button(ctx);
-        calcAppBtn.setText("\uD83E\uDDEE Calculator App");
-        calcAppBtn.setTextSize(14);
-        calcAppBtn.setTextColor(WHITE);
-        calcAppBtn.setBackground(roundRect(0xFF2E7D32, 8));
-        calcAppBtn.setPadding(dp(16), dp(10), dp(16), dp(10));
-        calcAppBtn.setOnClickListener(new View.OnClickListener() {
-            public void onClick(View v) { show(XmlTestHelper.loadCalculatorApp(ctx)); }
-        });
-        appsRow.addView(calcAppBtn);
-
-        root.addView(appsRow);
         menuView = root;
         show(root);
     }

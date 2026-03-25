@@ -112,6 +112,7 @@ public class WestlakeActivity extends Activity implements SurfaceHolder.Callback
             Log.i(TAG, "Extracting DEX files...");
             File cacheDir = getCacheDir();
             File shimDex = extractAsset("aosp-shim.dex", cacheDir);
+
             File appDex = extractAsset("app.dex", cacheDir);
 
             if (shimDex == null || appDex == null) {

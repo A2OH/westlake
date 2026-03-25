@@ -1,17 +1,22 @@
 # Westlake Engine — Status Report
 
 **Date:** 2026-03-24
-**Status:** MockDonalds running natively on Huawei Mate 20 Pro (LYA-L29, Android 10)
+**Status:** Multi-app platform running on Huawei Mate 20 Pro — MockDonalds + Dialer + Calculator
 
 ---
 
 ## Executive Summary
 
-The Westlake engine has reached its primary milestone: a full Android application
-(MockDonalds, a mock McDonald's ordering app) runs on a real phone using real
-Android Views, driven by our custom Activity manager and compatibility layer. The
-app uses native `LinearLayout`, `ListView`, `Button`, and `TextView` — not custom
-canvas drawing — and supports full touch navigation between Activities.
+The Westlake engine now hosts **multiple apps** on a single phone using real
+Android Views, driven by our custom Activity manager and compatibility layer.
+Three apps run in the same engine instance:
+
+1. **MockDonalds** — Full ordering app (menu, detail, cart, checkout, confirmation)
+2. **Dialer** — Phone dialer with keypad, call history, contacts, in-call screen (7 screens)
+3. **Calculator** — Functional calculator with XML-inflated layout
+
+All apps use native `LinearLayout`, `ListView`, `Button`, and `TextView` — not
+custom canvas drawing — and support full touch navigation.
 
 The engine has been validated on three platforms:
 
@@ -19,7 +24,7 @@ The engine has been validated on three platforms:
 |----------|---------|-----|--------|
 | x86_64 host (Linux) | ART (AOT) | 60 | Stable, primary dev target |
 | ARM64 on phone | dalvikvm (interpreter) | 120 | Runs natively on Mate 20 Pro |
-| Huawei Mate 20 Pro | Android 10 native ART | native | Full touch, real Views |
+| Huawei Mate 20 Pro | Android 10 native ART | native | Full touch, real Views, 3 apps |
 
 ---
 
@@ -129,6 +134,18 @@ while still delegating `android.app.Activity` to the real framework so
 | Cart persistence | Cart counter persists across Activity navigation | Tested |
 | Intent + extras | String, int, double, boolean extras passed between Activities | Tested |
 | BaseAdapter + ListView | Dynamic list population, view recycling | Tested |
+| Multi-app hosting | Multiple apps in single DEX, app switching via buttons | Tested |
+| GradientDrawable | Rounded rects, circles, strokes for Material Design UI | Tested |
+| Alphabetical sections | Section headers in ListView (contacts A-Z) | Tested |
+| Call timer | Live-updating timer on in-call screen via background thread | Tested |
+
+### Apps Running on Engine
+
+| App | Screens | Features |
+|-----|---------|----------|
+| MockDonalds | 5 | Menu with categories, item detail, cart, checkout, order confirmation |
+| Dialer | 7 | T9 keypad, call history (incoming/outgoing/missed), contacts with avatars, contact detail, add contact, in-call with timer, in-call DTMF keypad, voicemail |
+| Calculator | 1 | XML-inflated layout from AXML, functional arithmetic |
 
 ### End-to-End Flow (Phone)
 
