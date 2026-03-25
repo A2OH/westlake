@@ -308,4 +308,68 @@ public class XmlTestHelper {
         tv.setTypeface(android.graphics.Typeface.DEFAULT_BOLD);
         return tv;
     }
+    // Placeholder for testing calculator APK layout
+    public static View testCalcLayout(Context ctx) {
+        LinearLayout result = new LinearLayout(ctx);
+        result.setOrientation(LinearLayout.VERTICAL);
+        result.setPadding(dp(ctx,16), dp(ctx,16), dp(ctx,16), dp(ctx,16));
+        result.setBackgroundColor(0xFFFFFFFF);
+
+        result.addView(boldLabel(ctx, "Calculator APK Layout Test", 22, 0xFF212121));
+
+        try {
+            java.io.InputStream is = ctx.getAssets().open("calc_layout.axml");
+            byte[] data = new byte[is.available()];
+            is.read(data);
+            is.close();
+
+            result.addView(label(ctx, "AXML: " + data.length + " bytes (from ExactCalculator.apk)", 14, 0xFF757575));
+
+            android.content.res.BinaryXmlParser parser = new android.content.res.BinaryXmlParser(data);
+            View inflated = inflateFromParser(ctx, parser);
+
+            if (inflated != null) {
+                result.addView(boldLabel(ctx, "✅ Inflated: " + inflated.getClass().getSimpleName(), 18, 0xFF4CAF50));
+                if (inflated instanceof ViewGroup) {
+                    dumpViewTree(ctx, result, (ViewGroup) inflated, 0);
+                }
+                View divider = new View(ctx);
+                divider.setBackgroundColor(0xFFE0E0E0);
+                LinearLayout.LayoutParams dlp = new LinearLayout.LayoutParams(
+                    ViewGroup.LayoutParams.MATCH_PARENT, dp(ctx,2));
+                dlp.setMargins(0, dp(ctx,12), 0, dp(ctx,12));
+                divider.setLayoutParams(dlp);
+                result.addView(divider);
+                result.addView(boldLabel(ctx, "Rendered:", 16, 0xFF212121));
+                if (inflated.getParent() != null)
+                    ((ViewGroup) inflated.getParent()).removeView(inflated);
+                result.addView(inflated);
+            } else {
+                result.addView(boldLabel(ctx, "❌ null", 18, 0xFFFF0000));
+            }
+        } catch (Exception e) {
+            result.addView(boldLabel(ctx, "❌ " + e.getClass().getSimpleName(), 16, 0xFFFF0000));
+            result.addView(label(ctx, "" + e.getMessage(), 12, 0xFFFF0000));
+        }
+
+        Button back = new Button(ctx);
+        back.setText("← Back to Menu");
+        back.setOnClickListener(new View.OnClickListener() {
+            public void onClick(View v) { MockApp.showMenu(); }
+        });
+        result.addView(back);
+        return result;
+    }
+
+    static void dumpViewTree(Context ctx, LinearLayout result, ViewGroup vg, int depth) {
+        for (int i = 0; i < vg.getChildCount(); i++) {
+            View child = vg.getChildAt(i);
+            String indent = "";
+            for (int j = 0; j < depth; j++) indent += "  ";
+            String desc = indent + child.getClass().getSimpleName();
+            if (child instanceof TextView) desc += " \"" + ((TextView)child).getText() + "\"";
+            result.addView(label(ctx, desc, 12, 0xFF424242));
+            if (child instanceof ViewGroup) dumpViewTree(ctx, result, (ViewGroup)child, depth+1);
+        }
+    }
 }
