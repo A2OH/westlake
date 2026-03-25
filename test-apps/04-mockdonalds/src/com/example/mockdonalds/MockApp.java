@@ -253,6 +253,16 @@ public class MockApp {
         });
         root.addView(list, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, 0, 1));
 
+        // XML Layout Test button
+        Button xmlBtn = new Button(ctx);
+        xmlBtn.setText("\uD83D\uDCC4 Test XML Layout Inflation");
+        xmlBtn.setTextSize(13);
+        xmlBtn.setTextColor(SECONDARY);
+        xmlBtn.setBackgroundColor(0xFFEEEEEE);
+        xmlBtn.setOnClickListener(new View.OnClickListener() {
+            public void onClick(View v) { show(XmlTestHelper.testXmlInflation(ctx)); }
+        });
+        root.addView(xmlBtn);
         menuView = root;
         show(root);
     }
