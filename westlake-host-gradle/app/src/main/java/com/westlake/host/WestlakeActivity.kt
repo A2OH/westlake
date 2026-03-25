@@ -59,7 +59,7 @@ class WestlakeActivity : ComponentActivity() {
         @JvmStatic var shimDispatchTouch: Method? = null
     }
 
-    private var engineClassLoader: ClassLoader? = null
+    var engineClassLoader: ClassLoader? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
