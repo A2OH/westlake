@@ -61,8 +61,14 @@ class WestlakeActivity : ComponentActivity() {
 
     var engineClassLoader: ClassLoader? = null
 
+    /** Launch the Compose demo app */
+    fun launchComposeDemo() {
+        setContent { DemoComposeApp() }
+    }
+
     /** Launch a custom app from the engine DEX by calling its init+show methods */
     fun launchCustomApp(className: String, initMethod: String?, showMethod: String) {
+        if (className == "COMPOSE_DEMO") { launchComposeDemo(); return }
         val cl = engineClassLoader
         if (cl == null) {
             Log.e(TAG, "launchCustomApp: engineClassLoader is null!")
@@ -196,6 +202,7 @@ fun WestlakeHome() {
             AppInfo("Dialer", "Phone dialer", Color(0xFF1565C0), "com.example.dialer.DialerEntry", null, "launch"),
             AppInfo("Social Feed", "Social media", Color(0xFF1877F2), "com.example.socialfeed.SocialFeedApp", "init", "showFeed"),
             AppInfo("Huawei Calc", "Calculator (real APK)", Color(0xFF6A1B9A), "com.example.mockdonalds.XmlTestHelper", null, "loadHuaweiCalculator"),
+            AppInfo("Compose Demo", "Navigation + Retrofit + Coil", Color(0xFF00BCD4), "COMPOSE_DEMO", null, ""),
         )
     }
 

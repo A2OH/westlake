@@ -1,7 +1,7 @@
 {
     "logs": [
         {
-            "outputFile": "com.westlake.host.app-mergeDebugResources-38:/values-bn/values-bn.xml",
+            "outputFile": "com.westlake.host.app-mergeDebugResources-53:/values-bn/values-bn.xml",
             "map": [
                 {
                     "source": "$HOME/.gradle/caches/transforms-3/dc1f3e7dbb4f8093ebb95a09c285f305/transformed/material3-1.1.2/res/values-bn/values-bn.xml",

@@ -1,7 +1,7 @@
 {
     "logs": [
         {
-            "outputFile": "com.westlake.host.app-mergeDebugResources-38:/values-ja/values-ja.xml",
+            "outputFile": "com.westlake.host.app-mergeDebugResources-53:/values-ja/values-ja.xml",
             "map": [
                 {
                     "source": "$HOME/.gradle/caches/transforms-3/37e2ec6515df4d9413630431476ba7b9/transformed/core-1.12.0/res/values-ja/values-ja.xml",

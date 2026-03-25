@@ -1,7 +1,7 @@
 {
     "logs": [
         {
-            "outputFile": "com.westlake.host.app-mergeDebugResources-38:/values-ta/values-ta.xml",
+            "outputFile": "com.westlake.host.app-mergeDebugResources-53:/values-ta/values-ta.xml",
             "map": [
                 {
                     "source": "$HOME/.gradle/caches/transforms-3/08de64712ff62eb140efef6596588db2/transformed/ui-release/res/values-ta/values-ta.xml",
