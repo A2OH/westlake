@@ -32,15 +32,15 @@ import dalvik.system.DexClassLoader;
  * The child-first classloader ensures the shim's android.app.Activity
  * shadows the phone's version. Core java.* classes still come from boot.
  */
-public class WestlakeActivity extends Activity implements SurfaceHolder.Callback,
-        androidx.lifecycle.LifecycleOwner {
+public class WestlakeActivity extends Activity implements SurfaceHolder.Callback {
     private static final String TAG = "Westlake";
     private SurfaceView surfaceView;
     private volatile boolean surfaceReady;
     private Thread engineThread;
 
-    // AndroidX Lifecycle — needed for Jetpack Compose
-    private androidx.lifecycle.LifecycleRegistry lifecycleRegistry;
+    // Compose lifecycle — created from compose.dex classloader at runtime
+    private Object composeLifecycleRegistry; // androidx.lifecycle.LifecycleRegistry from compose.dex
+    private Object composeLifecycleOwner;    // Proxy implementing LifecycleOwner
     private Bundle savedStateForCompose;
 
     // Rendering state — accessed by OHBridge native methods
@@ -60,68 +60,35 @@ public class WestlakeActivity extends Activity implements SurfaceHolder.Callback
     public static android.view.View shimRootView;
 
     @Override
-    public androidx.lifecycle.Lifecycle getLifecycle() {
-        return lifecycleRegistry;
-    }
-
-    @Override
     protected void onCreate(Bundle savedInstanceState) {
-        // Init lifecycle BEFORE super.onCreate
-        lifecycleRegistry = new androidx.lifecycle.LifecycleRegistry(this);
         super.onCreate(savedInstanceState);
         instance = this;
-
-        // Set ViewTree owners on DecorView so Compose can find them
-        android.view.View decorView = getWindow().getDecorView();
-        androidx.lifecycle.ViewTreeLifecycleOwner.set(decorView, this);
-        Log.i(TAG, "ViewTreeLifecycleOwner set on DecorView");
-
-        // Set SavedStateRegistryOwner + ViewModelStoreOwner on DecorView
-        // These are set later (after compose.dex loads) via setupComposeViewTree()
         savedStateForCompose = savedInstanceState;
-
-        lifecycleRegistry.handleLifecycleEvent(
-            androidx.lifecycle.Lifecycle.Event.ON_CREATE);
 
         surfaceView = new SurfaceView(this);
         setContentView(surfaceView);
         surfaceView.getHolder().addCallback(this);
     }
 
-    @Override
-    protected void onStart() {
-        super.onStart();
-        lifecycleRegistry.handleLifecycleEvent(
-            androidx.lifecycle.Lifecycle.Event.ON_START);
+    /** Dispatch lifecycle event to compose.dex LifecycleRegistry via reflection */
+    private void dispatchLifecycleEvent(String eventName) {
+        if (composeLifecycleRegistry == null) return;
+        try {
+            Class<?> eventClass = composeLifecycleRegistry.getClass().getClassLoader()
+                .loadClass("androidx.lifecycle.Lifecycle$Event");
+            Method handleEvent = composeLifecycleRegistry.getClass()
+                .getMethod("handleLifecycleEvent", eventClass);
+            handleEvent.invoke(composeLifecycleRegistry, Enum.valueOf((Class<Enum>) eventClass, eventName));
+        } catch (Exception e) {
+            Log.w(TAG, "dispatchLifecycleEvent " + eventName + ": " + e);
+        }
     }
 
-    @Override
-    protected void onResume() {
-        super.onResume();
-        lifecycleRegistry.handleLifecycleEvent(
-            androidx.lifecycle.Lifecycle.Event.ON_RESUME);
-    }
-
-    @Override
-    protected void onPause() {
-        lifecycleRegistry.handleLifecycleEvent(
-            androidx.lifecycle.Lifecycle.Event.ON_PAUSE);
-        super.onPause();
-    }
-
-    @Override
-    protected void onStop() {
-        lifecycleRegistry.handleLifecycleEvent(
-            androidx.lifecycle.Lifecycle.Event.ON_STOP);
-        super.onStop();
-    }
-
-    @Override
-    protected void onDestroy() {
-        lifecycleRegistry.handleLifecycleEvent(
-            androidx.lifecycle.Lifecycle.Event.ON_DESTROY);
-        super.onDestroy();
-    }
+    @Override protected void onStart() { super.onStart(); dispatchLifecycleEvent("ON_START"); }
+    @Override protected void onResume() { super.onResume(); dispatchLifecycleEvent("ON_RESUME"); }
+    @Override protected void onPause() { dispatchLifecycleEvent("ON_PAUSE"); super.onPause(); }
+    @Override protected void onStop() { dispatchLifecycleEvent("ON_STOP"); super.onStop(); }
+    @Override protected void onDestroy() { dispatchLifecycleEvent("ON_DESTROY"); super.onDestroy(); }
 
     @Override
     public void surfaceCreated(SurfaceHolder holder) {
@@ -262,8 +229,11 @@ public class WestlakeActivity extends Activity implements SurfaceHolder.Callback
 
             Thread.currentThread().setContextClassLoader(childFirst);
 
-            // Setup Compose ViewTree owners now that compose.dex is loaded
-            setupComposeViewTree(childFirst);
+            // Setup Compose ViewTree owners on UI thread (LifecycleRegistry requires main thread)
+            final ClassLoader composeCl = childFirst;
+            runOnUiThread(new Runnable() {
+                public void run() { setupComposeViewTree(composeCl); }
+            });
 
             Log.i(TAG, "Loading MockDonaldsApp...");
             Class<?> appClass = childFirst.loadClass("com.example.mockdonalds.MockDonaldsApp");
@@ -278,72 +248,71 @@ public class WestlakeActivity extends Activity implements SurfaceHolder.Callback
     }
 
     /**
-     * Set up SavedStateRegistry + ViewModelStore on DecorView using compose.dex classes.
-     * Must be called AFTER compose.dex is loaded in the classloader.
+     * Create ALL Compose lifecycle objects from compose.dex classloader.
+     * Everything must use the SAME classloader to avoid interface mismatches.
      */
     private void setupComposeViewTree(final ClassLoader cl) {
         try {
             final android.view.View decorView = getWindow().getDecorView();
 
-            // Create SavedStateRegistryController and perform restore
-            Class<?> ssrcClass = cl.loadClass("androidx.savedstate.SavedStateRegistryController");
-            Class<?> ssroInterface = cl.loadClass("androidx.savedstate.SavedStateRegistryOwner");
+            // 1. Create LifecycleOwner + LifecycleRegistry from compose.dex
             Class<?> loInterface = cl.loadClass("androidx.lifecycle.LifecycleOwner");
+            Class<?> lrClass = cl.loadClass("androidx.lifecycle.LifecycleRegistry");
 
-            // Create SavedStateRegistryController with a temporary owner
+            final Object[] lrHolder = new Object[1];
+            composeLifecycleOwner = java.lang.reflect.Proxy.newProxyInstance(cl,
+                new Class[]{loInterface},
+                new java.lang.reflect.InvocationHandler() {
+                    public Object invoke(Object proxy, Method method, Object[] args) {
+                        if ("getLifecycle".equals(method.getName())) return lrHolder[0];
+                        return null;
+                    }
+                });
+            lrHolder[0] = lrClass.getConstructor(loInterface).newInstance(composeLifecycleOwner);
+            composeLifecycleRegistry = lrHolder[0];
+            Log.i(TAG, "LifecycleRegistry created from compose.dex");
+
+            // 2. Set ViewTreeLifecycleOwner
+            Class<?> vtlo = cl.loadClass("androidx.lifecycle.ViewTreeLifecycleOwner");
+            vtlo.getMethod("set", android.view.View.class, loInterface)
+                .invoke(null, decorView, composeLifecycleOwner);
+            Log.i(TAG, "ViewTreeLifecycleOwner set on DecorView");
+
+            // 3. Create SavedStateRegistryController + perform restore
+            Class<?> ssroInterface = cl.loadClass("androidx.savedstate.SavedStateRegistryOwner");
+            Class<?> ssrcClass = cl.loadClass("androidx.savedstate.SavedStateRegistryController");
+
             final Object[] ssrcHolder = new Object[1];
-            Object tempOwner = java.lang.reflect.Proxy.newProxyInstance(cl,
+            Object ssroProxy = java.lang.reflect.Proxy.newProxyInstance(cl,
                 new Class[]{ssroInterface, loInterface},
                 new java.lang.reflect.InvocationHandler() {
                     public Object invoke(Object proxy, Method method, Object[] args) throws Exception {
-                        if ("getLifecycle".equals(method.getName())) return lifecycleRegistry;
+                        if ("getLifecycle".equals(method.getName())) return composeLifecycleRegistry;
                         if ("getSavedStateRegistry".equals(method.getName())) {
                             return ssrcClass.getMethod("getSavedStateRegistry").invoke(ssrcHolder[0]);
                         }
                         return null;
                     }
                 });
-            ssrcHolder[0] = ssrcClass.getMethod("create", ssroInterface).invoke(null, tempOwner);
+            ssrcHolder[0] = ssrcClass.getMethod("create", ssroInterface).invoke(null, ssroProxy);
 
-            // Attach lifecycle then restore saved state
-            try {
-                // performAttach is needed before performRestore (lifecycle 2.6+)
-                Class<?> lifecycleClass = cl.loadClass("androidx.lifecycle.Lifecycle");
-                ssrcClass.getMethod("performAttach").invoke(ssrcHolder[0]);
-            } catch (NoSuchMethodException e) {
-                // Older API — try with Lifecycle param
-                try {
-                    Class<?> lifecycleClass = cl.loadClass("androidx.lifecycle.Lifecycle");
-                    ssrcClass.getMethod("performAttach", lifecycleClass).invoke(ssrcHolder[0], lifecycleRegistry);
-                } catch (Exception e2) {
-                    Log.w(TAG, "performAttach failed: " + e2);
-                }
-            }
+            // performRestore MUST be called while lifecycle is at INITIALIZED (before ON_CREATE)
             ssrcClass.getMethod("performRestore", Bundle.class).invoke(ssrcHolder[0], savedStateForCompose);
-            Log.i(TAG, "SavedStateRegistry.performRestore() called");
+            Log.i(TAG, "SavedStateRegistry created + restored (at INITIALIZED)");
 
-            // Get the actual SavedStateRegistryOwner proxy for ViewTree
-            final Object savedStateRegistry = ssrcClass.getMethod("getSavedStateRegistry").invoke(ssrcHolder[0]);
-            Object ssroOwner = java.lang.reflect.Proxy.newProxyInstance(cl,
-                new Class[]{ssroInterface, loInterface},
-                new java.lang.reflect.InvocationHandler() {
-                    public Object invoke(Object proxy, Method method, Object[] args) {
-                        if ("getLifecycle".equals(method.getName())) return lifecycleRegistry;
-                        if ("getSavedStateRegistry".equals(method.getName())) return savedStateRegistry;
-                        return null;
-                    }
-                });
+            // NOW dispatch ON_CREATE (after restore)
+            dispatchLifecycleEvent("ON_CREATE");
 
-            // Set ViewTreeSavedStateRegistryOwner on DecorView
-            Class<?> vtssro = cl.loadClass("androidx.savedstate.ViewTreeSavedStateRegistryOwner");
-            vtssro.getMethod("set", android.view.View.class, ssroInterface).invoke(null, decorView, ssroOwner);
+            // Set ViewTreeSavedStateRegistryOwner
+            cl.loadClass("androidx.savedstate.ViewTreeSavedStateRegistryOwner")
+                .getMethod("set", android.view.View.class, ssroInterface)
+                .invoke(null, decorView, ssroProxy);
             Log.i(TAG, "ViewTreeSavedStateRegistryOwner set on DecorView");
 
-            // Set ViewTreeViewModelStoreOwner on DecorView
+            // 4. Create ViewModelStore + ViewModelStoreOwner
             Class<?> vmsInterface = cl.loadClass("androidx.lifecycle.ViewModelStoreOwner");
-            Class<?> vmsClass = cl.loadClass("androidx.lifecycle.ViewModelStore");
-            final Object vmStore = vmsClass.newInstance();
-            Object vmsOwner = java.lang.reflect.Proxy.newProxyInstance(cl,
+            final Object vmStore = cl.loadClass("androidx.lifecycle.ViewModelStore").newInstance();
+            Object vmsProxy = java.lang.reflect.Proxy.newProxyInstance(cl,
                 new Class[]{vmsInterface},
                 new java.lang.reflect.InvocationHandler() {
                     public Object invoke(Object proxy, Method method, Object[] args) {
@@ -351,9 +320,15 @@ public class WestlakeActivity extends Activity implements SurfaceHolder.Callback
                         return null;
                     }
                 });
-            Class<?> vtvms = cl.loadClass("androidx.lifecycle.ViewTreeViewModelStoreOwner");
-            vtvms.getMethod("set", android.view.View.class, vmsInterface).invoke(null, decorView, vmsOwner);
+            cl.loadClass("androidx.lifecycle.ViewTreeViewModelStoreOwner")
+                .getMethod("set", android.view.View.class, vmsInterface)
+                .invoke(null, decorView, vmsProxy);
             Log.i(TAG, "ViewTreeViewModelStoreOwner set on DecorView");
+
+            // 5. Dispatch remaining lifecycle events (ON_CREATE already dispatched above)
+            dispatchLifecycleEvent("ON_START");
+            dispatchLifecycleEvent("ON_RESUME");
+            Log.i(TAG, "Lifecycle dispatched to RESUMED");
 
         } catch (Exception e) {
             Log.e(TAG, "setupComposeViewTree failed: " + e.getMessage(), e);
