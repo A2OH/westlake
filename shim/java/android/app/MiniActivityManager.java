@@ -347,31 +347,9 @@ public class MiniActivityManager {
     }
 
     /** Internal record tracking an Activity's state. */
-    /**
-     * Dispatch AndroidX Lifecycle events to the Activity's LifecycleRegistry.
-     * This bridges MiniActivityManager lifecycle to Compose's lifecycle system.
-     */
-    private void dispatchLifecycleEvent(Activity activity, String eventName) {
-        try {
-            if (activity.mLifecycleRegistry != null) {
-                androidx.lifecycle.Lifecycle.Event event =
-                    androidx.lifecycle.Lifecycle.Event.valueOf(eventName);
-                activity.mLifecycleRegistry.handleLifecycleEvent(event);
-            }
-        } catch (Exception e) {
-            // Lifecycle dispatch is best-effort
-        }
-    }
-
-    private void dispatchLifecycleEvent(Activity activity, String action, Bundle state) {
-        try {
-            if ("performRestore".equals(action) && activity.mSavedStateRegistryController != null) {
-                activity.mSavedStateRegistryController.performRestore(state);
-            }
-        } catch (Exception e) {
-            // SavedState restore is best-effort
-        }
-    }
+    /** Dispatch lifecycle events — no-op for now, will be wired via Compose's lifecycle */
+    private void dispatchLifecycleEvent(Activity activity, String eventName) {}
+    private void dispatchLifecycleEvent(Activity activity, String action, Bundle state) {}
 
     static class ActivityRecord {
         Activity activity;

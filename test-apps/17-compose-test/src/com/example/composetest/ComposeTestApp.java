@@ -109,9 +109,11 @@ public class ComposeTestApp {
         addStatus(root, "⏳", "Testing Activity lifecycle support...");
         try {
             // Check our shim interface
-            boolean isShimLO = ctx instanceof androidx.lifecycle.LifecycleOwner;
+            boolean isShimLO = false;
+            try { isShimLO = cl.loadClass("androidx.lifecycle.LifecycleOwner").isInstance(ctx); }
+            catch (Exception e) {}
             addStatus(root, isShimLO ? "✅" : "⚠️",
-                "Shim LifecycleOwner: " + isShimLO);
+                "LifecycleOwner: " + isShimLO);
 
             // Check if phone's Activity has getLifecycle() (real AndroidX)
             try {
@@ -133,88 +135,107 @@ public class ComposeTestApp {
 
         // Step 8: Try creating a ComposeView
         addStatus(root, "---", "");
-        addStatus(root, "⏳", "Creating ComposeView + setting content...");
+        addStatus(root, "⏳", "Creating ComposeView + wiring lifecycle...");
         try {
             Class<?> composeViewClass = cl.loadClass("androidx.compose.ui.platform.ComposeView");
             final View composeView = (View) composeViewClass.getConstructor(Context.class).newInstance(hostActivity);
             addStatus(root, "✅", "ComposeView created");
 
-            // Set ViewTree owners on the ComposeView so Compose can find lifecycle
-            // Use reflection since phone Activity might not implement our shim interfaces
-            try {
-                // Try setting lifecycle owner via the real AndroidX ViewTreeLifecycleOwner
-                Class<?> vtlo = cl.loadClass("androidx.lifecycle.ViewTreeLifecycleOwner");
-                // The compose.dex ViewTreeLifecycleOwner uses View.setTag(R.id.view_tree_lifecycle_owner, owner)
-                // We need to provide a LifecycleOwner — create one
-                Class<?> lrClass = cl.loadClass("androidx.lifecycle.LifecycleRegistry");
-                Class<?> loClass = cl.loadClass("androidx.lifecycle.LifecycleOwner");
+            // Create LifecycleOwner via compose.dex classes (reflection)
+            // Must use compose.dex's LifecycleOwner interface, not our shim
+            Class<?> loInterface = cl.loadClass("androidx.lifecycle.LifecycleOwner");
+            Class<?> lrClass = cl.loadClass("androidx.lifecycle.LifecycleRegistry");
 
-                // Create a simple LifecycleOwner wrapper for the host activity
-                addStatus(root, "⏳", "Setting up lifecycle for ComposeView...");
-
-                // Use our shim LifecycleRegistry as the lifecycle provider
-                final androidx.lifecycle.LifecycleRegistry lifecycle = new androidx.lifecycle.LifecycleRegistry(
-                    new androidx.lifecycle.LifecycleOwner() {
-                        public androidx.lifecycle.Lifecycle getLifecycle() { return null; }
+            // Create a dynamic proxy implementing compose.dex's LifecycleOwner
+            final Object[] lcRegHolder = new Object[1];
+            Object lcOwner = java.lang.reflect.Proxy.newProxyInstance(cl,
+                new Class[]{loInterface},
+                new java.lang.reflect.InvocationHandler() {
+                    public Object invoke(Object proxy, java.lang.reflect.Method method, Object[] args) {
+                        if ("getLifecycle".equals(method.getName())) return lcRegHolder[0];
+                        return null;
                     }
-                );
-                lifecycle.handleLifecycleEvent(androidx.lifecycle.Lifecycle.Event.ON_CREATE);
-                lifecycle.handleLifecycleEvent(androidx.lifecycle.Lifecycle.Event.ON_START);
-                lifecycle.handleLifecycleEvent(androidx.lifecycle.Lifecycle.Event.ON_RESUME);
-                addStatus(root, "✅", "Lifecycle at RESUMED state");
+                });
 
-            } catch (Exception le) {
-                addStatus(root, "⚠️", "Lifecycle setup: " + le.getMessage());
-            }
+            // Create LifecycleRegistry from compose.dex
+            Object lifecycle = lrClass.getConstructor(loInterface).newInstance(lcOwner);
+            lcRegHolder[0] = lifecycle;
 
-            // Don't add ComposeView to layout yet — needs lifecycle setup first
-            addStatus(root, "✅", "ComposeView ready (not added to layout yet — needs lifecycle)");
+            View decorView = hostActivity.getWindow().getDecorView();
 
-            // Try calling setContent via reflection
-            addStatus(root, "⏳", "Calling ComposeView.setContent...");
+            // Move lifecycle to RESUMED via reflection
+            Class<?> eventClass = cl.loadClass("androidx.lifecycle.Lifecycle$Event");
+            java.lang.reflect.Method handleEvent = lrClass.getMethod("handleLifecycleEvent", eventClass);
+            handleEvent.invoke(lifecycle, Enum.valueOf((Class<Enum>) eventClass, "ON_CREATE"));
+            handleEvent.invoke(lifecycle, Enum.valueOf((Class<Enum>) eventClass, "ON_START"));
+            handleEvent.invoke(lifecycle, Enum.valueOf((Class<Enum>) eventClass, "ON_RESUME"));
+            addStatus(root, "✅", "Lifecycle → RESUMED (compose.dex)");
+
+            // Use compose.dex's ViewTreeLifecycleOwner.set() — ensures correct R$id + interface
+            Class<?> vtloClass = cl.loadClass("androidx.lifecycle.ViewTreeLifecycleOwner");
+            java.lang.reflect.Method vtloSet = vtloClass.getMethod("set", View.class, loInterface);
+            vtloSet.invoke(null, decorView, lcOwner);
+            vtloSet.invoke(null, root, lcOwner);
+            addStatus(root, "✅", "ViewTreeLifecycleOwner.set() via compose.dex ✓");
+
+            // Verify with compose.dex's get()
+            java.lang.reflect.Method vtloGet = vtloClass.getMethod("get", View.class);
+            Object readBack = vtloGet.invoke(null, root);
+            addStatus(root, readBack != null ? "✅" : "❌",
+                "ViewTreeLifecycleOwner.get(root) = " + (readBack != null ? "OK" : "null"));
+
+            // Set SavedState + ViewModel on DecorView too
             try {
-                // ComposeView.setContent takes a kotlin Function2<Composer, Int, Unit>
-                // We can't easily create Kotlin lambdas from Java
-                // Instead, try using the ComposeView directly — it will render when attached
-                java.lang.reflect.Method setContentMethod = null;
-                for (java.lang.reflect.Method m : composeViewClass.getMethods()) {
-                    if ("setContent".equals(m.getName())) {
-                        setContentMethod = m;
-                        addStatus(root, "✅", "Found setContent: " + m.toGenericString());
-                        break;
-                    }
-                }
-                if (setContentMethod == null) {
-                    addStatus(root, "⚠️", "setContent method not found on ComposeView");
-                }
-            } catch (Exception sce) {
-                addStatus(root, "⚠️", "setContent lookup: " + sce.getMessage());
+                Class<?> ssrClass = cl.loadClass("androidx.savedstate.SavedStateRegistry");
+                final Object ssr = ssrClass.newInstance();
+                Class<?> ssroI = cl.loadClass("androidx.savedstate.SavedStateRegistryOwner");
+                Object ssro = java.lang.reflect.Proxy.newProxyInstance(cl,
+                    new Class[]{ssroI, loInterface},
+                    new java.lang.reflect.InvocationHandler() {
+                        public Object invoke(Object proxy, java.lang.reflect.Method m, Object[] a) {
+                            if ("getLifecycle".equals(m.getName())) return lcRegHolder[0];
+                            if ("getSavedStateRegistry".equals(m.getName())) return ssr;
+                            return null;
+                        }
+                    });
+                cl.loadClass("androidx.savedstate.ViewTreeSavedStateRegistryOwner")
+                    .getMethod("set", View.class, ssroI).invoke(null, decorView, ssro);
+                addStatus(root, "✅", "SavedStateRegistryOwner set");
+            } catch (Exception se) { addStatus(root, "⚠️", "SavedState: " + se.getMessage()); }
+
+            try {
+                Class<?> vmsI = cl.loadClass("androidx.lifecycle.ViewModelStoreOwner");
+                Class<?> vmsC = cl.loadClass("androidx.lifecycle.ViewModelStore");
+                final Object vms = vmsC.newInstance();
+                Object vmso = java.lang.reflect.Proxy.newProxyInstance(cl, new Class[]{vmsI},
+                    new java.lang.reflect.InvocationHandler() {
+                        public Object invoke(Object proxy, java.lang.reflect.Method m, Object[] a) {
+                            if ("getViewModelStore".equals(m.getName())) return vms;
+                            return null;
+                        }
+                    });
+                cl.loadClass("androidx.lifecycle.ViewTreeViewModelStoreOwner")
+                    .getMethod("set", View.class, vmsI).invoke(null, decorView, vmso);
+                addStatus(root, "✅", "ViewModelStoreOwner set");
+            } catch (Exception ve) { addStatus(root, "⚠️", "ViewModel: " + ve.getMessage()); }
+
+            // Add ComposeView to layout
+            addStatus(root, "⏳", "Adding ComposeView...");
+            try {
+                root.addView(composeView, new LinearLayout.LayoutParams(
+                    LinearLayout.LayoutParams.MATCH_PARENT, dp(300)));
+                addStatus(root, "✅", "ComposeView added!");
+            } catch (Exception addEx) {
+                addStatus(root, "❌", "ComposeView add crashed: " + addEx.getMessage());
             }
 
         } catch (Exception e) {
-            addStatus(root, "❌", "ComposeView failed: " + e.getClass().getSimpleName());
+            addStatus(root, "❌", "Failed: " + e.getClass().getSimpleName());
             addStatus(root, "❌", "" + e.getMessage());
             Throwable cause = e.getCause();
             while (cause != null) {
-                addStatus(root, "❌", "Caused by: " + cause.getClass().getSimpleName() + ": " + cause.getMessage());
+                addStatus(root, "❌", "→ " + cause.getClass().getSimpleName() + ": " + cause.getMessage());
                 cause = cause.getCause();
-            }
-        }
-
-        // Also test ComponentActivity loading with detailed error
-        addStatus(root, "---", "");
-        addStatus(root, "⏳", "Diagnosing ComponentActivity...");
-        try {
-            Class<?> ca = cl.loadClass("androidx.activity.ComponentActivity");
-            addStatus(root, "✅", "ComponentActivity loaded: " + ca.getSuperclass().getName());
-        } catch (Throwable t) {
-            addStatus(root, "❌", "ComponentActivity: " + t.getClass().getSimpleName());
-            addStatus(root, "❌", "" + t.getMessage());
-            if (t.getCause() != null) {
-                addStatus(root, "❌", "Cause: " + t.getCause().getClass().getSimpleName() + ": " + t.getCause().getMessage());
-                if (t.getCause().getCause() != null) {
-                    addStatus(root, "❌", "Root: " + t.getCause().getCause().getMessage());
-                }
             }
         }
 

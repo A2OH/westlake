@@ -32,11 +32,16 @@ import dalvik.system.DexClassLoader;
  * The child-first classloader ensures the shim's android.app.Activity
  * shadows the phone's version. Core java.* classes still come from boot.
  */
-public class WestlakeActivity extends Activity implements SurfaceHolder.Callback {
+public class WestlakeActivity extends Activity implements SurfaceHolder.Callback,
+        androidx.lifecycle.LifecycleOwner {
     private static final String TAG = "Westlake";
     private SurfaceView surfaceView;
     private volatile boolean surfaceReady;
     private Thread engineThread;
+
+    // AndroidX Lifecycle — needed for Jetpack Compose
+    private androidx.lifecycle.LifecycleRegistry lifecycleRegistry;
+    private Bundle savedStateForCompose;
 
     // Rendering state — accessed by OHBridge native methods
     public static Canvas currentCanvas;
@@ -55,12 +60,67 @@ public class WestlakeActivity extends Activity implements SurfaceHolder.Callback
     public static android.view.View shimRootView;
 
     @Override
+    public androidx.lifecycle.Lifecycle getLifecycle() {
+        return lifecycleRegistry;
+    }
+
+    @Override
     protected void onCreate(Bundle savedInstanceState) {
+        // Init lifecycle BEFORE super.onCreate
+        lifecycleRegistry = new androidx.lifecycle.LifecycleRegistry(this);
         super.onCreate(savedInstanceState);
         instance = this;
+
+        // Set ViewTree owners on DecorView so Compose can find them
+        android.view.View decorView = getWindow().getDecorView();
+        androidx.lifecycle.ViewTreeLifecycleOwner.set(decorView, this);
+        Log.i(TAG, "ViewTreeLifecycleOwner set on DecorView");
+
+        // Set SavedStateRegistryOwner + ViewModelStoreOwner on DecorView
+        // These are set later (after compose.dex loads) via setupComposeViewTree()
+        savedStateForCompose = savedInstanceState;
+
+        lifecycleRegistry.handleLifecycleEvent(
+            androidx.lifecycle.Lifecycle.Event.ON_CREATE);
+
         surfaceView = new SurfaceView(this);
         setContentView(surfaceView);
         surfaceView.getHolder().addCallback(this);
+    }
+
+    @Override
+    protected void onStart() {
+        super.onStart();
+        lifecycleRegistry.handleLifecycleEvent(
+            androidx.lifecycle.Lifecycle.Event.ON_START);
+    }
+
+    @Override
+    protected void onResume() {
+        super.onResume();
+        lifecycleRegistry.handleLifecycleEvent(
+            androidx.lifecycle.Lifecycle.Event.ON_RESUME);
+    }
+
+    @Override
+    protected void onPause() {
+        lifecycleRegistry.handleLifecycleEvent(
+            androidx.lifecycle.Lifecycle.Event.ON_PAUSE);
+        super.onPause();
+    }
+
+    @Override
+    protected void onStop() {
+        lifecycleRegistry.handleLifecycleEvent(
+            androidx.lifecycle.Lifecycle.Event.ON_STOP);
+        super.onStop();
+    }
+
+    @Override
+    protected void onDestroy() {
+        lifecycleRegistry.handleLifecycleEvent(
+            androidx.lifecycle.Lifecycle.Event.ON_DESTROY);
+        super.onDestroy();
     }
 
     @Override
@@ -120,17 +180,49 @@ public class WestlakeActivity extends Activity implements SurfaceHolder.Callback
                 return;
             }
 
-            // Load compose.dex if available
-            File composeDex = extractAsset("compose.dex", cacheDir);
-            if (composeDex != null) {
-                Log.i(TAG, "Compose DEX loaded: " + composeDex.length() + " bytes");
+            // Load compose DEX files if available
+            // compose.dex may be a ZIP with classes.dex + classes2.dex inside
+            // Extract all DEX entries into separate files for DexClassLoader
+            File composeDexAsset = extractAsset("compose.dex", cacheDir);
+            String composeDexPaths = "";
+            if (composeDexAsset != null) {
+                try {
+                    java.io.FileInputStream fis = new java.io.FileInputStream(composeDexAsset);
+                    byte[] magic = new byte[4];
+                    fis.read(magic);
+                    fis.close();
+                    if (magic[0] == 'P' && magic[1] == 'K') {
+                        // ZIP — extract each classes*.dex separately
+                        java.util.zip.ZipFile zf = new java.util.zip.ZipFile(composeDexAsset);
+                        java.util.Enumeration<?> entries = zf.entries();
+                        while (entries.hasMoreElements()) {
+                            java.util.zip.ZipEntry ze = (java.util.zip.ZipEntry) entries.nextElement();
+                            if (ze.getName().endsWith(".dex")) {
+                                File outDex = new File(cacheDir, "compose_" + ze.getName());
+                                java.io.InputStream zis = zf.getInputStream(ze);
+                                java.io.FileOutputStream fos = new java.io.FileOutputStream(outDex);
+                                byte[] buf = new byte[8192];
+                                int n;
+                                while ((n = zis.read(buf)) > 0) fos.write(buf, 0, n);
+                                fos.close();
+                                zis.close();
+                                composeDexPaths += ":" + outDex.getAbsolutePath();
+                                Log.i(TAG, "Compose DEX extracted: " + ze.getName() + " (" + outDex.length() + " bytes)");
+                            }
+                        }
+                        zf.close();
+                    } else {
+                        composeDexPaths = ":" + composeDexAsset.getAbsolutePath();
+                        Log.i(TAG, "Compose DEX (raw): " + composeDexAsset.length() + " bytes");
+                    }
+                } catch (Exception e) {
+                    Log.w(TAG, "Compose DEX extract error: " + e);
+                    composeDexPaths = ":" + composeDexAsset.getAbsolutePath();
+                }
             }
 
             // Create child-first classloader
-            String dexPath = shimDex.getAbsolutePath() + ":" + appDex.getAbsolutePath();
-            if (composeDex != null) {
-                dexPath += ":" + composeDex.getAbsolutePath();
-            }
+            String dexPath = shimDex.getAbsolutePath() + ":" + appDex.getAbsolutePath() + composeDexPaths;
             File optDir = new File(cacheDir, "oat");
             optDir.mkdirs();
             String nativeLibDir = getApplicationInfo().nativeLibraryDir;
@@ -170,6 +262,9 @@ public class WestlakeActivity extends Activity implements SurfaceHolder.Callback
 
             Thread.currentThread().setContextClassLoader(childFirst);
 
+            // Setup Compose ViewTree owners now that compose.dex is loaded
+            setupComposeViewTree(childFirst);
+
             Log.i(TAG, "Loading MockDonaldsApp...");
             Class<?> appClass = childFirst.loadClass("com.example.mockdonalds.MockDonaldsApp");
             Method main = appClass.getMethod("main", String[].class);
@@ -179,6 +274,89 @@ public class WestlakeActivity extends Activity implements SurfaceHolder.Callback
 
         } catch (Exception e) {
             Log.e(TAG, "Engine error: " + e.getMessage(), e);
+        }
+    }
+
+    /**
+     * Set up SavedStateRegistry + ViewModelStore on DecorView using compose.dex classes.
+     * Must be called AFTER compose.dex is loaded in the classloader.
+     */
+    private void setupComposeViewTree(final ClassLoader cl) {
+        try {
+            final android.view.View decorView = getWindow().getDecorView();
+
+            // Create SavedStateRegistryController and perform restore
+            Class<?> ssrcClass = cl.loadClass("androidx.savedstate.SavedStateRegistryController");
+            Class<?> ssroInterface = cl.loadClass("androidx.savedstate.SavedStateRegistryOwner");
+            Class<?> loInterface = cl.loadClass("androidx.lifecycle.LifecycleOwner");
+
+            // Create SavedStateRegistryController with a temporary owner
+            final Object[] ssrcHolder = new Object[1];
+            Object tempOwner = java.lang.reflect.Proxy.newProxyInstance(cl,
+                new Class[]{ssroInterface, loInterface},
+                new java.lang.reflect.InvocationHandler() {
+                    public Object invoke(Object proxy, Method method, Object[] args) throws Exception {
+                        if ("getLifecycle".equals(method.getName())) return lifecycleRegistry;
+                        if ("getSavedStateRegistry".equals(method.getName())) {
+                            return ssrcClass.getMethod("getSavedStateRegistry").invoke(ssrcHolder[0]);
+                        }
+                        return null;
+                    }
+                });
+            ssrcHolder[0] = ssrcClass.getMethod("create", ssroInterface).invoke(null, tempOwner);
+
+            // Attach lifecycle then restore saved state
+            try {
+                // performAttach is needed before performRestore (lifecycle 2.6+)
+                Class<?> lifecycleClass = cl.loadClass("androidx.lifecycle.Lifecycle");
+                ssrcClass.getMethod("performAttach").invoke(ssrcHolder[0]);
+            } catch (NoSuchMethodException e) {
+                // Older API — try with Lifecycle param
+                try {
+                    Class<?> lifecycleClass = cl.loadClass("androidx.lifecycle.Lifecycle");
+                    ssrcClass.getMethod("performAttach", lifecycleClass).invoke(ssrcHolder[0], lifecycleRegistry);
+                } catch (Exception e2) {
+                    Log.w(TAG, "performAttach failed: " + e2);
+                }
+            }
+            ssrcClass.getMethod("performRestore", Bundle.class).invoke(ssrcHolder[0], savedStateForCompose);
+            Log.i(TAG, "SavedStateRegistry.performRestore() called");
+
+            // Get the actual SavedStateRegistryOwner proxy for ViewTree
+            final Object savedStateRegistry = ssrcClass.getMethod("getSavedStateRegistry").invoke(ssrcHolder[0]);
+            Object ssroOwner = java.lang.reflect.Proxy.newProxyInstance(cl,
+                new Class[]{ssroInterface, loInterface},
+                new java.lang.reflect.InvocationHandler() {
+                    public Object invoke(Object proxy, Method method, Object[] args) {
+                        if ("getLifecycle".equals(method.getName())) return lifecycleRegistry;
+                        if ("getSavedStateRegistry".equals(method.getName())) return savedStateRegistry;
+                        return null;
+                    }
+                });
+
+            // Set ViewTreeSavedStateRegistryOwner on DecorView
+            Class<?> vtssro = cl.loadClass("androidx.savedstate.ViewTreeSavedStateRegistryOwner");
+            vtssro.getMethod("set", android.view.View.class, ssroInterface).invoke(null, decorView, ssroOwner);
+            Log.i(TAG, "ViewTreeSavedStateRegistryOwner set on DecorView");
+
+            // Set ViewTreeViewModelStoreOwner on DecorView
+            Class<?> vmsInterface = cl.loadClass("androidx.lifecycle.ViewModelStoreOwner");
+            Class<?> vmsClass = cl.loadClass("androidx.lifecycle.ViewModelStore");
+            final Object vmStore = vmsClass.newInstance();
+            Object vmsOwner = java.lang.reflect.Proxy.newProxyInstance(cl,
+                new Class[]{vmsInterface},
+                new java.lang.reflect.InvocationHandler() {
+                    public Object invoke(Object proxy, Method method, Object[] args) {
+                        if ("getViewModelStore".equals(method.getName())) return vmStore;
+                        return null;
+                    }
+                });
+            Class<?> vtvms = cl.loadClass("androidx.lifecycle.ViewTreeViewModelStoreOwner");
+            vtvms.getMethod("set", android.view.View.class, vmsInterface).invoke(null, decorView, vmsOwner);
+            Log.i(TAG, "ViewTreeViewModelStoreOwner set on DecorView");
+
+        } catch (Exception e) {
+            Log.e(TAG, "setupComposeViewTree failed: " + e.getMessage(), e);
         }
     }
 
