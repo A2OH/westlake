@@ -203,6 +203,7 @@ fun WestlakeHome() {
 
     val realApps = remember {
         listOf(
+            RealAppInfo("Simple Counter", "me.tsukanov.counter", "me.tsukanov.counter.ui.MainActivity", Color(0xFF9C27B0)),
             RealAppInfo("Calculator", "com.huawei.calculator", "com.huawei.calculator.Calculator", Color(0xFF4CAF50)),
             RealAppInfo("Clock", "com.android.deskclock", "com.android.deskclock.AlarmsMainActivity", Color(0xFF2196F3)),
             RealAppInfo("Settings", "com.android.settings", "com.android.settings.HWSettings", Color(0xFF607D8B)),
