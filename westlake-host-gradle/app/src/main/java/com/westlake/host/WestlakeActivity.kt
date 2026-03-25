@@ -66,9 +66,26 @@ class WestlakeActivity : ComponentActivity() {
         setContent { DemoComposeApp() }
     }
 
+    /** Run a real APK inside the Westlake engine (not via startActivity) */
+    fun runApkInEngine(apkPath: String, launcherActivity: String, appName: String) {
+        setContent { ApkRunnerScreen(apkPath, launcherActivity, appName) }
+    }
+
     /** Launch a custom app from the engine DEX by calling its init+show methods */
     fun launchCustomApp(className: String, initMethod: String?, showMethod: String) {
         if (className == "COMPOSE_DEMO") { launchComposeDemo(); return }
+        if (className.startsWith("RUN_APK:")) {
+            val parts = className.removePrefix("RUN_APK:").split(":")
+            val pkg = parts[0]; val act = parts[1]; val name = parts.getOrElse(2) { pkg }
+            // Resolve APK path from package manager
+            try {
+                val apkPath = packageManager.getApplicationInfo(pkg, 0).sourceDir
+                runApkInEngine(apkPath, act, name)
+            } catch (e: Exception) {
+                Log.e(TAG, "APK not found: $pkg", e)
+            }
+            return
+        }
         val cl = engineClassLoader
         if (cl == null) {
             Log.e(TAG, "launchCustomApp: engineClassLoader is null!")
@@ -194,6 +211,8 @@ fun WestlakeHome() {
     val apps = remember {
         listOf(
             AppInfo("Compose Demo", "Navigation + Retrofit + Coil + ViewModel", Color(0xFF00BCD4), "COMPOSE_DEMO", null, ""),
+            AppInfo("Run Noice (Engine)", "Load APK inside Westlake engine", Color(0xFFE91E63), "RUN_APK:com.github.ashutoshgngwr.noice:com.github.ashutoshgngwr.noice.activity.MainActivity:Noice", null, ""),
+            AppInfo("Run Counter (Engine)", "Load APK inside Westlake engine", Color(0xFF9C27B0), "RUN_APK:me.tsukanov.counter:me.tsukanov.counter.ui.MainActivity:Counter", null, ""),
             AppInfo("MockDonalds", "Restaurant ordering", Color(0xFFDA291C), "com.example.mockdonalds.MockApp", "init", "showMenu"),
             AppInfo("Dialer", "Phone dialer", Color(0xFF1565C0), "com.example.dialer.DialerEntry", null, "launch"),
             AppInfo("Social Feed", "Social media", Color(0xFF1877F2), "com.example.socialfeed.SocialFeedApp", "init", "showFeed"),
@@ -203,11 +222,19 @@ fun WestlakeHome() {
 
     val realApps = remember {
         listOf(
+            // Commercial apps
+            RealAppInfo("Amazon", "com.amazon.mShop.android.shopping", "com.amazon.mShop.home.HomeActivity", Color(0xFFFF9900)),
+            RealAppInfo("Meituan", "com.sankuai.meituan", "com.meituan.android.pt.homepage.activity.MainActivity", Color(0xFFFFD600)),
+            RealAppInfo("WeChat", "com.tencent.mm", "com.tencent.mm.ui.LauncherUI", Color(0xFF07C160)),
+            RealAppInfo("Didi", "com.sdu.didi.psnger", "com.didi.sdk.app.launch.splash.SplashActivity", Color(0xFFEF6C00)),
+            RealAppInfo("PayPal", "com.paypal.android.p2pmobile", "com.paypal.android.p2pmobile.startup.activities.StartupActivity", Color(0xFF003087)),
+            RealAppInfo("QQ Music", "com.tencent.qqmusic", "com.tencent.qqmusic.activity.AppStarterActivity", Color(0xFF31C27C)),
+            RealAppInfo("Dianping", "com.dianping.v1", "com.dianping.v1.NovaMainActivity", Color(0xFFFF6633)),
+            // Open source + system
+            RealAppInfo("Noice", "com.github.ashutoshgngwr.noice", "com.github.ashutoshgngwr.noice.activity.MainActivity", Color(0xFF26A69A)),
             RealAppInfo("Simple Counter", "me.tsukanov.counter", "me.tsukanov.counter.ui.MainActivity", Color(0xFF9C27B0)),
             RealAppInfo("Calculator", "com.huawei.calculator", "com.huawei.calculator.Calculator", Color(0xFF4CAF50)),
-            RealAppInfo("Clock", "com.android.deskclock", "com.android.deskclock.AlarmsMainActivity", Color(0xFF2196F3)),
             RealAppInfo("Settings", "com.android.settings", "com.android.settings.HWSettings", Color(0xFF607D8B)),
-            RealAppInfo("Calendar", "com.android.calendar", "com.android.calendar.AllInOneActivity", Color(0xFFE91E63)),
         )
     }
 
