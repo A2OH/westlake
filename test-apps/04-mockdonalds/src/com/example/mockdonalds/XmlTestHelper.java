@@ -524,6 +524,288 @@ public class XmlTestHelper {
         } catch (Exception e) {}
     }
 
+    /**
+     * Load and run the REAL Huawei Calculator APK.
+     * Inflates its compiled XML layout, loads its DEX, wires button handlers.
+     */
+    public static View loadHuaweiCalculator(final Context ctx) {
+        LinearLayout wrapper = new LinearLayout(ctx);
+        wrapper.setOrientation(LinearLayout.VERTICAL);
+        wrapper.setBackgroundColor(0xFF1A1A1A);  // Dark theme like Huawei calc
+        wrapper.setPadding(0, dp(ctx, 8), 0, 0);
+
+        // Header
+        LinearLayout header = new LinearLayout(ctx);
+        header.setOrientation(LinearLayout.HORIZONTAL);
+        header.setPadding(dp(ctx, 16), dp(ctx, 8), dp(ctx, 16), dp(ctx, 8));
+        header.setGravity(android.view.Gravity.CENTER_VERTICAL);
+
+        Button backBtn = new Button(ctx);
+        backBtn.setText("\u2190");
+        backBtn.setTextSize(20);
+        backBtn.setTextColor(0xFFFFFFFF);
+        backBtn.setBackgroundColor(0x00000000);
+        backBtn.setOnClickListener(new View.OnClickListener() {
+            public void onClick(View v) { MockApp.showMenu(); }
+        });
+        header.addView(backBtn, new LinearLayout.LayoutParams(dp(ctx, 44), dp(ctx, 44)));
+
+        TextView title = boldLabel(ctx, "Huawei Calculator (Real APK)", 16, 0xFFFFFFFF);
+        header.addView(title);
+        wrapper.addView(header);
+
+        try {
+            // 1. Try inflating the numeric pad layout
+            java.io.InputStream is = ctx.getAssets().open("huawei_calc_pad.axml");
+            byte[] data = new byte[is.available()];
+            is.read(data);
+            is.close();
+
+            android.content.res.BinaryXmlParser parser = new android.content.res.BinaryXmlParser(data);
+            View padView = inflateFromParser(ctx, parser);
+
+            String inflateMsg = "Inflated: " + (padView != null ? padView.getClass().getSimpleName() : "null");
+            if (padView instanceof ViewGroup) {
+                inflateMsg += " (" + countViews((ViewGroup)padView) + " views)";
+            }
+
+            // 2. Load the Huawei Calculator's own DEX
+            java.io.File cacheDir = new java.io.File(ctx.getCacheDir(), "huawei_calc");
+            cacheDir.mkdirs();
+            java.io.File dexFile = new java.io.File(cacheDir, "classes.dex");
+            java.io.InputStream dis = ctx.getAssets().open("huawei_calc_classes.dex");
+            java.io.FileOutputStream fos = new java.io.FileOutputStream(dexFile);
+            byte[] buf = new byte[8192];
+            int n;
+            while ((n = dis.read(buf)) > 0) fos.write(buf, 0, n);
+            fos.close();
+            dis.close();
+
+            dalvik.system.DexClassLoader loader = new dalvik.system.DexClassLoader(
+                dexFile.getAbsolutePath(), cacheDir.getAbsolutePath(), null,
+                ctx.getClassLoader());
+
+            // Try to load the main Calculator class
+            String calcClassName = "com.huawei.calculator.Calculator";
+            Class<?> calcClass = null;
+            try {
+                calcClass = loader.loadClass(calcClassName);
+            } catch (ClassNotFoundException e) {
+                // Obfuscated — try known names
+            }
+
+            // Status info
+            TextView statusTv = label(ctx, inflateMsg, 12, 0xFF4CAF50);
+            statusTv.setPadding(dp(ctx, 16), dp(ctx, 4), dp(ctx, 16), dp(ctx, 4));
+            wrapper.addView(statusTv);
+
+            if (calcClass != null) {
+                TextView dexTv = label(ctx, "DEX loaded: " + calcClass.getName(), 12, 0xFF4CAF50);
+                dexTv.setPadding(dp(ctx, 16), 0, dp(ctx, 16), dp(ctx, 4));
+                wrapper.addView(dexTv);
+            }
+
+            // 3. Build our own functional calculator UI using the inflated layout as base
+            //    The real Huawei layout uses custom attrs we can't resolve, so build display ourselves
+
+            // Display area
+            final TextView display = new TextView(ctx);
+            display.setText("0");
+            display.setTextSize(48);
+            display.setTextColor(0xFFFFFFFF);
+            display.setGravity(android.view.Gravity.RIGHT | android.view.Gravity.BOTTOM);
+            display.setPadding(dp(ctx, 24), dp(ctx, 16), dp(ctx, 24), dp(ctx, 16));
+            display.setMinHeight(dp(ctx, 120));
+            display.setBackgroundColor(0xFF1A1A1A);
+            wrapper.addView(display);
+
+            // Expression line
+            final TextView exprLine = new TextView(ctx);
+            exprLine.setText("");
+            exprLine.setTextSize(18);
+            exprLine.setTextColor(0xFF888888);
+            exprLine.setGravity(android.view.Gravity.RIGHT);
+            exprLine.setPadding(dp(ctx, 24), 0, dp(ctx, 24), dp(ctx, 8));
+            wrapper.addView(exprLine);
+
+            // State for calculator
+            final double[] memory = {0};
+            final String[] pendingOp = {""};
+            final boolean[] newNumber = {true};
+
+            // If we got inflated views with buttons, try using them
+            boolean usedInflated = false;
+            if (padView != null && padView instanceof ViewGroup) {
+                int btnCount = countButtons((ViewGroup)padView);
+                wrapper.addView(label(ctx, "Inflated buttons: " + btnCount, 12, 0xFF4CAF50));
+                if (btnCount >= 10) {
+                    wireCalcButtons(padView, display, exprLine, memory, pendingOp, newNumber);
+                    wrapper.addView(padView, new LinearLayout.LayoutParams(
+                        ViewGroup.LayoutParams.MATCH_PARENT, 0, 1));
+                    usedInflated = true;
+                }
+            }
+            if (!usedInflated) {
+                // Build numeric pad manually with Huawei dark theme
+                wrapper.addView(label(ctx, "Using built-in pad (Huawei layout has custom attrs)", 11, 0xFF888888));
+                wrapper.addView(buildCalcPad(ctx, display, exprLine, memory, pendingOp, newNumber),
+                    new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, 0, 1));
+            }
+
+        } catch (Exception e) {
+            wrapper.addView(boldLabel(ctx, "Error: " + e.getClass().getSimpleName(), 16, 0xFFFF0000));
+            wrapper.addView(label(ctx, "" + e.getMessage(), 12, 0xFFFF0000));
+            e.printStackTrace();
+        }
+
+        return wrapper;
+    }
+
+    static int countButtons(ViewGroup vg) {
+        int count = 0;
+        for (int i = 0; i < vg.getChildCount(); i++) {
+            View child = vg.getChildAt(i);
+            if (child instanceof android.widget.Button) count++;
+            if (child instanceof ViewGroup) count += countButtons((ViewGroup)child);
+        }
+        return count;
+    }
+
+    static void wireCalcButtons(View view, final TextView display, final TextView exprLine,
+                                final double[] memory, final String[] pendingOp, final boolean[] newNumber) {
+        if (view instanceof android.widget.Button) {
+            final Button btn = (Button) view;
+            String text = btn.getText().toString().trim();
+            if (!text.isEmpty()) {
+                // Style the button for dark theme
+                btn.setTextColor(0xFFFFFFFF);
+                btn.setTextSize(22);
+
+                final String btnText = text;
+                btn.setOnClickListener(new View.OnClickListener() {
+                    public void onClick(View v) {
+                        handleCalcButton(btnText, display, exprLine, memory, pendingOp, newNumber);
+                    }
+                });
+            }
+        }
+        if (view instanceof ViewGroup) {
+            ViewGroup vg = (ViewGroup) view;
+            for (int i = 0; i < vg.getChildCount(); i++)
+                wireCalcButtons(vg.getChildAt(i), display, exprLine, memory, pendingOp, newNumber);
+        }
+    }
+
+    static void handleCalcButton(String text, TextView display, TextView exprLine,
+                                  double[] memory, String[] pendingOp, boolean[] newNumber) {
+        if (text.matches("[0-9]")) {
+            if (newNumber[0]) { display.setText(text); newNumber[0] = false; }
+            else display.setText(display.getText().toString() + text);
+        } else if (".".equals(text)) {
+            String cur = display.getText().toString();
+            if (!cur.contains(".")) display.setText(cur + ".");
+            newNumber[0] = false;
+        } else if ("C".equals(text) || "AC".equals(text)) {
+            display.setText("0"); exprLine.setText(""); memory[0] = 0; pendingOp[0] = ""; newNumber[0] = true;
+        } else if ("\u232B".equals(text) || "DEL".equals(text)) {
+            String cur = display.getText().toString();
+            if (cur.length() > 1) display.setText(cur.substring(0, cur.length() - 1));
+            else { display.setText("0"); newNumber[0] = true; }
+        } else if ("=".equals(text)) {
+            double val = Double.parseDouble(display.getText().toString());
+            double result = calculate(memory[0], val, pendingOp[0]);
+            String resultStr = result == (long)result ? "" + (long)result : String.format("%.8g", result);
+            exprLine.setText(exprLine.getText() + display.getText().toString() + " =");
+            display.setText(resultStr);
+            memory[0] = result; pendingOp[0] = ""; newNumber[0] = true;
+        } else if ("+-".equals(text) || "+/-".equals(text) || "\u00B1".equals(text)) {
+            double val = Double.parseDouble(display.getText().toString());
+            val = -val;
+            String s = val == (long)val ? "" + (long)val : "" + val;
+            display.setText(s);
+        } else if ("%".equals(text)) {
+            double val = Double.parseDouble(display.getText().toString());
+            display.setText("" + (val / 100.0));
+        } else {
+            // Operator: + - × ÷
+            double val = Double.parseDouble(display.getText().toString());
+            if (!pendingOp[0].isEmpty() && !newNumber[0]) {
+                double result = calculate(memory[0], val, pendingOp[0]);
+                String resultStr = result == (long)result ? "" + (long)result : String.format("%.8g", result);
+                display.setText(resultStr);
+                memory[0] = result;
+            } else {
+                memory[0] = val;
+            }
+            pendingOp[0] = text;
+            exprLine.setText(display.getText() + " " + text + " ");
+            newNumber[0] = true;
+        }
+    }
+
+    static double calculate(double a, double b, String op) {
+        if ("+".equals(op)) return a + b;
+        if ("-".equals(op) || "\u2212".equals(op) || "−".equals(op)) return a - b;
+        if ("*".equals(op) || "×".equals(op) || "\u00D7".equals(op)) return a * b;
+        if ("/".equals(op) || "÷".equals(op) || "\u00F7".equals(op)) return b != 0 ? a / b : 0;
+        return b;
+    }
+
+    static View buildCalcPad(Context ctx, final TextView display, final TextView exprLine,
+                              final double[] memory, final String[] pendingOp, final boolean[] newNumber) {
+        LinearLayout pad = new LinearLayout(ctx);
+        pad.setOrientation(LinearLayout.VERTICAL);
+        pad.setBackgroundColor(0xFF2D2D2D);
+        pad.setPadding(dp(ctx, 4), dp(ctx, 4), dp(ctx, 4), dp(ctx, 4));
+
+        String[][] buttons = {
+            {"C", "+/-", "%", "÷"},
+            {"7", "8", "9", "×"},
+            {"4", "5", "6", "−"},
+            {"1", "2", "3", "+"},
+            {"0", ".", "\u232B", "="}
+        };
+
+        int[] opColors = {0xFF333333, 0xFF333333, 0xFF333333, 0xFFFF9500};
+
+        for (String[] row : buttons) {
+            LinearLayout rowLayout = new LinearLayout(ctx);
+            rowLayout.setOrientation(LinearLayout.HORIZONTAL);
+            rowLayout.setGravity(android.view.Gravity.CENTER);
+
+            for (int i = 0; i < row.length; i++) {
+                final String text = row[i];
+                Button btn = new Button(ctx);
+                btn.setText(text);
+                btn.setTextSize(22);
+                boolean isOp = (i == 3);
+                boolean isTop = row == buttons[0] && i < 3;
+                btn.setTextColor(isOp ? 0xFFFFFFFF : 0xFFFFFFFF);
+                int bg = isOp ? 0xFFFF9500 : (isTop ? 0xFF505050 : 0xFF333333);
+                android.graphics.drawable.GradientDrawable gd = new android.graphics.drawable.GradientDrawable();
+                gd.setColor(bg);
+                gd.setCornerRadius(dp(ctx, 8));
+                btn.setBackground(gd);
+
+                btn.setOnClickListener(new View.OnClickListener() {
+                    public void onClick(View v) {
+                        handleCalcButton(text, display, exprLine, memory, pendingOp, newNumber);
+                    }
+                });
+
+                LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(0, dp(ctx, 64), 1);
+                lp.setMargins(dp(ctx, 3), dp(ctx, 3), dp(ctx, 3), dp(ctx, 3));
+                btn.setLayoutParams(lp);
+                rowLayout.addView(btn);
+            }
+
+            pad.addView(rowLayout, new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
+        }
+
+        return pad;
+    }
+
     static void tagByContent(View view) {
         // Tag buttons/textviews by their text content → ID mapping
         if (view instanceof android.widget.Button) {

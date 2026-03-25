@@ -267,6 +267,30 @@ public class MockApp {
         calcAppBtn.setLayoutParams(clp);
         appsRow.addView(calcAppBtn);
 
+        Button hwCalcBtn = new Button(ctx);
+        hwCalcBtn.setText("\uD83D\uDCF1 Huawei Calc");
+        hwCalcBtn.setTextSize(13);
+        hwCalcBtn.setTextColor(WHITE);
+        hwCalcBtn.setBackground(roundRect(0xFF6A1B9A, 8));
+        hwCalcBtn.setPadding(dp(12), dp(8), dp(12), dp(8));
+        hwCalcBtn.setOnClickListener(new View.OnClickListener() {
+            public void onClick(View v) {
+                System.out.println("[MockApp] Huawei Calc button clicked");
+                try {
+                    View calcView = XmlTestHelper.loadHuaweiCalculator(ctx);
+                    System.out.println("[MockApp] Huawei Calc view: " + (calcView != null ? calcView.getClass().getSimpleName() : "null"));
+                    show(calcView);
+                } catch (Exception e) {
+                    System.out.println("[MockApp] Huawei Calc error: " + e);
+                    e.printStackTrace();
+                }
+            }
+        });
+        LinearLayout.LayoutParams hlp = new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1);
+        hlp.setMargins(dp(4), 0, dp(4), 0);
+        hwCalcBtn.setLayoutParams(hlp);
+        appsRow.addView(hwCalcBtn);
+
         root.addView(appsRow);
 
         View div2 = new View(ctx);
