@@ -1,0 +1,132 @@
+1<?xml version="1.0" encoding="utf-8"?>
+2<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+3    package="com.westlake.host"
+4    android:versionCode="5"
+5    android:versionName="5.0-compose" >
+6
+7    <uses-sdk
+8        android:minSdkVersion="24"
+9        android:targetSdkVersion="28" />
+10
+11    <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" />
+11-->/home/dspfac/android-to-openharmony-migration/westlake-host-gradle/app/src/main/AndroidManifest.xml:3:5-80
+11-->/home/dspfac/android-to-openharmony-migration/westlake-host-gradle/app/src/main/AndroidManifest.xml:3:22-77
+12    <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" />
+12-->/home/dspfac/android-to-openharmony-migration/westlake-host-gradle/app/src/main/AndroidManifest.xml:4:5-81
+12-->/home/dspfac/android-to-openharmony-migration/westlake-host-gradle/app/src/main/AndroidManifest.xml:4:22-78
+13    <uses-permission android:name="android.permission.INTERNET" />
+13-->/home/dspfac/android-to-openharmony-migration/westlake-host-gradle/app/src/main/AndroidManifest.xml:5:5-67
+13-->/home/dspfac/android-to-openharmony-migration/westlake-host-gradle/app/src/main/AndroidManifest.xml:5:22-64
+14
+15    <permission
+15-->[androidx.core:core:1.12.0] /home/dspfac/.gradle/caches/transforms-3/37e2ec6515df4d9413630431476ba7b9/transformed/core-1.12.0/AndroidManifest.xml:22:5-24:47
+16        android:name="com.westlake.host.DYNAMIC_RECEIVER_NOT_EXPORTED_PERMISSION"
+16-->[androidx.core:core:1.12.0] /home/dspfac/.gradle/caches/transforms-3/37e2ec6515df4d9413630431476ba7b9/transformed/core-1.12.0/AndroidManifest.xml:23:9-81
+17        android:protectionLevel="signature" />
+17-->[androidx.core:core:1.12.0] /home/dspfac/.gradle/caches/transforms-3/37e2ec6515df4d9413630431476ba7b9/transformed/core-1.12.0/AndroidManifest.xml:24:9-44
+18
+19    <uses-permission android:name="com.westlake.host.DYNAMIC_RECEIVER_NOT_EXPORTED_PERMISSION" />
+19-->[androidx.core:core:1.12.0] /home/dspfac/.gradle/caches/transforms-3/37e2ec6515df4d9413630431476ba7b9/transformed/core-1.12.0/AndroidManifest.xml:26:5-97
+19-->[androidx.core:core:1.12.0] /home/dspfac/.gradle/caches/transforms-3/37e2ec6515df4d9413630431476ba7b9/transformed/core-1.12.0/AndroidManifest.xml:26:22-94
+20
+21    <application
+21-->/home/dspfac/android-to-openharmony-migration/westlake-host-gradle/app/src/main/AndroidManifest.xml:6:5-19:19
+22        android:appComponentFactory="androidx.core.app.CoreComponentFactory"
+22-->[androidx.core:core:1.12.0] /home/dspfac/.gradle/caches/transforms-3/37e2ec6515df4d9413630431476ba7b9/transformed/core-1.12.0/AndroidManifest.xml:28:18-86
+23        android:debuggable="true"
+23-->/home/dspfac/android-to-openharmony-migration/westlake-host-gradle/app/src/main/AndroidManifest.xml:8:9-34
+24        android:extractNativeLibs="false"
+25        android:label="Westlake Engine"
+25-->/home/dspfac/android-to-openharmony-migration/westlake-host-gradle/app/src/main/AndroidManifest.xml:9:9-40
+26        android:requestLegacyExternalStorage="true"
+26-->/home/dspfac/android-to-openharmony-migration/westlake-host-gradle/app/src/main/AndroidManifest.xml:7:9-52
+27        android:theme="@style/Theme.Westlake" >
+27-->/home/dspfac/android-to-openharmony-migration/westlake-host-gradle/app/src/main/AndroidManifest.xml:10:9-46
+28        <activity
+28-->/home/dspfac/android-to-openharmony-migration/westlake-host-gradle/app/src/main/AndroidManifest.xml:11:9-18:20
+29            android:name="com.westlake.host.WestlakeActivity"
+29-->/home/dspfac/android-to-openharmony-migration/westlake-host-gradle/app/src/main/AndroidManifest.xml:11:19-51
+30            android:exported="true"
+30-->/home/dspfac/android-to-openharmony-migration/westlake-host-gradle/app/src/main/AndroidManifest.xml:12:13-36
+31            android:screenOrientation="portrait" >
+31-->/home/dspfac/android-to-openharmony-migration/westlake-host-gradle/app/src/main/AndroidManifest.xml:13:13-49
+32            <intent-filter>
+32-->/home/dspfac/android-to-openharmony-migration/westlake-host-gradle/app/src/main/AndroidManifest.xml:14:13-17:29
+33                <action android:name="android.intent.action.MAIN" />
+33-->/home/dspfac/android-to-openharmony-migration/westlake-host-gradle/app/src/main/AndroidManifest.xml:15:17-69
+33-->/home/dspfac/android-to-openharmony-migration/westlake-host-gradle/app/src/main/AndroidManifest.xml:15:25-66
+34
+35                <category android:name="android.intent.category.LAUNCHER" />
+35-->/home/dspfac/android-to-openharmony-migration/westlake-host-gradle/app/src/main/AndroidManifest.xml:16:17-77
+35-->/home/dspfac/android-to-openharmony-migration/westlake-host-gradle/app/src/main/AndroidManifest.xml:16:27-74
+36            </intent-filter>
+37        </activity>
+38
+39        <provider
+39-->[androidx.emoji2:emoji2:1.4.0] /home/dspfac/.gradle/caches/transforms-3/b1e406781b4803401b33a45dfee41a0f/transformed/emoji2-1.4.0/AndroidManifest.xml:24:9-32:20
+40            android:name="androidx.startup.InitializationProvider"
+40-->[androidx.emoji2:emoji2:1.4.0] /home/dspfac/.gradle/caches/transforms-3/b1e406781b4803401b33a45dfee41a0f/transformed/emoji2-1.4.0/AndroidManifest.xml:25:13-67
+41            android:authorities="com.westlake.host.androidx-startup"
+41-->[androidx.emoji2:emoji2:1.4.0] /home/dspfac/.gradle/caches/transforms-3/b1e406781b4803401b33a45dfee41a0f/transformed/emoji2-1.4.0/AndroidManifest.xml:26:13-68
+42            android:exported="false" >
+42-->[androidx.emoji2:emoji2:1.4.0] /home/dspfac/.gradle/caches/transforms-3/b1e406781b4803401b33a45dfee41a0f/transformed/emoji2-1.4.0/AndroidManifest.xml:27:13-37
+43            <meta-data
+43-->[androidx.emoji2:emoji2:1.4.0] /home/dspfac/.gradle/caches/transforms-3/b1e406781b4803401b33a45dfee41a0f/transformed/emoji2-1.4.0/AndroidManifest.xml:29:13-31:52
+44                android:name="androidx.emoji2.text.EmojiCompatInitializer"
+44-->[androidx.emoji2:emoji2:1.4.0] /home/dspfac/.gradle/caches/transforms-3/b1e406781b4803401b33a45dfee41a0f/transformed/emoji2-1.4.0/AndroidManifest.xml:30:17-75
+45                android:value="androidx.startup" />
+45-->[androidx.emoji2:emoji2:1.4.0] /home/dspfac/.gradle/caches/transforms-3/b1e406781b4803401b33a45dfee41a0f/transformed/emoji2-1.4.0/AndroidManifest.xml:31:17-49
+46            <meta-data
+46-->[androidx.lifecycle:lifecycle-process:2.6.2] /home/dspfac/.gradle/caches/transforms-3/39432916a0a0afb42c4c886ead20ad01/transformed/lifecycle-process-2.6.2/AndroidManifest.xml:29:13-31:52
+47                android:name="androidx.lifecycle.ProcessLifecycleInitializer"
+47-->[androidx.lifecycle:lifecycle-process:2.6.2] /home/dspfac/.gradle/caches/transforms-3/39432916a0a0afb42c4c886ead20ad01/transformed/lifecycle-process-2.6.2/AndroidManifest.xml:30:17-78
+48                android:value="androidx.startup" />
+48-->[androidx.lifecycle:lifecycle-process:2.6.2] /home/dspfac/.gradle/caches/transforms-3/39432916a0a0afb42c4c886ead20ad01/transformed/lifecycle-process-2.6.2/AndroidManifest.xml:31:17-49
+49            <meta-data
+49-->[androidx.profileinstaller:profileinstaller:1.3.0] /home/dspfac/.gradle/caches/transforms-3/72b01709e3025dacda0db4c1f2342267/transformed/profileinstaller-1.3.0/AndroidManifest.xml:29:13-31:52
+50                android:name="androidx.profileinstaller.ProfileInstallerInitializer"
+50-->[androidx.profileinstaller:profileinstaller:1.3.0] /home/dspfac/.gradle/caches/transforms-3/72b01709e3025dacda0db4c1f2342267/transformed/profileinstaller-1.3.0/AndroidManifest.xml:30:17-85
+51                android:value="androidx.startup" />
+51-->[androidx.profileinstaller:profileinstaller:1.3.0] /home/dspfac/.gradle/caches/transforms-3/72b01709e3025dacda0db4c1f2342267/transformed/profileinstaller-1.3.0/AndroidManifest.xml:31:17-49
+52        </provider>
+53
+54        <receiver
+54-->[androidx.profileinstaller:profileinstaller:1.3.0] /home/dspfac/.gradle/caches/transforms-3/72b01709e3025dacda0db4c1f2342267/transformed/profileinstaller-1.3.0/AndroidManifest.xml:34:9-52:20
+55            android:name="androidx.profileinstaller.ProfileInstallReceiver"
+55-->[androidx.profileinstaller:profileinstaller:1.3.0] /home/dspfac/.gradle/caches/transforms-3/72b01709e3025dacda0db4c1f2342267/transformed/profileinstaller-1.3.0/AndroidManifest.xml:35:13-76
+56            android:directBootAware="false"
+56-->[androidx.profileinstaller:profileinstaller:1.3.0] /home/dspfac/.gradle/caches/transforms-3/72b01709e3025dacda0db4c1f2342267/transformed/profileinstaller-1.3.0/AndroidManifest.xml:36:13-44
+57            android:enabled="true"
+57-->[androidx.profileinstaller:profileinstaller:1.3.0] /home/dspfac/.gradle/caches/transforms-3/72b01709e3025dacda0db4c1f2342267/transformed/profileinstaller-1.3.0/AndroidManifest.xml:37:13-35
+58            android:exported="true"
+58-->[androidx.profileinstaller:profileinstaller:1.3.0] /home/dspfac/.gradle/caches/transforms-3/72b01709e3025dacda0db4c1f2342267/transformed/profileinstaller-1.3.0/AndroidManifest.xml:38:13-36
+59            android:permission="android.permission.DUMP" >
+59-->[androidx.profileinstaller:profileinstaller:1.3.0] /home/dspfac/.gradle/caches/transforms-3/72b01709e3025dacda0db4c1f2342267/transformed/profileinstaller-1.3.0/AndroidManifest.xml:39:13-57
+60            <intent-filter>
+60-->[androidx.profileinstaller:profileinstaller:1.3.0] /home/dspfac/.gradle/caches/transforms-3/72b01709e3025dacda0db4c1f2342267/transformed/profileinstaller-1.3.0/AndroidManifest.xml:40:13-42:29
+61                <action android:name="androidx.profileinstaller.action.INSTALL_PROFILE" />
+61-->[androidx.profileinstaller:profileinstaller:1.3.0] /home/dspfac/.gradle/caches/transforms-3/72b01709e3025dacda0db4c1f2342267/transformed/profileinstaller-1.3.0/AndroidManifest.xml:41:17-91
+61-->[androidx.profileinstaller:profileinstaller:1.3.0] /home/dspfac/.gradle/caches/transforms-3/72b01709e3025dacda0db4c1f2342267/transformed/profileinstaller-1.3.0/AndroidManifest.xml:41:25-88
+62            </intent-filter>
+63            <intent-filter>
+63-->[androidx.profileinstaller:profileinstaller:1.3.0] /home/dspfac/.gradle/caches/transforms-3/72b01709e3025dacda0db4c1f2342267/transformed/profileinstaller-1.3.0/AndroidManifest.xml:43:13-45:29
+64                <action android:name="androidx.profileinstaller.action.SKIP_FILE" />
+64-->[androidx.profileinstaller:profileinstaller:1.3.0] /home/dspfac/.gradle/caches/transforms-3/72b01709e3025dacda0db4c1f2342267/transformed/profileinstaller-1.3.0/AndroidManifest.xml:44:17-85
+64-->[androidx.profileinstaller:profileinstaller:1.3.0] /home/dspfac/.gradle/caches/transforms-3/72b01709e3025dacda0db4c1f2342267/transformed/profileinstaller-1.3.0/AndroidManifest.xml:44:25-82
+65            </intent-filter>
+66            <intent-filter>
+66-->[androidx.profileinstaller:profileinstaller:1.3.0] /home/dspfac/.gradle/caches/transforms-3/72b01709e3025dacda0db4c1f2342267/transformed/profileinstaller-1.3.0/AndroidManifest.xml:46:13-48:29
+67                <action android:name="androidx.profileinstaller.action.SAVE_PROFILE" />
+67-->[androidx.profileinstaller:profileinstaller:1.3.0] /home/dspfac/.gradle/caches/transforms-3/72b01709e3025dacda0db4c1f2342267/transformed/profileinstaller-1.3.0/AndroidManifest.xml:47:17-88
+67-->[androidx.profileinstaller:profileinstaller:1.3.0] /home/dspfac/.gradle/caches/transforms-3/72b01709e3025dacda0db4c1f2342267/transformed/profileinstaller-1.3.0/AndroidManifest.xml:47:25-85
+68            </intent-filter>
+69            <intent-filter>
+69-->[androidx.profileinstaller:profileinstaller:1.3.0] /home/dspfac/.gradle/caches/transforms-3/72b01709e3025dacda0db4c1f2342267/transformed/profileinstaller-1.3.0/AndroidManifest.xml:49:13-51:29
+70                <action android:name="androidx.profileinstaller.action.BENCHMARK_OPERATION" />
+70-->[androidx.profileinstaller:profileinstaller:1.3.0] /home/dspfac/.gradle/caches/transforms-3/72b01709e3025dacda0db4c1f2342267/transformed/profileinstaller-1.3.0/AndroidManifest.xml:50:17-95
+70-->[androidx.profileinstaller:profileinstaller:1.3.0] /home/dspfac/.gradle/caches/transforms-3/72b01709e3025dacda0db4c1f2342267/transformed/profileinstaller-1.3.0/AndroidManifest.xml:50:25-92
+71            </intent-filter>
+72        </receiver>
+73    </application>
+74
+75</manifest>
