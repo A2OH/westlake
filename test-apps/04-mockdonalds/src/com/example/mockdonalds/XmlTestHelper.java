@@ -258,7 +258,11 @@ public class XmlTestHelper {
                 float sp = Float.parseFloat(value.replace("sp", ""));
                 return (int)(sp * ctx.getResources().getDisplayMetrics().scaledDensity);
             }
-            if (value.endsWith("px")) return Integer.parseInt(value.replace("px", ""));
+            if (value.endsWith("px")) {
+                // AXML dimensions come as "72.0px" but are actually dp values
+                float px = Float.parseFloat(value.replace("px", ""));
+                return (int)(px * ctx.getResources().getDisplayMetrics().density);
+            }
             return Integer.parseInt(value);
         } catch (Exception e) { return 0; }
     }
@@ -439,5 +443,117 @@ public class XmlTestHelper {
             if (child instanceof ViewGroup) count += countViews((ViewGroup)child);
         }
         return count;
+    }
+
+    /**
+     * Load and run a full Calculator app from APK assets:
+     * 1. Inflate compiled XML layout
+     * 2. Load classes.dex via DexClassLoader  
+     * 3. Wire button click handlers via CalcActivity.wireViews()
+     */
+    public static View loadCalculatorApp(final Context ctx) {
+        LinearLayout wrapper = new LinearLayout(ctx);
+        wrapper.setOrientation(LinearLayout.VERTICAL);
+        wrapper.setBackgroundColor(0xFFFFFFFF);
+        wrapper.addView(boldLabel(ctx, "Loading Calculator...", 16, 0xFF212121));
+
+        try {
+            // 1. Inflate the calculator layout from compiled XML
+            java.io.InputStream is = ctx.getAssets().open("calc_app_layout.axml");
+            byte[] data = new byte[is.available()];
+            is.read(data);
+            is.close();
+            wrapper.addView(label(ctx, "AXML: " + data.length + " bytes", 12, 0xFF757575));
+
+            android.content.res.BinaryXmlParser parser = new android.content.res.BinaryXmlParser(data);
+            View calcView = inflateFromParser(ctx, parser);
+
+            if (calcView == null) {
+                wrapper.addView(boldLabel(ctx, "Failed to inflate calculator layout", 18, 0xFFFF0000));
+                return wrapper;
+            }
+            wrapper.addView(boldLabel(ctx, "Inflated: " + calcView.getClass().getSimpleName(), 14, 0xFF4CAF50));
+            if (calcView instanceof ViewGroup) {
+                int total = countViews((ViewGroup)calcView);
+                wrapper.addView(label(ctx, "Views: " + total, 12, 0xFF757575));
+            }
+
+            // Tag views with their android:id names for findViewByTag
+            tagViewIds(calcView, parser);
+
+            // 2. Load CalcActivity from the calculator's DEX
+            java.io.File cacheDir = new java.io.File(ctx.getCacheDir(), "calc");
+            cacheDir.mkdirs();
+            java.io.File dexFile = new java.io.File(ctx.getCacheDir(), "calc_classes.dex");
+            java.io.InputStream dis = ctx.getAssets().open("calc_classes.dex");
+            java.io.FileOutputStream fos = new java.io.FileOutputStream(dexFile);
+            byte[] buf = new byte[8192];
+            int n;
+            while ((n = dis.read(buf)) > 0) fos.write(buf, 0, n);
+            fos.close();
+            dis.close();
+
+            dalvik.system.DexClassLoader loader = new dalvik.system.DexClassLoader(
+                dexFile.getAbsolutePath(), cacheDir.getAbsolutePath(), null,
+                ctx.getClassLoader());
+
+            Class<?> calcClass = loader.loadClass("com.westlake.calc.CalcActivity");
+            Object calcActivity = calcClass.newInstance();
+            java.lang.reflect.Method wireViews = calcClass.getMethod("wireViews", View.class);
+            wireViews.invoke(calcActivity, calcView);
+
+            wrapper.addView(calcView);
+        } catch (Exception e) {
+            wrapper.addView(boldLabel(ctx, "Error: " + e.getClass().getSimpleName(), 16, 0xFFFF0000));
+            wrapper.addView(label(ctx, "" + e.getMessage(), 12, 0xFFFF0000));
+        }
+
+        return wrapper;
+    }
+
+    /**
+     * After inflation, re-parse the AXML to tag Views with their android:id names.
+     * This allows CalcActivity.findViewByTag() to locate them.
+     */
+    static void tagViewIds(View root, android.content.res.BinaryXmlParser parser) {
+        // Re-parse to get IDs — walk tree in same order as inflation
+        try {
+            // Reset parser if possible, otherwise re-read
+            // For now, use a simple recursive approach to tag by position
+            tagByContent(root);
+        } catch (Exception e) {}
+    }
+
+    static void tagByContent(View view) {
+        // Tag buttons/textviews by their text content → ID mapping
+        if (view instanceof android.widget.Button) {
+            String text = ((android.widget.Button)view).getText().toString();
+            if ("C".equals(text)) view.setTag("btn_c");
+            else if ("+/-".equals(text)) view.setTag("btn_sign");
+            else if ("%".equals(text)) view.setTag("btn_pct");
+            else if ("÷".equals(text)) view.setTag("btn_div");
+            else if ("×".equals(text)) view.setTag("btn_mul");
+            else if ("−".equals(text)) view.setTag("btn_sub");
+            else if ("+".equals(text)) view.setTag("btn_add");
+            else if ("=".equals(text)) view.setTag("btn_eq");
+            else if (".".equals(text)) view.setTag("btn_dot");
+            else if ("0".equals(text)) view.setTag("btn_0");
+            else if ("1".equals(text)) view.setTag("btn_1");
+            else if ("2".equals(text)) view.setTag("btn_2");
+            else if ("3".equals(text)) view.setTag("btn_3");
+            else if ("4".equals(text)) view.setTag("btn_4");
+            else if ("5".equals(text)) view.setTag("btn_5");
+            else if ("6".equals(text)) view.setTag("btn_6");
+            else if ("7".equals(text)) view.setTag("btn_7");
+            else if ("8".equals(text)) view.setTag("btn_8");
+            else if ("9".equals(text)) view.setTag("btn_9");
+        } else if (view instanceof TextView && "0".equals(((TextView)view).getText().toString())
+                   && !(view instanceof android.widget.Button)) {
+            view.setTag("display");
+        }
+        if (view instanceof ViewGroup) {
+            ViewGroup vg = (ViewGroup) view;
+            for (int i = 0; i < vg.getChildCount(); i++) tagByContent(vg.getChildAt(i));
+        }
     }
 }

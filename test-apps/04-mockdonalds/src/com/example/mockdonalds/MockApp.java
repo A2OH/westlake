@@ -283,6 +283,26 @@ public class MockApp {
         });
         root.addView(helloBtn);
         show(root);
+        Button calcAppBtn = new Button(ctx);
+        calcAppBtn.setText("\uD83E\uDDEE Run Calculator App (full APK)");
+        calcAppBtn.setTextSize(14);
+        calcAppBtn.setTextColor(WHITE);
+        calcAppBtn.setBackground(roundRect(0xFF1565C0, 8));
+        calcAppBtn.setPadding(dp(16), dp(12), dp(16), dp(12));
+        calcAppBtn.setOnClickListener(new View.OnClickListener() {
+            public void onClick(View v) { show(XmlTestHelper.loadCalculatorApp(ctx)); }
+        });
+        root.addView(calcAppBtn);
+        Button realBtn = new Button(ctx);
+        realBtn.setText("\uD83D\uDCF1 Inflate REAL Huawei Dialer Layout");
+        realBtn.setTextSize(14);
+        realBtn.setTextColor(WHITE);
+        realBtn.setBackground(roundRect(0xFF6A1B9A, 8));
+        realBtn.setPadding(dp(16), dp(12), dp(16), dp(12));
+        realBtn.setOnClickListener(new View.OnClickListener() {
+            public void onClick(View v) { show(XmlTestHelper.testApkLayout(ctx, "real_dialpad.axml", "Huawei Dialer (REAL APK)")); }
+        });
+        root.addView(realBtn);
     }
 
     static String activeCategory = "All";
