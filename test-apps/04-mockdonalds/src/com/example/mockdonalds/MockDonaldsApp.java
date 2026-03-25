@@ -42,12 +42,13 @@ public class MockDonaldsApp {
             appCtx = (android.content.Context) host.getField("instance").get(null);
         } catch (Exception e) {}
 
-        // If running on phone with real Android, use MockApp directly
+        // If running on phone with real Android, launch app gallery home
         if (appCtx != null) {
             System.out.println("[MockDonaldsApp] Running with native Android Views");
             MockApp.init(appCtx);
-            MockApp.showMenu();
-            System.out.println("[MockDonaldsApp] Menu displayed");
+            com.example.apklauncher.ApkLauncher.init(appCtx);
+            com.example.apklauncher.ApkLauncher.showHome();
+            System.out.println("[MockDonaldsApp] App gallery displayed");
             // Keep thread alive
             while (true) { try { Thread.sleep(1000); } catch (Exception e) { break; } }
             return;

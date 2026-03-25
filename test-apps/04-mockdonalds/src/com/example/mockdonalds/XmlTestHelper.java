@@ -87,7 +87,10 @@ public class XmlTestHelper {
         back.setText("← Back to Menu");
         back.setTextSize(16);
         back.setOnClickListener(new View.OnClickListener() {
-            public void onClick(View v) { MockApp.showMenu(); }
+            public void onClick(View v) {
+                        try { com.example.apklauncher.ApkLauncher.showHome(); }
+                        catch (Exception e) { MockApp.showMenu(); }
+                    }
         });
         LinearLayout.LayoutParams blp = new LinearLayout.LayoutParams(
             ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
@@ -360,7 +363,10 @@ public class XmlTestHelper {
         Button back = new Button(ctx);
         back.setText("← Back to Menu");
         back.setOnClickListener(new View.OnClickListener() {
-            public void onClick(View v) { MockApp.showMenu(); }
+            public void onClick(View v) {
+                        try { com.example.apklauncher.ApkLauncher.showHome(); }
+                        catch (Exception e) { MockApp.showMenu(); }
+                    }
         });
         result.addView(back);
         return result;
@@ -426,7 +432,10 @@ public class XmlTestHelper {
         Button back = new Button(ctx);
         back.setText("\u2190 Back to Menu");
         back.setOnClickListener(new View.OnClickListener() {
-            public void onClick(View v) { MockApp.showMenu(); }
+            public void onClick(View v) {
+                        try { com.example.apklauncher.ApkLauncher.showHome(); }
+                        catch (Exception e) { MockApp.showMenu(); }
+                    }
         });
         result.addView(back);
 
@@ -546,7 +555,10 @@ public class XmlTestHelper {
         backBtn.setTextColor(0xFFFFFFFF);
         backBtn.setBackgroundColor(0x00000000);
         backBtn.setOnClickListener(new View.OnClickListener() {
-            public void onClick(View v) { MockApp.showMenu(); }
+            public void onClick(View v) {
+                        try { com.example.apklauncher.ApkLauncher.showHome(); }
+                        catch (Exception e) { MockApp.showMenu(); }
+                    }
         });
         header.addView(backBtn, new LinearLayout.LayoutParams(dp(ctx, 44), dp(ctx, 44)));
 

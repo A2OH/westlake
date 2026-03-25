@@ -43,6 +43,7 @@ public class MockApp {
     static Context ctx;
     static Activity hostActivity;
     static View menuView; // cached menu screen
+    static android.graphics.Typeface materialFont;
 
     public static void init(Context context) {
         ctx = context;
@@ -50,6 +51,16 @@ public class MockApp {
             Class<?> host = Class.forName("com.westlake.host.WestlakeActivity");
             hostActivity = (Activity) host.getField("instance").get(null);
         } catch (Exception e) {}
+        try {
+            materialFont = android.graphics.Typeface.createFromAsset(context.getAssets(), "material_icons.ttf");
+            System.out.println("[MockApp] Material font loaded: " + (materialFont != null));
+        } catch (Exception e) {
+            System.out.println("[MockApp] Material font failed: " + e);
+            try {
+                java.io.File f = new java.io.File(context.getCacheDir(), "material_icons.ttf");
+                if (f.exists()) materialFont = android.graphics.Typeface.createFromFile(f);
+            } catch (Exception e2) {}
+        }
 
         menu = new ArrayList<>();
         menu.add(new MenuItem(1, "Big Mock Burger", "Two all-beef patties, special sauce, lettuce, cheese, pickles, onions on a sesame seed bun", 5.99, "Burgers"));
@@ -78,6 +89,27 @@ public class MockApp {
 
     // ═══ Helpers ═══
     static int dp(int d) { return (int)(d * ctx.getResources().getDisplayMetrics().density); }
+
+    static TextView materialIcon(String codepoint, int sizeSp, int color) {
+        TextView tv = new TextView(ctx);
+        tv.setText(codepoint);
+        tv.setTextSize(sizeSp);
+        tv.setTextColor(color);
+        if (materialFont != null) tv.setTypeface(materialFont);
+        tv.setGravity(Gravity.CENTER);
+        return tv;
+    }
+    // Material icon codepoints
+    static final String MI_ARROW_BACK = "\uE5C4";
+    static final String MI_SHOPPING_CART = "\uE8CC";
+    static final String MI_RESTAURANT = "\uE56C";
+    static final String MI_ADD = "\uE145";
+    static final String MI_REMOVE = "\uE15B";
+    static final String MI_CHECK = "\uE5CA";
+    static final String MI_STAR = "\uE838";
+    static final String MI_FAVORITE = "\uE87D";
+    static final String MI_DELETE = "\uE872";
+    static final String MI_ADD_CIRCLE = "\uE148";
 
     static GradientDrawable roundRect(int color, int radiusDp) {
         GradientDrawable d = new GradientDrawable();
@@ -129,13 +161,17 @@ public class MockApp {
 
         if (showBack) {
             Button back = new Button(ctx);
-            back.setText("←");
+            back.setText(MI_ARROW_BACK);
             back.setTextSize(22);
             back.setTextColor(Color.WHITE);
             back.setBackgroundColor(Color.TRANSPARENT);
+            if (materialFont != null) back.setTypeface(materialFont);
             back.setPadding(dp(8), 0, dp(12), 0);
             back.setOnClickListener(new View.OnClickListener() {
-                public void onClick(View v) { showMenu(); }
+                public void onClick(View v) {
+                    try { com.example.apklauncher.ApkLauncher.showHome(); }
+                    catch (Exception e) { showMenu(); }
+                }
             });
             bar.addView(back, new LinearLayout.LayoutParams(dp(44), dp(44)));
         }
@@ -152,8 +188,10 @@ public class MockApp {
                 public void onClick(View v) { showCart(); }
             });
             int count = getCartTotal();
-            TextView cartText = boldLabel("\uD83D\uDED2 " + count, 13, DARK);
-            cartBtn.addView(cartText);
+            TextView cartIcon = materialIcon(MI_SHOPPING_CART, 18, DARK);
+            cartBtn.addView(cartIcon);
+            TextView cartCount = boldLabel(" " + count, 13, DARK);
+            cartBtn.addView(cartCount);
             bar.addView(cartBtn);
         }
 
@@ -197,7 +235,7 @@ public class MockApp {
         root.setOrientation(LinearLayout.VERTICAL);
         root.setBackgroundColor(BG);
 
-        root.addView(topBar("\uD83C\uDF54 MockDonalds", false, true));
+        root.addView(topBar("\uD83C\uDF54 MockDonalds", true, true));
 
         // Category tabs
         LinearLayout tabs = new LinearLayout(ctx);
@@ -230,72 +268,6 @@ public class MockApp {
         View div = new View(ctx);
         div.setBackgroundColor(DIVIDER);
         root.addView(div, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(1)));
-
-        // App launcher buttons (ABOVE menu list so they're visible)
-        LinearLayout appsRow = new LinearLayout(ctx);
-        appsRow.setOrientation(LinearLayout.HORIZONTAL);
-        appsRow.setPadding(dp(8), dp(6), dp(8), dp(6));
-        appsRow.setBackgroundColor(WHITE);
-
-        Button dialerBtn = new Button(ctx);
-        dialerBtn.setText("\uD83D\uDCDE Dialer");
-        dialerBtn.setTextSize(13);
-        dialerBtn.setTextColor(WHITE);
-        dialerBtn.setBackground(roundRect(0xFF1565C0, 8));
-        dialerBtn.setPadding(dp(12), dp(8), dp(12), dp(8));
-        dialerBtn.setOnClickListener(new View.OnClickListener() {
-            public void onClick(View v) {
-                com.example.dialer.DialerEntry.launch(ctx);
-            }
-        });
-        LinearLayout.LayoutParams dlp = new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1);
-        dlp.setMargins(dp(4), 0, dp(4), 0);
-        dialerBtn.setLayoutParams(dlp);
-        appsRow.addView(dialerBtn);
-
-        Button calcAppBtn = new Button(ctx);
-        calcAppBtn.setText("\uD83E\uDDEE Calculator");
-        calcAppBtn.setTextSize(13);
-        calcAppBtn.setTextColor(WHITE);
-        calcAppBtn.setBackground(roundRect(0xFF2E7D32, 8));
-        calcAppBtn.setPadding(dp(12), dp(8), dp(12), dp(8));
-        calcAppBtn.setOnClickListener(new View.OnClickListener() {
-            public void onClick(View v) { show(XmlTestHelper.loadCalculatorApp(ctx)); }
-        });
-        LinearLayout.LayoutParams clp = new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1);
-        clp.setMargins(dp(4), 0, dp(4), 0);
-        calcAppBtn.setLayoutParams(clp);
-        appsRow.addView(calcAppBtn);
-
-        Button hwCalcBtn = new Button(ctx);
-        hwCalcBtn.setText("\uD83D\uDCF1 Huawei Calc");
-        hwCalcBtn.setTextSize(13);
-        hwCalcBtn.setTextColor(WHITE);
-        hwCalcBtn.setBackground(roundRect(0xFF6A1B9A, 8));
-        hwCalcBtn.setPadding(dp(12), dp(8), dp(12), dp(8));
-        hwCalcBtn.setOnClickListener(new View.OnClickListener() {
-            public void onClick(View v) {
-                System.out.println("[MockApp] Huawei Calc button clicked");
-                try {
-                    View calcView = XmlTestHelper.loadHuaweiCalculator(ctx);
-                    System.out.println("[MockApp] Huawei Calc view: " + (calcView != null ? calcView.getClass().getSimpleName() : "null"));
-                    show(calcView);
-                } catch (Exception e) {
-                    System.out.println("[MockApp] Huawei Calc error: " + e);
-                    e.printStackTrace();
-                }
-            }
-        });
-        LinearLayout.LayoutParams hlp = new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1);
-        hlp.setMargins(dp(4), 0, dp(4), 0);
-        hwCalcBtn.setLayoutParams(hlp);
-        appsRow.addView(hwCalcBtn);
-
-        root.addView(appsRow);
-
-        View div2 = new View(ctx);
-        div2.setBackgroundColor(DIVIDER);
-        root.addView(div2, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(1)));
 
         // Menu list
         final List<MenuItem> items = new ArrayList<>(menu);
@@ -331,7 +303,7 @@ public class MockApp {
         root.setOrientation(LinearLayout.VERTICAL);
         root.setBackgroundColor(BG);
 
-        root.addView(topBar("\uD83C\uDF54 MockDonalds", false, true));
+        root.addView(topBar("\uD83C\uDF54 MockDonalds", true, true));
 
         // Category tabs
         LinearLayout tabs = new LinearLayout(ctx);
@@ -432,10 +404,11 @@ public class MockApp {
 
         // Quick add button
         TextView addBtn = new TextView(ctx);
-        addBtn.setText("+");
-        addBtn.setTextSize(18);
+        addBtn.setText(MI_ADD);
+        addBtn.setTextSize(20);
         addBtn.setTextColor(WHITE);
-        addBtn.setTypeface(Typeface.DEFAULT_BOLD);
+        if (materialFont != null) addBtn.setTypeface(materialFont);
+        else addBtn.setTypeface(Typeface.DEFAULT_BOLD);
         addBtn.setGravity(Gravity.CENTER);
         addBtn.setBackground(roundRect(RED, 14));
         addBtn.setPadding(dp(10), dp(2), dp(10), dp(2));
@@ -537,7 +510,7 @@ public class MockApp {
         // Add to Cart
         final MenuItem fItem = item;
         Button addBtn = actionButton(
-            "\uD83D\uDED2  Add to Cart — $" + String.format("%.2f", item.price), RED, WHITE,
+            "Add to Cart — $" + String.format("%.2f", item.price), RED, WHITE,
             new View.OnClickListener() {
                 public void onClick(View v) {
                     int prev = cart.containsKey(fItem.id) ? cart.get(fItem.id) : 0;
@@ -563,7 +536,7 @@ public class MockApp {
         root.setOrientation(LinearLayout.VERTICAL);
         root.setBackgroundColor(BG);
 
-        root.addView(topBar("\uD83D\uDED2 Your Cart", true, false));
+        root.addView(topBar("Your Cart", true, false));
 
         if (cart.isEmpty()) {
             LinearLayout empty = new LinearLayout(ctx);
@@ -620,9 +593,10 @@ public class MockApp {
 
                 // Remove
                 TextView removeBtn = new TextView(ctx);
-                removeBtn.setText("✕");
-                removeBtn.setTextSize(16);
+                removeBtn.setText(MI_DELETE);
+                removeBtn.setTextSize(20);
                 removeBtn.setTextColor(RED);
+                if (materialFont != null) removeBtn.setTypeface(materialFont);
                 removeBtn.setPadding(dp(12), 0, 0, 0);
                 removeBtn.setOnClickListener(new View.OnClickListener() {
                     public void onClick(View v) {
