@@ -161,12 +161,7 @@ class WestlakeActivity : ComponentActivity() {
 
             engineClassLoader = childFirst
             Thread.currentThread().contextClassLoader = childFirst
-
-            Log.i(TAG, "Engine DEX loaded, launching MockDonaldsApp...")
-            val appClass = childFirst.loadClass("com.example.mockdonalds.MockDonaldsApp")
-            val main = appClass.getMethod("main", Array<String>::class.java)
-            main.invoke(null, arrayOf<String>())
-            Log.i(TAG, "Engine finished")
+            Log.i(TAG, "Engine DEX loaded (classloader ready, apps launch on tap)")
 
         } catch (e: Exception) {
             Log.e(TAG, "Engine error: ${e.message}", e)
@@ -198,11 +193,11 @@ class WestlakeActivity : ComponentActivity() {
 fun WestlakeHome() {
     val apps = remember {
         listOf(
+            AppInfo("Compose Demo", "Navigation + Retrofit + Coil + ViewModel", Color(0xFF00BCD4), "COMPOSE_DEMO", null, ""),
             AppInfo("MockDonalds", "Restaurant ordering", Color(0xFFDA291C), "com.example.mockdonalds.MockApp", "init", "showMenu"),
             AppInfo("Dialer", "Phone dialer", Color(0xFF1565C0), "com.example.dialer.DialerEntry", null, "launch"),
             AppInfo("Social Feed", "Social media", Color(0xFF1877F2), "com.example.socialfeed.SocialFeedApp", "init", "showFeed"),
             AppInfo("Huawei Calc", "Calculator (real APK)", Color(0xFF6A1B9A), "com.example.mockdonalds.XmlTestHelper", null, "loadHuaweiCalculator"),
-            AppInfo("Compose Demo", "Navigation + Retrofit + Coil", Color(0xFF00BCD4), "COMPOSE_DEMO", null, ""),
         )
     }
 
