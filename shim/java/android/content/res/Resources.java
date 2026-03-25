@@ -55,6 +55,10 @@ public class Resources {
     private final DisplayMetrics mDisplayMetrics = new DisplayMetrics();
     private final Configuration  mConfiguration  = new Configuration();
     private ResourceTable mTable;
+    private String mApkPath;
+
+    public void setApkPath(String path) { mApkPath = path; }
+    public String getApkPath() { return mApkPath; }
 
     /** Phase 2 registry: manually registered resources keyed by resource ID. */
     private final HashMap<Integer, Object> mRegistry = new HashMap<Integer, Object>();
