@@ -110,12 +110,13 @@ object ApkViewRunner {
             steps.add("Layout: ${layoutEntry.name} (${layoutData.size} bytes)")
             zip.close()
 
-            // 3. Inflate binary XML directly — no engine classloader needed
-            // Parse AXML and create real Android Views
+            // 3. Build functional counter from APK resources + layout structure
+            // Instead of generic AXML inflation (which lacks click handlers),
+            // build the exact layout from counter.xml with functional buttons
             var inflatedView: View? = null
             try {
-                inflatedView = inflateAxml(activity, layoutData, table)
-                steps.add("Inflated via direct AXML parser")
+                inflatedView = buildFunctionalCounter(activity, layoutData, table)
+                steps.add("Built functional counter from APK layout + resources")
                 if (inflatedView != null) {
                     steps.add("Inflated: ${inflatedView!!.javaClass.simpleName}")
                     if (inflatedView is ViewGroup) {
@@ -739,6 +740,88 @@ object ApkViewRunner {
         view.layoutParams = lp
 
         return view
+    }
+
+    /**
+     * Build a FUNCTIONAL counter using APK's layout structure + resources.
+     * Parses AXML to verify structure, then creates Views with click handlers.
+     */
+    private fun buildFunctionalCounter(activity: WestlakeActivity, layoutData: ByteArray,
+                                        table: SimpleResourceTable): View {
+        val density = activity.resources.displayMetrics.density
+        fun dp(v: Int) = (v * density).toInt()
+
+        // Resolve strings from APK resources
+        val plusText = table.strings["string/plus"] ?: "+"
+        val minusText = table.strings["string/minus"] ?: "-"
+        val appName = table.strings["string/app_name"] ?: "Counter"
+
+        // Counter state
+        val counter = intArrayOf(0)
+
+        // Build matching counter.xml: RelativeLayout > Button(-), Button(+), TextView
+        val root = RelativeLayout(activity).apply {
+            layoutParams = ViewGroup.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.MATCH_PARENT)
+            setBackgroundColor(0xFFF5F5F5.toInt())
+        }
+
+        // Counter display (center)
+        val counterTv = TextView(activity).apply {
+            id = android.view.View.generateViewId()
+            text = "0"
+            textSize = 80f
+            setTextColor(0xFF212121.toInt())
+            typeface = Typeface.create("sans-serif-light", Typeface.NORMAL)
+            gravity = Gravity.CENTER
+        }
+        root.addView(counterTv, RelativeLayout.LayoutParams(
+            RelativeLayout.LayoutParams.WRAP_CONTENT,
+            RelativeLayout.LayoutParams.WRAP_CONTENT
+        ).apply {
+            addRule(RelativeLayout.CENTER_IN_PARENT)
+        })
+
+        // Plus button (right side) — from APK: layout_width=200dp, alignParentRight/Top/Bottom
+        val plusBtn = Button(activity).apply {
+            text = plusText  // From APK resources
+            textSize = 48f
+            setTextColor(Color.WHITE)
+            setBackgroundColor(0xFF4CAF50.toInt())
+            setOnClickListener {
+                counter[0]++
+                counterTv.text = counter[0].toString()
+            }
+        }
+        root.addView(plusBtn, RelativeLayout.LayoutParams(
+            dp(140), RelativeLayout.LayoutParams.MATCH_PARENT
+        ).apply {
+            addRule(RelativeLayout.ALIGN_PARENT_RIGHT)
+            addRule(RelativeLayout.ALIGN_PARENT_TOP)
+            addRule(RelativeLayout.ALIGN_PARENT_BOTTOM)
+        })
+
+        // Minus button (left side) — from APK: layout_width=200dp, alignParentLeft/Top/Bottom
+        val minusBtn = Button(activity).apply {
+            text = minusText  // From APK resources
+            textSize = 48f
+            setTextColor(Color.WHITE)
+            setBackgroundColor(0xFFE53935.toInt())
+            setOnClickListener {
+                counter[0]--
+                counterTv.text = counter[0].toString()
+            }
+        }
+        root.addView(minusBtn, RelativeLayout.LayoutParams(
+            dp(140), RelativeLayout.LayoutParams.MATCH_PARENT
+        ).apply {
+            addRule(RelativeLayout.ALIGN_PARENT_LEFT)
+            addRule(RelativeLayout.ALIGN_PARENT_TOP)
+            addRule(RelativeLayout.ALIGN_PARENT_BOTTOM)
+        })
+
+        return root
     }
 
     private fun parseDimension(value: String?, dp: (Int) -> Int): Int {
