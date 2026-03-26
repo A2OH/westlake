@@ -38,8 +38,9 @@ import java.nio.ByteOrder
  */
 object WestlakeVM {
     private const val TAG = "WestlakeVM"
-    const val PNG_PATH = "/sdcard/westlake_frame.png"
-    private const val TOUCH_PATH = "/sdcard/westlake_touch.dat"
+    // Use app's external files dir (accessible by both app and subprocess)
+    val PNG_PATH: String get() = WestlakeActivity.instance?.getExternalFilesDir(null)?.absolutePath + "/westlake_frame.png"
+    val TOUCH_PATH: String get() = WestlakeActivity.instance?.getExternalFilesDir(null)?.absolutePath + "/westlake_touch.dat"
     private const val DALVIKVM_DIR = "/data/local/tmp/westlake"
 
     var process: Process? = null
@@ -47,30 +48,41 @@ object WestlakeVM {
 
     fun start(): List<String> {
         val log = mutableListOf<String>()
+        val activity = WestlakeActivity.instance ?: return listOf("No activity")
 
         // Kill any existing
         process?.destroyForcibly()
-
-        // Delete old frame
         try { File(PNG_PATH).delete() } catch (_: Exception) {}
 
-        val cmd = arrayOf(
-            "$DALVIKVM_DIR/dalvikvm",
-            "-Xbootclasspath:$DALVIKVM_DIR/core-oj.jar:$DALVIKVM_DIR/core-libart.jar:$DALVIKVM_DIR/core-icu4j.jar:$DALVIKVM_DIR/aosp-shim.dex",
-            "-Xnoimage-dex2oat",
-            "-Xverify:none",
-            "-classpath", "$DALVIKVM_DIR/app.dex",
-            "com.example.mockdonalds.MockDonaldsApp"
-        )
+        // Copy dalvikvm to app's private dir (SELinux allows execute there)
+        val vmDir = File(activity.filesDir, "vm").apply { mkdirs() }
+        val srcDir = File(DALVIKVM_DIR)
+        for (name in listOf("dalvikvm","core-oj.jar","core-libart.jar","core-icu4j.jar","aosp-shim.dex","app.dex")) {
+            val src = File(srcDir, name)
+            val dst = File(vmDir, name)
+            if (src.exists() && (!dst.exists() || dst.length() != src.length())) {
+                src.copyTo(dst, overwrite = true)
+                if (name == "dalvikvm") dst.setExecutable(true, false)
+                log.add("Copied $name")
+            }
+        }
 
-        log.add("Starting dalvikvm...")
+        val dvm = "${vmDir.absolutePath}/dalvikvm"
+        val bcp = "${vmDir}/core-oj.jar:${vmDir}/core-libart.jar:${vmDir}/core-icu4j.jar:${vmDir}/aosp-shim.dex"
+        val cmd = arrayOf(dvm, "-Xbootclasspath:$bcp", "-Xnoimage-dex2oat", "-Xverify:none",
+            "-classpath", "${vmDir}/app.dex", "com.example.mockdonalds.MockDonaldsApp")
+
+        log.add("Starting from ${vmDir.absolutePath}...")
         try {
             val pb = ProcessBuilder(*cmd)
-            pb.environment()["ANDROID_DATA"] = DALVIKVM_DIR
-            pb.environment()["ANDROID_ROOT"] = DALVIKVM_DIR
+            pb.directory(vmDir)
+            pb.environment()["ANDROID_DATA"] = vmDir.absolutePath
+            pb.environment()["ANDROID_ROOT"] = vmDir.absolutePath
+            pb.environment()["WESTLAKE_FRAME"] = PNG_PATH
+            pb.environment()["WESTLAKE_TOUCH"] = TOUCH_PATH
             pb.redirectErrorStream(true)
             process = pb.start()
-            log.add("Process started PID=${process?.toString()}")
+            log.add("VM process started")
 
             // Read first few lines of output in background
             Thread {
