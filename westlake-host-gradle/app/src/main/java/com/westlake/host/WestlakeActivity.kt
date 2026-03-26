@@ -222,6 +222,7 @@ fun WestlakeHome() {
     val apps = remember {
         listOf(
             AppInfo("Compose Demo", "Navigation + Retrofit + Coil + ViewModel", Color(0xFF00BCD4), "COMPOSE_DEMO", null, ""),
+            AppInfo("Noice (APK Resources)", "Production app → resources.arsc → Views", Color(0xFF26A69A), "APK_VIEW:com.github.ashutoshgngwr.noice:Noice", null, ""),
             AppInfo("Counter (APK Resources)", "Real APK → resources.arsc → Views", Color(0xFF9C27B0), "APK_VIEW:me.tsukanov.counter:Counter", null, ""),
             AppInfo("MockDonalds", "Restaurant ordering", Color(0xFFDA291C), "com.example.mockdonalds.MockApp", "init", "showMenu"),
             AppInfo("Dialer", "Phone dialer", Color(0xFF1565C0), "com.example.dialer.DialerEntry", null, "launch"),
