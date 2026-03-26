@@ -114,10 +114,48 @@ object ApkViewRunner {
             var inflatedView: View? = null
             try {
                 val isNoice = apkPath.contains("noice")
-                inflatedView = if (isNoice)
-                    buildNoiceLibrary(activity, table, apkPath)
-                else
-                    buildFunctionalCounter(activity, layoutData, table)
+                if (isNoice) {
+                    // For Noice: inflate library_sound_list_item from real AXML
+                    val zip2 = ZipFile(apkPath)
+                    val noiceLayout = zip2.getEntry("res/DM.xml") // library_sound_list_item
+                        ?: zip2.getEntry("res/PH.xml") // library_fragment
+                        ?: zip2.getEntry("res/0S.xml") // home_fragment
+                    if (noiceLayout != null) {
+                        val noiceXml = zip2.getInputStream(noiceLayout).readBytes()
+                        steps.add("Noice layout: ${noiceLayout.name} (${noiceXml.size} bytes)")
+                        // Inflate multiple copies to simulate a list
+                        val listRoot = LinearLayout(activity).apply {
+                            orientation = LinearLayout.VERTICAL
+                            setBackgroundColor(Color.WHITE)
+                            setPadding(24, 24, 24, 24)
+                        }
+                        listRoot.addView(TextView(activity).apply {
+                            text = "Noice library_sound_list_item.xml — inflated from real AXML"
+                            textSize = 12f; setTextColor(0xFF1565C0.toInt())
+                            setPadding(24, 12, 24, 24)
+                        })
+                        for (i in 0..4) {
+                            val itemView = inflateAxml(activity, noiceXml, table)
+                            if (itemView != null) {
+                                // Add divider
+                                listRoot.addView(View(activity).apply {
+                                    setBackgroundColor(0xFFE0E0E0.toInt())
+                                }, LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, 3).apply {
+                                    setMargins(0, 12, 0, 12)
+                                })
+                                listRoot.addView(itemView)
+                            }
+                        }
+                        inflatedView = ScrollView(activity).apply { addView(listRoot) }
+                    }
+                    zip2.close()
+                }
+                if (inflatedView == null) {
+                    inflatedView = if (isNoice)
+                        buildNoiceLibrary(activity, table, apkPath) // Fallback
+                    else
+                        buildFunctionalCounter(activity, layoutData, table)
+                }
                 steps.add("Built UI from APK resources")
                 if (inflatedView != null) {
                     steps.add("Inflated: ${inflatedView!!.javaClass.simpleName}")
@@ -400,7 +438,7 @@ object ApkViewRunner {
         val soundList = ScrollView(activity)
         val soundColumn = LinearLayout(activity).apply {
             orientation = LinearLayout.VERTICAL
-            setPadding(dp(8), dp(8), dp(8), dp(8))
+            setPadding(24, 24, 24, 24)
         }
 
         // Sound items from APK strings (find all sound-related strings)
@@ -678,36 +716,90 @@ object ApkViewRunner {
     private fun createViewForTag(context: android.content.Context, tag: String,
                                   attrs: Map<String, String>, table: SimpleResourceTable,
                                   dp: (Int) -> Int): View? {
+        val s = tag.substringAfterLast(".") // Short name
+
         val view: View = when {
-            tag.contains("RelativeLayout") -> RelativeLayout(context)
-            tag.contains("LinearLayout") -> LinearLayout(context).apply {
-                orientation = if (attrs["orientation"] == "1") LinearLayout.VERTICAL else LinearLayout.HORIZONTAL
+            // Skip non-visual
+            tag == "include" || tag == "merge" || tag == "requestFocus" || s.contains("ViewStub") -> return null
+
+            // Layouts
+            s == "LinearLayout" || tag.contains("LinearLayout") || tag.contains("ButtonBarLayout") ||
+                tag.contains("FlexboxLayout") || tag.contains("ChipGroup") || tag.contains("TextInputLayout") ||
+                tag.contains("ButtonToggleGroup") ->
+                LinearLayout(context).apply { orientation = if (attrs["orientation"] == "1") LinearLayout.VERTICAL else LinearLayout.HORIZONTAL }
+            s == "RelativeLayout" -> RelativeLayout(context)
+            tag.contains("ConstraintLayout") -> LinearLayout(context).apply {
+                orientation = LinearLayout.VERTICAL  // ConstraintLayout → vertical LinearLayout (children stack)
             }
-            tag.contains("FrameLayout") -> FrameLayout(context)
-            tag.contains("ScrollView") -> ScrollView(context)
-            tag.contains("Button") -> Button(context).apply {
-                text = resolveText(attrs["text"], table)
-                textSize = 24f
+            s == "FrameLayout" || tag.contains("FrameLayout") ||
+                tag.contains("CoordinatorLayout") || tag.contains("FragmentContainerView") ||
+                tag.contains("ContentFrameLayout") || tag.contains("FitWindows") ||
+                tag.contains("ClippableRounded") || tag.contains("TouchObserver") ->
+                FrameLayout(context)
+            s == "ScrollView" || tag.contains("ScrollView") || tag.contains("NestedScrollView") ||
+                tag.contains("RecyclerView") -> ScrollView(context)
+            tag.contains("MaterialCardView") -> FrameLayout(context).apply {
+                val bg = GradientDrawable(); bg.setColor(0xFF2D2D2D.toInt()); bg.cornerRadius = dp(12).toFloat()
+                background = bg; elevation = dp(2).toFloat()
             }
-            tag.contains("TextView") -> TextView(context).apply {
-                text = resolveText(attrs["text"], table)
-                textSize = 48f
-                gravity = Gravity.CENTER
+            tag.contains("Toolbar") || tag.contains("ActionBar") -> LinearLayout(context).apply {
+                orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL
+                setBackgroundColor(0xFF333333.toInt()); setPadding(dp(16), dp(8), dp(16), dp(8))
             }
-            tag.contains("EditText") -> android.widget.EditText(context)
-            tag.contains("ImageView") -> ImageView(context)
-            tag.contains("ListView") -> ListView(context)
-            tag.contains("include") || tag.contains("merge") -> null
-            tag.contains("ViewStub") -> null
-            else -> {
-                // Unknown tag — create a placeholder
+            tag.contains("BottomNavigationView") -> LinearLayout(context).apply {
+                orientation = LinearLayout.HORIZONTAL; setBackgroundColor(0xFF1E1E1E.toInt()); setPadding(0, dp(8), 0, dp(8))
+            }
+
+            // Text
+            s == "TextView" || tag.contains("AppCompatTextView") || tag.contains("DialogTitle") ||
+                tag.contains("CheckedTextView") || s == "Chronometer" || tag.contains("MarkdownTextView") ||
+                tag.contains("CountdownTextView") ->
                 TextView(context).apply {
-                    text = "<$tag>"
-                    textSize = 10f
-                    setTextColor(0xFF999999.toInt())
+                    text = resolveText(attrs["text"], table)
+                    textSize = attrs["textSize"]?.replace(Regex("[^0-9.]"), "")?.toFloatOrNull() ?: 14f
+                    setTextColor(0xFF212121.toInt())
                 }
+            s == "EditText" || tag.contains("TextInputEditText") -> android.widget.EditText(context).apply {
+                hint = resolveText(attrs["hint"], table)
             }
-        } ?: return null
+
+            // Buttons
+            s == "Button" || tag.contains("MaterialButton") || tag.contains("Chip") -> Button(context).apply {
+                text = resolveText(attrs["text"], table); textSize = 14f
+            }
+            s == "ImageButton" || tag.contains("CheckableImageButton") -> ImageButton(context)
+            tag.contains("FloatingActionButton") -> Button(context).apply {
+                text = "+"; textSize = 20f; setTextColor(Color.WHITE)
+                val bg = GradientDrawable(); bg.setColor(0xFF2E7D32.toInt()); bg.shape = GradientDrawable.OVAL
+                background = bg; minimumWidth = dp(56); minimumHeight = dp(56)
+            }
+            s == "ToggleButton" -> android.widget.ToggleButton(context)
+            s == "Switch" || tag.contains("SwitchCompat") || tag.contains("MaterialSwitch") -> android.widget.Switch(context)
+            s == "CheckBox" -> android.widget.CheckBox(context)
+            s == "RadioButton" -> android.widget.RadioButton(context)
+
+            // Images
+            s == "ImageView" || tag.contains("SVGImageView") || tag.contains("PreferenceImageView") ->
+                ImageView(context).apply { minimumHeight = dp(40); setBackgroundColor(0x11FFFFFF) }
+
+            // Lists
+            s == "ListView" || tag.contains("MenuView") -> ListView(context)
+            s == "GridView" || tag.contains("CalendarGridView") -> android.widget.GridView(context)
+            s == "Spinner" -> android.widget.Spinner(context)
+
+            // Progress
+            s == "ProgressBar" || tag.contains("CircularProgressIndicator") -> android.widget.ProgressBar(context)
+            s == "SeekBar" || tag.contains("Slider") || tag.contains("VolumeSlider") -> android.widget.SeekBar(context)
+
+            // Spacer
+            s == "Space" -> android.widget.Space(context)
+            s == "View" || s == "view" -> View(context)
+
+            // Unknown → small placeholder
+            else -> TextView(context).apply {
+                text = "<$s>"; textSize = 9f; setTextColor(0xFF666666.toInt()); setPadding(dp(2), dp(1), dp(2), dp(1))
+            }
+        }
 
         // Apply common attributes
         val width = when (attrs["layout_width"]) {
