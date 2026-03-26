@@ -56,9 +56,23 @@ MockDonalds app runs the full Android Activity lifecycle on ART:
 
 | Platform | Runtime | FPS | Touch | Views | Status |
 |----------|---------|-----|-------|-------|--------|
-| x86_64 host | ART (AOT) | 60 | N/A | Headless draw log | 14/14 tests pass |
+| x86_64 host | ART A11 (AOT) | 60 | N/A | Headless draw log | 14/14 tests pass |
+| x86_64 host | ART A15 (interpreter) | N/A | N/A | Headless | fib(40)=21s, correct |
 | ARM64 on phone | dalvikvm | 120 | Yes | Canvas rendering | Working |
 | Mate 20 Pro native | Android 10 ART | Native | Yes | Real Android Views | Working |
+
+### A15 ART Interpreter Benchmarks (x86-64, imageless mode, 2026-03-26)
+
+| Benchmark | Time | Per-op |
+|-----------|------|--------|
+| fib(40) | 21,197 ms | recursive calls |
+| 10M method calls | 564 ms | 56 ns/call |
+| 100M loop iterations | 2,177 ms | 22 ns/iter |
+| 1M object allocations | 63 ms | 63 ns/alloc |
+| 10M field accesses | 218 ms | 22 ns/access |
+
+**Note:** These are interpreter-only numbers (no AOT/JIT). With AOT compilation,
+expect 10-50x improvement based on Android 11 ART experience.
 
 ---
 
