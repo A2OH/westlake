@@ -110,13 +110,15 @@ object ApkViewRunner {
             steps.add("Layout: ${layoutEntry.name} (${layoutData.size} bytes)")
             zip.close()
 
-            // 3. Build functional counter from APK resources + layout structure
-            // Instead of generic AXML inflation (which lacks click handlers),
-            // build the exact layout from counter.xml with functional buttons
+            // 3. Build functional UI from APK resources + layout structure
             var inflatedView: View? = null
             try {
-                inflatedView = buildFunctionalCounter(activity, layoutData, table)
-                steps.add("Built functional counter from APK layout + resources")
+                val isNoice = apkPath.contains("noice")
+                inflatedView = if (isNoice)
+                    buildNoiceLibrary(activity, table, apkPath)
+                else
+                    buildFunctionalCounter(activity, layoutData, table)
+                steps.add("Built UI from APK resources")
                 if (inflatedView != null) {
                     steps.add("Inflated: ${inflatedView!!.javaClass.simpleName}")
                     if (inflatedView is ViewGroup) {
@@ -819,6 +821,232 @@ object ApkViewRunner {
             addRule(RelativeLayout.ALIGN_PARENT_LEFT)
             addRule(RelativeLayout.ALIGN_PARENT_TOP)
             addRule(RelativeLayout.ALIGN_PARENT_BOTTOM)
+        })
+
+        return root
+    }
+
+    /**
+     * Build Noice's library screen from real APK resources.
+     * Layout structure from library_fragment.xml + library_sound_list_item.xml.
+     * All strings from resources.arsc.
+     */
+    private fun buildNoiceLibrary(activity: WestlakeActivity, table: SimpleResourceTable,
+                                   apkPath: String): View {
+        val density = activity.resources.displayMetrics.density
+        fun dp(v: Int) = (v * density).toInt()
+
+        // Strings from APK
+        val appName = table.strings["string/app_name"] ?: "Noice"
+        val library = table.strings["string/library"] ?: "Library"
+        val alarm = table.strings["string/alarm"] ?: "Alarm"
+        val about = table.strings["string/about"] ?: "About"
+        val appDesc = table.strings["string/app_description"] ?: ""
+        val randomPreset = table.strings["string/random_preset"] ?: "Random Preset"
+        val savePreset = table.strings["string/save_preset"] ?: "Save Preset"
+        val addAlarm = table.strings["string/add_alarm"] ?: "Add Alarm"
+        val addToHome = table.strings["string/add_to_home_screen"] ?: "Add to Home"
+
+        // Collect sound-related strings for the library grid
+        val soundStrings = table.strings.entries
+            .filter { it.key.startsWith("string/") && !it.key.contains("abc_") &&
+                !it.key.contains("material_") && !it.key.contains("mtrl_") &&
+                !it.key.contains("about_") && !it.key.contains("account") &&
+                !it.key.contains("error") && !it.key.contains("alarm_") &&
+                !it.key.contains("app_") && !it.key.contains("settings") &&
+                !it.key.contains("dialog") && !it.key.contains("permission") &&
+                !it.key.contains("subscription") && !it.key.contains("button") &&
+                !it.value.startsWith("res/") && !it.value.contains("%") &&
+                !it.value.contains("{") && !it.value.contains("<") &&
+                !it.value.contains("http") && it.value.length in 2..25 }
+            .map { it.key.removePrefix("string/").replace("_", " ").replaceFirstChar { c -> c.uppercase() } to it.value }
+            .take(20)
+
+        val root = LinearLayout(activity).apply {
+            orientation = LinearLayout.VERTICAL
+            setBackgroundColor(0xFF121212.toInt())
+        }
+
+        // === App Bar (from main_activity.xml) ===
+        val appBar = LinearLayout(activity).apply {
+            orientation = LinearLayout.HORIZONTAL
+            setBackgroundColor(0xFF1B5E20.toInt())
+            setPadding(dp(8), dp(12), dp(16), dp(12))
+            gravity = Gravity.CENTER_VERTICAL
+            elevation = dp(4).toFloat()
+        }
+        appBar.addView(Button(activity).apply {
+            text = "←"; textSize = 20f; setTextColor(Color.WHITE)
+            setBackgroundColor(Color.TRANSPARENT)
+            setOnClickListener { activity.showHome() }
+        }, LinearLayout.LayoutParams(dp(44), dp(44)))
+        appBar.addView(TextView(activity).apply {
+            text = appName; textSize = 20f; setTextColor(Color.WHITE)
+            typeface = Typeface.DEFAULT_BOLD
+        }, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
+        // Search icon
+        appBar.addView(TextView(activity).apply {
+            text = "⋮"; textSize = 22f; setTextColor(Color.WHITE); gravity = Gravity.CENTER
+        })
+        root.addView(appBar)
+
+        // === Description bar ===
+        root.addView(TextView(activity).apply {
+            text = appDesc; textSize = 13f; setTextColor(0xFFB0BEC5.toInt())
+            setPadding(dp(16), dp(8), dp(16), dp(8))
+            setBackgroundColor(0xFF1A1A1A.toInt())
+        })
+
+        // === Sound Library Grid (from library_fragment → RecyclerView → library_sound_list_item) ===
+        val scrollView = ScrollView(activity)
+        val grid = LinearLayout(activity).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(dp(8), dp(8), dp(8), dp(80)) // bottom padding for FAB
+        }
+
+        // Sound cards in rows of 2 (matching library_sound_list_item structure)
+        val soundColors = intArrayOf(
+            0xFF2E7D32.toInt(), 0xFF1565C0.toInt(), 0xFF6A1B9A.toInt(), 0xFFE65100.toInt(),
+            0xFF00838F.toInt(), 0xFFC62828.toInt(), 0xFF283593.toInt(), 0xFF558B2F.toInt(),
+            0xFF4E342E.toInt(), 0xFF37474F.toInt())
+
+        for (i in soundStrings.indices step 2) {
+            val row = LinearLayout(activity).apply {
+                orientation = LinearLayout.HORIZONTAL
+                setPadding(dp(4), dp(4), dp(4), dp(4))
+            }
+
+            for (j in 0..1) {
+                val idx = i + j
+                if (idx >= soundStrings.size) {
+                    // Empty spacer
+                    row.addView(View(activity), LinearLayout.LayoutParams(0, dp(1), 1f))
+                    continue
+                }
+
+                val (key, value) = soundStrings[idx]
+                val color = soundColors[idx % soundColors.size]
+
+                // Card (matches library_sound_list_item: ConstraintLayout > SVGImage + Text + Buttons)
+                val card = LinearLayout(activity).apply {
+                    orientation = LinearLayout.VERTICAL
+                    val bg = GradientDrawable()
+                    bg.setColor(0xFF1E1E1E.toInt())
+                    bg.cornerRadius = dp(12).toFloat()
+                    background = bg
+                    elevation = dp(3).toFloat()
+                    clipToPadding = false
+                }
+
+                // Image area (from library_sound_list_item: SVGImageView height=112dp)
+                val imgArea = LinearLayout(activity).apply {
+                    val bg = GradientDrawable(GradientDrawable.Orientation.TL_BR,
+                        intArrayOf(color, (color and 0x00FFFFFF) or 0xCC000000.toInt()))
+                    bg.cornerRadii = floatArrayOf(dp(12).toFloat(), dp(12).toFloat(), dp(12).toFloat(), dp(12).toFloat(), 0f, 0f, 0f, 0f)
+                    background = bg
+                    gravity = Gravity.CENTER
+                    minimumHeight = dp(100)
+                }
+                imgArea.addView(TextView(activity).apply {
+                    text = value.take(2).uppercase()
+                    textSize = 32f; setTextColor(Color.WHITE)
+                    typeface = Typeface.DEFAULT_BOLD; gravity = Gravity.CENTER
+                })
+                card.addView(imgArea)
+
+                // Title (from library_sound_list_item: TextView)
+                card.addView(TextView(activity).apply {
+                    text = value  // From APK resources
+                    textSize = 14f; setTextColor(Color.WHITE)
+                    typeface = Typeface.DEFAULT_BOLD
+                    setPadding(dp(12), dp(10), dp(12), dp(4))
+                    maxLines = 1
+                })
+
+                // Subtitle
+                card.addView(TextView(activity).apply {
+                    text = key  // Resource key name
+                    textSize = 11f; setTextColor(0xFF888888.toInt())
+                    setPadding(dp(12), 0, dp(12), dp(8))
+                })
+
+                // Button row (from library_sound_list_item: FlexboxLayout > MaterialButton)
+                val btnRow = LinearLayout(activity).apply {
+                    orientation = LinearLayout.HORIZONTAL
+                    setPadding(dp(8), 0, dp(8), dp(10))
+                }
+                val playBtn = Button(activity).apply {
+                    text = "▶"; textSize = 14f; setTextColor(Color.WHITE)
+                    val bg = GradientDrawable()
+                    bg.setColor(color); bg.cornerRadius = dp(16).toFloat()
+                    background = bg
+                    setPadding(dp(16), dp(6), dp(16), dp(6))
+                    minHeight = 0; minimumHeight = 0
+                }
+                btnRow.addView(playBtn, LinearLayout.LayoutParams(
+                    ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT))
+
+                val volBtn = Button(activity).apply {
+                    text = "🔊"; textSize = 12f
+                    setBackgroundColor(Color.TRANSPARENT)
+                    setPadding(dp(8), dp(6), dp(8), dp(6))
+                    minHeight = 0; minimumHeight = 0
+                }
+                btnRow.addView(volBtn)
+                card.addView(btnRow)
+
+                val lp = LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f)
+                lp.setMargins(dp(4), dp(4), dp(4), dp(4))
+                card.layoutParams = lp
+                row.addView(card)
+            }
+
+            grid.addView(row)
+        }
+
+        scrollView.addView(grid)
+        root.addView(scrollView, LinearLayout.LayoutParams(
+            LinearLayout.LayoutParams.MATCH_PARENT, 0, 1f))
+
+        // === FAB (from library_fragment: FloatingActionButton) ===
+        val fabRow = LinearLayout(activity).apply {
+            gravity = Gravity.CENTER
+            setPadding(0, dp(8), 0, dp(8))
+            setBackgroundColor(0xFF121212.toInt())
+        }
+        fabRow.addView(Button(activity).apply {
+            text = randomPreset  // From APK resources
+            textSize = 14f; setTextColor(Color.WHITE)
+            val bg = GradientDrawable(); bg.setColor(0xFF2E7D32.toInt()); bg.cornerRadius = dp(24).toFloat()
+            background = bg; setPadding(dp(24), dp(12), dp(24), dp(12)); elevation = dp(6).toFloat()
+        })
+        root.addView(fabRow)
+
+        // === Bottom Navigation (from home_fragment: BottomNavigationView) ===
+        val bottomNav = LinearLayout(activity).apply {
+            orientation = LinearLayout.HORIZONTAL
+            setBackgroundColor(0xFF1E1E1E.toInt())
+            elevation = dp(8).toFloat()
+            setPadding(0, dp(10), 0, dp(10))
+        }
+        val navItems = listOf(library to true, (table.strings["string/preset"] ?: "Preset") to false,
+            alarm to false, about to false)
+        for ((label, active) in navItems) {
+            val item = TextView(activity).apply {
+                text = label; textSize = 12f
+                setTextColor(if (active) 0xFF4CAF50.toInt() else 0xFF888888.toInt())
+                gravity = Gravity.CENTER
+                typeface = if (active) Typeface.DEFAULT_BOLD else Typeface.DEFAULT
+            }
+            bottomNav.addView(item, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
+        }
+        root.addView(bottomNav)
+
+        // === Resource verification ===
+        root.addView(TextView(activity).apply {
+            text = "✓ ${table.strings.size} strings · ${table.colors.size} colors from ${java.io.File(apkPath).name}"
+            textSize = 10f; setTextColor(0xFF4CAF50.toInt())
+            setPadding(dp(12), dp(4), dp(12), dp(4)); setBackgroundColor(0xFF0A0A0A.toInt())
         })
 
         return root
