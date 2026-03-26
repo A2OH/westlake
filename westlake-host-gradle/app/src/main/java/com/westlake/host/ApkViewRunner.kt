@@ -114,48 +114,10 @@ object ApkViewRunner {
             var inflatedView: View? = null
             try {
                 val isNoice = apkPath.contains("noice")
-                if (isNoice) {
-                    // For Noice: inflate library_sound_list_item from real AXML
-                    val zip2 = ZipFile(apkPath)
-                    val noiceLayout = zip2.getEntry("res/DM.xml") // library_sound_list_item
-                        ?: zip2.getEntry("res/PH.xml") // library_fragment
-                        ?: zip2.getEntry("res/0S.xml") // home_fragment
-                    if (noiceLayout != null) {
-                        val noiceXml = zip2.getInputStream(noiceLayout).readBytes()
-                        steps.add("Noice layout: ${noiceLayout.name} (${noiceXml.size} bytes)")
-                        // Inflate multiple copies to simulate a list
-                        val listRoot = LinearLayout(activity).apply {
-                            orientation = LinearLayout.VERTICAL
-                            setBackgroundColor(Color.WHITE)
-                            setPadding(24, 24, 24, 24)
-                        }
-                        listRoot.addView(TextView(activity).apply {
-                            text = "Noice library_sound_list_item.xml — inflated from real AXML"
-                            textSize = 12f; setTextColor(0xFF1565C0.toInt())
-                            setPadding(24, 12, 24, 24)
-                        })
-                        for (i in 0..4) {
-                            val itemView = inflateAxml(activity, noiceXml, table)
-                            if (itemView != null) {
-                                // Add divider
-                                listRoot.addView(View(activity).apply {
-                                    setBackgroundColor(0xFFE0E0E0.toInt())
-                                }, LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, 3).apply {
-                                    setMargins(0, 12, 0, 12)
-                                })
-                                listRoot.addView(itemView)
-                            }
-                        }
-                        inflatedView = ScrollView(activity).apply { addView(listRoot) }
-                    }
-                    zip2.close()
-                }
-                if (inflatedView == null) {
-                    inflatedView = if (isNoice)
-                        buildNoiceLibrary(activity, table, apkPath) // Fallback
-                    else
-                        buildFunctionalCounter(activity, layoutData, table)
-                }
+                inflatedView = if (isNoice)
+                    buildNoiceLibrary(activity, table, apkPath)
+                else
+                    buildFunctionalCounter(activity, layoutData, table)
                 steps.add("Built UI from APK resources")
                 if (inflatedView != null) {
                     steps.add("Inflated: ${inflatedView!!.javaClass.simpleName}")
@@ -658,11 +620,11 @@ object ApkViewRunner {
                         val attrValue = when (aDataType) {
                             0x03 -> if (aData in strings.indices) strings[aData] else "$aData"
                             0x10 -> "$aData"
-                            0x12 -> if (aData != 0) "true" else "false" // -1 (0xFFFFFFFF) = true
-                            0x01 -> "@0x${aData.toString(16)}"
+                            0x12 -> if (aData != 0) "true" else "false"
+                            0x01 -> { // Resource reference — resolve via ResourceTable
+                                resolveResourceId(aData, table) ?: "@0x${aData.toString(16)}"
+                            }
                             0x05 -> {
-                                // AXML dimension: data = (value << 8) | (unit)
-                                // unit: 0=px, 1=dp, 2=sp, 3=pt, 4=in, 5=mm
                                 val rawValue = (aData ushr 8).toFloat()
                                 val unit = aData and 0xF
                                 val unitStr = when (unit) { 0 -> "px"; 1 -> "dp"; 2 -> "sp"; else -> "px" }
@@ -1152,30 +1114,18 @@ object ApkViewRunner {
         return dp(num.toInt())
     }
 
+    /** Resolve a resource ID (0x7f0xxxxx) to its string value */
+    private fun resolveResourceId(resId: Int, table: SimpleResourceTable): String? {
+        return table.idToString[resId]
+    }
+
     /** Resolve text: if it's a resource reference like @0x7f0c0026, look up in table */
     private fun resolveText(raw: String?, table: SimpleResourceTable): String {
         if (raw == null) return ""
-        if (!raw.startsWith("@0x")) return raw
-        // Find string by scanning all entries (brute force but works)
-        val targetId = raw.removePrefix("@").toLongOrNull(16)?.toInt() ?: return raw
-        // The table has strings keyed by "string/name" — we need to scan by ID
-        // Use engine classloader to resolve
-        val activity = WestlakeActivity.instance ?: return raw
-        val cl = activity.engineClassLoader ?: return raw
-        try {
-            val tableClass = cl.loadClass("android.content.res.ResourceTable")
-            val rtable = tableClass.newInstance()
-            val apkPath = table.strings.values.firstOrNull()?.let { "" } ?: return raw
-            // We already have parsed table — scan strings for matching resource names
-            // Actually, the SimpleResourceTable doesn't have ID lookup
-            // Just return known values for counter app
-            return when (targetId) {
-                0x7f0c0026 -> table.strings["string/plus"] ?: "+"
-                0x7f0c0025 -> table.strings["string/minus"] ?: "-"
-                else -> raw
-            }
-        } catch (_: Exception) {}
-        return raw
+        if (!raw.startsWith("@0x") && !raw.startsWith("@")) return raw
+        val hex = raw.removePrefix("@0x").removePrefix("@")
+        val targetId = hex.toLongOrNull(16)?.toInt() ?: return raw
+        return table.idToString[targetId] ?: raw
     }
 
     /** Get layout file path from resource table */
@@ -1332,7 +1282,8 @@ object ApkViewRunner {
 
     data class SimpleResourceTable(
         val strings: Map<String, String>,
-        val colors: Map<String, Int>
+        val colors: Map<String, Int>,
+        val idToString: Map<Int, String> = emptyMap() // resource ID → string value
     )
 
     private fun parseResourceTable(data: ByteArray): SimpleResourceTable? {
@@ -1350,27 +1301,32 @@ object ApkViewRunner {
 
             val strings = mutableMapOf<String, String>()
             val colors = mutableMapOf<String, Int>()
+            val idToString = mutableMapOf<Int, String>()
 
             // Scan resource IDs
-            for (type in 1..20) {
-                for (entry in 0..300) {
+            val getResourceName = tableClass.getMethod("getResourceName", Int::class.javaPrimitiveType)
+            val getString = tableClass.getMethod("getString", Int::class.javaPrimitiveType)
+            val getColor = tableClass.getMethod("getColor", Int::class.javaPrimitiveType)
+
+            for (type in 1..25) {
+                for (entry in 0..500) {
                     val id = 0x7f000000 or (type shl 16) or entry
-                    val name = tableClass.getMethod("getResourceName", Int::class.javaPrimitiveType)
-                        .invoke(table, id) as? String ?: continue
-                    val strVal = tableClass.getMethod("getString", Int::class.javaPrimitiveType)
-                        .invoke(table, id) as? String
+                    val name = getResourceName.invoke(table, id) as? String ?: continue
+                    val strVal = getString.invoke(table, id) as? String
+                    if (strVal != null && !strVal.startsWith("res/")) {
+                        idToString[id] = strVal
+                    }
                     if (strVal != null && name.startsWith("string/") && !strVal.startsWith("res/")) {
                         strings[name] = strVal
                     }
                     if (name.startsWith("color/")) {
-                        val color = tableClass.getMethod("getColor", Int::class.javaPrimitiveType)
-                            .invoke(table, id) as? Int ?: 0
+                        val color = getColor.invoke(table, id) as? Int ?: 0
                         if (color != 0) colors[name] = color
                     }
                 }
             }
 
-            return SimpleResourceTable(strings, colors)
+            return SimpleResourceTable(strings, colors, idToString)
         } catch (e: Exception) {
             Log.e(TAG, "parseResourceTable failed", e)
             return null
