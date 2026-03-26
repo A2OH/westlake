@@ -1,7 +1,7 @@
 # Westlake Engine — Status Report
 
 **Date:** 2026-03-25
-**Status:** Jetpack Compose + multi-app platform on Huawei Mate 20 Pro
+**Status:** Jetpack Compose + real APK resource loading + multi-app platform on Huawei Mate 20 Pro
 
 ---
 
@@ -104,6 +104,63 @@ natively, no reflection hacks needed.
 | ShimCompat | Reflection-based framework compat |
 | OHBridge Java side | 170 JNI method declarations |
 | Compose gallery UI | MaterialTheme, LazyColumn, Cards |
+
+### Milestone: Real APK Resource Loading (2026-03-25)
+
+Real published APK UI rendered inside Westlake from resources.arsc + binary XML:
+
+```
+APK ZIP → resources.arsc → ResourceTable → getString/getColor/getDimension
+APK ZIP → res/layout/counter.xml → AXML parser → View tree → display
+```
+
+**Tested with:**
+- **Simple Counter** (F-Droid, 737KB): 59 strings, 110 integers, counter.xml inflated
+- **Noice** (F-Droid, 5.1MB): 1640 strings, 2200 integers, 100+ layouts parsed
+- **Huawei Calculator** (system, 1MB): 272 strings, 1113 integers, layouts resolved
+
+**Pipeline components:**
+| Component | What it does | Lines |
+|-----------|-------------|-------|
+| ResourceTable.java | Parses resources.arsc binary format | 601 |
+| ResourceTableParser.java | Convenience wrapper | 209 |
+| ApkResourceLoader.java | Extracts resources from APK ZIP | 112 |
+| ApkViewRunner.kt | AXML parser + View creation in Kotlin | 400+ |
+| BinaryXmlParser.java | Compiled XML parser (AXML) | 762 |
+
+**What works:**
+- String resolution: `R.string.app_name` → "Simple Counter"
+- Color resolution: `R.color.bg_dark` → #FFF1F1F1
+- Layout file resolution: `R.layout.counter` → "res/layout-xlarge-land-v4/counter.xml"
+- Binary XML inflation: AXML → RelativeLayout + Button + TextView
+- Resource references: `@0x7f0c0026` → "string/plus" → "+"
+- Functional buttons with click handlers from layout structure
+
+**Full production stack verified on phone:**
+| Feature | Library | Status |
+|---------|---------|--------|
+| Compose UI | Material 3 + Foundation | ✅ Native |
+| Navigation | navigation-compose 2.7.5 | ✅ Multi-screen |
+| REST API | Retrofit 2.9 + OkHttp 4.12 | ✅ Dog images fetched |
+| Image loading | Coil 2.5 | ✅ Async display |
+| State management | ViewModel + Compose State | ✅ Counter persists |
+| JSON parsing | Gson 2.10 | ✅ API responses |
+| Coroutines | kotlinx-coroutines 1.7.3 | ✅ Async operations |
+| SQLite | Bridge to phone's real SQLite | ✅ Reflection bridge |
+| Network | java.net.HttpURLConnection | ✅ Works natively |
+| resources.arsc | ResourceTable parser | ✅ 1640+ strings from real APK |
+| Binary XML | AXML parser in Kotlin | ✅ Layout inflated |
+
+### Remaining Gaps for Production APKs
+
+| Gap | What's needed | Effort |
+|-----|--------------|--------|
+| Full AXML → View inflation | Handle all View types + all attributes | 2 weeks |
+| Resource ID resolver | Map R.string.xxx int IDs to values at runtime | 1 week |
+| Multi-Activity | Read AndroidManifest, manage Activity stack | 2 weeks |
+| Fragments | FragmentManager for real apps | 2 weeks |
+| RecyclerView | Most production lists use this | 1 week |
+| Runtime permissions | requestPermissions flow | 1 week |
 
 ### OHOS Port Path
 
