@@ -57,22 +57,22 @@ MockDonalds app runs the full Android Activity lifecycle on ART:
 | Platform | Runtime | FPS | Touch | Views | Status |
 |----------|---------|-----|-------|-------|--------|
 | x86_64 host | ART A11 (AOT) | 60 | N/A | Headless draw log | 14/14 tests pass |
-| x86_64 host | ART A15 (interpreter) | N/A | N/A | Headless | fib(40)=21s, correct |
+| x86_64 host | ART A15 (switch interp) | N/A | N/A | Headless | fib(40)=15.9s, correct |
 | ARM64 on phone | dalvikvm | 120 | Yes | Canvas rendering | Working |
 | Mate 20 Pro native | Android 10 ART | Native | Yes | Real Android Views | Working |
 
-### A15 ART Interpreter Benchmarks (x86-64, imageless mode, 2026-03-26)
+### A15 ART Interpreter Benchmarks (x86-64, imageless mode)
 
-| Benchmark | Time | Per-op |
-|-----------|------|--------|
-| fib(40) | 21,197 ms | recursive calls |
-| 10M method calls | 564 ms | 56 ns/call |
-| 100M loop iterations | 2,177 ms | 22 ns/iter |
-| 1M object allocations | 63 ms | 63 ns/alloc |
-| 10M field accesses | 218 ms | 22 ns/access |
+| Benchmark | Forced Interp (3/26) | Switch Interp (3/27) | Speedup |
+|-----------|---------------------|---------------------|---------|
+| fib(40) | 21,030 ms | 15,897 ms | 1.32x |
+| 10M method calls | 557 ms | 400 ms | 1.39x |
+| 100M loop iters | 1,668 ms | 1,590 ms | 1.05x |
+| 1M object allocs | 64 ms | 60 ms | 1.07x |
 
-**Note:** These are interpreter-only numbers (no AOT/JIT). With AOT compilation,
-expect 10-50x improvement based on Android 11 ART experience.
+**Root cause (3/27):** ExecuteNterpImpl was a no-op stub. Fix: disable nterp, use
+switch interpreter. VarHandle cascade prevented by atomic-patch.dex (Unsafe-based
+AtomicInteger/Long/Boolean). JIT blocked by VarHandle — 34 classes need patching.
 
 ---
 
