@@ -175,7 +175,7 @@ public class MockDonaldsApp {
 
         while (true) {
             try {
-                Thread.sleep(4); // short sleep — render time fills the rest of 16ms frame budget
+                Thread.sleep(1); // minimal sleep — render time fills the 16ms frame budget
             } catch (InterruptedException e) {
                 break;
             }

@@ -155,30 +155,33 @@ public class Activity extends Context {
         }
     }
 
+    private boolean mLayoutDone = false;
+    private android.view.View mLastDecorView = null;
+
     public void renderFrame() {
         if (mSurfaceCtx == 0 || mWindow == null) return;
 
         android.view.View decorView = mWindow.getDecorView();
         if (decorView == null) return;
 
-        // Apply default Holo-Light theme to widgets that have no drawables
-        DefaultTheme.applyToViewTree(decorView);
-
-        // Layout at 3x surface height so scrollable content extends below the fold.
-        // Using EXACTLY so LinearLayout weight distribution works correctly.
-        int layoutHeight = mSurfaceHeight * 3;
-        int wSpec = android.view.View.MeasureSpec.makeMeasureSpec(mSurfaceWidth, android.view.View.MeasureSpec.EXACTLY);
-        int hSpec = android.view.View.MeasureSpec.makeMeasureSpec(layoutHeight, android.view.View.MeasureSpec.EXACTLY);
-        decorView.measure(wSpec, hSpec);
-        decorView.layout(0, 0, mSurfaceWidth, layoutHeight);
+        // Only measure/layout when needed (content changed, not just scrolling)
+        if (!mLayoutDone || decorView != mLastDecorView) {
+            DefaultTheme.applyToViewTree(decorView);
+            int layoutHeight = mSurfaceHeight * 3;
+            int wSpec = android.view.View.MeasureSpec.makeMeasureSpec(mSurfaceWidth, android.view.View.MeasureSpec.EXACTLY);
+            int hSpec = android.view.View.MeasureSpec.makeMeasureSpec(layoutHeight, android.view.View.MeasureSpec.EXACTLY);
+            decorView.measure(wSpec, hSpec);
+            decorView.layout(0, 0, mSurfaceWidth, layoutHeight);
+            mLayoutDone = true;
+            mLastDecorView = decorView;
+        }
 
         long canvasHandle = com.ohos.shim.bridge.OHBridge.surfaceGetCanvas(mSurfaceCtx);
         if (canvasHandle == 0) return;
 
         android.graphics.Canvas canvas = new android.graphics.Canvas(canvasHandle, mSurfaceWidth, mSurfaceHeight);
-        canvas.drawColor(DefaultTheme.COLOR_BG); // Holo Light gray #F5F5F5
+        canvas.drawColor(DefaultTheme.COLOR_BG);
 
-        // Apply scroll offset: translate canvas up by scrollY
         int scrollY = decorView.getScrollY();
         if (scrollY != 0) {
             canvas.save();
@@ -191,6 +194,9 @@ public class Activity extends Context {
 
         com.ohos.shim.bridge.OHBridge.surfaceFlush(mSurfaceCtx);
     }
+
+    /** Force re-layout on next renderFrame (call after setContentView) */
+    public void invalidateLayout() { mLayoutDone = false; }
 
     /* ── Input dispatch ── */
 
@@ -378,6 +384,7 @@ public class Activity extends Context {
     public void setContentTransitionManager(Object p0) {}
     public void setContentView(android.view.View view) {
         if (mWindow != null) mWindow.setContentView(view);
+        mLayoutDone = false; // force re-layout
     }
     public void setContentView(int layoutResID) {
         if (mWindow != null) mWindow.setContentView(layoutResID);
