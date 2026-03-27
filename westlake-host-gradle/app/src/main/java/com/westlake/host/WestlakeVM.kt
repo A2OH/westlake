@@ -1,6 +1,8 @@
 package com.westlake.host
 
 import android.graphics.BitmapFactory
+import android.graphics.Canvas
+import android.graphics.Paint
 import android.os.Environment
 import android.util.Log
 import android.view.MotionEvent
@@ -44,6 +46,22 @@ private const val WLK_HEADER_SIZE = 128
 private const val WLK_FRAME_SIZE = 480 * 800 * 4  // 1,536,000
 private const val WLK_TOTAL_SIZE = WLK_HEADER_SIZE + 2 * WLK_FRAME_SIZE
 private const val WLK_MAGIC = 0x574C4B46
+
+// Display list mode constants
+private const val DLIST_MAX_SIZE = 512 * 1024  // 512KB
+private const val WLK_DLIST_TOTAL_SIZE = WLK_HEADER_SIZE + DLIST_MAX_SIZE + 64
+
+// Display list op codes (must match ohbridge_stub.c)
+private const val OP_DRAW_COLOR      = 1
+private const val OP_DRAW_RECT       = 2
+private const val OP_DRAW_TEXT       = 3
+private const val OP_DRAW_LINE       = 4
+private const val OP_SAVE            = 5
+private const val OP_RESTORE         = 6
+private const val OP_TRANSLATE       = 7
+private const val OP_CLIP_RECT       = 8
+private const val OP_DRAW_ROUND_RECT = 9
+private const val OP_DRAW_CIRCLE     = 10
 
 object WestlakeVM {
     private const val TAG = "WestlakeVM"
@@ -112,6 +130,7 @@ object WestlakeVM {
             pb.environment()["WESTLAKE_FRAME"] = PNG_PATH
             pb.environment()["WESTLAKE_TOUCH"] = TOUCH_PATH
             pb.environment()["WESTLAKE_SHM"] = SHM_PATH
+            pb.environment()["WESTLAKE_DLIST"] = "1"
             pb.redirectErrorStream(true)
             process = pb.start()
             log.add("VM process started")
@@ -189,37 +208,196 @@ fun WestlakeVMScreen() {
             attempts++
         }
 
-        if (shmFile.exists() && shmFile.length() >= WLK_TOTAL_SIZE) {
-            // mmap the shared memory
-            val raf = RandomAccessFile(shmFile, "r")
-            val channel = raf.channel
-            val shm = channel.map(FileChannel.MapMode.READ_ONLY, 0, WLK_TOTAL_SIZE.toLong())
-            shm.order(ByteOrder.LITTLE_ENDIAN)
+        if (shmFile.exists() && shmFile.length() >= WLK_HEADER_SIZE) {
+            // Wait for header magic to be written by C side (race with shm_init)
+            var version = 0
+            for (retry in 0 until 50) {
+                val peekRaf = RandomAccessFile(shmFile, "r")
+                val peekBuf = ByteArray(32)
+                peekRaf.read(peekBuf)
+                peekRaf.close()
+                val peekBB = ByteBuffer.wrap(peekBuf).order(ByteOrder.LITTLE_ENDIAN)
+                val magic = peekBB.getInt(0)
+                version = peekBB.getInt(4)
+                if (magic == WLK_MAGIC) break
+                delay(100)
+            }
+            Log.i("WestlakeVM", "SHM version=$version, file=${shmFile.length()} bytes")
 
-            // Pre-allocate bitmap
-            val bmp = android.graphics.Bitmap.createBitmap(480, 800, android.graphics.Bitmap.Config.ARGB_8888)
-            var lastSeq = -1
+            if (version == 2 && shmFile.length() >= WLK_DLIST_TOTAL_SIZE) {
+                // ── Display list replay mode ──
+                Log.i("WestlakeVM", "Display list mode (version=2)")
+                val raf = RandomAccessFile(shmFile, "r")
+                val channel = raf.channel
+                val shm = channel.map(FileChannel.MapMode.READ_ONLY, 0, WLK_DLIST_TOTAL_SIZE.toLong())
+                shm.order(ByteOrder.LITTLE_ENDIAN)
 
-            try {
-                while (isRunning) {
-                    val seq = shm.getInt(16) // frame_seq
-                    if (seq != lastSeq) {
-                        lastSeq = seq
-                        val activeBuf = shm.getInt(20)
-                        val offset = WLK_HEADER_SIZE + activeBuf * WLK_FRAME_SIZE
+                val bmp = android.graphics.Bitmap.createBitmap(480, 800, android.graphics.Bitmap.Config.ARGB_8888)
+                val canvas = Canvas(bmp)
+                val paint = Paint(Paint.ANTI_ALIAS_FLAG)
+                var lastSeq = -1
 
-                        // Copy pixels to bitmap
-                        shm.position(offset)
-                        bmp.copyPixelsFromBuffer(shm)
+                try {
+                    while (isRunning) {
+                        val seq = shm.getInt(16) // frame_seq
+                        if (seq != lastSeq) {
+                            lastSeq = seq
+                            val listSize = shm.getInt(20) // display_list_size
 
-                        frameBitmap = bmp
-                        frameCount++
+                            // Save base state and clear canvas
+                            val baseCount = canvas.saveCount
+                            canvas.save()
+                            canvas.drawColor(android.graphics.Color.WHITE)
+
+                            // Replay display list
+                            var offset = WLK_HEADER_SIZE
+                            val endOffset = WLK_HEADER_SIZE + listSize.coerceAtMost(DLIST_MAX_SIZE)
+                            while (offset < endOffset) {
+                                val op = shm.get(offset).toInt() and 0xFF
+                                offset++
+                                when (op) {
+                                    OP_DRAW_COLOR -> {
+                                        canvas.drawColor(shm.getInt(offset))
+                                        offset += 4
+                                    }
+                                    OP_DRAW_RECT -> {
+                                        val l = shm.getFloat(offset); offset += 4
+                                        val t = shm.getFloat(offset); offset += 4
+                                        val r = shm.getFloat(offset); offset += 4
+                                        val b = shm.getFloat(offset); offset += 4
+                                        paint.color = shm.getInt(offset); offset += 4
+                                        paint.style = Paint.Style.FILL
+                                        canvas.drawRect(l, t, r, b, paint)
+                                    }
+                                    OP_DRAW_TEXT -> {
+                                        val x = shm.getFloat(offset); offset += 4
+                                        val y = shm.getFloat(offset); offset += 4
+                                        val size = shm.getFloat(offset); offset += 4
+                                        paint.textSize = size
+                                        paint.color = shm.getInt(offset); offset += 4
+                                        paint.style = Paint.Style.FILL
+                                        val len = shm.getShort(offset).toInt() and 0xFFFF; offset += 2
+                                        if (len > 0 && offset + len <= endOffset) {
+                                            val chars = ByteArray(len)
+                                            for (i in 0 until len) {
+                                                chars[i] = shm.get(offset + i)
+                                            }
+                                            offset += len
+                                            canvas.drawText(String(chars, Charsets.UTF_8), x, y, paint)
+                                        } else {
+                                            offset += len
+                                        }
+                                    }
+                                    OP_DRAW_LINE -> {
+                                        val x1 = shm.getFloat(offset); offset += 4
+                                        val y1 = shm.getFloat(offset); offset += 4
+                                        val x2 = shm.getFloat(offset); offset += 4
+                                        val y2 = shm.getFloat(offset); offset += 4
+                                        paint.color = shm.getInt(offset); offset += 4
+                                        paint.strokeWidth = shm.getFloat(offset); offset += 4
+                                        paint.style = Paint.Style.STROKE
+                                        canvas.drawLine(x1, y1, x2, y2, paint)
+                                    }
+                                    OP_SAVE -> {
+                                        canvas.save()
+                                    }
+                                    OP_RESTORE -> {
+                                        if (canvas.saveCount > baseCount + 1) canvas.restore()
+                                    }
+                                    OP_TRANSLATE -> {
+                                        val dx = shm.getFloat(offset); offset += 4
+                                        val dy = shm.getFloat(offset); offset += 4
+                                        canvas.translate(dx, dy)
+                                    }
+                                    OP_CLIP_RECT -> {
+                                        val l = shm.getFloat(offset); offset += 4
+                                        val t = shm.getFloat(offset); offset += 4
+                                        val r = shm.getFloat(offset); offset += 4
+                                        val b = shm.getFloat(offset); offset += 4
+                                        canvas.clipRect(l, t, r, b)
+                                    }
+                                    OP_DRAW_ROUND_RECT -> {
+                                        val l = shm.getFloat(offset); offset += 4
+                                        val t = shm.getFloat(offset); offset += 4
+                                        val r = shm.getFloat(offset); offset += 4
+                                        val b = shm.getFloat(offset); offset += 4
+                                        val rx = shm.getFloat(offset); offset += 4
+                                        val ry = shm.getFloat(offset); offset += 4
+                                        paint.color = shm.getInt(offset); offset += 4
+                                        paint.style = Paint.Style.FILL
+                                        canvas.drawRoundRect(l, t, r, b, rx, ry, paint)
+                                    }
+                                    OP_DRAW_CIRCLE -> {
+                                        val cx = shm.getFloat(offset); offset += 4
+                                        val cy = shm.getFloat(offset); offset += 4
+                                        val radius = shm.getFloat(offset); offset += 4
+                                        paint.color = shm.getInt(offset); offset += 4
+                                        paint.style = Paint.Style.FILL
+                                        canvas.drawCircle(cx, cy, radius, paint)
+                                    }
+                                    else -> {
+                                        Log.w("WestlakeVM", "Unknown dlist op $op at offset ${offset-1}, aborting frame")
+                                        break
+                                    }
+                                }
+                            }
+
+                            // Restore to base state (handles unbalanced save/restores)
+                            canvas.restoreToCount(baseCount)
+                            frameBitmap = bmp.copy(android.graphics.Bitmap.Config.ARGB_8888, false)
+                            frameCount++
+                        }
+                        delay(16) // ~60fps polling
                     }
-                    delay(16) // ~60fps polling
+                } finally {
+                    channel.close()
+                    raf.close()
                 }
-            } finally {
-                channel.close()
-                raf.close()
+            } else if (shmFile.length() >= WLK_TOTAL_SIZE) {
+                // ── Pixel buffer mode (version 1) ──
+                Log.i("WestlakeVM", "Pixel buffer mode (version=1)")
+                val raf = RandomAccessFile(shmFile, "r")
+                val channel = raf.channel
+                val shm = channel.map(FileChannel.MapMode.READ_ONLY, 0, WLK_TOTAL_SIZE.toLong())
+                shm.order(ByteOrder.LITTLE_ENDIAN)
+
+                val bmp = android.graphics.Bitmap.createBitmap(480, 800, android.graphics.Bitmap.Config.ARGB_8888)
+                var lastSeq = -1
+
+                try {
+                    while (isRunning) {
+                        val seq = shm.getInt(16) // frame_seq
+                        if (seq != lastSeq) {
+                            lastSeq = seq
+                            val activeBuf = shm.getInt(20)
+                            val offset = WLK_HEADER_SIZE + activeBuf * WLK_FRAME_SIZE
+
+                            // Copy pixels to bitmap
+                            shm.position(offset)
+                            bmp.copyPixelsFromBuffer(shm)
+
+                            frameBitmap = bmp
+                            frameCount++
+                        }
+                        delay(16) // ~60fps polling
+                    }
+                } finally {
+                    channel.close()
+                    raf.close()
+                }
+            } else {
+                Log.w("WestlakeVM", "SHM file too small (${shmFile.length()} bytes), falling back to PNG")
+                // Inline PNG fallback for this edge case
+                while (isRunning) {
+                    delay(80)
+                    try {
+                        val file = File(WestlakeVM.PNG_PATH)
+                        if (file.exists() && file.length() > 100) {
+                            val bmp = BitmapFactory.decodeFile(file.absolutePath)
+                            if (bmp != null) { frameBitmap = bmp; frameCount++ }
+                        }
+                    } catch (_: Exception) {}
+                }
             }
         } else {
             // Fallback to PNG polling if no shm
@@ -326,7 +504,7 @@ fun WestlakeVMScreen() {
 
             // Status bar
             Text(
-                "dalvikvm ARM64 | OHBridge → SHM/PNG → Compose | Touch → file → VM",
+                "dalvikvm ARM64 | OHBridge → DisplayList IPC → Canvas replay | Touch → file → VM",
                 fontSize = 10.sp, color = Color(0xFF4CAF50),
                 modifier = Modifier.fillMaxWidth().background(Color(0xFF0A0A0A)).padding(4.dp)
             )
