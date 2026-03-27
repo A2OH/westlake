@@ -167,31 +167,52 @@ object ApkRunner {
                 if (resumed != null) {
                     steps.add("✅ Activity launched: ${resumed.javaClass.simpleName}")
 
-                    // Get root view via getWindow().getDecorView()
+                    // Get the decor view tree structure
                     try {
                         val window = resumed.javaClass.getMethod("getWindow").invoke(resumed)
-                        if (window != null) {
-                            val decorView = window.javaClass.getMethod("getDecorView").invoke(window) as? View
-                            if (decorView != null) {
-                                steps.add("✅ Got View: ${decorView.javaClass.simpleName} ${decorView.width}x${decorView.height}")
-                                (decorView.parent as? ViewGroup)?.removeView(decorView)
-                                return RunResult(steps, contentView = decorView)
+                        val decorView = window?.javaClass?.getMethod("getDecorView")?.invoke(window)
+                        if (decorView != null) {
+                            // Describe the View tree
+                            val desc = describeShimViewTree(decorView, engineCl, "")
+                            steps.add("✅ View tree:")
+                            for (line in desc.split("\n")) {
+                                if (line.isNotBlank()) steps.add("  $line")
                             }
+
+                            // Extract text content from TextViews in the tree
+                            val texts = extractTexts(decorView, engineCl)
+                            if (texts.isNotEmpty()) {
+                                steps.add("✅ Text content:")
+                                for (t in texts) steps.add("  \"$t\"")
+                            }
+
+                            // Create a simple phone View showing the extracted content
+                            val layout = LinearLayout(activity).apply {
+                                orientation = LinearLayout.VERTICAL
+                                setPadding(24, 24, 24, 24)
+                                setBackgroundColor(android.graphics.Color.WHITE)
+                            }
+                            for (t in texts) {
+                                val tv = TextView(activity).apply {
+                                    text = t
+                                    textSize = 16f
+                                    setTextColor(android.graphics.Color.BLACK)
+                                    setPadding(0, 8, 0, 8)
+                                }
+                                layout.addView(tv)
+                            }
+                            if (texts.isEmpty()) {
+                                layout.addView(TextView(activity).apply {
+                                    text = "View tree inflated but no text content extracted"
+                                    textSize = 14f
+                                    setTextColor(android.graphics.Color.GRAY)
+                                })
+                            }
+                            return RunResult(steps, contentView = ScrollView(activity).apply { addView(layout) })
                         }
                     } catch (e: Exception) {
-                        steps.add("⚠️ getDecorView: ${e.cause?.message ?: e.message}")
+                        steps.add("⚠️ view tree: ${e.cause?.message ?: e.message}")
                     }
-
-                    // Try shimRootView
-                    try {
-                        val hostClass = engineCl.loadClass("com.westlake.host.WestlakeActivity")
-                        val shimRoot = hostClass.getField("shimRootView").get(null) as? View
-                        if (shimRoot != null) {
-                            steps.add("✅ shimRootView: ${shimRoot.javaClass.simpleName}")
-                            (shimRoot.parent as? ViewGroup)?.removeView(shimRoot)
-                            return RunResult(steps, contentView = shimRoot)
-                        }
-                    } catch (_: Exception) {}
                 } else {
                     steps.add("❌ No resumed activity")
                 }
@@ -209,6 +230,54 @@ object ApkRunner {
             steps.add("❌ Fatal: ${e.javaClass.simpleName}: ${e.message}")
             return RunResult(steps, error = e.message)
         }
+    }
+
+    /** Describe a shim View tree via reflection */
+    private fun describeShimViewTree(view: Any, cl: ClassLoader, indent: String): String {
+        val sb = StringBuilder()
+        val cls = view.javaClass
+        val name = cls.simpleName
+        var id = ""
+        try {
+            val idVal = cls.getMethod("getId").invoke(view) as? Int ?: 0
+            if (idVal != 0 && idVal != -1) id = " id=0x${Integer.toHexString(idVal)}"
+        } catch (_: Exception) {}
+        sb.append("$indent$name$id\n")
+        // Check children
+        try {
+            val countMethod = cls.getMethod("getChildCount")
+            val count = countMethod.invoke(view) as Int
+            val getChild = cls.getMethod("getChildAt", Int::class.javaPrimitiveType)
+            for (i in 0 until count) {
+                val child = getChild.invoke(view, i) ?: continue
+                sb.append(describeShimViewTree(child, cl, "$indent  "))
+            }
+        } catch (_: Exception) {}
+        return sb.toString()
+    }
+
+    /** Extract text from all TextViews in a shim View tree */
+    private fun extractTexts(view: Any, cl: ClassLoader): List<String> {
+        val texts = mutableListOf<String>()
+        try {
+            val textViewCls = cl.loadClass("android.widget.TextView")
+            if (textViewCls.isInstance(view)) {
+                val text = view.javaClass.getMethod("getText").invoke(view)
+                if (text != null && text.toString().isNotBlank()) {
+                    texts.add(text.toString())
+                }
+            }
+        } catch (_: Exception) {}
+        // Recurse children
+        try {
+            val count = view.javaClass.getMethod("getChildCount").invoke(view) as Int
+            val getChild = view.javaClass.getMethod("getChildAt", Int::class.javaPrimitiveType)
+            for (i in 0 until count) {
+                val child = getChild.invoke(view, i) ?: continue
+                texts.addAll(extractTexts(child, cl))
+            }
+        } catch (_: Exception) {}
+        return texts
     }
 }
 
