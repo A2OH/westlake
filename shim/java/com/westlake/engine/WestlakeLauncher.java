@@ -3,6 +3,7 @@ package com.westlake.engine;
 import android.app.Activity;
 import android.app.MiniServer;
 import android.app.MiniActivityManager;
+import android.app.ShimCompat;
 import android.content.ComponentName;
 import android.content.Intent;
 import com.ohos.shim.bridge.OHBridge;
@@ -54,12 +55,35 @@ public class WestlakeLauncher {
         MiniActivityManager am = server.getActivityManager();
         System.out.println("[WestlakeLauncher] MiniServer initialized");
 
-        // Load APK if provided — this parses manifest, extracts resources, registers activities
+        // Load APK resources — use pre-extracted dir if available (dalvikvm has no ZipFile JNI)
         Activity launchedActivity = null;
+        String resDir = System.getProperty("westlake.apk.resdir");
         if (apkPath != null && !apkPath.isEmpty()) {
             try {
                 System.out.println("[WestlakeLauncher] Loading APK: " + apkPath);
-                android.app.ApkInfo info = server.loadApk(apkPath);
+                System.out.println("[WestlakeLauncher] ResDir: " + resDir);
+
+                android.app.ApkInfo info;
+                if (resDir != null && new java.io.File(resDir, "resources.arsc").exists()) {
+                    // Use pre-extracted resources (host extracted them before spawning dalvikvm)
+                    info = android.app.ApkLoader.loadFromExtracted(resDir, packageName);
+                    System.out.println("[WestlakeLauncher] Loaded from pre-extracted resources");
+
+                    // Wire resources to Application (same as MiniServer.loadApk does)
+                    android.content.res.Resources res = server.getApplication().getResources();
+                    if (info.resourceTable != null) {
+                        ShimCompat.loadResourceTable(res, (android.content.res.ResourceTable) info.resourceTable);
+                        System.out.println("[WestlakeLauncher] ResourceTable wired to Application");
+                    }
+                    // Set APK path for layout inflation (LayoutInflater reads AXML from here)
+                    ShimCompat.setApkPath(res, apkPath);
+                    // Set asset dir for extracted res/ layouts
+                    if (info.assetDir != null) {
+                        ShimCompat.setAssetDir(server.getApplication().getAssets(), info.assetDir);
+                    }
+                } else {
+                    info = server.loadApk(apkPath);
+                }
                 System.out.println("[WestlakeLauncher] APK loaded: " + info);
                 System.out.println("[WestlakeLauncher]   package: " + info.packageName);
                 System.out.println("[WestlakeLauncher]   activities: " + info.activities);

@@ -14,7 +14,7 @@ import java.lang.reflect.Method;
  *
  * These helpers use reflection with try/catch so the code degrades gracefully on ART.
  */
-class ShimCompat {
+public class ShimCompat {
 
     private static final String TAG = "ShimCompat";
     private static Boolean sIsRealAndroid = null;
@@ -38,7 +38,7 @@ class ShimCompat {
     /**
      * Call Application.setPackageName(pkg) if available (shim), otherwise no-op.
      */
-    static void setPackageName(Application app, String pkg) {
+    public static void setPackageName(Application app, String pkg) {
         try {
             Method m = app.getClass().getMethod("setPackageName", String.class);
             m.setAccessible(true);
@@ -52,7 +52,7 @@ class ShimCompat {
     /**
      * Call Resources.loadResourceTable(table) if available (shim), otherwise no-op.
      */
-    static void loadResourceTable(android.content.res.Resources res, Object table) {
+    public static void loadResourceTable(android.content.res.Resources res, Object table) {
         try {
             Method m = res.getClass().getMethod("loadResourceTable",
                     android.content.res.ResourceTable.class);
@@ -67,7 +67,7 @@ class ShimCompat {
      * Call Resources.setApkPath(path) if available (shim), otherwise no-op.
      * Required for ApkResourceLoader.loadLayout() to read AXML from the APK ZIP.
      */
-    static void setApkPath(android.content.res.Resources res, String path) {
+    public static void setApkPath(android.content.res.Resources res, String path) {
         try {
             Method m = res.getClass().getMethod("setApkPath", String.class);
             m.setAccessible(true);
@@ -80,7 +80,7 @@ class ShimCompat {
     /**
      * Call AssetManager.setAssetDir(path) if available (shim), otherwise no-op.
      */
-    static void setAssetDir(android.content.res.AssetManager assets, String path) {
+    public static void setAssetDir(android.content.res.AssetManager assets, String path) {
         try {
             Method m = assets.getClass().getMethod("setAssetDir", String.class);
             m.setAccessible(true);
@@ -94,7 +94,7 @@ class ShimCompat {
      * Set a field on an Activity by name via reflection. Falls back silently if the
      * field doesn't exist (real Android's Activity has different internals).
      */
-    static void setActivityField(Activity activity, String fieldName, Object value) {
+    public static void setActivityField(Activity activity, String fieldName, Object value) {
         try {
             Field f = findField(activity.getClass(), fieldName);
             if (f != null) {

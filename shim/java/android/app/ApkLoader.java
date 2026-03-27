@@ -243,4 +243,41 @@ public class ApkLoader {
         }
         return sb.toString();
     }
+
+    /**
+     * Load APK info from pre-extracted files (no ZipFile needed).
+     * The host app extracts resources.arsc + res/ layouts before spawning dalvikvm.
+     */
+    public static ApkInfo loadFromExtracted(String resDir, String packageName) throws IOException {
+        ApkInfo info = new ApkInfo();
+        info.packageName = packageName;
+        info.extractDir = resDir;
+
+        // Parse resources.arsc
+        File resFile = new File(resDir, "resources.arsc");
+        if (resFile.exists()) {
+            try {
+                java.io.FileInputStream fis = new java.io.FileInputStream(resFile);
+                byte[] data = new byte[(int) resFile.length()];
+                fis.read(data);
+                fis.close();
+                info.resourceTable = android.content.res.ResourceTableParser.parseToTable(data);
+                System.out.println("[ApkLoader] Parsed resources.arsc from extracted dir");
+            } catch (Exception e) {
+                System.out.println("[ApkLoader] resources.arsc parse error: " + e);
+            }
+        }
+
+        // Set res dir for layout inflation
+        info.assetDir = resDir;
+
+        // Try to find launcher activity from the activity name property
+        String activity = System.getProperty("westlake.apk.activity");
+        if (activity != null && !activity.isEmpty()) {
+            info.launcherActivity = activity;
+            info.activities.add(activity);
+        }
+
+        return info;
+    }
 }

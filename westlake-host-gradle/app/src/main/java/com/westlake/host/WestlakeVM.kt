@@ -182,6 +182,31 @@ object WestlakeVM {
                 log.add("DEX extraction error: ${e.message}")
             }
 
+            // Extract resources.arsc for the shim's resource parser (no ZipFile JNI in dalvikvm)
+            val resDir = File(vmDir, "apk_res").apply { mkdirs() }
+            try {
+                val zipFile = java.util.zip.ZipFile(apkSrc)
+                for (entry in zipFile.entries()) {
+                    if (entry.name == "resources.arsc" || entry.name.startsWith("res/")) {
+                        val outFile = File(resDir, entry.name)
+                        outFile.parentFile?.mkdirs()
+                        if (!entry.isDirectory) {
+                            zipFile.getInputStream(entry).use { input ->
+                                FileOutputStream(outFile).use { out ->
+                                    val buf = ByteArray(8192)
+                                    var n: Int
+                                    while (input.read(buf).also { n = it } > 0) out.write(buf, 0, n)
+                                }
+                            }
+                        }
+                    }
+                }
+                zipFile.close()
+                log.add("Extracted resources + res/ layouts")
+            } catch (e: Exception) {
+                log.add("Resource extraction: ${e.message}")
+            }
+
             // Classpath: the APK's DEX (shim is in bootclasspath already)
             val classpath = dexPath
 
@@ -190,6 +215,7 @@ object WestlakeVM {
                 "-Dwestlake.apk.path=$apkDevicePath",
                 "-Dwestlake.apk.activity=${apkConfig.activityName}",
                 "-Dwestlake.apk.package=${apkConfig.packageName}",
+                "-Dwestlake.apk.resdir=${resDir.absolutePath}",
                 "-classpath", classpath,
                 "com.westlake.engine.WestlakeLauncher"
             )
