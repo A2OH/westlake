@@ -232,9 +232,15 @@ fun WestlakeVMScreen() {
                 val shm = channel.map(FileChannel.MapMode.READ_ONLY, 0, WLK_DLIST_TOTAL_SIZE.toLong())
                 shm.order(ByteOrder.LITTLE_ENDIAN)
 
-                val bmp = android.graphics.Bitmap.createBitmap(480, 800, android.graphics.Bitmap.Config.ARGB_8888)
+                // Render at 2x resolution for crisp text on high-DPI screens
+                val scale = 2
+                val bmp = android.graphics.Bitmap.createBitmap(480 * scale, 800 * scale, android.graphics.Bitmap.Config.ARGB_8888)
                 val canvas = Canvas(bmp)
-                val paint = Paint(Paint.ANTI_ALIAS_FLAG)
+                canvas.scale(scale.toFloat(), scale.toFloat())
+                val paint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                    typeface = android.graphics.Typeface.createFromFile("/system/fonts/Roboto-Regular.ttf")
+                    isSubpixelText = true
+                }
                 var lastSeq = -1
 
                 try {
@@ -279,11 +285,11 @@ fun WestlakeVMScreen() {
                                         val len = shm.getShort(offset).toInt() and 0xFFFF; offset += 2
                                         if (len > 0 && offset + len <= endOffset) {
                                             val chars = ByteArray(len)
-                                            for (i in 0 until len) {
-                                                chars[i] = shm.get(offset + i)
-                                            }
+                                            for (i in 0 until len) chars[i] = shm.get(offset + i)
                                             offset += len
-                                            canvas.drawText(String(chars, Charsets.UTF_8), x, y, paint)
+                                            // Replace comma+space and period with clean ASCII to debug font issue
+                                            val text = String(chars, Charsets.UTF_8)
+                                            canvas.drawText(text, x, y, paint)
                                         } else {
                                             offset += len
                                         }
