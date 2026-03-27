@@ -447,10 +447,8 @@ fun RealAppCard(app: RealAppInfo) {
             .clickable {
                 activity?.let {
                     try {
-                        val intent = android.content.Intent()
-                        intent.setClassName(app.packageName, app.activityName)
-                        intent.addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)
-                        it.startActivity(intent)
+                        val apkPath = it.packageManager.getApplicationInfo(app.packageName, 0).sourceDir
+                        it.runApkInEngine(apkPath, app.activityName, app.name)
                     } catch (e: Exception) {
                         Log.e("Westlake", "Launch ${app.name}: $e")
                     }
