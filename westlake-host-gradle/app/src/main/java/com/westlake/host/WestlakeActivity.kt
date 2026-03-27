@@ -188,19 +188,56 @@ class WestlakeActivity : ComponentActivity() {
                 override fun loadClass(name: String, resolve: Boolean): Class<*> {
                     findLoadedClass(name)?.let { return it }
                     if (name.startsWith("java.") || name.startsWith("javax.") ||
-                        name.startsWith("sun.") || name.startsWith("dalvik.system.")) {
+                        name.startsWith("sun.") || name.startsWith("dalvik.system.") ||
+                        // Use phone's versions for classes with inner class conflicts
+                        name.startsWith("android.content.ComponentName") ||
+                        name.startsWith("android.content.Intent") ||
+                        name.startsWith("android.os.Bundle") ||
+                        name.startsWith("android.os.Parcel") ||
+                        name.startsWith("android.os.IBinder") ||
+                        name.startsWith("android.content.res.Configuration")) {
                         return super.loadClass(name, resolve)
                     }
                     try {
                         val c = findClassMethod.invoke(dexLoader, name) as? Class<*>
-                        if (c != null) return c
+                        if (c != null) {
+                            if (name == "android.view.Window" || name == "android.app.Activity")
+                                Log.i(TAG, "CL: $name → DEX (abstract=${java.lang.reflect.Modifier.isAbstract(c.modifiers)})")
+                            return c
+                        }
                     } catch (_: Exception) {}
-                    return super.loadClass(name, resolve)
+                    val c = super.loadClass(name, resolve)
+                    if (name == "android.view.Window" || name == "android.app.Activity")
+                        Log.i(TAG, "CL: $name → PARENT (abstract=${java.lang.reflect.Modifier.isAbstract(c.modifiers)})")
+                    return c
                 }
             }
 
             engineClassLoader = childFirst
             Thread.currentThread().contextClassLoader = childFirst
+
+            // Pre-load critical shim classes so they're cached before any APK loads.
+            // This ensures the shim's concrete Window/Activity are used, not the phone's abstract ones.
+            // Pre-load shim classes that MUST come from our DEX (not the phone's boot CL).
+            // Exclude classes that have inner classes conflicting with the phone's versions
+            // (e.g., ComponentName$1 Comparator causes IllegalAccessError across ClassLoaders).
+            // Only include classes where the shim version differs materially from the phone's.
+            val shimClasses = listOf(
+                "android.view.Window",  // phone's is abstract, shim's is concrete
+                "android.app.Activity", // shim adds renderFrameTo, MiniServer support
+                "android.app.MiniServer", "android.app.MiniActivityManager",
+                "android.widget.LinearLayout", "android.widget.TextView",
+                "android.widget.FrameLayout", "android.widget.ListView",
+                "android.widget.Button", "android.widget.ScrollView",
+                "android.widget.BaseAdapter", "android.widget.AdapterView",
+                "android.view.ViewGroup",
+                "com.ohos.shim.bridge.OHBridge"
+            )
+            var preloaded = 0
+            for (cls in shimClasses) {
+                try { childFirst.loadClass(cls); preloaded++ } catch (_: Exception) {}
+            }
+            Log.i(TAG, "Pre-loaded $preloaded/${shimClasses.size} shim classes")
             Log.i(TAG, "Engine DEX loaded (classloader ready, apps launch on tap)")
 
         } catch (e: Exception) {

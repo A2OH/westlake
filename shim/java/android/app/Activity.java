@@ -134,6 +134,15 @@ public class Activity extends Context {
         if (mApplication != null) {
             return mApplication.getResources();
         }
+        // Fallback: use host Activity's resources (for APK loading in-process)
+        try {
+            Class<?> hostCls = Class.forName("com.westlake.host.WestlakeActivity");
+            Object hostInst = hostCls.getField("instance").get(null);
+            if (hostInst != null) {
+                return (android.content.res.Resources) hostInst.getClass()
+                    .getMethod("getResources").invoke(hostInst);
+            }
+        } catch (Exception e) {}
         return super.getResources();
     }
 
