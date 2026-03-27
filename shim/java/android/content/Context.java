@@ -185,7 +185,15 @@ public class Context {
         if (mResources == null) mResources = new Resources();
         return mResources;
     }
-    public SharedPreferences getSharedPreferences(String p0, int p1) { return SharedPreferences.getInstance(p0); }
+    public Object getSharedPreferences(String p0, int p1) {
+        // Delegate to host's real SharedPreferences (phone's is an interface, shim's is a class)
+        if (android.app.HostBridge.hasHost()) {
+            Object sp = android.app.HostBridge.call("getSharedPreferences",
+                new Class[]{String.class, int.class}, p0, p1);
+            if (sp != null) return sp;
+        }
+        return SharedPreferences.getInstance(p0);
+    }
     public Object getSystemService(String p0) {
         // Try host's real system services first (provides real WindowManager, LayoutInflater, etc.)
         if (android.app.HostBridge.hasHost()) {

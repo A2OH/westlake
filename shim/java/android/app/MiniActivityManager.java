@@ -220,6 +220,9 @@ public class MiniActivityManager {
         dispatchLifecycleEvent(r.activity, "performRestore", savedInstanceState);
         try {
             r.activity.onCreate(savedInstanceState);
+        } catch (NullPointerException e) {
+            // Non-fatal: some apps crash on null ActionBar etc. but still create valid Views
+            Log.w(TAG, "performCreate NPE (non-fatal): " + e.getMessage());
         } catch (IllegalAccessError e) {
             try {
                 java.lang.reflect.Method m = Activity.class.getDeclaredMethod("onCreate", Bundle.class);
@@ -255,6 +258,8 @@ public class MiniActivityManager {
         mResumed = r;
         try {
             r.activity.onResume();
+        } catch (NullPointerException e) {
+            Log.w(TAG, "performResume NPE (non-fatal): " + e.getMessage());
         } catch (IllegalAccessError e) {
             try {
                 java.lang.reflect.Method m = Activity.class.getDeclaredMethod("onResume");
