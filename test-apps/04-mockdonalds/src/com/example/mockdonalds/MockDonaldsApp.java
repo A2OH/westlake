@@ -172,6 +172,7 @@ public class MockDonaldsApp {
         int lastTouchY = 0;       // Y of previous touch event (for drag delta)
         int scrollOffset = 0;     // accumulated scroll offset in pixels
         int totalDragDistance = 0; // total abs Y movement in gesture (tap vs scroll)
+        android.view.View lastDecorView = null; // track content changes
 
         while (true) {
             try {
@@ -276,13 +277,14 @@ public class MockDonaldsApp {
                                     }
                                 }
                                 } // end if totalDragDistance < 20
-                                // Reset scroll when content view changes (e.g. item detail)
+                                // Reset scroll only when content view changed (e.g. item detail navigated)
                                 android.view.View newDecor = null;
                                 try { newDecor = current.getWindow().getDecorView(); } catch (Exception e4) {}
-                                if (newDecor != null) {
+                                if (newDecor != null && newDecor != lastDecorView) {
                                     newDecor.scrollTo(0, 0);
+                                    scrollOffset = 0;
+                                    lastDecorView = newDecor;
                                 }
-                                scrollOffset = 0;
                                 downTime = 0; // reset for next gesture
                             }
 

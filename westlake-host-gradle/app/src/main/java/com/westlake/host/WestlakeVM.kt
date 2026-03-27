@@ -232,14 +232,16 @@ fun WestlakeVMScreen() {
                 val shm = channel.map(FileChannel.MapMode.READ_ONLY, 0, WLK_DLIST_TOTAL_SIZE.toLong())
                 shm.order(ByteOrder.LITTLE_ENDIAN)
 
-                // Render at 2x resolution for crisp text on high-DPI screens
-                val scale = 2
-                val bmp = android.graphics.Bitmap.createBitmap(480 * scale, 800 * scale, android.graphics.Bitmap.Config.ARGB_8888)
-                val canvas = Canvas(bmp)
-                canvas.scale(scale.toFloat(), scale.toFloat())
+                // Double-buffer: draw to bmpA, display bmpB, swap each frame
+                val bmpA = android.graphics.Bitmap.createBitmap(480, 800, android.graphics.Bitmap.Config.ARGB_8888)
+                val bmpB = android.graphics.Bitmap.createBitmap(480, 800, android.graphics.Bitmap.Config.ARGB_8888)
+                var drawBmp = bmpA
+                var showBmp = bmpB
+                val canvasA = Canvas(bmpA)
+                val canvasB = Canvas(bmpB)
+                var canvas = canvasA
                 val paint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
                     typeface = android.graphics.Typeface.createFromFile("/system/fonts/Roboto-Regular.ttf")
-                    isSubpixelText = true
                 }
                 var lastSeq = -1
 
@@ -350,10 +352,13 @@ fun WestlakeVMScreen() {
 
                             // Restore to base state (handles unbalanced save/restores)
                             canvas.restoreToCount(baseCount)
-                            frameBitmap = bmp.copy(android.graphics.Bitmap.Config.ARGB_8888, false)
+                            // Swap buffers: show what we just drew, draw to the other next frame
+                            frameBitmap = drawBmp
                             frameCount++
+                            val tmp = drawBmp; drawBmp = showBmp; showBmp = tmp
+                            canvas = if (drawBmp === bmpA) canvasA else canvasB
                         }
-                        delay(16) // ~60fps polling
+                        delay(8) // fast polling
                     }
                 } finally {
                     channel.close()
@@ -385,7 +390,7 @@ fun WestlakeVMScreen() {
                             frameBitmap = bmp
                             frameCount++
                         }
-                        delay(16) // ~60fps polling
+                        delay(8) // fast polling
                     }
                 } finally {
                     channel.close()

@@ -65,7 +65,7 @@ public class MenuActivity extends Activity {
         // Logo text
         TextView logo = new TextView(ctx);
         logo.setText("M  MockDonalds");
-        logo.setTextSize(22);
+        logo.setTextSize(14);
         logo.setTextColor(GOLD_ACCENT);
         logo.setTypeface(Typeface.DEFAULT_BOLD);
         topBar.addView(logo, new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1));
@@ -80,7 +80,7 @@ public class MenuActivity extends Activity {
         cartLayout.setBackground(cartBg);
         cartBadge = new TextView(ctx);
         cartBadge.setText("Cart (" + cartCount + ")");
-        cartBadge.setTextSize(14);
+        cartBadge.setTextSize(9);
         cartBadge.setTextColor(TEXT_DARK);
         cartBadge.setTypeface(Typeface.DEFAULT_BOLD);
         cartLayout.addView(cartBadge);
@@ -91,7 +91,7 @@ public class MenuActivity extends Activity {
         // ═══ Category header ═══
         TextView catHeader = new TextView(ctx);
         catHeader.setText("OUR MENU");
-        catHeader.setTextSize(13);
+        catHeader.setTextSize(8);
         catHeader.setTextColor(TEXT_SECONDARY);
         catHeader.setTypeface(Typeface.DEFAULT_BOLD);
         catHeader.setPadding(dp(ctx,16), dp(ctx,12), dp(ctx,16), dp(ctx,4));
@@ -151,14 +151,14 @@ public class MenuActivity extends Activity {
         String emoji = getCategoryEmoji(item.category);
         TextView emojiView = new TextView(ctx);
         emojiView.setText(emoji);
-        emojiView.setTextSize(16);
+        emojiView.setTextSize(10);
         emojiView.setPadding(0, 0, dp(ctx,12), 0);
         topRow.addView(emojiView);
 
         // Name
         TextView name = new TextView(ctx);
         name.setText(item.name);
-        name.setTextSize(17);
+        name.setTextSize(11);
         name.setTextColor(TEXT_DARK);
         name.setTypeface(Typeface.DEFAULT_BOLD);
         topRow.addView(name, new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1));
@@ -166,7 +166,7 @@ public class MenuActivity extends Activity {
         // Price
         TextView price = new TextView(ctx);
         price.setText("$" + String.format("%.2f", item.price));
-        price.setTextSize(17);
+        price.setTextSize(11);
         price.setTextColor(GREEN_PRICE);
         price.setTypeface(Typeface.DEFAULT_BOLD);
         topRow.addView(price);
@@ -176,7 +176,7 @@ public class MenuActivity extends Activity {
         // Description
         TextView desc = new TextView(ctx);
         desc.setText(item.description);
-        desc.setTextSize(13);
+        desc.setTextSize(8);
         desc.setTextColor(TEXT_SECONDARY);
         desc.setPadding(dp(ctx,36), dp(ctx,4), 0, 0);
         card.addView(desc);
@@ -199,7 +199,7 @@ public class MenuActivity extends Activity {
 
         Button backBtn = new Button(ctx);
         backBtn.setText("←");
-        backBtn.setTextSize(20);
+        backBtn.setTextSize(13);
         backBtn.setTextColor(Color.WHITE);
         backBtn.setBackgroundColor(Color.TRANSPARENT);
         backBtn.setOnClickListener(new View.OnClickListener() {
@@ -209,7 +209,7 @@ public class MenuActivity extends Activity {
 
         TextView title = new TextView(ctx);
         title.setText(item.name);
-        title.setTextSize(20);
+        title.setTextSize(13);
         title.setTextColor(Color.WHITE);
         title.setTypeface(Typeface.DEFAULT_BOLD);
         topBar.addView(title);
@@ -224,13 +224,13 @@ public class MenuActivity extends Activity {
 
         TextView bigEmoji = new TextView(ctx);
         bigEmoji.setText(getCategoryEmoji(item.category));
-        bigEmoji.setTextSize(32);
+        bigEmoji.setTextSize(20);
         bigEmoji.setGravity(Gravity.CENTER);
         heroSection.addView(bigEmoji);
 
         TextView priceTag = new TextView(ctx);
         priceTag.setText("$" + String.format("%.2f", item.price));
-        priceTag.setTextSize(36);
+        priceTag.setTextSize(22);
         priceTag.setTextColor(GREEN_PRICE);
         priceTag.setTypeface(Typeface.DEFAULT_BOLD);
         priceTag.setGravity(Gravity.CENTER);
@@ -256,7 +256,7 @@ public class MenuActivity extends Activity {
 
         TextView descLabel = new TextView(ctx);
         descLabel.setText("ABOUT THIS ITEM");
-        descLabel.setTextSize(12);
+        descLabel.setTextSize(8);
         descLabel.setTextColor(TEXT_SECONDARY);
         descLabel.setTypeface(Typeface.DEFAULT_BOLD);
         descLabel.setLetterSpacing(0.1f);
@@ -264,7 +264,7 @@ public class MenuActivity extends Activity {
 
         TextView descText = new TextView(ctx);
         descText.setText(item.description);
-        descText.setTextSize(16);
+        descText.setTextSize(10);
         descText.setTextColor(TEXT_DARK);
         descText.setPadding(0, dp(ctx,8), 0, 0);
         descText.setLineSpacing(dp(ctx,4), 1);
@@ -272,7 +272,7 @@ public class MenuActivity extends Activity {
 
         TextView catText = new TextView(ctx);
         catText.setText("Category: " + item.category);
-        catText.setTextSize(14);
+        catText.setTextSize(9);
         catText.setTextColor(TEXT_SECONDARY);
         catText.setPadding(0, dp(ctx,12), 0, 0);
         descCard.addView(catText);
@@ -282,7 +282,7 @@ public class MenuActivity extends Activity {
         // Add to Cart button
         Button addBtn = new Button(ctx);
         addBtn.setText("Add to Cart - $" + String.format("%.2f", item.price));
-        addBtn.setTextSize(18);
+        addBtn.setTextSize(12);
         addBtn.setTextColor(Color.WHITE);
         addBtn.setTypeface(Typeface.DEFAULT_BOLD);
         GradientDrawable btnBg = new GradientDrawable();
