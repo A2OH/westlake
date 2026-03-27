@@ -80,6 +80,11 @@ class WestlakeActivity : ComponentActivity() {
     fun launchCustomApp(className: String, initMethod: String?, showMethod: String) {
         if (className == "WESTLAKE_VM") { Log.i(TAG, "Launching WestlakeVM screen"); setContent { WestlakeVMScreen() }; return }
         if (className == "SHIM_CANVAS") { Log.i(TAG, "Launching ShimCanvas screen"); setContent { ShimCanvasScreen() }; return }
+        if (className.startsWith("NATIVE_APK:")) {
+            val parts = className.removePrefix("NATIVE_APK:").split(":")
+            val pkg = parts[0]; val act = parts[1]; val name = parts.getOrElse(2) { pkg }
+            setContent { NativeApkScreen(pkg, act, name) }; return
+        }
         if (className == "COMPOSE_DEMO") { launchComposeDemo(); return }
         if (className.startsWith("APK_VIEW:")) {
             val parts = className.removePrefix("APK_VIEW:").split(":")
@@ -312,6 +317,8 @@ fun WestlakeHome() {
     val apps = remember {
         listOf(
             AppInfo("Shim Canvas", "Shim View tree → phone's Skia (in-process)", Color(0xFFE91E63), "SHIM_CANVAS", null, ""),
+            AppInfo("Counter (Native)", "Real APK in-process", Color(0xFF9C27B0), "NATIVE_APK:me.tsukanov.counter:me.tsukanov.counter.ui.MainActivity:Simple Counter", null, ""),
+            AppInfo("Calculator (Native)", "Huawei Calculator in-process", Color(0xFF4CAF50), "NATIVE_APK:com.huawei.calculator:com.huawei.calculator.Calculator:Calculator", null, ""),
             AppInfo("Westlake VM", "Run MockDonalds in our own ART11 (subprocess)", Color(0xFF4CAF50), "WESTLAKE_VM", null, ""),
             AppInfo("Compose Demo", "Navigation + Retrofit + Coil + ViewModel", Color(0xFF00BCD4), "COMPOSE_DEMO", null, ""),
             AppInfo("Noice (APK Resources)", "Production app → resources.arsc → Views", Color(0xFF26A69A), "APK_VIEW:com.github.ashutoshgngwr.noice:Noice", null, ""),
