@@ -69,6 +69,8 @@ public class BinaryLayoutParser {
 
     // View class name mappings (short name → full class)
     private static final Map<String, String> VIEW_CLASS_MAP = new HashMap<>();
+    // Fully-qualified name → shim class name (AndroidX, appcompat, etc.)
+    private static final Map<String, String> FQN_CLASS_MAP = new HashMap<>();
     static {
         VIEW_CLASS_MAP.put("View", "android.view.View");
         VIEW_CLASS_MAP.put("ViewGroup", "android.view.ViewGroup");
@@ -77,18 +79,46 @@ public class BinaryLayoutParser {
         VIEW_CLASS_MAP.put("RelativeLayout", "android.widget.FrameLayout"); // approximate
         VIEW_CLASS_MAP.put("ConstraintLayout", "android.widget.FrameLayout"); // approximate
         VIEW_CLASS_MAP.put("TextView", "android.widget.TextView");
-        VIEW_CLASS_MAP.put("EditText", "android.widget.TextView"); // EditText extends TextView
+        VIEW_CLASS_MAP.put("EditText", "android.widget.EditText");
         VIEW_CLASS_MAP.put("Button", "android.widget.Button");
         VIEW_CLASS_MAP.put("ImageView", "android.widget.ImageView");
         VIEW_CLASS_MAP.put("ImageButton", "android.widget.ImageView"); // approximate
         VIEW_CLASS_MAP.put("CheckBox", "android.widget.CheckBox");
         VIEW_CLASS_MAP.put("ProgressBar", "android.widget.ProgressBar");
-        VIEW_CLASS_MAP.put("ScrollView", "android.widget.FrameLayout"); // approximate
-        VIEW_CLASS_MAP.put("HorizontalScrollView", "android.widget.FrameLayout");
-        VIEW_CLASS_MAP.put("ListView", "android.widget.FrameLayout");
+        VIEW_CLASS_MAP.put("ScrollView", "android.widget.ScrollView");
+        VIEW_CLASS_MAP.put("HorizontalScrollView", "android.widget.ScrollView");
+        VIEW_CLASS_MAP.put("ListView", "android.widget.ListView");
         VIEW_CLASS_MAP.put("RecyclerView", "android.widget.FrameLayout");
         VIEW_CLASS_MAP.put("WebView", "android.webkit.WebView");
         VIEW_CLASS_MAP.put("Space", "android.view.View");
+        VIEW_CLASS_MAP.put("RadioGroup", "android.widget.LinearLayout");
+        VIEW_CLASS_MAP.put("TableLayout", "android.widget.LinearLayout");
+        VIEW_CLASS_MAP.put("TableRow", "android.widget.LinearLayout");
+        VIEW_CLASS_MAP.put("GridView", "android.widget.FrameLayout");
+
+        // AndroidX and support library fully-qualified names
+        FQN_CLASS_MAP.put("androidx.constraintlayout.widget.ConstraintLayout", "android.widget.FrameLayout");
+        FQN_CLASS_MAP.put("androidx.coordinatorlayout.widget.CoordinatorLayout", "android.widget.FrameLayout");
+        FQN_CLASS_MAP.put("androidx.drawerlayout.widget.DrawerLayout", "android.widget.FrameLayout");
+        FQN_CLASS_MAP.put("androidx.fragment.app.FragmentContainerView", "android.widget.FrameLayout");
+        FQN_CLASS_MAP.put("androidx.viewpager.widget.ViewPager", "android.widget.FrameLayout");
+        FQN_CLASS_MAP.put("androidx.viewpager2.widget.ViewPager2", "android.widget.FrameLayout");
+        FQN_CLASS_MAP.put("androidx.recyclerview.widget.RecyclerView", "android.widget.FrameLayout");
+        FQN_CLASS_MAP.put("androidx.cardview.widget.CardView", "android.widget.FrameLayout");
+        FQN_CLASS_MAP.put("androidx.core.widget.NestedScrollView", "android.widget.ScrollView");
+        FQN_CLASS_MAP.put("androidx.appcompat.widget.Toolbar", "android.widget.FrameLayout");
+        FQN_CLASS_MAP.put("androidx.appcompat.widget.AppCompatTextView", "android.widget.TextView");
+        FQN_CLASS_MAP.put("androidx.appcompat.widget.AppCompatButton", "android.widget.Button");
+        FQN_CLASS_MAP.put("androidx.appcompat.widget.AppCompatEditText", "android.widget.EditText");
+        FQN_CLASS_MAP.put("androidx.appcompat.widget.AppCompatImageView", "android.widget.ImageView");
+        FQN_CLASS_MAP.put("androidx.appcompat.widget.LinearLayoutCompat", "android.widget.LinearLayout");
+        FQN_CLASS_MAP.put("com.google.android.material.appbar.AppBarLayout", "android.widget.LinearLayout");
+        FQN_CLASS_MAP.put("com.google.android.material.appbar.MaterialToolbar", "android.widget.FrameLayout");
+        FQN_CLASS_MAP.put("com.google.android.material.bottomnavigation.BottomNavigationView", "android.widget.FrameLayout");
+        FQN_CLASS_MAP.put("com.google.android.material.floatingactionbutton.FloatingActionButton", "android.widget.ImageView");
+        FQN_CLASS_MAP.put("com.google.android.material.textfield.TextInputLayout", "android.widget.LinearLayout");
+        FQN_CLASS_MAP.put("com.google.android.material.textfield.TextInputEditText", "android.widget.EditText");
+        FQN_CLASS_MAP.put("com.google.android.material.button.MaterialButton", "android.widget.Button");
     }
 
     private String[] stringPool;
@@ -221,19 +251,26 @@ public class BinaryLayoutParser {
     private View createView(String name) {
         if (name == null) return new View();
 
-        // Strip package prefix for short name lookup
-        String shortName = name;
-        if (name.contains(".")) {
-            shortName = name.substring(name.lastIndexOf('.') + 1);
-        }
+        String fullName = null;
 
-        // Look up full class name
-        String fullName = VIEW_CLASS_MAP.get(shortName);
-        if (fullName == null && name.contains(".")) {
-            fullName = name; // already fully qualified
-        }
-        if (fullName == null) {
-            fullName = "android.view.View"; // fallback
+        if (name.contains(".")) {
+            // Check FQN map first for AndroidX/appcompat names
+            fullName = FQN_CLASS_MAP.get(name);
+            if (fullName == null) {
+                // Try short name from the end
+                String shortName = name.substring(name.lastIndexOf('.') + 1);
+                String mapped = VIEW_CLASS_MAP.get(shortName);
+                if (mapped != null) {
+                    fullName = mapped;
+                } else {
+                    fullName = name; // already fully qualified, try direct
+                }
+            }
+        } else {
+            fullName = VIEW_CLASS_MAP.get(name);
+            if (fullName == null) {
+                fullName = "android.view.View"; // fallback
+            }
         }
 
         try {
@@ -246,6 +283,15 @@ public class BinaryLayoutParser {
                 Class<?> cls = Class.forName(fullName);
                 return (View) cls.getDeclaredConstructor(Context.class).newInstance(mContext);
             } catch (Exception e2) {
+                // For unknown FQN: approximate based on name suffix
+                if (name.contains(".")) {
+                    String shortName = name.substring(name.lastIndexOf('.') + 1);
+                    if (shortName.endsWith("Layout") || shortName.contains("Container")
+                            || shortName.contains("Pager") || shortName.endsWith("Group")
+                            || shortName.endsWith("View")) {
+                        return new android.widget.FrameLayout(mContext);
+                    }
+                }
                 return new View();
             }
         }
@@ -253,14 +299,31 @@ public class BinaryLayoutParser {
 
     private boolean isViewGroup(String elemName) {
         if (elemName == null) return false;
-        String shortName = elemName.contains(".") ?
-                elemName.substring(elemName.lastIndexOf('.') + 1) : elemName;
-        String fullName = VIEW_CLASS_MAP.get(shortName);
-        if (fullName == null && elemName.contains(".")) fullName = elemName;
+
+        String fullName = null;
+        if (elemName.contains(".")) {
+            // Check FQN map first
+            fullName = FQN_CLASS_MAP.get(elemName);
+            if (fullName == null) {
+                String shortName = elemName.substring(elemName.lastIndexOf('.') + 1);
+                fullName = VIEW_CLASS_MAP.get(shortName);
+            }
+            if (fullName == null) fullName = elemName;
+        } else {
+            fullName = VIEW_CLASS_MAP.get(elemName);
+        }
         if (fullName == null) return false;
+
         try {
             return ViewGroup.class.isAssignableFrom(Class.forName(fullName));
         } catch (Exception e) {
+            // If we can't resolve the class, guess based on name
+            if (elemName.contains(".")) {
+                String shortName = elemName.substring(elemName.lastIndexOf('.') + 1);
+                return shortName.endsWith("Layout") || shortName.contains("Container")
+                        || shortName.contains("Pager") || shortName.endsWith("Group")
+                        || shortName.endsWith("View");
+            }
             return false;
         }
     }

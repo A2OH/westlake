@@ -146,8 +146,11 @@ public class Window {
     public void setColorMode(int p0) {}
     public void setContainer(Window p0) {}
     public void setContentView(int layoutResID) {
+        android.util.Log.i("Window", "setContentView(resId=0x" + Integer.toHexString(layoutResID) + ")");
         LayoutInflater inflater = LayoutInflater.from(mContext);
+        if (inflater == null) { android.util.Log.e("Window", "LayoutInflater is null!"); return; }
         View inflated = inflater.inflate(layoutResID, null);
+        android.util.Log.i("Window", "inflate result: " + (inflated != null ? inflated.getClass().getSimpleName() : "null"));
         if (inflated != null) {
             setContentView(inflated);
         }

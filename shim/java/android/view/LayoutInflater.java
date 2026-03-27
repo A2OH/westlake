@@ -1,5 +1,6 @@
 package android.view;
 import android.content.Context;
+import android.content.res.ApkResourceLoader;
 import android.content.res.BinaryXmlParser;
 import android.content.res.Resources;
 import android.content.res.ResourceTable;
@@ -58,41 +59,94 @@ public class LayoutInflater {
     }
 
     // ── View tag-to-class mapping ─────────────────────────────────────────
+    // Short name -> shim class name (for unqualified tags like "LinearLayout")
     private static final HashMap sTagClassMap = new HashMap();
+    // Fully-qualified name -> shim class name (for AndroidX, appcompat, etc.)
+    private static final HashMap sFqnClassMap = new HashMap();
     static {
         // android.view.* classes
         sTagClassMap.put("View", "android.view.View");
         sTagClassMap.put("ViewGroup", "android.view.ViewGroup");
         sTagClassMap.put("SurfaceView", "android.view.SurfaceView");
         sTagClassMap.put("TextureView", "android.view.TextureView");
+        sTagClassMap.put("ViewStub", "android.view.View");
         // android.widget.* classes
         sTagClassMap.put("LinearLayout", "android.widget.LinearLayout");
         sTagClassMap.put("RelativeLayout", "android.widget.FrameLayout"); // approximate
         sTagClassMap.put("FrameLayout", "android.widget.FrameLayout");
         sTagClassMap.put("ScrollView", "android.widget.ScrollView");
+        sTagClassMap.put("HorizontalScrollView", "android.widget.ScrollView");
         sTagClassMap.put("TextView", "android.widget.TextView");
         sTagClassMap.put("Button", "android.widget.Button");
         sTagClassMap.put("EditText", "android.widget.EditText");
         sTagClassMap.put("ImageView", "android.widget.ImageView");
+        sTagClassMap.put("ImageButton", "android.widget.ImageView");
         sTagClassMap.put("CheckBox", "android.widget.CheckBox");
         sTagClassMap.put("RadioButton", "android.widget.RadioButton");
+        sTagClassMap.put("RadioGroup", "android.widget.LinearLayout");
         sTagClassMap.put("Switch", "android.widget.Switch");
         sTagClassMap.put("SeekBar", "android.widget.SeekBar");
         sTagClassMap.put("ProgressBar", "android.widget.ProgressBar");
         sTagClassMap.put("ListView", "android.widget.ListView");
+        sTagClassMap.put("GridView", "android.widget.FrameLayout");
         sTagClassMap.put("Spinner", "android.widget.Spinner");
         sTagClassMap.put("WebView", "android.webkit.WebView");
+        sTagClassMap.put("Space", "android.view.View");
+        sTagClassMap.put("TableLayout", "android.widget.LinearLayout");
+        sTagClassMap.put("TableRow", "android.widget.LinearLayout");
         // Placeholder tags (no-op)
         sTagClassMap.put("include", null);
         sTagClassMap.put("merge", null);
         sTagClassMap.put("fragment", null);
         sTagClassMap.put("requestFocus", null);
+
+        // AndroidX and support library fully-qualified names -> shim approximations
+        // These are ViewGroups so children can be added to them
+        sFqnClassMap.put("androidx.constraintlayout.widget.ConstraintLayout", "android.widget.FrameLayout");
+        sFqnClassMap.put("androidx.coordinatorlayout.widget.CoordinatorLayout", "android.widget.FrameLayout");
+        sFqnClassMap.put("androidx.drawerlayout.widget.DrawerLayout", "android.support.v4.widget.DrawerLayout");
+        sFqnClassMap.put("androidx.fragment.app.FragmentContainerView", "android.widget.FrameLayout");
+        sFqnClassMap.put("androidx.viewpager.widget.ViewPager", "android.widget.FrameLayout");
+        sFqnClassMap.put("androidx.viewpager2.widget.ViewPager2", "android.widget.FrameLayout");
+        sFqnClassMap.put("androidx.recyclerview.widget.RecyclerView", "android.widget.FrameLayout");
+        sFqnClassMap.put("androidx.cardview.widget.CardView", "android.widget.FrameLayout");
+        sFqnClassMap.put("androidx.swiperefreshlayout.widget.SwipeRefreshLayout", "android.widget.FrameLayout");
+        sFqnClassMap.put("androidx.core.widget.NestedScrollView", "android.widget.ScrollView");
+        sFqnClassMap.put("androidx.appcompat.widget.Toolbar", "android.widget.FrameLayout");
+        sFqnClassMap.put("androidx.appcompat.widget.AppCompatTextView", "android.widget.TextView");
+        sFqnClassMap.put("androidx.appcompat.widget.AppCompatButton", "android.widget.Button");
+        sFqnClassMap.put("androidx.appcompat.widget.AppCompatEditText", "android.widget.EditText");
+        sFqnClassMap.put("androidx.appcompat.widget.AppCompatImageView", "android.widget.ImageView");
+        sFqnClassMap.put("androidx.appcompat.widget.AppCompatCheckBox", "android.widget.CheckBox");
+        sFqnClassMap.put("androidx.appcompat.widget.LinearLayoutCompat", "android.widget.LinearLayout");
+        sFqnClassMap.put("com.google.android.material.appbar.AppBarLayout", "android.widget.LinearLayout");
+        sFqnClassMap.put("com.google.android.material.appbar.CollapsingToolbarLayout", "android.widget.FrameLayout");
+        sFqnClassMap.put("com.google.android.material.appbar.MaterialToolbar", "android.widget.FrameLayout");
+        sFqnClassMap.put("com.google.android.material.bottomnavigation.BottomNavigationView", "android.widget.FrameLayout");
+        sFqnClassMap.put("com.google.android.material.floatingactionbutton.FloatingActionButton", "android.widget.ImageView");
+        sFqnClassMap.put("com.google.android.material.textfield.TextInputLayout", "android.widget.LinearLayout");
+        sFqnClassMap.put("com.google.android.material.textfield.TextInputEditText", "android.widget.EditText");
+        sFqnClassMap.put("com.google.android.material.button.MaterialButton", "android.widget.Button");
+        sFqnClassMap.put("com.google.android.material.card.MaterialCardView", "android.widget.FrameLayout");
+        sFqnClassMap.put("com.google.android.material.tabs.TabLayout", "android.widget.FrameLayout");
+        // Old support library names
+        sFqnClassMap.put("android.support.v4.widget.NestedScrollView", "android.widget.ScrollView");
+        sFqnClassMap.put("android.support.v4.widget.SwipeRefreshLayout", "android.widget.FrameLayout");
+        sFqnClassMap.put("android.support.v4.widget.DrawerLayout", "android.support.v4.widget.DrawerLayout");
+        sFqnClassMap.put("android.support.v7.widget.RecyclerView", "android.widget.FrameLayout");
+        sFqnClassMap.put("android.support.v7.widget.Toolbar", "android.widget.FrameLayout");
+        sFqnClassMap.put("android.support.v7.widget.CardView", "android.widget.FrameLayout");
+        sFqnClassMap.put("android.support.design.widget.CoordinatorLayout", "android.widget.FrameLayout");
+        sFqnClassMap.put("android.support.design.widget.AppBarLayout", "android.widget.LinearLayout");
+        sFqnClassMap.put("android.support.design.widget.FloatingActionButton", "android.widget.ImageView");
+        sFqnClassMap.put("android.support.design.widget.TabLayout", "android.widget.FrameLayout");
     }
 
     /**
      * Create a View from an XML tag name.
      * Handles fully-qualified class names ("com.example.MyView"),
      * short Android names ("LinearLayout" -> android.widget.LinearLayout),
+     * AndroidX/appcompat names (mapped to shim approximations),
      * and special tags ("include", "merge", "fragment" -> null/placeholder).
      */
     public View createViewFromTag(String tagName) {
@@ -106,11 +160,16 @@ public class LayoutInflater {
 
         String fullName = null;
 
-        // Check if it's a fully-qualified name (contains a dot)
         if (tagName.contains(".")) {
-            fullName = tagName;
+            // Fully-qualified name: check FQN map first, then try direct instantiation
+            Object mapped = sFqnClassMap.get(tagName);
+            if (mapped != null) {
+                fullName = (String) mapped;
+            } else {
+                fullName = tagName;
+            }
         } else {
-            // Look up in the tag map
+            // Short name: look up in the tag map
             Object mapped = sTagClassMap.get(tagName);
             if (mapped != null) {
                 fullName = (String) mapped;
@@ -121,28 +180,62 @@ public class LayoutInflater {
         }
 
         // Try to instantiate the view class
-        try {
-            Class cls = Class.forName(fullName);
-            // Try no-arg constructor first
-            return (View) cls.getDeclaredConstructor().newInstance();
-        } catch (Exception e) {
-            // Try Context constructor
-            try {
-                Class cls = Class.forName(fullName);
-                return (View) cls.getDeclaredConstructor(Context.class).newInstance(mContext);
-            } catch (Exception e2) {
-                // For non-widget short names, try android.view.*
-                if (!tagName.contains(".") && fullName.startsWith("android.widget.")) {
-                    try {
-                        Class cls = Class.forName("android.view." + tagName);
-                        return (View) cls.getDeclaredConstructor().newInstance();
-                    } catch (Exception e3) {
-                        // fall through
-                    }
-                }
-            }
+        View view = tryInstantiate(fullName);
+        if (view != null) return view;
+
+        // For short names, also try android.view.* prefix
+        if (!tagName.contains(".") && fullName.startsWith("android.widget.")) {
+            view = tryInstantiate("android.view." + tagName);
+            if (view != null) return view;
         }
+
+        // For fully-qualified names that failed and aren't in the FQN map,
+        // try to guess a suitable ViewGroup/View approximation from the short name
+        if (tagName.contains(".")) {
+            String shortName = tagName.substring(tagName.lastIndexOf('.') + 1);
+            // If the short name ends in "Layout", "View", etc., approximate
+            if (shortName.endsWith("Layout") || shortName.contains("Container")
+                    || shortName.contains("Pager") || shortName.endsWith("Group")) {
+                return new FrameLayout(mContext);
+            }
+            if (shortName.endsWith("Button")) {
+                view = tryInstantiate("android.widget.Button");
+                if (view != null) return view;
+            }
+            if (shortName.endsWith("TextView") || shortName.endsWith("Text")) {
+                view = tryInstantiate("android.widget.TextView");
+                if (view != null) return view;
+            }
+            if (shortName.endsWith("ImageView") || shortName.endsWith("Image")) {
+                view = tryInstantiate("android.widget.ImageView");
+                if (view != null) return view;
+            }
+            if (shortName.endsWith("EditText") || shortName.endsWith("Input")) {
+                view = tryInstantiate("android.widget.EditText");
+                if (view != null) return view;
+            }
+            // Last resort for fully-qualified: a FrameLayout (so children can be added)
+            return new FrameLayout(mContext);
+        }
+
         return null;
+    }
+
+    /**
+     * Try to instantiate a View class by name, attempting no-arg and Context constructors.
+     * Returns null if the class can't be found or instantiated.
+     */
+    private View tryInstantiate(String className) {
+        try {
+            Class cls = Class.forName(className);
+            try {
+                return (View) cls.getDeclaredConstructor().newInstance();
+            } catch (Exception e) {
+                return (View) cls.getDeclaredConstructor(Context.class).newInstance(mContext);
+            }
+        } catch (Exception e) {
+            return null;
+        }
     }
 
     // ── Constructor and factory ───────────────────────────────────────────
@@ -186,11 +279,16 @@ public class LayoutInflater {
     /**
      * Inflate a layout resource with attachToRoot control.
      *
-     * Tries four strategies in order:
+     * Tries five strategies in order:
      * 1. Programmatic layout registry (ViewFactory)
-     * 2. Registered layout bytes via Resources.getLayoutBytes() (BinaryLayoutParser)
-     * 3. Binary layout XML from APK via ResourceTable (BinaryLayoutParser)
-     * 4. Fallback: empty FrameLayout with resource ID
+     * 2. Registered layout bytes via Resources.getLayoutBytes()
+     * 3. Binary layout XML from extracted APK res/ directory
+     * 4. Binary layout XML read directly from APK ZIP
+     * 5. Fallback: empty FrameLayout with resource ID
+     *
+     * Strategies 2-4 parse AXML into a BinaryXmlParser and delegate to
+     * inflate(XmlPullParser, ...) for proper View creation, attribute
+     * application, and LayoutParams generation.
      */
     public View inflate(int resource, ViewGroup root, boolean attachToRoot) {
         View view = null;
@@ -209,45 +307,73 @@ public class LayoutInflater {
             }
         }
 
-        // 2. Try to inflate from registered layout bytes
-        if (view == null && mContext != null) {
+        // Strategies 2-4: obtain binary AXML bytes, then inflate via XmlPullParser
+        byte[] axmlData = null;
+        System.out.println("[LayoutInflater] inflate(0x" + Integer.toHexString(resource) + ")");
+
+        // 2. Try registered layout bytes
+        if (axmlData == null && mContext != null) {
             android.content.res.Resources res = mContext.getResources();
             if (res != null) {
-                byte[] layoutBytes = res.getLayoutBytes(resource);
-                if (layoutBytes != null && layoutBytes.length > 0) {
-                    try {
-                        BinaryLayoutParser parser = new BinaryLayoutParser(mContext);
-                        view = parser.parse(layoutBytes);
-                    } catch (Exception e) {
-                        // parse failed, fall through to next strategy
-                    }
-                }
+                axmlData = res.getLayoutBytes(resource);
+                if (axmlData != null) System.out.println("[LayoutInflater] Strategy 2: getLayoutBytes OK (" + axmlData.length + " bytes)");
             }
         }
 
-        // 3. Try to inflate from the real binary layout XML via ResourceTable
-        if (view == null && mContext != null) {
+        // 3. Try loading from extracted APK res/ directory via ResourceTable
+        if (axmlData == null && mContext != null) {
             android.content.res.Resources res = mContext.getResources();
             if (res != null) {
                 android.content.res.ResourceTable table = res.getResourceTable();
                 if (table != null) {
                     String layoutFile = table.getLayoutFileName(resource);
+                    System.out.println("[LayoutInflater] Strategy 3: table=" + (table != null) + " layoutFile=" + layoutFile);
                     if (layoutFile != null) {
-                        byte[] xmlData = loadLayoutXml(layoutFile);
-                        if (xmlData != null && xmlData.length > 0) {
-                            BinaryLayoutParser parser = new BinaryLayoutParser(mContext);
-                            view = parser.parse(xmlData);
-                        }
+                        axmlData = loadLayoutXml(layoutFile);
+                        if (axmlData != null) System.out.println("[LayoutInflater] Strategy 3: OK (" + axmlData.length + " bytes)");
                     }
+                } else {
+                    System.out.println("[LayoutInflater] Strategy 3: no ResourceTable");
                 }
             }
         }
 
-        // 4. Fallback: stub FrameLayout
+        // 4. Try reading directly from APK ZIP file
+        if (axmlData == null && mContext != null) {
+            android.content.res.Resources res = mContext.getResources();
+            if (res != null) {
+                String apkPath = null;
+                try { apkPath = (String) res.getClass().getMethod("getApkPath").invoke(res); } catch (Exception e) {}
+                System.out.println("[LayoutInflater] Strategy 4: apkPath=" + apkPath);
+                axmlData = ApkResourceLoader.loadLayout(res, resource);
+                if (axmlData != null) System.out.println("[LayoutInflater] Strategy 4: OK (" + axmlData.length + " bytes)");
+            }
+        }
+
+        // Parse AXML bytes via BinaryXmlParser and inflate using the XmlPullParser path
+        if (axmlData != null && axmlData.length > 0) {
+            try {
+                BinaryXmlParser parser = new BinaryXmlParser(axmlData);
+                view = inflate(parser, root, attachToRoot);
+                // inflate(XmlPullParser,...) already handles attachToRoot,
+                // so return the result directly
+                if (view != null) {
+                    System.out.println("[LayoutInflater] Inflated 0x"
+                            + Integer.toHexString(resource)
+                            + " -> " + describeViewTree(view, 0));
+                    return view;
+                }
+            } catch (Exception e) {
+                System.out.println("[LayoutInflater] AXML parse failed for 0x"
+                        + Integer.toHexString(resource) + ": " + e.getMessage());
+            }
+        }
+
+        // 5. Fallback: stub FrameLayout with resource ID
         if (view == null) {
             view = new FrameLayout(mContext);
+            view.setId(resource);
         }
-        view.setId(resource);
 
         if (root != null && attachToRoot) {
             root.addView(view);
@@ -743,6 +869,38 @@ public class LayoutInflater {
         } catch (Exception e) {
             return null;
         }
+    }
+
+    /**
+     * Build a compact description of a View tree for diagnostics.
+     * Example: "FrameLayout(id=0x7f0a004b)[TextView, Button]"
+     */
+    private static String describeViewTree(View view, int depth) {
+        if (view == null) return "null";
+        if (depth > 4) return "..."; // prevent infinite recursion
+
+        StringBuilder sb = new StringBuilder();
+        sb.append(view.getClass().getSimpleName());
+        int id = view.getId();
+        if (id != 0 && id != View.NO_ID) {
+            sb.append("(id=0x");
+            sb.append(Integer.toHexString(id));
+            sb.append(')');
+        }
+
+        if (view instanceof ViewGroup) {
+            ViewGroup vg = (ViewGroup) view;
+            int count = vg.getChildCount();
+            if (count > 0) {
+                sb.append('[');
+                for (int i = 0; i < count; i++) {
+                    if (i > 0) sb.append(", ");
+                    sb.append(describeViewTree(vg.getChildAt(i), depth + 1));
+                }
+                sb.append(']');
+            }
+        }
+        return sb.toString();
     }
 
     public View createView(String name, String prefix, AttributeSet attrs) {

@@ -141,6 +141,14 @@ object ApkRunner {
                     steps.add("⚠️ Application: ${e.message?.take(60)}")
                 }
 
+                // Load APK resources AFTER setApplication so they wire to the current Application
+                try {
+                    server.javaClass.getMethod("loadApk", String::class.java).invoke(server, apkPath)
+                    steps.add("✅ loadApk: resources wired")
+                } catch (e: Exception) {
+                    steps.add("⚠️ loadApk: ${e.cause?.message ?: e.message}")
+                }
+
                 // Create Intent and start Activity via MiniActivityManager
                 val intentClass = engineCl.loadClass("android.content.Intent")
                 val compNameClass = engineCl.loadClass("android.content.ComponentName")

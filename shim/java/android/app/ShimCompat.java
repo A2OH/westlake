@@ -64,6 +64,20 @@ class ShimCompat {
     }
 
     /**
+     * Call Resources.setApkPath(path) if available (shim), otherwise no-op.
+     * Required for ApkResourceLoader.loadLayout() to read AXML from the APK ZIP.
+     */
+    static void setApkPath(android.content.res.Resources res, String path) {
+        try {
+            Method m = res.getClass().getMethod("setApkPath", String.class);
+            m.setAccessible(true);
+            m.invoke(res, path);
+        } catch (Exception e) {
+            log("setApkPath not available: " + e.getClass().getSimpleName());
+        }
+    }
+
+    /**
      * Call AssetManager.setAssetDir(path) if available (shim), otherwise no-op.
      */
     static void setAssetDir(android.content.res.AssetManager assets, String path) {
