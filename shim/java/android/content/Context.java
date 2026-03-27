@@ -100,6 +100,9 @@ public class Context {
 
     public Context() {}
 
+    public Context getBaseContext() { return this; }
+    public void attachBaseContext(Context base) { /* no-op in base Context */ }
+
     public boolean bindIsolatedService(Intent p0, int p1, String p2, Executor p3, ServiceConnection p4) { return false; }
     public boolean bindService(Intent p0, ServiceConnection p1, int p2) {
         return android.app.MiniServer.get().getServiceManager().bindService(p0, p1);
@@ -185,12 +188,33 @@ public class Context {
         if (mResources == null) mResources = new Resources();
         return mResources;
     }
-    public Object getSharedPreferences(String p0, int p1) {
-        // Delegate to host's real SharedPreferences (phone's is an interface, shim's is a class)
+    public SharedPreferences getSharedPreferences(String p0, int p1) {
+        // Delegate to host's real SharedPreferences via HostBridge
         if (android.app.HostBridge.hasHost()) {
             Object sp = android.app.HostBridge.call("getSharedPreferences",
                 new Class[]{String.class, int.class}, p0, p1);
-            if (sp != null) return sp;
+            if (sp != null) {
+                // Wrap the host's real SP in our shim SP (copies data)
+                SharedPreferences shimSp = SharedPreferences.getInstance(p0);
+                // Copy values from host SP to shim SP via reflection
+                try {
+                    java.util.Map<String, ?> all = (java.util.Map<String, ?>)
+                        sp.getClass().getMethod("getAll").invoke(sp);
+                    if (all != null) {
+                        SharedPreferences.Editor editor = shimSp.edit();
+                        for (java.util.Map.Entry<String, ?> entry : all.entrySet()) {
+                            Object v = entry.getValue();
+                            if (v instanceof String) editor.putString(entry.getKey(), (String) v);
+                            else if (v instanceof Integer) editor.putInt(entry.getKey(), (Integer) v);
+                            else if (v instanceof Boolean) editor.putBoolean(entry.getKey(), (Boolean) v);
+                            else if (v instanceof Long) editor.putLong(entry.getKey(), (Long) v);
+                            else if (v instanceof Float) editor.putFloat(entry.getKey(), (Float) v);
+                        }
+                        editor.apply();
+                    }
+                } catch (Exception e) {}
+                return shimSp;
+            }
         }
         return SharedPreferences.getInstance(p0);
     }
