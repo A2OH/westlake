@@ -20,6 +20,14 @@ The engine approach: 99% of Android API calls stay inside the VM as pure Java. O
 - Build: `A2OH/art-universal` repo, Makefile + Makefile.ohos-arm64
 - 75 JNI native stubs (ICU, javacore, openjdk)
 
+**ART Android 15 (Strategy A15 — JIT WORKING):**
+- dex2oat: 23MB (461 source files from AOSP 15, clang-15 compiler)
+- dalvikvm: 22MB x86-64 with JIT compiler
+- Boot image: 4.5MB (verify filter, pre-initialized classes including VarHandle)
+- JIT benchmark: fib(40)=132ms (137x over interpreter), 10M methods=11ms (43x)
+- VarHandle clinit: FIXED with 25+ inline native JNI handlers in unstarted_runtime
+- Build: `A2OH/art-latest` repo, Makefile (clang-15 + clang-11 asm/link)
+
 ## Key Skills for Building This Project
 
 ### 1. Option B AOSP Integration
@@ -185,8 +193,11 @@ westlake/
 | Render PNG screenshot | `java -cp build FrameDumper` -> `/tmp/*.png` |
 | Analyze an APK | `dexdump` -> categorize types -> gap report |
 | Add AOSP class to engine | Copy from AOSP, stub deps, compile, test (Option B) |
-| Build ART (x86-64) | `cd /home/dspfac/art-universal-build && make -j8 link link-runtime` |
-| Build ART (OHOS ARM64) | `make -f Makefile.ohos-arm64 -j8 link-runtime` |
+| Build ART A11 (x86-64) | `cd /home/dspfac/art-universal-build && make -j8 link link-runtime` |
+| Build ART A11 (OHOS ARM64) | `make -f Makefile.ohos-arm64 -j8 link-runtime` |
+| Build ART A15 (x86-64) | `cd /home/dspfac/art-latest && make -j8 link link-runtime` |
+| A15 boot image (verify) | `dex2oat --dex-file=core-oj.jar ... --compiler-filter=verify --image-format=uncompressed` |
+| A15 run with JIT | `dalvikvm -Ximage:boot.art -Xusejit:true -classpath app.dex MainClass` |
 | AOT compile DEX for ARM64 | `dex2oat --dex-file=app.dex --instruction-set=arm64 --compiler-filter=speed` |
 | Run APK on ART | `scripts/run-apk.sh path/to/app.apk com.example.MainActivity` |
 | Run on OHOS ARM64 QEMU | See `docs/AGENT-A-TASKS.md` for boot commands |
@@ -204,8 +215,12 @@ westlake/
 | API compatibility database | `database/api_compat.db` |
 | Dalvik VM (x86_64) | `dalvik-port/build/dalvikvm` |
 | Dalvik VM (OHOS ARM32) | `dalvik-port/build-ohos-arm32/dalvikvm` |
-| ART dex2oat (x86_64) | `/home/dspfac/art-universal-build/build/bin/dex2oat` |
-| ART dalvikvm (x86_64) | `/home/dspfac/art-universal-build/build/bin/dalvikvm` |
+| ART A11 dex2oat (x86_64) | `/home/dspfac/art-universal-build/build/bin/dex2oat` |
+| ART A11 dalvikvm (x86_64) | `/home/dspfac/art-universal-build/build/bin/dalvikvm` |
+| ART A15 dex2oat (x86_64) | `/home/dspfac/art-latest/build/bin/dex2oat` |
+| ART A15 dalvikvm (x86_64) | `/home/dspfac/art-latest/build/bin/dalvikvm` |
+| ART A15 core JARs | `/home/dspfac/art-latest/core-jars/` |
+| ART A15 boot image | `/tmp/a15-boot-noop/` (verify filter) |
 | ART dalvikvm (OHOS ARM64) | `/home/dspfac/art-universal-build/build-ohos-arm64/bin/dalvikvm` |
 | ART boot image | `/home/dspfac/android-to-openharmony-migration/art-boot-image/` |
 | ART build system | `/home/dspfac/art-universal-build/Makefile` |
