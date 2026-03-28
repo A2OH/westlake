@@ -37,23 +37,37 @@ public class OHBridge {
     private static boolean nativeAvailable;
 
     static {
-        // Try full path FIRST (gets our subprocess-capable lib, not the host's in-process one)
-        String[] paths = {"/data/local/tmp/westlake/libohbridge_sub.so"};
+        System.out.println("[OHBridge] Static init starting...");
+        String[] paths = {"/data/local/tmp/westlake/libohbridge_sub.so",
+                          "/data/local/tmp/westlake/libwestlake_natives.so"};
         for (String path : paths) {
             try {
-                if (new java.io.File(path).exists()) {
-                    System.load(path); nativeAvailable = true; break;
+                boolean exists = new java.io.File(path).exists();
+                System.out.println("[OHBridge] Try " + path + " exists=" + exists);
+                if (exists) {
+                    System.load(path);
+                    nativeAvailable = true;
+                    System.out.println("[OHBridge] System.load OK: " + path);
+                    break;
                 }
-            } catch (Throwable t) { /* try next */ }
+            } catch (Throwable t) {
+                System.out.println("[OHBridge] System.load FAIL: " + t);
+            }
         }
-        // Fallback to loadLibrary (finds host APK's version for in-process mode)
         if (!nativeAvailable) {
             String[] libs = {"westlake_natives", "oh_bridge"};
             for (String lib : libs) {
-                try { System.loadLibrary(lib); nativeAvailable = true; break; }
-                catch (Throwable t) { /* try next */ }
+                try {
+                    System.out.println("[OHBridge] Try loadLibrary(" + lib + ")");
+                    System.loadLibrary(lib); nativeAvailable = true;
+                    System.out.println("[OHBridge] loadLibrary OK: " + lib);
+                    break;
+                } catch (Throwable t) {
+                    System.out.println("[OHBridge] loadLibrary FAIL: " + t);
+                }
             }
         }
+        System.out.println("[OHBridge] Static init done, nativeAvailable=" + nativeAvailable);
     }
 
     public static boolean isNativeAvailable() {

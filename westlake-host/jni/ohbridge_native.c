@@ -487,5 +487,7 @@ JNIEXPORT jint JNICALL JNI_OnLoad(JavaVM* vm, void* reserved) {
         else (*env)->ExceptionClear(env);
     }
     LOGI("[OHBridge ARM64] %d/%d natives registered", ok, count);
+    printf("[OHBridge NEW] %d/%d natives registered (subprocess dual-mode lib)\n", ok, count);
+    fflush(stdout);
     return JNI_VERSION_1_6;
 }
