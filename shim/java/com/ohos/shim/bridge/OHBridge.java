@@ -37,20 +37,21 @@ public class OHBridge {
     private static boolean nativeAvailable;
 
     static {
-        // Try multiple library names/paths
-        String[] libs = {"westlake_natives", "oh_bridge"};
-        String[] paths = {"/data/local/tmp/westlake/libwestlake_natives.so"};
-        for (String lib : libs) {
-            try { System.loadLibrary(lib); nativeAvailable = true; break; }
-            catch (Throwable t) { /* try next */ }
+        // Try full path FIRST (gets our subprocess-capable lib, not the host's in-process one)
+        String[] paths = {"/data/local/tmp/westlake/libohbridge_sub.so"};
+        for (String path : paths) {
+            try {
+                if (new java.io.File(path).exists()) {
+                    System.load(path); nativeAvailable = true; break;
+                }
+            } catch (Throwable t) { /* try next */ }
         }
+        // Fallback to loadLibrary (finds host APK's version for in-process mode)
         if (!nativeAvailable) {
-            for (String path : paths) {
-                try {
-                    if (new java.io.File(path).exists()) {
-                        System.load(path); nativeAvailable = true; break;
-                    }
-                } catch (Throwable t) { /* try next */ }
+            String[] libs = {"westlake_natives", "oh_bridge"};
+            for (String lib : libs) {
+                try { System.loadLibrary(lib); nativeAvailable = true; break; }
+                catch (Throwable t) { /* try next */ }
             }
         }
     }
