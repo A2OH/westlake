@@ -57,22 +57,31 @@ MockDonalds app runs the full Android Activity lifecycle on ART:
 | Platform | Runtime | FPS | Touch | Views | Status |
 |----------|---------|-----|-------|-------|--------|
 | x86_64 host | ART A11 (AOT) | 60 | N/A | Headless draw log | 14/14 tests pass |
-| x86_64 host | ART A15 (switch interp) | N/A | N/A | Headless | fib(40)=15.9s, correct |
+| x86_64 host | ART A15 (JIT) | N/A | N/A | Headless | fib(40)=132ms, JIT working |
 | ARM64 on phone | dalvikvm | 120 | Yes | Canvas rendering | Working |
 | Mate 20 Pro native | Android 10 ART | Native | Yes | Real Android Views | Working |
 
-### A15 ART Interpreter Benchmarks (x86-64, imageless mode)
+### A15 ART Benchmarks (x86-64, 2026-03-27)
 
-| Benchmark | Forced Interp (3/26) | Switch Interp (3/27) | Speedup |
-|-----------|---------------------|---------------------|---------|
-| fib(40) | 21,030 ms | 15,897 ms | 1.32x |
-| 10M method calls | 557 ms | 400 ms | 1.39x |
-| 100M loop iters | 1,668 ms | 1,590 ms | 1.05x |
-| 1M object allocs | 64 ms | 60 ms | 1.07x |
+| Benchmark | Interpreter | JIT (boot image) | JIT Speedup |
+|-----------|------------|-------------------|-------------|
+| fib(40) | 18,020 ms | **132 ms** | **137x** |
+| 10M method calls | 476 ms | **11 ms** | **43x** |
+| 100M loop iters | 1,791 ms | **30 ms** | **60x** |
+| 1M object allocs | 68 ms | **25 ms** | **2.7x** |
 
-**Root cause (3/27):** ExecuteNterpImpl was a no-op stub. Fix: disable nterp, use
-switch interpreter. VarHandle cascade prevented by atomic-patch.dex (Unsafe-based
-AtomicInteger/Long/Boolean). JIT blocked by VarHandle — 34 classes need patching.
+**Full A15 ART pipeline working (3/27):**
+- `dex2oat --compiler-filter=verify` creates boot.art (628ms, all class inits succeed)
+- `dalvikvm -Ximage:boot.art -Xusejit:true` loads image + JIT compiles hot methods
+- VarHandle circular enum init fixed with 25+ inline native JNI handlers
+- Boot image loading fixed: null ClassLinker guard in VisitStaticFieldsReferences
+- JIT produces native x86_64 code at runtime → production-quality performance
+
+### Remaining for production deployment:
+1. A15 OHOS ARM64 cross-compile (static dalvikvm binary)
+2. dex2oat --compiler-filter=speed (AOT native code, currently crashes in compiler)
+3. A15 ARM64 boot image creation
+4. Deploy to OHOS QEMU ARM64 with boot image + JIT
 
 ---
 
