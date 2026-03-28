@@ -517,8 +517,8 @@ public class OHBridge {
         return ctx != null ? ctx[0] : 0;
     }
 
-    // ── Display list shm writer (version=2) ──
-    private static java.io.RandomAccessFile sShmRaf;
+    // ── Display list via mmap helper (shm_writer subprocess) ──
+    private static java.io.OutputStream sShmPipe;
     private static int sFrameSeq = 0;
     private static final int SHM_HEADER_SIZE = 128;
     private static final int SHM_DLIST_MAX = 512 * 1024;
@@ -528,26 +528,41 @@ public class OHBridge {
     private static final int OP_TRANSLATE = 7, OP_CLIP_RECT = 8, OP_DRAW_ROUND_RECT = 9;
     private static final int OP_DRAW_CIRCLE = 10;
 
-    private static java.io.RandomAccessFile getShmRaf() {
-        if (sShmRaf != null) return sShmRaf;
+    private static java.io.OutputStream getShmPipe() {
+        if (sShmPipe != null) return sShmPipe;
         String path = System.getenv("WESTLAKE_SHM");
         if (path == null || path.isEmpty()) path = "/data/local/tmp/westlake/westlake_shm";
+        String writer = "/data/local/tmp/westlake/shm_writer";
         try {
-            sShmRaf = new java.io.RandomAccessFile(path, "rw");
-            if (sShmRaf.length() < SHM_TOTAL) sShmRaf.setLength(SHM_TOTAL);
-            byte[] hdr = new byte[SHM_HEADER_SIZE];
-            putInt(hdr, 0, 0x574C4B46); // WLK_MAGIC
-            putInt(hdr, 4, 2);           // version=2 = display list
-            putInt(hdr, 8, 480);
-            putInt(hdr, 12, 800);
-            sShmRaf.seek(0);
-            sShmRaf.write(hdr);
-            System.out.println("[OHBridge] shm_init: DLIST mode, path=" + path + ", total=" + SHM_TOTAL + " bytes");
+            Process proc = Runtime.getRuntime().exec(new String[]{writer, path});
+            sShmPipe = proc.getOutputStream();
+            // Read shm_writer's stderr/stdout in background
+            final java.io.InputStream is = proc.getInputStream();
+            final java.io.InputStream es = proc.getErrorStream();
+            new Thread(new Runnable() {
+                public void run() {
+                    try {
+                        byte[] b = new byte[256];
+                        int n;
+                        while ((n = is.read(b)) > 0) System.out.write(b, 0, n);
+                    } catch (Exception e) {}
+                }
+            }).start();
+            new Thread(new Runnable() {
+                public void run() {
+                    try {
+                        byte[] b = new byte[256];
+                        int n;
+                        while ((n = es.read(b)) > 0) System.err.write(b, 0, n);
+                    } catch (Exception e) {}
+                }
+            }).start();
+            System.out.println("[OHBridge] shm_writer started, path=" + path);
         } catch (Exception e) {
-            System.out.println("[OHBridge] shm_init FAILED: " + e);
-            sShmRaf = null;
+            System.out.println("[OHBridge] shm_writer FAILED: " + e);
+            sShmPipe = null;
         }
-        return sShmRaf;
+        return sShmPipe;
     }
 
     private static void putInt(byte[] buf, int off, int v) {
@@ -567,11 +582,34 @@ public class OHBridge {
         long canvasH = ctx[0];
 
         java.util.List<DrawRecord> log = sCanvasDrawLog.get(canvasH);
-        if (log == null || log.isEmpty()) return 0;
 
-        // Serialize DrawRecords to display list binary format
+        // Write display list: hardcoded test pattern + actual DrawRecords
         byte[] buf = new byte[SHM_DLIST_MAX];
         int pos = 0;
+
+        // TEST: bright red background + blue rect + text
+        buf[pos++] = (byte)OP_DRAW_COLOR;
+        putInt(buf, pos, 0xFFFF0000); pos += 4; // red background
+
+        buf[pos++] = (byte)OP_DRAW_RECT;
+        putFloat(buf, pos, 20f); pos += 4;   // l
+        putFloat(buf, pos, 20f); pos += 4;   // t
+        putFloat(buf, pos, 460f); pos += 4;  // r
+        putFloat(buf, pos, 200f); pos += 4;  // b
+        putInt(buf, pos, 0xFF0000FF); pos += 4; // blue
+
+        buf[pos++] = (byte)OP_DRAW_TEXT;
+        putFloat(buf, pos, 50f); pos += 4;   // x
+        putFloat(buf, pos, 130f); pos += 4;  // y
+        putFloat(buf, pos, 40f); pos += 4;   // size
+        putInt(buf, pos, 0xFFFFFFFF); pos += 4; // white
+        byte[] testText = "Counter VM Works!".getBytes();
+        putShort(buf, pos, (short)testText.length); pos += 2;
+        System.arraycopy(testText, 0, buf, pos, testText.length); pos += testText.length;
+
+        if (log == null || log.isEmpty()) {
+            // Just write test pattern
+        } else {
         int maxPos = SHM_DLIST_MAX - 64;
 
         for (DrawRecord rec : log) {
@@ -654,28 +692,53 @@ public class OHBridge {
                 }
             } catch (Exception e) { break; }
         }
+        } // end else (has DrawRecords)
 
         sFrameSeq++;
         int dlistSize = pos;
 
-        // Write display list then header to shm
-        java.io.RandomAccessFile raf = getShmRaf();
-        if (raf != null) {
+        // Pipe display list to shm_writer (which uses mmap for coherent writes)
+        // Protocol: 4-byte LE size, then size bytes of data
+        java.io.OutputStream pipe = getShmPipe();
+        if (pipe != null) {
             try {
-                raf.seek(SHM_HEADER_SIZE);
-                raf.write(buf, 0, pos);
-                byte[] seqBuf = new byte[8];
-                putInt(seqBuf, 0, sFrameSeq);
-                putInt(seqBuf, 4, dlistSize);
-                raf.seek(16);
-                raf.write(seqBuf);
-                raf.getFD().sync();
+                byte[] sizeBuf = new byte[4];
+                putInt(sizeBuf, 0, dlistSize);
+                pipe.write(sizeBuf);
+                pipe.write(buf, 0, dlistSize);
+                pipe.flush();
             } catch (Exception e) {
-                System.out.println("[OHBridge] shm write error: " + e);
+                System.out.println("[OHBridge] shm pipe error: " + e);
             }
         }
 
-        log.clear();
+        if (log != null) log.clear();
+
+        // Self-test: read back what we wrote and verify
+        if (sFrameSeq <= 2) {
+            try {
+                java.io.RandomAccessFile verify = new java.io.RandomAccessFile(
+                    System.getenv("WESTLAKE_SHM") != null ? System.getenv("WESTLAKE_SHM") : "/data/local/tmp/westlake/westlake_shm", "r");
+                byte[] hdrCheck = new byte[24];
+                verify.read(hdrCheck);
+                int magic = (hdrCheck[0]&0xFF) | ((hdrCheck[1]&0xFF)<<8) | ((hdrCheck[2]&0xFF)<<16) | ((hdrCheck[3]&0xFF)<<24);
+                int ver = (hdrCheck[4]&0xFF) | ((hdrCheck[5]&0xFF)<<8) | ((hdrCheck[6]&0xFF)<<16) | ((hdrCheck[7]&0xFF)<<24);
+                int seq = (hdrCheck[16]&0xFF) | ((hdrCheck[17]&0xFF)<<8) | ((hdrCheck[18]&0xFF)<<16) | ((hdrCheck[19]&0xFF)<<24);
+                int dls = (hdrCheck[20]&0xFF) | ((hdrCheck[21]&0xFF)<<8) | ((hdrCheck[22]&0xFF)<<16) | ((hdrCheck[23]&0xFF)<<24);
+                // Read first op
+                byte[] firstOp = new byte[5];
+                verify.seek(SHM_HEADER_SIZE);
+                verify.read(firstOp);
+                verify.close();
+                System.out.println("[OHBridge] SELF-TEST frame " + sFrameSeq + ": magic=0x" + Integer.toHexString(magic)
+                    + " ver=" + ver + " seq=" + seq + " dlistSize=" + dls
+                    + " firstOp=" + (firstOp[0]&0xFF)
+                    + " firstColor=0x" + Integer.toHexString((firstOp[1]&0xFF)|((firstOp[2]&0xFF)<<8)|((firstOp[3]&0xFF)<<16)|((firstOp[4]&0xFF)<<24))
+                    + " EXPECTED: magic=0x574c4b46 ver=2 firstOp=1(DRAW_COLOR) firstColor=0xffff0000(RED)");
+            } catch (Exception e) {
+                System.out.println("[OHBridge] SELF-TEST error: " + e);
+            }
+        }
         return 0;
     }
 

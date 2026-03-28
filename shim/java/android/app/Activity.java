@@ -268,6 +268,8 @@ public class Activity extends Context {
             decorView.layout(0, 0, mSurfaceWidth, layoutHeight);
             mLayoutDone = true;
             mLastDecorView = decorView;
+            // Dump view tree bounds for debugging
+            dumpViewTree(decorView, "", 0);
         }
 
         long canvasHandle = com.ohos.shim.bridge.OHBridge.surfaceGetCanvas(mSurfaceCtx);
@@ -291,6 +293,23 @@ public class Activity extends Context {
 
     /** Force re-layout on next renderFrame (call after setContentView) */
     public void invalidateLayout() { mLayoutDone = false; }
+
+    private void dumpViewTree(android.view.View v, String indent, int depth) {
+        if (depth > 8) return;
+        String name = v.getClass().getSimpleName();
+        int id = v.getId();
+        String idStr = (id != android.view.View.NO_ID) ? "0x" + Integer.toHexString(id) : "-";
+        System.out.println("[ViewTree] " + indent + name + "(id=" + idStr
+            + ") bounds=[" + v.getLeft() + "," + v.getTop() + "," + v.getRight() + "," + v.getBottom()
+            + "] measured=" + v.getMeasuredWidth() + "x" + v.getMeasuredHeight()
+            + " vis=" + v.getVisibility());
+        if (v instanceof android.view.ViewGroup) {
+            android.view.ViewGroup vg = (android.view.ViewGroup) v;
+            for (int i = 0; i < vg.getChildCount(); i++) {
+                dumpViewTree(vg.getChildAt(i), indent + "  ", depth + 1);
+            }
+        }
+    }
 
     /**
      * Render the View tree to an external Android Canvas (in-process mode).

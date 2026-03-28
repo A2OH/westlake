@@ -24,14 +24,9 @@ echo "=== Building aosp-shim.dex ==="
 rm -rf "$BUILD_DIR"
 mkdir -p "$BUILD_DIR/classes"
 
-# Collect all shim Java files (excluding real OHBridge since we use the mock for compilation)
-# The mock OHBridge handles display list serialization to shm in pure Java
+# Use the REAL OHBridge (native method declarations) — the native lib handles rendering
 echo "Collecting sources..."
-JAVA_FILES=$(find "$SHIM_JAVA" -name "*.java" ! -path "*/ohos/shim/bridge/OHBridge.java")
-# Add mock OHBridge for compilation
-if [ -d "$MOCK_JAVA" ]; then
-    JAVA_FILES="$JAVA_FILES $(find "$MOCK_JAVA" -name "*.java")"
-fi
+JAVA_FILES=$(find "$SHIM_JAVA" -name "*.java")
 
 FILE_COUNT=$(echo "$JAVA_FILES" | wc -w)
 echo "Compiling $FILE_COUNT Java files..."

@@ -341,6 +341,37 @@ public class MiniActivityManager {
                             exec.invoke(fragmentManager);
                         } catch (Exception e) { /* may fail, that's ok */ }
                         Log.i(TAG, "  tryRecoverFragments: added " + fragClass.getSimpleName() + " to container 0x" + Integer.toHexString(containerId));
+
+                        // If the fragment's view wasn't attached by the FragmentManager,
+                        // try to invoke onCreateView directly and add it
+                        android.view.View container = decor.findViewById(containerId);
+                        if (container instanceof android.view.ViewGroup) {
+                            android.view.ViewGroup containerVg = (android.view.ViewGroup) container;
+                            if (containerVg.getChildCount() == 0) {
+                                try {
+                                    // Call fragment.onCreateView(inflater, container, null)
+                                    android.view.LayoutInflater inflater = android.view.LayoutInflater.from(activity);
+                                    java.lang.reflect.Method ocv = null;
+                                    for (Class<?> fc = fragClass; fc != null; fc = fc.getSuperclass()) {
+                                        try {
+                                            ocv = fc.getDeclaredMethod("onCreateView",
+                                                android.view.LayoutInflater.class, android.view.ViewGroup.class, android.os.Bundle.class);
+                                            break;
+                                        } catch (NoSuchMethodException nsme) { /* try parent */ }
+                                    }
+                                    if (ocv != null) {
+                                        ocv.setAccessible(true);
+                                        android.view.View fragView = (android.view.View) ocv.invoke(fragment, inflater, containerVg, null);
+                                        if (fragView != null) {
+                                            containerVg.addView(fragView);
+                                            Log.i(TAG, "  tryRecoverFragments: manually attached " + fragView.getClass().getSimpleName() + " to container");
+                                        }
+                                    }
+                                } catch (Exception ve) {
+                                    Log.d(TAG, "  tryRecoverFragments: manual view attach failed: " + ve);
+                                }
+                            }
+                        }
                         return;
                     }
                 } catch (ClassNotFoundException e) {

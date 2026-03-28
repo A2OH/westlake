@@ -1,6 +1,7 @@
 package android.support.v4.widget;
 import android.content.Context;
 import android.util.AttributeSet;
+import android.view.Gravity;
 import android.view.View;
 import android.view.ViewGroup;
 
@@ -22,7 +23,53 @@ public class DrawerLayout extends ViewGroup {
     public DrawerLayout(Context context, AttributeSet attrs, int defStyle) { super(context, attrs, defStyle); }
 
     @Override
-    protected void onLayout(boolean changed, int l, int t, int r, int b) {}
+    protected void onMeasure(int widthMeasureSpec, int heightMeasureSpec) {
+        int width = MeasureSpec.getSize(widthMeasureSpec);
+        int height = MeasureSpec.getSize(heightMeasureSpec);
+        setMeasuredDimension(width, height);
+
+        // Measure children: first child = content (full size), others = drawers
+        for (int i = 0; i < getChildCount(); i++) {
+            View child = getChildAt(i);
+            if (child.getVisibility() == GONE) continue;
+            if (i == 0) {
+                // Content view: fill parent
+                int cw = MeasureSpec.makeMeasureSpec(width, MeasureSpec.EXACTLY);
+                int ch = MeasureSpec.makeMeasureSpec(height, MeasureSpec.EXACTLY);
+                child.measure(cw, ch);
+            } else {
+                // Drawer view: use its own layout params width, full height
+                LayoutParams lp = child.getLayoutParams();
+                int drawerWidth = (lp != null && lp.width > 0) ? lp.width : width * 4 / 5;
+                int cw = MeasureSpec.makeMeasureSpec(drawerWidth, MeasureSpec.EXACTLY);
+                int ch = MeasureSpec.makeMeasureSpec(height, MeasureSpec.EXACTLY);
+                child.measure(cw, ch);
+            }
+        }
+    }
+
+    @Override
+    protected void onLayout(boolean changed, int l, int t, int r, int b) {
+        int width = r - l;
+        int height = b - t;
+
+        for (int i = 0; i < getChildCount(); i++) {
+            View child = getChildAt(i);
+            if (child.getVisibility() == GONE) continue;
+            if (i == 0) {
+                // Content view: fill the entire area
+                child.layout(0, 0, width, height);
+            } else {
+                // Drawer view: positioned off-screen to the left (closed)
+                int cw = child.getMeasuredWidth();
+                if (mDrawerOpen) {
+                    child.layout(0, 0, cw, height);
+                } else {
+                    child.layout(-cw, 0, 0, height);
+                }
+            }
+        }
+    }
 
     public void openDrawer(View drawerView) { mDrawerOpen = true; if (mDrawerListener != null) mDrawerListener.onDrawerOpened(drawerView); }
     public void openDrawer(int gravity) { openDrawer((View) null); }
