@@ -130,7 +130,17 @@ public class Context {
     public void enforceUriPermission(Uri p0, int p1, int p2, int p3, String p4) {}
     public void enforceUriPermission(Uri p0, String p1, String p2, int p3, int p4, int p5, String p6) {}
     public String[] fileList() { return null; }
-    public Context getApplicationContext() { return null; }
+    public Context getApplicationContext() {
+        // Return the Application from MiniServer if available
+        try {
+            android.app.MiniServer server = android.app.MiniServer.get();
+            if (server != null) {
+                android.app.Application app = server.getApplication();
+                if (app != null) return app;
+            }
+        } catch (Exception e) { /* ignore */ }
+        return this;
+    }
     public ApplicationInfo getApplicationInfo() {
         if (android.app.HostBridge.hasHost()) {
             String pkg = getPackageName();
@@ -180,6 +190,20 @@ public class Context {
             String hostPkg = android.app.HostBridge.getHostPackageName();
             if (hostPkg != null) return hostPkg;
         }
+        // Fallback: try MiniServer's package name (set during WestlakeLauncher init)
+        try {
+            android.app.MiniServer server = android.app.MiniServer.get();
+            if (server != null) {
+                android.app.Application app = server.getApplication();
+                if (app != null) {
+                    String pkg = System.getProperty("westlake.apk.package");
+                    if (pkg != null && !pkg.isEmpty()) return pkg;
+                }
+            }
+        } catch (Exception e) { /* ignore */ }
+        // Last resort: check system property directly
+        String pkg = System.getProperty("westlake.apk.package");
+        if (pkg != null && !pkg.isEmpty()) return pkg;
         return "";
     }
     public String getPackageResourcePath() { return null; }

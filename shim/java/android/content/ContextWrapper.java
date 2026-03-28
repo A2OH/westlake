@@ -44,10 +44,10 @@ public class ContextWrapper extends Context {
     public void enforceUriPermission(Uri p0, int p1, int p2, int p3, String p4) {}
     public void enforceUriPermission(Uri p0, String p1, String p2, int p3, int p4, int p5, String p6) {}
     public String[] fileList() { return null; }
-    public Context getApplicationContext() { return null; }
-    public ApplicationInfo getApplicationInfo() { return null; }
-    public AssetManager getAssets() { return null; }
-    public Context getBaseContext() { return null; }
+    public Context getApplicationContext() { return super.getApplicationContext(); }
+    public ApplicationInfo getApplicationInfo() { return super.getApplicationInfo(); }
+    public AssetManager getAssets() { return super.getAssets(); }
+    public Context getBaseContext() { return this; }
     public File getCacheDir() { return null; }
     public ClassLoader getClassLoader() { return null; }
     public File getCodeCacheDir() { return null; }
@@ -67,11 +67,11 @@ public class ContextWrapper extends Context {
     public File getObbDir() { return null; }
     public File[] getObbDirs() { return null; }
     public String getPackageCodePath() { return null; }
-    public PackageManager getPackageManager() { return null; }
-    public String getPackageName() { return null; }
+    public PackageManager getPackageManager() { return super.getPackageManager(); }
+    public String getPackageName() { return super.getPackageName(); }
     public String getPackageResourcePath() { return null; }
     public Resources getResources() { return super.getResources(); }
-    public SharedPreferences getSharedPreferences(String p0, int p1) { return null; }
+    public SharedPreferences getSharedPreferences(String p0, int p1) { return super.getSharedPreferences(p0, p1); }
     public Object getSystemService(String p0) { return super.getSystemService(p0); }
     public String getSystemServiceName(Object p0) { return null; }
     public android.content.res.Resources.Theme getTheme() { return super.getTheme(); }
