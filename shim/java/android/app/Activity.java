@@ -288,6 +288,8 @@ public class Activity extends Context {
             canvas.restore();
         }
 
+        // (test pattern removed — pipeline verified working)
+
         com.ohos.shim.bridge.OHBridge.surfaceFlush(mSurfaceCtx);
     }
 

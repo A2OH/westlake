@@ -7391,6 +7391,8 @@ public class TextView extends View implements ViewTreeObserver.OnPreDrawListener
                 } else { // (gravity == Gravity.CENTER_VERTICAL)
                     voffset = (boxht - textht) >> 1;
                 }
+                // Cap offset to keep text within visible viewport (shim fix)
+                if (voffset > 800) voffset = 0;
             }
         }
         return voffset;

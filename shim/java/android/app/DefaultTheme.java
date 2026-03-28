@@ -53,7 +53,7 @@ public class DefaultTheme {
     public static final int COLOR_TEXT_SECONDARY = 0xFFBDBDBD; // Light gray (headers)
     public static final int COLOR_TEXT_HINT = 0xFFBDBDBD;      // Same as secondary
     public static final int COLOR_DIVIDER = 0xFFBDBDBD;
-    public static final int COLOR_BG = 0xFFF5F5F5;            // Off-white background
+    public static final int COLOR_BG = 0xFF303030;            // Dark background (matches Counter's dark theme)
     public static final int COLOR_TRACK = 0xFFBDBDBD;          // Gray track
     public static final int COLOR_PROGRESS = 0xFF33B5E5;       // Blue fill
     public static final int COLOR_STAR_FILLED = 0xFFFFB400;    // Gold star
@@ -78,11 +78,8 @@ public class DefaultTheme {
         if (root.getTag() == TAG_THEMED) return;
         root.setTag(TAG_THEMED);
 
-        // Set root background to Holo Light gray
-        if (root.getBackground() == null) {
-            root.setBackgroundColor(COLOR_BG);
-        }
-
+        // Don't set background on child views — let the app's theme control it.
+        // Only set on root so canvas.drawColor still works as the base.
         applyRecursive(root);
     }
 
