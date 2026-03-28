@@ -4,6 +4,7 @@ import java.io.FileDescriptor;
 
 public class SoundPool {
     public SoundPool() {}
+    public SoundPool(int maxStreams, int streamType, int srcQuality) {}
 
     public void autoPause() {}
     public void autoResume() {}

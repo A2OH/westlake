@@ -21,6 +21,7 @@ public class Activity extends Context {
     String mTitle;
     android.view.Window mWindow;
     private FragmentManager mFragmentManager;
+    private ActionBar mActionBar;
 
     public Activity() {
         mWindow = new android.view.Window(this);
@@ -398,8 +399,21 @@ public class Activity extends Context {
     public Object getContentTransitionManager() { return null; }
     public int getMaxNumPictureInPictureActions() { return 0; }
     public Object getMediaController() { return null; }
+    public ActionBar getActionBar() {
+        if (mActionBar == null) {
+            mActionBar = new ActionBar();
+        }
+        return mActionBar;
+    }
     public Object getParent() { return null; }
-    public Object getPreferences(Object p0) { return null; }
+    public android.content.SharedPreferences getPreferences(int mode) {
+        return getSharedPreferences(getClass().getSimpleName() + "_preferences", mode);
+    }
+    public Object getPreferences(Object p0) {
+        int mode = 0;
+        if (p0 instanceof Integer) mode = (Integer) p0;
+        return getPreferences(mode);
+    }
     public int getRequestedOrientation() { return 0; }
     public Object getSearchEvent() { return null; }
     public int getTaskId() { return 0; }
@@ -502,7 +516,13 @@ public class Activity extends Context {
     }
     public void requestPermissions(Object p0, Object p1) {}
     public void requestShowKeyboardShortcuts() {}
-    public boolean requestWindowFeature(Object p0) { return false; }
+    public boolean requestWindowFeature(int featureId) {
+        return mWindow != null ? mWindow.requestFeature(featureId) : false;
+    }
+    public boolean requestWindowFeature(Object p0) {
+        if (p0 instanceof Integer) return requestWindowFeature(((Integer) p0).intValue());
+        return false;
+    }
     public void runOnUiThread(Runnable action) {
         action.run(); // Synchronous in shim — no separate UI thread
     }
@@ -546,6 +566,7 @@ public class Activity extends Context {
     public boolean setTranslucent(Object p0) { return false; }
     public void setTurnScreenOn(Object p0) {}
     public void setVisible(Object p0) {}
+    public void setVolumeControlStream(int streamType) {}
     public void setVolumeControlStream(Object p0) {}
     public void setVrModeEnabled(Object p0, Object p1) {}
     public boolean shouldShowRequestPermissionRationale(Object p0) { return false; }

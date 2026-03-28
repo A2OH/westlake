@@ -218,11 +218,13 @@ public class MiniActivityManager {
         Log.d(TAG, "  performCreate: " + r.component.getClassName());
         // Dispatch lifecycle: restore saved state + ON_CREATE
         dispatchLifecycleEvent(r.activity, "performRestore", savedInstanceState);
+        boolean createNPE = false;
         try {
             r.activity.onCreate(savedInstanceState);
         } catch (NullPointerException e) {
             // Non-fatal: some apps crash on null ActionBar etc. but still create valid Views
             Log.w(TAG, "performCreate NPE (non-fatal): " + e.getMessage());
+            createNPE = true;
         } catch (IllegalAccessError e) {
             try {
                 java.lang.reflect.Method m = Activity.class.getDeclaredMethod("onCreate", Bundle.class);
@@ -234,7 +236,165 @@ public class MiniActivityManager {
                 cause.printStackTrace();
             }
         }
+        // If onCreate NPE'd (e.g., ActionBar null), try to discover and add missing fragments
+        if (createNPE) {
+            tryRecoverFragments(r.activity);
+        }
         dispatchLifecycleEvent(r.activity, "ON_CREATE");
+    }
+
+    /**
+     * After an NPE in onCreate (often from getSupportActionBar()), the fragment setup
+     * code was skipped. Try to discover Fragment classes and add them to empty containers.
+     */
+    private void tryRecoverFragments(Activity activity) {
+        try {
+            // Initialize any null SharedPreferences fields on the activity
+            // (these would have been set in onCreate code that was skipped due to NPE)
+            initNullSharedPrefsFields(activity);
+
+            // Check if content view exists but has empty fragment containers
+            android.view.Window w = activity.getWindow();
+            if (w == null) return;
+            android.view.View decor = w.getDecorView();
+            if (decor == null) return;
+
+            // Look for empty FrameLayouts that should contain fragments
+            // Common pattern: Activity has a FrameLayout(id=R.id.main_content) for the main fragment
+            String pkg = activity.getPackageName();
+            if (pkg == null) pkg = activity.getClass().getPackage().getName();
+
+            // Try to find Fragment classes in the app's package using common naming patterns
+            String actPkg = activity.getClass().getPackage().getName();
+            String[] fragmentCandidates = {
+                actPkg + ".CountersListFragment",     // Counter app specific
+                actPkg + ".MainFragment",
+                actPkg + ".HomeFragment",
+                pkg + ".ui.CountersListFragment",
+                pkg + ".ui.MainFragment",
+                pkg + ".ui.HomeFragment",
+                pkg + ".fragment.MainFragment",
+            };
+
+            // Find FragmentManager via reflection (works for both support lib and framework)
+            Object fragmentManager = null;
+            try {
+                java.lang.reflect.Method gsfm = activity.getClass().getMethod("getSupportFragmentManager");
+                fragmentManager = gsfm.invoke(activity);
+            } catch (Exception e) {
+                // try framework FragmentManager
+                try {
+                    fragmentManager = activity.getFragmentManager();
+                } catch (Exception e2) { /* ignore */ }
+            }
+
+            if (fragmentManager == null) {
+                Log.d(TAG, "  tryRecoverFragments: no FragmentManager available");
+                return;
+            }
+
+            for (String className : fragmentCandidates) {
+                try {
+                    Class<?> fragClass = ClassLoader.getSystemClassLoader().loadClass(className);
+                    Object fragment = fragClass.newInstance();
+
+                    // Try to add via support FragmentManager
+                    java.lang.reflect.Method beginTx = fragmentManager.getClass().getMethod("beginTransaction");
+                    Object tx = beginTx.invoke(fragmentManager);
+
+                    // Find the first empty FrameLayout with an ID
+                    int containerId = findEmptyFrameLayoutId(decor);
+                    if (containerId == 0) containerId = 0x7f0a004a; // fallback to common ID
+
+                    // Try to find the replace(int, Fragment) method — walk up the hierarchy
+                    // Also try all declared methods on the transaction in case of name matching
+                    boolean added = false;
+                    for (Class<?> c = fragClass; c != null && c != Object.class; c = c.getSuperclass()) {
+                        try {
+                            java.lang.reflect.Method replace = tx.getClass().getMethod("replace", int.class, c);
+                            replace.invoke(tx, containerId, fragment);
+                            added = true;
+                            break;
+                        } catch (NoSuchMethodException nsme) { /* try parent */ }
+                    }
+                    // Fallback: find any 'replace' method with matching arity and try it
+                    if (!added) {
+                        for (java.lang.reflect.Method m : tx.getClass().getMethods()) {
+                            if (m.getName().equals("replace") && m.getParameterTypes().length == 2
+                                    && m.getParameterTypes()[0] == int.class
+                                    && m.getParameterTypes()[1].isAssignableFrom(fragClass)) {
+                                m.invoke(tx, containerId, fragment);
+                                added = true;
+                                Log.d(TAG, "  tryRecoverFragments: used fallback replace(" + m.getParameterTypes()[1].getName() + ")");
+                                break;
+                            }
+                        }
+                    }
+
+                    if (added) {
+                        // Commit the transaction
+                        java.lang.reflect.Method commit = tx.getClass().getMethod("commitAllowingStateLoss");
+                        commit.invoke(tx);
+                        // Execute pending transactions immediately
+                        try {
+                            java.lang.reflect.Method exec = fragmentManager.getClass().getMethod("executePendingTransactions");
+                            exec.invoke(fragmentManager);
+                        } catch (Exception e) { /* may fail, that's ok */ }
+                        Log.i(TAG, "  tryRecoverFragments: added " + fragClass.getSimpleName() + " to container 0x" + Integer.toHexString(containerId));
+                        return;
+                    }
+                } catch (ClassNotFoundException e) {
+                    // Try next candidate
+                } catch (Exception e) {
+                    Log.d(TAG, "  tryRecoverFragments: " + className + " failed: " + e);
+                }
+            }
+            Log.d(TAG, "  tryRecoverFragments: no suitable Fragment class found");
+        } catch (Exception e) {
+            Log.d(TAG, "  tryRecoverFragments error: " + e);
+        }
+    }
+
+    /** Find the first FrameLayout child with an ID that has no children */
+    private int findEmptyFrameLayoutId(android.view.View v) {
+        if (v instanceof android.widget.FrameLayout) {
+            android.widget.FrameLayout fl = (android.widget.FrameLayout) v;
+            if (fl.getId() != android.view.View.NO_ID && fl.getChildCount() == 0) {
+                return fl.getId();
+            }
+        }
+        if (v instanceof android.view.ViewGroup) {
+            android.view.ViewGroup vg = (android.view.ViewGroup) v;
+            for (int i = 0; i < vg.getChildCount(); i++) {
+                int id = findEmptyFrameLayoutId(vg.getChildAt(i));
+                if (id != 0) return id;
+            }
+        }
+        return 0;
+    }
+
+    /**
+     * Find and initialize any null SharedPreferences fields on the activity.
+     * When onCreate NPEs before SP initialization, these fields stay null.
+     */
+    private void initNullSharedPrefsFields(Activity activity) {
+        try {
+            for (java.lang.reflect.Field f : activity.getClass().getDeclaredFields()) {
+                if (f.getType().getName().equals("android.content.SharedPreferences")) {
+                    f.setAccessible(true);
+                    Object val = f.get(activity);
+                    if (val == null) {
+                        // Initialize with default SharedPreferences
+                        android.content.SharedPreferences sp =
+                            android.preference.PreferenceManager.getDefaultSharedPreferences(activity);
+                        f.set(activity, sp);
+                        Log.i(TAG, "  initNullSharedPrefsFields: initialized " + f.getName());
+                    }
+                }
+            }
+        } catch (Exception e) {
+            Log.d(TAG, "  initNullSharedPrefsFields error: " + e);
+        }
     }
 
     private void performStart(ActivityRecord r) {
@@ -269,6 +429,8 @@ public class MiniActivityManager {
         }
         try {
             r.activity.onPostResume();
+        } catch (NullPointerException e) {
+            Log.w(TAG, "onPostResume NPE (non-fatal): " + e.getMessage());
         } catch (IllegalAccessError e) {
             try {
                 java.lang.reflect.Method m = Activity.class.getDeclaredMethod("onPostResume");

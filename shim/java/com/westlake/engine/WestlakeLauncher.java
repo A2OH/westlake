@@ -70,10 +70,16 @@ public class WestlakeLauncher {
             };
             for (String appName : candidates) {
                 try {
-                    Class<?> appCls = Class.forName(appName);
+                    Class<?> appCls = ClassLoader.getSystemClassLoader().loadClass(appName);
                     android.app.Application customApp = (android.app.Application) appCls.newInstance();
                     server.setApplication(customApp);
-                    System.out.println("[WestlakeLauncher] Custom Application: " + appCls.getSimpleName());
+                    // Call Application.onCreate() — many apps initialize storage/singletons here
+                    try {
+                        customApp.onCreate();
+                        System.out.println("[WestlakeLauncher] Custom Application created + onCreate: " + appCls.getSimpleName());
+                    } catch (Exception appEx) {
+                        System.out.println("[WestlakeLauncher] Application.onCreate error (non-fatal): " + appEx);
+                    }
                     break;
                 } catch (ClassNotFoundException e) {
                     // try next
@@ -93,9 +99,26 @@ public class WestlakeLauncher {
                 System.out.println("[WestlakeLauncher] ResDir: " + resDir);
 
                 android.app.ApkInfo info;
-                if (resDir != null && new java.io.File(resDir, "resources.arsc").exists()) {
+                // Check resDir — also try fallback paths if the primary path isn't accessible
+                String effectiveResDir = resDir;
+                if (effectiveResDir != null && !new java.io.File(effectiveResDir, "resources.arsc").exists()) {
+                    System.out.println("[WestlakeLauncher] ResDir not accessible: " + effectiveResDir);
+                    // Try sibling of the dalvikvm binary
+                    String[] fallbacks = {
+                        "/data/local/tmp/westlake/apk_res",
+                        System.getProperty("user.dir", ".") + "/apk_res"
+                    };
+                    for (String fb : fallbacks) {
+                        if (new java.io.File(fb, "resources.arsc").exists()) {
+                            effectiveResDir = fb;
+                            System.out.println("[WestlakeLauncher] Using fallback resDir: " + fb);
+                            break;
+                        }
+                    }
+                }
+                if (effectiveResDir != null && new java.io.File(effectiveResDir, "resources.arsc").exists()) {
                     // Use pre-extracted resources (host extracted them before spawning dalvikvm)
-                    info = android.app.ApkLoader.loadFromExtracted(resDir, packageName);
+                    info = android.app.ApkLoader.loadFromExtracted(effectiveResDir, packageName);
                     // Store ApkInfo on MiniServer so LayoutInflater can find resDir
                     try {
                         java.lang.reflect.Field f = MiniServer.class.getDeclaredField("mApkInfo");

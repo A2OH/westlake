@@ -17,17 +17,17 @@ public class Window {
     public static final int DECOR_CAPTION_SHADE_AUTO = 0;
     public static final int DECOR_CAPTION_SHADE_DARK = 0;
     public static final int DECOR_CAPTION_SHADE_LIGHT = 0;
-    public static final int FEATURE_ACTION_BAR = 0;
-    public static final int FEATURE_ACTION_BAR_OVERLAY = 0;
-    public static final int FEATURE_ACTION_MODE_OVERLAY = 0;
-    public static final int FEATURE_ACTIVITY_TRANSITIONS = 0;
-    public static final int FEATURE_CONTENT_TRANSITIONS = 0;
-    public static final int FEATURE_CONTEXT_MENU = 0;
-    public static final int FEATURE_CUSTOM_TITLE = 0;
-    public static final int FEATURE_LEFT_ICON = 0;
-    public static final int FEATURE_NO_TITLE = 1;
     public static final int FEATURE_OPTIONS_PANEL = 0;
-    public static final int FEATURE_RIGHT_ICON = 0;
+    public static final int FEATURE_NO_TITLE = 1;
+    public static final int FEATURE_CONTEXT_MENU = 6;
+    public static final int FEATURE_CUSTOM_TITLE = 7;
+    public static final int FEATURE_ACTION_BAR = 8;
+    public static final int FEATURE_ACTION_BAR_OVERLAY = 9;
+    public static final int FEATURE_ACTION_MODE_OVERLAY = 10;
+    public static final int FEATURE_CONTENT_TRANSITIONS = 12;
+    public static final int FEATURE_ACTIVITY_TRANSITIONS = 13;
+    public static final int FEATURE_LEFT_ICON = 3;
+    public static final int FEATURE_RIGHT_ICON = 4;
     public static final int ID_ANDROID_CONTENT = 0x01020002;
     public static final int NAVIGATION_BAR_BACKGROUND_TRANSITION_NAME = 0;
     public static final int STATUS_BAR_BACKGROUND_TRANSITION_NAME = 0;
@@ -111,7 +111,7 @@ public class Window {
     public WindowManager getWindowManager() { return null; }
     public TypedArray getWindowStyle() { return null; }
     public boolean hasChildren() { return false; }
-    public boolean hasFeature(int p0) { return false; }
+    public boolean hasFeature(int p0) { return (mFeatures & (1 << p0)) != 0; }
     public boolean hasSoftInputMode() { return false; }
     public void injectInputEvent(InputEvent p0) {}
     public void invalidatePanelMenu(int p0) {}
