@@ -517,7 +517,7 @@ public class OHBridge {
         return ctx != null ? ctx[0] : 0;
     }
 
-    // ── Display list shm writer ──
+    // ── Display list shm writer (version=2) ──
     private static java.io.RandomAccessFile sShmRaf;
     private static int sFrameSeq = 0;
     private static final int SHM_HEADER_SIZE = 128;
@@ -526,6 +526,7 @@ public class OHBridge {
     private static final int OP_DRAW_COLOR = 1, OP_DRAW_RECT = 2, OP_DRAW_TEXT = 3;
     private static final int OP_DRAW_LINE = 4, OP_SAVE = 5, OP_RESTORE = 6;
     private static final int OP_TRANSLATE = 7, OP_CLIP_RECT = 8, OP_DRAW_ROUND_RECT = 9;
+    private static final int OP_DRAW_CIRCLE = 10;
 
     private static java.io.RandomAccessFile getShmRaf() {
         if (sShmRaf != null) return sShmRaf;
@@ -533,11 +534,10 @@ public class OHBridge {
         if (path == null || path.isEmpty()) path = "/data/local/tmp/westlake/westlake_shm";
         try {
             sShmRaf = new java.io.RandomAccessFile(path, "rw");
-            // Ensure file is big enough and write initial header
             if (sShmRaf.length() < SHM_TOTAL) sShmRaf.setLength(SHM_TOTAL);
             byte[] hdr = new byte[SHM_HEADER_SIZE];
             putInt(hdr, 0, 0x574C4B46); // WLK_MAGIC
-            putInt(hdr, 4, 2);           // version=2
+            putInt(hdr, 4, 2);           // version=2 = display list
             putInt(hdr, 8, 480);
             putInt(hdr, 12, 800);
             sShmRaf.seek(0);
@@ -569,7 +569,7 @@ public class OHBridge {
         java.util.List<DrawRecord> log = sCanvasDrawLog.get(canvasH);
         if (log == null || log.isEmpty()) return 0;
 
-        // Serialize display list into buffer (header at 0, data at SHM_HEADER_SIZE)
+        // Serialize DrawRecords to display list binary format
         byte[] buf = new byte[SHM_DLIST_MAX];
         int pos = 0;
         int maxPos = SHM_DLIST_MAX - 64;
@@ -590,8 +590,7 @@ public class OHBridge {
                             putFloat(buf, pos, rec.args[2]); pos += 4;
                             putFloat(buf, pos, rec.args[3]); pos += 4;
                             putInt(buf, pos, rec.color); pos += 4;
-                        }
-                        break;
+                        } break;
                     case "drawRoundRect":
                         if (rec.args.length >= 6) {
                             buf[pos++] = (byte)OP_DRAW_ROUND_RECT;
@@ -602,12 +601,19 @@ public class OHBridge {
                             putFloat(buf, pos, rec.args[4]); pos += 4;
                             putFloat(buf, pos, rec.args[5]); pos += 4;
                             putInt(buf, pos, rec.color); pos += 4;
-                        }
-                        break;
+                        } break;
+                    case "drawCircle":
+                        if (rec.args.length >= 3) {
+                            buf[pos++] = (byte)OP_DRAW_CIRCLE;
+                            putFloat(buf, pos, rec.args[0]); pos += 4;
+                            putFloat(buf, pos, rec.args[1]); pos += 4;
+                            putFloat(buf, pos, rec.args[2]); pos += 4;
+                            putInt(buf, pos, rec.color); pos += 4;
+                        } break;
                     case "drawText":
                         if (rec.text != null && rec.args.length >= 3) {
                             byte[] t = rec.text.getBytes("UTF-8");
-                            if (pos + 15 + t.length < maxPos) {
+                            if (pos + 19 + t.length < maxPos) {
                                 buf[pos++] = (byte)OP_DRAW_TEXT;
                                 putFloat(buf, pos, rec.args[0]); pos += 4;
                                 putFloat(buf, pos, rec.args[1]); pos += 4;
@@ -616,8 +622,7 @@ public class OHBridge {
                                 putShort(buf, pos, (short)t.length); pos += 2;
                                 System.arraycopy(t, 0, buf, pos, t.length); pos += t.length;
                             }
-                        }
-                        break;
+                        } break;
                     case "drawLine":
                         if (rec.args.length >= 4) {
                             buf[pos++] = (byte)OP_DRAW_LINE;
@@ -626,8 +631,10 @@ public class OHBridge {
                             putFloat(buf, pos, rec.args[2]); pos += 4;
                             putFloat(buf, pos, rec.args[3]); pos += 4;
                             putInt(buf, pos, rec.color); pos += 4;
-                        }
-                        break;
+                            // strokeWidth (host expects 6 floats for line)
+                            float sw = (rec.args.length > 4) ? rec.args[4] : 1.0f;
+                            putFloat(buf, pos, sw); pos += 4;
+                        } break;
                     case "save": buf[pos++] = (byte)OP_SAVE; break;
                     case "restore": buf[pos++] = (byte)OP_RESTORE; break;
                     case "translate":
@@ -635,8 +642,7 @@ public class OHBridge {
                             buf[pos++] = (byte)OP_TRANSLATE;
                             putFloat(buf, pos, rec.args[0]); pos += 4;
                             putFloat(buf, pos, rec.args[1]); pos += 4;
-                        }
-                        break;
+                        } break;
                     case "clipRect":
                         if (rec.args.length >= 4) {
                             buf[pos++] = (byte)OP_CLIP_RECT;
@@ -644,8 +650,7 @@ public class OHBridge {
                             putFloat(buf, pos, rec.args[1]); pos += 4;
                             putFloat(buf, pos, rec.args[2]); pos += 4;
                             putFloat(buf, pos, rec.args[3]); pos += 4;
-                        }
-                        break;
+                        } break;
                 }
             } catch (Exception e) { break; }
         }
@@ -653,21 +658,17 @@ public class OHBridge {
         sFrameSeq++;
         int dlistSize = pos;
 
-        // Write to shm using persistent RandomAccessFile
+        // Write display list then header to shm
         java.io.RandomAccessFile raf = getShmRaf();
         if (raf != null) {
             try {
-                // Build a complete write buffer: header update (8 bytes at offset 16) + display list
-                // Write display list data first at offset SHM_HEADER_SIZE
                 raf.seek(SHM_HEADER_SIZE);
                 raf.write(buf, 0, pos);
-                // Then update frame_seq + dlist_size at offset 16 (signals reader)
                 byte[] seqBuf = new byte[8];
                 putInt(seqBuf, 0, sFrameSeq);
                 putInt(seqBuf, 4, dlistSize);
                 raf.seek(16);
                 raf.write(seqBuf);
-                // getFD().sync() ensures mmap readers see the data
                 raf.getFD().sync();
             } catch (Exception e) {
                 System.out.println("[OHBridge] shm write error: " + e);
