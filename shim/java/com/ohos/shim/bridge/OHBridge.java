@@ -37,11 +37,21 @@ public class OHBridge {
     private static boolean nativeAvailable;
 
     static {
-        try {
-            System.loadLibrary("oh_bridge");
-            nativeAvailable = true;
-        } catch (Throwable t) {
-            nativeAvailable = false;
+        // Try multiple library names/paths
+        String[] libs = {"westlake_natives", "oh_bridge"};
+        String[] paths = {"/data/local/tmp/westlake/libwestlake_natives.so"};
+        for (String lib : libs) {
+            try { System.loadLibrary(lib); nativeAvailable = true; break; }
+            catch (Throwable t) { /* try next */ }
+        }
+        if (!nativeAvailable) {
+            for (String path : paths) {
+                try {
+                    if (new java.io.File(path).exists()) {
+                        System.load(path); nativeAvailable = true; break;
+                    }
+                } catch (Throwable t) { /* try next */ }
+            }
         }
     }
 

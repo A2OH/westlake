@@ -517,8 +517,164 @@ public class OHBridge {
         return ctx != null ? ctx[0] : 0;
     }
 
+    // ── Display list shm writer ──
+    private static java.io.RandomAccessFile sShmRaf;
+    private static int sFrameSeq = 0;
+    private static final int SHM_HEADER_SIZE = 128;
+    private static final int SHM_DLIST_MAX = 512 * 1024;
+    private static final int SHM_TOTAL = SHM_HEADER_SIZE + SHM_DLIST_MAX + 64;
+    private static final int OP_DRAW_COLOR = 1, OP_DRAW_RECT = 2, OP_DRAW_TEXT = 3;
+    private static final int OP_DRAW_LINE = 4, OP_SAVE = 5, OP_RESTORE = 6;
+    private static final int OP_TRANSLATE = 7, OP_CLIP_RECT = 8, OP_DRAW_ROUND_RECT = 9;
+
+    private static java.io.RandomAccessFile getShmRaf() {
+        if (sShmRaf != null) return sShmRaf;
+        String path = System.getenv("WESTLAKE_SHM");
+        if (path == null || path.isEmpty()) path = "/data/local/tmp/westlake/westlake_shm";
+        try {
+            sShmRaf = new java.io.RandomAccessFile(path, "rw");
+            // Ensure file is big enough and write initial header
+            if (sShmRaf.length() < SHM_TOTAL) sShmRaf.setLength(SHM_TOTAL);
+            byte[] hdr = new byte[SHM_HEADER_SIZE];
+            putInt(hdr, 0, 0x574C4B46); // WLK_MAGIC
+            putInt(hdr, 4, 2);           // version=2
+            putInt(hdr, 8, 480);
+            putInt(hdr, 12, 800);
+            sShmRaf.seek(0);
+            sShmRaf.write(hdr);
+            System.out.println("[OHBridge] shm_init: DLIST mode, path=" + path + ", total=" + SHM_TOTAL + " bytes");
+        } catch (Exception e) {
+            System.out.println("[OHBridge] shm_init FAILED: " + e);
+            sShmRaf = null;
+        }
+        return sShmRaf;
+    }
+
+    private static void putInt(byte[] buf, int off, int v) {
+        buf[off]   = (byte)(v);       buf[off+1] = (byte)(v >> 8);
+        buf[off+2] = (byte)(v >> 16); buf[off+3] = (byte)(v >> 24);
+    }
+    private static void putFloat(byte[] buf, int off, float v) {
+        putInt(buf, off, Float.floatToRawIntBits(v));
+    }
+    private static void putShort(byte[] buf, int off, short v) {
+        buf[off] = (byte)(v); buf[off+1] = (byte)(v >> 8);
+    }
+
     public static int surfaceFlush(long surfaceCtx) {
-        // Mock: no-op (no real display)
+        long[] ctx = sSurfaces.get(surfaceCtx);
+        if (ctx == null) return -1;
+        long canvasH = ctx[0];
+
+        java.util.List<DrawRecord> log = sCanvasDrawLog.get(canvasH);
+        if (log == null || log.isEmpty()) return 0;
+
+        // Serialize display list into buffer (header at 0, data at SHM_HEADER_SIZE)
+        byte[] buf = new byte[SHM_DLIST_MAX];
+        int pos = 0;
+        int maxPos = SHM_DLIST_MAX - 64;
+
+        for (DrawRecord rec : log) {
+            if (pos >= maxPos) break;
+            try {
+                switch (rec.op) {
+                    case "drawColor":
+                        buf[pos++] = (byte)OP_DRAW_COLOR;
+                        putInt(buf, pos, rec.color); pos += 4;
+                        break;
+                    case "drawRect":
+                        if (rec.args.length >= 4) {
+                            buf[pos++] = (byte)OP_DRAW_RECT;
+                            putFloat(buf, pos, rec.args[0]); pos += 4;
+                            putFloat(buf, pos, rec.args[1]); pos += 4;
+                            putFloat(buf, pos, rec.args[2]); pos += 4;
+                            putFloat(buf, pos, rec.args[3]); pos += 4;
+                            putInt(buf, pos, rec.color); pos += 4;
+                        }
+                        break;
+                    case "drawRoundRect":
+                        if (rec.args.length >= 6) {
+                            buf[pos++] = (byte)OP_DRAW_ROUND_RECT;
+                            putFloat(buf, pos, rec.args[0]); pos += 4;
+                            putFloat(buf, pos, rec.args[1]); pos += 4;
+                            putFloat(buf, pos, rec.args[2]); pos += 4;
+                            putFloat(buf, pos, rec.args[3]); pos += 4;
+                            putFloat(buf, pos, rec.args[4]); pos += 4;
+                            putFloat(buf, pos, rec.args[5]); pos += 4;
+                            putInt(buf, pos, rec.color); pos += 4;
+                        }
+                        break;
+                    case "drawText":
+                        if (rec.text != null && rec.args.length >= 3) {
+                            byte[] t = rec.text.getBytes("UTF-8");
+                            if (pos + 15 + t.length < maxPos) {
+                                buf[pos++] = (byte)OP_DRAW_TEXT;
+                                putFloat(buf, pos, rec.args[0]); pos += 4;
+                                putFloat(buf, pos, rec.args[1]); pos += 4;
+                                putFloat(buf, pos, rec.args[2]); pos += 4;
+                                putInt(buf, pos, rec.color); pos += 4;
+                                putShort(buf, pos, (short)t.length); pos += 2;
+                                System.arraycopy(t, 0, buf, pos, t.length); pos += t.length;
+                            }
+                        }
+                        break;
+                    case "drawLine":
+                        if (rec.args.length >= 4) {
+                            buf[pos++] = (byte)OP_DRAW_LINE;
+                            putFloat(buf, pos, rec.args[0]); pos += 4;
+                            putFloat(buf, pos, rec.args[1]); pos += 4;
+                            putFloat(buf, pos, rec.args[2]); pos += 4;
+                            putFloat(buf, pos, rec.args[3]); pos += 4;
+                            putInt(buf, pos, rec.color); pos += 4;
+                        }
+                        break;
+                    case "save": buf[pos++] = (byte)OP_SAVE; break;
+                    case "restore": buf[pos++] = (byte)OP_RESTORE; break;
+                    case "translate":
+                        if (rec.args.length >= 2) {
+                            buf[pos++] = (byte)OP_TRANSLATE;
+                            putFloat(buf, pos, rec.args[0]); pos += 4;
+                            putFloat(buf, pos, rec.args[1]); pos += 4;
+                        }
+                        break;
+                    case "clipRect":
+                        if (rec.args.length >= 4) {
+                            buf[pos++] = (byte)OP_CLIP_RECT;
+                            putFloat(buf, pos, rec.args[0]); pos += 4;
+                            putFloat(buf, pos, rec.args[1]); pos += 4;
+                            putFloat(buf, pos, rec.args[2]); pos += 4;
+                            putFloat(buf, pos, rec.args[3]); pos += 4;
+                        }
+                        break;
+                }
+            } catch (Exception e) { break; }
+        }
+
+        sFrameSeq++;
+        int dlistSize = pos;
+
+        // Write to shm using persistent RandomAccessFile
+        java.io.RandomAccessFile raf = getShmRaf();
+        if (raf != null) {
+            try {
+                // Build a complete write buffer: header update (8 bytes at offset 16) + display list
+                // Write display list data first at offset SHM_HEADER_SIZE
+                raf.seek(SHM_HEADER_SIZE);
+                raf.write(buf, 0, pos);
+                // Then update frame_seq + dlist_size at offset 16 (signals reader)
+                byte[] seqBuf = new byte[8];
+                putInt(seqBuf, 0, sFrameSeq);
+                putInt(seqBuf, 4, dlistSize);
+                raf.seek(16);
+                raf.write(seqBuf);
+                // getFD().sync() ensures mmap readers see the data
+                raf.getFD().sync();
+            } catch (Exception e) {
+                System.out.println("[OHBridge] shm write error: " + e);
+            }
+        }
+
+        log.clear();
         return 0;
     }
 

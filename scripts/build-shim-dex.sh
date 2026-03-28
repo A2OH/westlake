@@ -25,6 +25,7 @@ rm -rf "$BUILD_DIR"
 mkdir -p "$BUILD_DIR/classes"
 
 # Collect all shim Java files (excluding real OHBridge since we use the mock for compilation)
+# The mock OHBridge handles display list serialization to shm in pure Java
 echo "Collecting sources..."
 JAVA_FILES=$(find "$SHIM_JAVA" -name "*.java" ! -path "*/ohos/shim/bridge/OHBridge.java")
 # Add mock OHBridge for compilation
