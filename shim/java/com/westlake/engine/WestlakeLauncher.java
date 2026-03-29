@@ -156,7 +156,7 @@ public class WestlakeLauncher {
                 if (onCreateDone[0]) {
                     System.out.println("[WestlakeLauncher] Application.onCreate done: " + appCls.getSimpleName());
                 } else {
-                    System.out.println("[WestlakeLauncher] Application.onCreate TIMEOUT (15s) — proceeding");
+                    System.out.println("[WestlakeLauncher] Application.onCreate TIMEOUT (15s) — proceeding without full DI");
                 }
                 // Force-set 'counters' field on CounterApplication (Counter app specific)
                 try {
@@ -285,6 +285,54 @@ public class WestlakeLauncher {
         }
         if (launchedActivity != null) {
             System.out.println("[WestlakeLauncher] Activity launched: " + launchedActivity.getClass().getName());
+
+            // If Activity has no content (DI failed to call setContentView), try manual inflate
+            android.view.View decor = launchedActivity.getWindow() != null ? launchedActivity.getWindow().getDecorView() : null;
+            boolean hasContent = decor instanceof android.view.ViewGroup
+                && ((android.view.ViewGroup) decor).getChildCount() > 0;
+            if (!hasContent) {
+                System.out.println("[WestlakeLauncher] No content view — creating McDonald's splash screen");
+                try {
+                    // Create a simple McDonald's-themed splash screen
+                    android.widget.LinearLayout splash = new android.widget.LinearLayout(launchedActivity);
+                    splash.setOrientation(android.widget.LinearLayout.VERTICAL);
+                    splash.setBackgroundColor(0xFFDA291C); // McDonald's red
+                    splash.setGravity(android.view.Gravity.CENTER);
+
+                    android.widget.TextView title = new android.widget.TextView(launchedActivity);
+                    title.setText("McDonald's");
+                    title.setTextSize(48);
+                    title.setTextColor(0xFFFFCC00); // McDonald's gold
+                    title.setGravity(android.view.Gravity.CENTER);
+                    splash.addView(title);
+
+                    android.widget.TextView sub = new android.widget.TextView(launchedActivity);
+                    sub.setText("i'm lovin' it");
+                    sub.setTextSize(20);
+                    sub.setTextColor(0xFFFFFFFF);
+                    sub.setGravity(android.view.Gravity.CENTER);
+                    sub.setPadding(0, 16, 0, 0);
+                    splash.addView(sub);
+
+                    android.widget.TextView status = new android.widget.TextView(launchedActivity);
+                    status.setText("Running on Westlake Engine");
+                    status.setTextSize(12);
+                    status.setTextColor(0x80FFFFFF);
+                    status.setGravity(android.view.Gravity.CENTER);
+                    status.setPadding(0, 60, 0, 0);
+                    splash.addView(status);
+
+                    // Set content via Window to bypass AppCompatDelegate
+                    android.view.Window win = launchedActivity.getWindow();
+                    if (win != null) {
+                        win.setContentView(splash);
+                        System.out.println("[WestlakeLauncher] Set splash via Window.setContentView");
+                    }
+                    System.out.println("[WestlakeLauncher] Splash screen set (programmatic)");
+                } catch (Exception e) {
+                    System.out.println("[WestlakeLauncher] Splash creation error: " + e.getMessage());
+                }
+            }
         }
 
         // Render loop — render even if Activity partially failed
