@@ -398,16 +398,100 @@ To port to OpenHarmony: reimplement those ~25 C functions against ArkUI/Skia.
 
 ---
 
+## VM Pipeline (Subprocess Mode) — Real Stock APK Support
+
+The Westlake VM pipeline runs Android apps in a **separate dalvikvm process** communicating via stdout pipe. This is the architecture that supports real Play Store APKs.
+
+### Architecture
+
+```
+Host Android App (Compose)          dalvikvm subprocess (ART11, ARM64, static)
+─────────────────────────           ──────────────────────────────────────────
+WestlakeActivity                    WestlakeLauncher.main()
+  └── WestlakeVM.kt                  ├── ManifestParser → Application class
+       ├── Extract DEX + res          ├── Application.onCreate() [15s timeout]
+       ├── Start dalvikvm process     ├── Activity.onCreate() [15s timeout]
+       ├── Read pipe (DLST frames)    ├── onSurfaceCreated() + renderFrame()
+       └── SurfaceView.lockCanvas()   └── Event loop (touch.dat → dispatch)
+            → replay display list          → shim framework → OHBridge
+            → unlockCanvasAndPost()        → [DLST][size][ops] → stdout pipe
+```
+
+### Tested Apps
+
+| App | Source | DEX Files | Classes | Status |
+|-----|--------|-----------|---------|--------|
+| MockDonalds | Custom | 1 | ~50 | Full functionality |
+| Tip Calculator | Custom | 1 | ~10 | Full functionality |
+| TODO List | Custom | 1 | ~20 | Full functionality |
+| Counter | Play Store | 1 | ~2K | Full functionality |
+| **McDonald's** | **Play Store** | **33** | **119,275** | **Lifecycle complete, renders splash** |
+
+### Running a Real APK (McDonald's Example)
+
+```bash
+# 1. Extract DEX files from APK
+python3 -c "
+import zipfile
+z = zipfile.ZipFile('mcdonalds.apk')
+for e in z.namelist():
+    if e.startswith('classes') and e.endswith('.dex'):
+        z.extract(e, '/tmp/mcd-dex/')
+"
+
+# 2. Push to phone
+adb push dalvikvm /data/local/tmp/westlake/
+adb push aosp-shim.dex /data/local/tmp/westlake/
+for f in /tmp/mcd-dex/classes*.dex; do
+    adb push "$f" "/data/local/tmp/westlake/mcd_$(basename $f)"
+done
+
+# 3. Extract and push resources + manifest
+# (WestlakeVM.kt does this automatically for in-app launches)
+
+# 4. Generate boot image with shim included
+dex2oat --instruction-set=arm64 --compiler-filter=extract \
+  --image=boot.art --oat-file=boot.oat \
+  --dex-file=core-oj.jar --dex-location=/data/local/tmp/westlake/core-oj.jar \
+  --dex-file=core-libart.jar --dex-location=/data/local/tmp/westlake/core-libart.jar \
+  --dex-file=core-icu4j.jar --dex-location=/data/local/tmp/westlake/core-icu4j.jar \
+  --dex-file=aosp-shim.dex --dex-location=/data/local/tmp/westlake/aosp-shim.dex \
+  --runtime-arg -Xverify:none --base=0x70000000
+```
+
+### Stubs Added for Stock App Support
+
+| Category | Classes | Purpose |
+|----------|---------|---------|
+| Google Play Services | GoogleApiAvailability, Task, Tasks, ConnectionResult | GMS availability checks |
+| Firebase | FirebaseApp, Analytics, Messaging, Auth, Crashlytics | Firebase init + analytics |
+| AndroidX | InitializationProvider | App Startup library |
+| Dagger/Hilt | HiltAndroidApp, AndroidEntryPoint, @Inject | DI annotations |
+| Native (C) | Inflater/Deflater, JarFile, ICU regex, Character | Core JDK natives |
+| Manifest | ManifestParser | Binary AXML → Application class + activity list |
+
+### Known Limitations for Complex Apps
+
+1. **Dagger/Hilt DI**: Interpreter mode too slow for 100K+ class graphs. Application.onCreate() gets a 15s timeout, then Activity proceeds with null injected fields.
+2. **Native .so loading**: Static dalvikvm can't dlopen. System.loadLibrary() returns UnsatisfiedLinkError (caught by most apps).
+3. **No network**: Apps expecting HTTP responses will get null/timeout.
+4. **No Google Play Services**: GMS checks return SERVICE_MISSING.
+
+---
+
 ## Quick Reference
 
 | What | Where |
 |------|-------|
 | GitHub repo | `https://github.com/A2OH/westlake` |
-| Host APK source | `westlake-host/src/com/westlake/host/WestlakeActivity.java` |
-| Shim layer | `shim/java/` (2,168 classes) |
-| MockDonalds app | `test-apps/04-mockdonalds/src/com/example/mockdonalds/` |
-| Dialer app | `test-apps/14-dialer/src/com/example/dialer/` |
-| Built APK | `westlake-host/build/WestlakeEngine.apk` |
-| Native bridge | `westlake-host/jni/ohbridge_android.c` |
+| Host APK (Compose) | `westlake-host-gradle/` |
+| VM launcher | `shim/java/com/westlake/engine/WestlakeLauncher.java` |
+| Manifest parser | `shim/java/android/content/pm/ManifestParser.java` |
+| Shim layer | `shim/java/` (2,200+ classes) |
+| GMS/Firebase stubs | `shim/java/com/google/` |
+| Native stubs | `art-universal-build/stubs/openjdk_stub.c` |
+| Boot image gen | `dex2oat --dex-location=... --compiler-filter=extract` |
+| MockDonalds app | `test-apps/04-mockdonalds/` |
+| Built shim DEX | `aosp-shim.dex` |
 | Status docs | `docs/engine/WESTLAKE-STATUS.md` |
-| Architecture | `docs/engine/ARCHITECTURE.md` |
+| GitHub issues | `A2OH/westlake #550-#557` (McDonald's blockers) |
