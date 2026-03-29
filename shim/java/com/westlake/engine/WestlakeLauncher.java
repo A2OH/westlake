@@ -365,6 +365,22 @@ public class WestlakeLauncher {
                     System.out.println("[WestlakeLauncher] Layout inflate error: " + e.getMessage());
                 }
 
+                // Check if inflated layout has visible content (not just empty FrameLayouts)
+                if (splashView != null && splashView instanceof android.view.ViewGroup) {
+                    android.view.ViewGroup vg = (android.view.ViewGroup) splashView;
+                    boolean hasVisibleChild = false;
+                    for (int i = 0; i < vg.getChildCount(); i++) {
+                        android.view.View child = vg.getChildAt(i);
+                        if (child instanceof android.widget.TextView || child instanceof android.widget.ImageView) {
+                            hasVisibleChild = true; break;
+                        }
+                    }
+                    if (!hasVisibleChild) {
+                        System.out.println("[WestlakeLauncher] Inflated layout has no visible content — using programmatic splash");
+                        splashView = null;
+                    }
+                }
+
                 // Fallback: programmatic McDonald's splash
                 if (splashView == null) {
                     System.out.println("[WestlakeLauncher] Using programmatic splash fallback");
