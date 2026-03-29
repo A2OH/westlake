@@ -105,6 +105,16 @@ class WestlakeActivity : ComponentActivity() {
             setContent { WestlakeVMApkScreen(config) }
             return
         }
+        if (className == "WESTLAKE_VM_MCD") {
+            Log.i(TAG, "Launching McDonald's VM")
+            val config = ApkVmConfig(
+                packageName = "com.mcdonalds.app",
+                activityName = "com.mcdonalds.mcdcoreapp.common.activity.SplashActivity",
+                displayName = "McDonald's"
+            )
+            setContent { WestlakeVMApkScreen(config) }
+            return
+        }
         if (className.startsWith("VM_APK:")) {
             // Format: VM_APK:package:activity:displayName
             val parts = className.removePrefix("VM_APK:").split(":")
@@ -378,6 +388,7 @@ fun WestlakeHome() {
             AppInfo("Counter (VM)", "Simple Counter APK in ART11 subprocess", Color(0xFF9C27B0), "VM_APK:me.tsukanov.counter:me.tsukanov.counter.ui.MainActivity:Simple Counter", null, ""),
             AppInfo("Tip Calculator (VM)", "Full app in ART11 subprocess", Color(0xFFFF9800), "WESTLAKE_VM_TIP", null, ""),
             AppInfo("TODO List (VM)", "Multi-Activity app with ListView", Color(0xFF2196F3), "WESTLAKE_VM_TODO", null, ""),
+            AppInfo("McDonald's (VM)", "Real stock APK — 119K classes", Color(0xFFDA291C), "WESTLAKE_VM_MCD", null, ""),
             AppInfo("Compose Demo", "Navigation + Retrofit + Coil + ViewModel", Color(0xFF00BCD4), "COMPOSE_DEMO", null, ""),
             AppInfo("Noice (APK Resources)", "Production app → resources.arsc → Views", Color(0xFF26A69A), "APK_VIEW:com.github.ashutoshgngwr.noice:Noice", null, ""),
             AppInfo("Counter (APK Resources)", "Real APK → resources.arsc → Views", Color(0xFF9C27B0), "APK_VIEW:me.tsukanov.counter:Counter", null, ""),

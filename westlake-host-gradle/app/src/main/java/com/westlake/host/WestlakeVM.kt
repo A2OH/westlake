@@ -126,7 +126,14 @@ object WestlakeVM {
             // Check for DEX-only app (tipcalc.dex at runDir)
             val dexOnlyPath = "$runDir/${apkConfig.packageName.replace(".", "_")}.dex"
             val isDexOnly = (apkSrc == null || !File(apkSrc).exists()) && File(dexOnlyPath).exists()
-            if (!isDexOnly && (apkSrc == null || !File(apkSrc).exists())) {
+
+            // Check for pre-pushed multi-DEX (e.g., mcd_classes.dex, mcd_classes2.dex, ...)
+            val multiDexPrefix = "mcd_classes"
+            val multiDexFirst = File("$runDir/${multiDexPrefix}.dex")
+            val isMultiDexPushed = (apkSrc == null || !File(apkSrc).exists()) && !isDexOnly && multiDexFirst.exists()
+                    && apkConfig.packageName == "com.mcdonalds.app"
+
+            if (!isDexOnly && !isMultiDexPushed && (apkSrc == null || !File(apkSrc).exists())) {
                 log.add("ERROR: APK not found: $apkSrc (also checked $dexOnlyPath)")
                 return log
             }
@@ -143,6 +150,28 @@ object WestlakeVM {
                     "com.westlake.engine.WestlakeLauncher"
                 )
                 log.add("DEX-only: ${apkConfig.displayName}")
+            } else if (isMultiDexPushed) {
+                // Multi-DEX app pre-pushed to device (McDonald's)
+                val dexPaths = mutableListOf("$runDir/${multiDexPrefix}.dex")
+                for (i in 2..33) {
+                    val f = File("$runDir/${multiDexPrefix}${i}.dex")
+                    if (f.exists()) dexPaths.add(f.absolutePath)
+                }
+                val dexClasspath = dexPaths.joinToString(":")
+                val resDir = "$runDir/mcd_res"
+                val manifestPath = "$resDir/AndroidManifest.xml"
+                cmd = arrayOf(
+                    dvm, "-Xbootclasspath:$bcp", *bootArgs, "-Xverify:none",
+                    "-Xgc:nonconcurrent", "-Xms128m", "-Xmx256m",
+                    "-Dwestlake.apk.path=$runDir/${multiDexPrefix}.dex",
+                    "-Dwestlake.apk.activity=${apkConfig.activityName}",
+                    "-Dwestlake.apk.package=${apkConfig.packageName}",
+                    "-Dwestlake.apk.resdir=$resDir",
+                    "-Dwestlake.apk.manifest=$manifestPath",
+                    "-classpath", dexClasspath,
+                    "com.westlake.engine.WestlakeLauncher"
+                )
+                log.add("Multi-DEX: ${apkConfig.displayName} (${dexPaths.size} DEX files)")
             } else {
 
             // Copy APK to app's private dir (writable by our process)
