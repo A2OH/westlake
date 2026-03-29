@@ -12,8 +12,8 @@ public class DisplayMetrics {
     public float density        = 2.0f;
     public float scaledDensity  = 2.0f;
     public int   densityDpi     = 320;
-    public int   widthPixels    = 1080;
-    public int   heightPixels   = 1920;
+    public int   widthPixels    = 480;
+    public int   heightPixels   = 800;
     public float xdpi           = 320f;
     public float ydpi           = 320f;
 }

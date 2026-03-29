@@ -55,6 +55,27 @@ public class WestlakeLauncher {
         MiniActivityManager am = server.getActivityManager();
         System.out.println("[WestlakeLauncher] MiniServer initialized");
 
+        // Pre-seed SharedPreferences BEFORE any app code runs
+        if ("me.tsukanov.counter".equals(packageName)) {
+            android.content.SharedPreferences sp =
+                android.content.SharedPreferences.getInstance("counters");
+            if (sp.getAll().isEmpty()) {
+                sp.edit().putInt("My Counter", 0)
+                         .putInt("Steps", 42)
+                         .putInt("Coffee", 3)
+                         .apply();
+                System.out.println("[WestlakeLauncher] Pre-seeded 3 counters");
+            }
+        }
+        // Store counter data to set on CounterApplication after its creation
+        final java.util.LinkedHashMap<String, Integer> counterData = new java.util.LinkedHashMap<>();
+        if ("me.tsukanov.counter".equals(packageName)) {
+            android.content.SharedPreferences sp = android.content.SharedPreferences.getInstance("counters");
+            for (java.util.Map.Entry<String, ?> e : sp.getAll().entrySet()) {
+                if (e.getValue() instanceof Integer) counterData.put(e.getKey(), (Integer) e.getValue());
+            }
+        }
+
         // Try to create the APK's custom Application class
         // (e.g., CounterApplication instead of generic Application)
         if (packageName != null) {
@@ -80,6 +101,19 @@ public class WestlakeLauncher {
                     } catch (Exception appEx) {
                         System.out.println("[WestlakeLauncher] Application.onCreate error (non-fatal): " + appEx);
                     }
+                    // Force-set 'counters' field on CounterApplication
+                    try {
+                        java.lang.reflect.Field cf = customApp.getClass().getDeclaredField("counters");
+                        cf.setAccessible(true);
+                        Object existing = cf.get(customApp);
+                        System.out.println("[WestlakeLauncher] counters field: " + existing + " (type=" + (existing != null ? existing.getClass().getName() : "null") + ")");
+                        if (existing == null && !counterData.isEmpty()) {
+                            cf.set(customApp, counterData);
+                            System.out.println("[WestlakeLauncher] Force-set counters: " + counterData.keySet());
+                        }
+                    } catch (Exception e) {
+                        System.out.println("[WestlakeLauncher] counters field error: " + e);
+                    }
                     break;
                 } catch (ClassNotFoundException e) {
                     // try next
@@ -92,6 +126,7 @@ public class WestlakeLauncher {
 
         // Load APK resources — use pre-extracted dir if available (dalvikvm has no ZipFile JNI)
         Activity launchedActivity = null;
+        String targetActivity = activityName;
         String resDir = System.getProperty("westlake.apk.resdir");
         if (apkPath != null && !apkPath.isEmpty()) {
             try {
@@ -148,8 +183,8 @@ public class WestlakeLauncher {
                 System.out.println("[WestlakeLauncher]   launcher: " + info.launcherActivity);
                 System.out.println("[WestlakeLauncher]   dex paths: " + info.dexPaths);
 
-                // Determine which activity to launch
-                String targetActivity = activityName;
+                // Determine which activity to launch (declared before try for catch visibility)
+                targetActivity = activityName;
                 if (targetActivity == null || targetActivity.isEmpty()) {
                     targetActivity = info.launcherActivity;
                 }
@@ -165,14 +200,26 @@ public class WestlakeLauncher {
 
                 System.out.println("[WestlakeLauncher] Launching: " + targetActivity);
                 Intent intent = new Intent();
-                intent.setComponent(new ComponentName(info.packageName, targetActivity));
+                String launchPkg = info.packageName != null ? info.packageName : packageName;
+                intent.setComponent(new ComponentName(launchPkg, targetActivity));
                 am.startActivity(null, intent, -1);
 
                 launchedActivity = am.getResumedActivity();
             } catch (Exception e) {
                 System.out.println("[WestlakeLauncher] APK load error (non-fatal): " + e);
-                e.printStackTrace();
-                // Don't return — try to render whatever we have
+                // Fallback: launch activity directly if class is on classpath
+                if (targetActivity != null && launchedActivity == null) {
+                    try {
+                        String pkg = packageName != null ? packageName : "app";
+                        Intent intent = new Intent();
+                        intent.setComponent(new ComponentName(pkg, targetActivity));
+                        am.startActivity(null, intent, -1);
+                        launchedActivity = am.getResumedActivity();
+                        System.out.println("[WestlakeLauncher] Fallback launch OK: " + targetActivity);
+                    } catch (Exception e2) {
+                        System.out.println("[WestlakeLauncher] Fallback launch failed: " + e2.getMessage());
+                    }
+                }
             }
         } else {
             System.out.println("[WestlakeLauncher] No APK path, nothing to launch");
@@ -267,6 +314,35 @@ public class WestlakeLauncher {
                 break;
             }
 
+            // Check for text input from host (long-press dialog)
+            java.io.File textFile = new java.io.File(touchFile.getParent(), "westlake_text.dat");
+            if (textFile.exists() && textFile.length() > 0) {
+                try {
+                    byte[] textBuf = new byte[(int) textFile.length()];
+                    java.io.FileInputStream tis = new java.io.FileInputStream(textFile);
+                    tis.read(textBuf);
+                    tis.close();
+                    textFile.delete();
+                    String inputText = new String(textBuf, "UTF-8").trim();
+                    if (inputText.length() > 0) {
+                        android.view.View decor = null;
+                        try { decor = current.getWindow().getDecorView(); } catch (Exception e5) {}
+                        if (decor != null) {
+                            android.widget.EditText et = findEditText(decor);
+                            if (et != null) {
+                                et.setText(inputText);
+                                System.out.println("[WestlakeLauncher] Text input: '" + inputText + "' -> " + et);
+                                needsRender = true;
+                            } else {
+                                System.out.println("[WestlakeLauncher] Text input: no EditText found");
+                            }
+                        }
+                    }
+                } catch (Exception e5) {
+                    System.out.println("[WestlakeLauncher] Text input error: " + e5);
+                }
+            }
+
             // Check for touch events
             if (touchFile.exists() && touchFile.length() == 16) {
                 try {
@@ -357,7 +433,7 @@ public class WestlakeLauncher {
                                 downTime = 0;
                             }
 
-                            if (needsRender) {
+                                            if (needsRender) {
                                 Activity next = am.getResumedActivity();
                                 if (next != null) {
                                     if (next != current) {
@@ -384,12 +460,47 @@ public class WestlakeLauncher {
                 }
             }
 
+            // Detect activity change (finish/navigate) and force re-render
+            Activity nowResumed = am.getResumedActivity();
+            if (nowResumed != null && nowResumed != current) {
+                try {
+                    java.lang.reflect.Method sc = nowResumed.getClass().getMethod(
+                        "onSurfaceCreated", long.class, int.class, int.class);
+                    sc.invoke(nowResumed, 0L, SURFACE_WIDTH, SURFACE_HEIGHT);
+                } catch (Exception e6) {}
+                needsRender = true;
+            }
+
+            // Render if needed (text input, activity change, or other non-touch triggers)
+            if (needsRender) {
+                Activity next = am.getResumedActivity();
+                if (next != null) {
+                    try {
+                        java.lang.reflect.Method rf = next.getClass().getMethod("renderFrame");
+                        rf.invoke(next);
+                    } catch (Exception e2) {}
+                }
+                needsRender = false;
+            }
+
             frameCount++;
         }
         System.out.println("[WestlakeLauncher] Render loop ended after " + frameCount + " frames");
     }
 
     /** Find the deepest view containing the given point (absolute coords) */
+    private static android.widget.EditText findEditText(android.view.View v) {
+        if (v instanceof android.widget.EditText) return (android.widget.EditText) v;
+        if (v instanceof android.view.ViewGroup) {
+            android.view.ViewGroup vg = (android.view.ViewGroup) v;
+            for (int i = 0; i < vg.getChildCount(); i++) {
+                android.widget.EditText found = findEditText(vg.getChildAt(i));
+                if (found != null) return found;
+            }
+        }
+        return null;
+    }
+
     private static android.view.View findViewAt(android.view.View v, int x, int y) {
         if (!(v instanceof android.view.ViewGroup)) {
             return v;

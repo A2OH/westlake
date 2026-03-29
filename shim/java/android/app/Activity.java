@@ -258,14 +258,13 @@ public class Activity extends Context {
         android.view.View decorView = mWindow.getDecorView();
         if (decorView == null) return;
 
-        // Only measure/layout when needed (content changed, not just scrolling)
-        if (!mLayoutDone || decorView != mLastDecorView) {
+        // Always re-layout (data may change from click handlers)
+        {
             DefaultTheme.applyToViewTree(decorView);
-            int layoutHeight = mSurfaceHeight * 3;
             int wSpec = android.view.View.MeasureSpec.makeMeasureSpec(mSurfaceWidth, android.view.View.MeasureSpec.EXACTLY);
-            int hSpec = android.view.View.MeasureSpec.makeMeasureSpec(layoutHeight, android.view.View.MeasureSpec.EXACTLY);
+            int hSpec = android.view.View.MeasureSpec.makeMeasureSpec(mSurfaceHeight, android.view.View.MeasureSpec.EXACTLY);
             decorView.measure(wSpec, hSpec);
-            decorView.layout(0, 0, mSurfaceWidth, layoutHeight);
+            decorView.layout(0, 0, mSurfaceWidth, mSurfaceHeight);
             mLayoutDone = true;
             mLastDecorView = decorView;
             // Dump view tree bounds for debugging
@@ -293,7 +292,7 @@ public class Activity extends Context {
         com.ohos.shim.bridge.OHBridge.surfaceFlush(mSurfaceCtx);
     }
 
-    /** Force re-layout on next renderFrame (call after setContentView) */
+    /** Force re-layout on next renderFrame */
     public void invalidateLayout() { mLayoutDone = false; }
 
     private void dumpViewTree(android.view.View v, String indent, int depth) {
@@ -324,11 +323,10 @@ public class Activity extends Context {
 
         if (!mLayoutDone || decorView != mLastDecorView) {
             DefaultTheme.applyToViewTree(decorView);
-            int layoutHeight = height * 3;
             int wSpec = android.view.View.MeasureSpec.makeMeasureSpec(width, android.view.View.MeasureSpec.EXACTLY);
-            int hSpec = android.view.View.MeasureSpec.makeMeasureSpec(layoutHeight, android.view.View.MeasureSpec.EXACTLY);
+            int hSpec = android.view.View.MeasureSpec.makeMeasureSpec(height, android.view.View.MeasureSpec.EXACTLY);
             decorView.measure(wSpec, hSpec);
-            decorView.layout(0, 0, width, layoutHeight);
+            decorView.layout(0, 0, width, height);
             mLayoutDone = true;
             mLastDecorView = decorView;
         }

@@ -1,55 +1,39 @@
 package com.westlake.host
 
-import android.graphics.BitmapFactory
 import android.graphics.Canvas
 import android.graphics.Paint
-import android.os.Environment
 import android.util.Log
-import android.view.MotionEvent
-import androidx.compose.foundation.Image
+import android.view.SurfaceHolder
+import android.view.SurfaceView
 import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.layout.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.input.pointer.pointerInput
-import androidx.compose.ui.input.pointer.PointerEventType
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.viewinterop.AndroidView
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
-import kotlinx.coroutines.launch
+import kotlinx.coroutines.flow.filterNotNull
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.withContext
+import java.io.DataInputStream
 import java.io.File
 import java.io.FileOutputStream
-import java.io.RandomAccessFile
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
-import java.nio.MappedByteBuffer
-import java.nio.channels.FileChannel
 
-/**
- * Westlake VM Display — spawns dalvikvm as subprocess,
- * displays rendered PNG output, forwards touch input.
- *
- * Pipeline:
- *   dalvikvm → OHBridge.surfaceFlush() → shared memory (mmap) or PNG fallback
- *   This screen → reads shm at ~60fps (or polls PNG at ~12fps) → displays via Compose Image
- *   This screen → touch event → /sdcard/westlake_touch.dat → dalvikvm reads
- */
-private const val WLK_HEADER_SIZE = 128
-private const val WLK_FRAME_SIZE = 480 * 800 * 4  // 1,536,000
-private const val WLK_TOTAL_SIZE = WLK_HEADER_SIZE + 2 * WLK_FRAME_SIZE
-private const val WLK_MAGIC = 0x574C4B46
-
-// Display list mode constants
-private const val DLIST_MAX_SIZE = 512 * 1024  // 512KB
-private const val WLK_DLIST_TOTAL_SIZE = WLK_HEADER_SIZE + DLIST_MAX_SIZE + 64
+// Frame magic (must match ohbridge_stub.c DLIST_MAGIC)
+private const val DLIST_MAGIC = 0x444C5354  // "DLST"
 
 // Display list op codes (must match ohbridge_stub.c)
 private const val OP_DRAW_COLOR      = 1
@@ -76,15 +60,11 @@ data class ApkVmConfig(
 
 object WestlakeVM {
     private const val TAG = "WestlakeVM"
-    // Use app's external files dir (accessible by both app and subprocess)
-    val PNG_PATH: String get() = WestlakeActivity.instance?.getExternalFilesDir(null)?.absolutePath + "/westlake_frame.png"
     val TOUCH_PATH: String get() = WestlakeActivity.instance?.getExternalFilesDir(null)?.absolutePath + "/westlake_touch.dat"
-    // Shared memory path — /data/local/tmp (real ext4, not FUSE) for fast mmap
-    // Pre-created with: adb shell "dd if=/dev/zero of=...westlake_shm bs=1024 count=3001 && chmod 666 ..."
-    val SHM_PATH: String get() = "/data/local/tmp/westlake/westlake_shm"
     private const val DALVIKVM_DIR = "/data/local/tmp/westlake"
 
     var process: Process? = null
+    var pipeStream: java.io.InputStream? = null  // stdout pipe (binary display list frames)
     var touchSeq = 0
 
     // Boot image files for AOT startup (core JARs only, in arm64/ subdir)
@@ -99,9 +79,8 @@ object WestlakeVM {
 
     /**
      * Start the VM with an optional APK config.
-     * If apkConfig is null, runs the original MockDonalds app.
-     * If apkConfig is provided, extracts the APK's classes.dex, copies the APK,
-     * and launches via the generic WestlakeLauncher.
+     * stdout carries binary display list frames ([4-byte LE size][ops]).
+     * stderr carries text log output.
      */
     fun startWithConfig(apkConfig: ApkVmConfig?): List<String> {
         Log.i(TAG, "startWithConfig() called, config=$apkConfig")
@@ -110,7 +89,7 @@ object WestlakeVM {
 
         // Kill any existing
         process?.destroyForcibly()
-        try { File(PNG_PATH).delete() } catch (_: Exception) {}
+        pipeStream = null
 
         // Copy dalvikvm to app's private dir (SELinux allows execute there)
         val vmDir = File(activity.filesDir, "vm").apply { mkdirs() }
@@ -128,31 +107,47 @@ object WestlakeVM {
         val runDir = DALVIKVM_DIR
         val bcp = "$runDir/core-oj.jar:$runDir/core-libart.jar:$runDir/core-icu4j.jar:$runDir/aosp-shim.dex"
 
-        // Use boot image if available (ART inserts /arm64/ automatically)
+        // Use boot image for legacy MockDonalds (fast), interpreter for APK mode (picks up shim changes)
         val hasBootImage = File("$runDir/arm64/boot.art").exists()
-        val bootArgs = if (hasBootImage) {
-            log.add("Boot image found -- using AOT mode")
+        val bootArgs = if (hasBootImage && apkConfig == null) {
+            log.add("Boot image -- AOT mode")
             arrayOf("-Ximage:$runDir/boot.art")
         } else {
-            log.add("No boot image -- interpreter mode (slow startup)")
+            log.add("Interpreter mode")
             arrayOf("-Xnoimage-dex2oat")
         }
 
         // Build command based on config
         val cmd: Array<String>
-        val apkDevicePath: String?
 
         if (apkConfig != null) {
             // --- APK mode: extract DEX, copy APK, use WestlakeLauncher ---
             val apkSrc = apkConfig.apkSourceDir
-            if (apkSrc == null || !File(apkSrc).exists()) {
-                log.add("ERROR: APK not found: $apkSrc")
+            // Check for DEX-only app (tipcalc.dex at runDir)
+            val dexOnlyPath = "$runDir/${apkConfig.packageName.replace(".", "_")}.dex"
+            val isDexOnly = (apkSrc == null || !File(apkSrc).exists()) && File(dexOnlyPath).exists()
+            if (!isDexOnly && (apkSrc == null || !File(apkSrc).exists())) {
+                log.add("ERROR: APK not found: $apkSrc (also checked $dexOnlyPath)")
                 return log
             }
 
+            if (isDexOnly) {
+                // DEX-only app — add to bootclasspath, no APK extraction needed
+                val fullBcp = "$bcp:$dexOnlyPath"
+                cmd = arrayOf(
+                    dvm, "-Xbootclasspath:$fullBcp", *bootArgs, "-Xverify:none",
+                    "-Dwestlake.apk.path=$dexOnlyPath",
+                    "-Dwestlake.apk.activity=${apkConfig.activityName}",
+                    "-Dwestlake.apk.package=${apkConfig.packageName}",
+                    "-classpath", dexOnlyPath,
+                    "com.westlake.engine.WestlakeLauncher"
+                )
+                log.add("DEX-only: ${apkConfig.displayName}")
+            } else {
+
             // Copy APK to app's private dir (writable by our process)
             val apkName = apkConfig.packageName.replace(".", "_") + ".apk"
-            apkDevicePath = "${vmDir.absolutePath}/$apkName"
+            val apkDevicePath = "${vmDir.absolutePath}/$apkName"
             val apkDst = File(apkDevicePath)
             if (!apkDst.exists() || apkDst.length() != File(apkSrc).length()) {
                 File(apkSrc).copyTo(apkDst, overwrite = true)
@@ -191,11 +186,11 @@ object WestlakeVM {
                         val outFile = File(resDir, entry.name)
                         outFile.parentFile?.mkdirs()
                         if (!entry.isDirectory) {
-                            zipFile.getInputStream(entry).use { input ->
+                            zipFile.getInputStream(entry).use { inp ->
                                 FileOutputStream(outFile).use { out ->
                                     val buf = ByteArray(8192)
                                     var n: Int
-                                    while (input.read(buf).also { n = it } > 0) out.write(buf, 0, n)
+                                    while (inp.read(buf).also { n = it } > 0) out.write(buf, 0, n)
                                 }
                             }
                         }
@@ -208,18 +203,17 @@ object WestlakeVM {
             }
 
             // Classpath: the APK's DEX (shim is in bootclasspath already)
-            val classpath = dexPath
-
             cmd = arrayOf(
                 dvm, "-Xbootclasspath:$bcp", *bootArgs, "-Xverify:none",
                 "-Dwestlake.apk.path=$apkDevicePath",
                 "-Dwestlake.apk.activity=${apkConfig.activityName}",
                 "-Dwestlake.apk.package=${apkConfig.packageName}",
                 "-Dwestlake.apk.resdir=${resDir.absolutePath}",
-                "-classpath", classpath,
+                "-classpath", dexPath,
                 "com.westlake.engine.WestlakeLauncher"
             )
             log.add("Launching ${apkConfig.displayName} via WestlakeLauncher")
+            } // end else (APK mode, not DEX-only)
         } else {
             // --- Legacy MockDonalds mode ---
             cmd = arrayOf(dvm, "-Xbootclasspath:$bcp", *bootArgs, "-Xverify:none",
@@ -233,21 +227,18 @@ object WestlakeVM {
             pb.directory(File(runDir))
             pb.environment()["ANDROID_DATA"] = runDir
             pb.environment()["ANDROID_ROOT"] = runDir
-            pb.environment()["WESTLAKE_FRAME"] = PNG_PATH
             pb.environment()["WESTLAKE_TOUCH"] = TOUCH_PATH
-            pb.environment()["WESTLAKE_SHM"] = SHM_PATH
-            pb.environment()["WESTLAKE_DLIST"] = "1"
-            pb.redirectErrorStream(true)
+            // Do NOT redirectErrorStream — stdout is binary pipe, stderr is text logs
             process = pb.start()
-            log.add("VM process started")
+            pipeStream = process!!.inputStream  // stdout = binary display list frames
+            log.add("VM process started (pipe mode)")
 
-            // Read output in background (no line limit -- keep reading until process exits)
+            // Read stderr in background for logs
             Thread {
                 try {
-                    val reader = process!!.inputStream.bufferedReader()
+                    val reader = process!!.errorStream.bufferedReader()
                     var line = reader.readLine()
                     while (line != null) {
-                        // Log everything important, filter only verbose noise
                         if (!line.contains("ziparchive:") && !line.contains("hidden_api") &&
                             line.isNotBlank()) {
                             Log.i(TAG, "VM: $line")
@@ -256,7 +247,7 @@ object WestlakeVM {
                     }
                     Log.i(TAG, "VM process exited")
                 } catch (e: Exception) {
-                    Log.e(TAG, "Reader error: $e")
+                    Log.e(TAG, "Stderr reader error: $e")
                 }
             }.start()
 
@@ -266,6 +257,16 @@ object WestlakeVM {
         }
 
         return log
+    }
+
+    fun sendText(text: String) {
+        try {
+            val textPath = File(TOUCH_PATH).parent + "/westlake_text.dat"
+            FileOutputStream(textPath).use { it.write(text.toByteArray(Charsets.UTF_8)) }
+            Log.i(TAG, "Sent text: $text")
+        } catch (e: Exception) {
+            Log.w(TAG, "Text write: $e")
+        }
     }
 
     fun sendTouch(action: Int, x: Float, y: Float) {
@@ -285,6 +286,171 @@ object WestlakeVM {
     fun stop() {
         process?.destroyForcibly()
         process = null
+        pipeStream = null
+    }
+}
+
+/** Mutex to ensure only ONE pipe reader runs at a time */
+private val pipeReaderMutex = Mutex()
+
+/** Replay a display list byte array onto a Canvas. */
+private fun replayDisplayList(canvas: Canvas, paint: Paint, data: ByteArray, size: Int) {
+    val bb = ByteBuffer.wrap(data, 0, size).order(ByteOrder.LITTLE_ENDIAN)
+    val baseCount = canvas.saveCount
+    canvas.save()
+    canvas.drawColor(android.graphics.Color.WHITE)
+
+    try {
+        while (bb.hasRemaining()) {
+            when (bb.get().toInt() and 0xFF) {
+                OP_DRAW_COLOR -> canvas.drawColor(bb.getInt())
+                OP_DRAW_RECT -> {
+                    val l = bb.getFloat(); val t = bb.getFloat()
+                    val r = bb.getFloat(); val b = bb.getFloat()
+                    paint.color = bb.getInt()
+                    paint.style = Paint.Style.FILL
+                    canvas.drawRect(l, t, r, b, paint)
+                }
+                OP_DRAW_TEXT -> {
+                    val x = bb.getFloat(); val y = bb.getFloat()
+                    paint.textSize = bb.getFloat()
+                    paint.color = bb.getInt()
+                    paint.style = Paint.Style.FILL
+                    val len = bb.getShort().toInt() and 0xFFFF
+                    if (len > 0 && bb.remaining() >= len) {
+                        val chars = ByteArray(len)
+                        bb.get(chars)
+                        canvas.drawText(String(chars, Charsets.UTF_8), x, y, paint)
+                    }
+                }
+                OP_DRAW_LINE -> {
+                    val x1 = bb.getFloat(); val y1 = bb.getFloat()
+                    val x2 = bb.getFloat(); val y2 = bb.getFloat()
+                    paint.color = bb.getInt()
+                    paint.strokeWidth = bb.getFloat()
+                    paint.style = Paint.Style.STROKE
+                    canvas.drawLine(x1, y1, x2, y2, paint)
+                }
+                OP_SAVE -> canvas.save()
+                OP_RESTORE -> { if (canvas.saveCount > baseCount + 1) canvas.restore() }
+                OP_TRANSLATE -> canvas.translate(bb.getFloat(), bb.getFloat())
+                OP_CLIP_RECT -> {
+                    val l = bb.getFloat(); val t = bb.getFloat()
+                    val r = bb.getFloat(); val b = bb.getFloat()
+                    canvas.clipRect(l, t, r, b)
+                }
+                OP_DRAW_ROUND_RECT -> {
+                    val l = bb.getFloat(); val t = bb.getFloat()
+                    val r = bb.getFloat(); val b = bb.getFloat()
+                    val rx = bb.getFloat(); val ry = bb.getFloat()
+                    paint.color = bb.getInt()
+                    paint.style = Paint.Style.FILL
+                    canvas.drawRoundRect(l, t, r, b, rx, ry, paint)
+                }
+                OP_DRAW_CIRCLE -> {
+                    val cx = bb.getFloat(); val cy = bb.getFloat()
+                    val radius = bb.getFloat()
+                    paint.color = bb.getInt()
+                    paint.style = Paint.Style.FILL
+                    canvas.drawCircle(cx, cy, radius, paint)
+                }
+                else -> {
+                    Log.w("WestlakeVM", "Unknown dlist op, aborting frame")
+                    break
+                }
+            }
+        }
+    } catch (_: java.nio.BufferUnderflowException) {
+        Log.w("WestlakeVM", "Display list truncated")
+    }
+
+    canvas.restoreToCount(baseCount)
+}
+
+/**
+ * Read display list frames from pipe and render to SurfaceView.
+ * Called from LaunchedEffect in composables.
+ */
+private suspend fun readPipeAndRender(
+    holder: SurfaceHolder,
+    stream: java.io.InputStream,
+    isRunning: () -> Boolean,
+    onFrame: () -> Unit
+) = withContext(Dispatchers.IO) {
+    if (!pipeReaderMutex.tryLock()) {
+        Log.w("WestlakeVM", "Pipe reader already active, skipping duplicate")
+        return@withContext
+    }
+    try { readPipeAndRenderLocked(holder, stream, isRunning, onFrame) }
+    finally { pipeReaderMutex.unlock() }
+}
+
+private suspend fun readPipeAndRenderLocked(
+    holder: SurfaceHolder,
+    stream: java.io.InputStream,
+    isRunning: () -> Boolean,
+    onFrame: () -> Unit
+) {
+    val input = DataInputStream(stream)
+    val paint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        try { typeface = android.graphics.Typeface.createFromFile("/system/fonts/Roboto-Regular.ttf") } catch (_: Exception) {}
+    }
+    try {
+        // Sync past initial text to first DLST magic marker
+        val syncBuf = ByteArray(4)
+        input.readFully(syncBuf)
+        var syncMagic = ByteBuffer.wrap(syncBuf).order(ByteOrder.LITTLE_ENDIAN).getInt()
+        var skipped = 0
+        while (syncMagic != DLIST_MAGIC && isRunning()) {
+            syncBuf[0] = syncBuf[1]; syncBuf[1] = syncBuf[2]; syncBuf[2] = syncBuf[3]
+            syncBuf[3] = input.readByte()
+            syncMagic = ByteBuffer.wrap(syncBuf).order(ByteOrder.LITTLE_ENDIAN).getInt()
+            skipped++
+        }
+        if (skipped > 0) Log.i("WestlakeVM", "Synced past $skipped bytes of initial text")
+
+        while (isRunning()) {
+            // Read [4-byte LE size]
+            val sizeBytes = ByteArray(4)
+            input.readFully(sizeBytes)
+            val size = ByteBuffer.wrap(sizeBytes).order(ByteOrder.LITTLE_ENDIAN).getInt()
+            if (size <= 0 || size > 512 * 1024) {
+                Log.w("WestlakeVM", "Bad frame size $size, skipping")
+                continue
+            }
+            // Read [size bytes data]
+            val data = ByteArray(size)
+            input.readFully(data)
+
+            // Render to SurfaceView
+            val canvas = holder.lockCanvas() ?: continue
+            try {
+                replayDisplayList(canvas, paint, data, size)
+            } finally {
+                holder.unlockCanvasAndPost(canvas)
+            }
+            onFrame()
+
+            // Read and sync to next frame's magic header
+            val nb = ByteArray(4)
+            input.readFully(nb)
+            var nm = ByteBuffer.wrap(nb).order(ByteOrder.LITTLE_ENDIAN).getInt()
+            if (nm != DLIST_MAGIC) {
+                // Re-sync: scan forward for next DLST magic
+                var rs = 0
+                while (nm != DLIST_MAGIC && isRunning()) {
+                    nb[0] = nb[1]; nb[1] = nb[2]; nb[2] = nb[3]
+                    nb[3] = input.readByte()
+                    nm = ByteBuffer.wrap(nb).order(ByteOrder.LITTLE_ENDIAN).getInt()
+                    rs++
+                }
+                if (rs > 0) Log.w("WestlakeVM", "Re-synced past $rs bytes")
+            }
+        }
+    } catch (_: java.io.EOFException) {
+        Log.i("WestlakeVM", "Pipe closed (VM exited)")
+    } catch (e: Exception) {
+        Log.e("WestlakeVM", "Pipe reader error: $e")
     }
 }
 
@@ -292,11 +458,10 @@ object WestlakeVM {
 @Composable
 fun WestlakeVMScreen() {
     val activity = WestlakeActivity.instance ?: return
-    val scope = rememberCoroutineScope()
     var logs by remember { mutableStateOf(listOf("Waiting...")) }
-    var frameBitmap by remember { mutableStateOf<android.graphics.Bitmap?>(null) }
     var frameCount by remember { mutableIntStateOf(0) }
     var isRunning by remember { mutableStateOf(false) }
+    var holderState by remember { mutableStateOf<SurfaceHolder?>(null) }
 
     // Start VM
     LaunchedEffect(Unit) {
@@ -304,234 +469,12 @@ fun WestlakeVMScreen() {
         isRunning = true
     }
 
-    // Read frames from shared memory (mmap), fallback to PNG polling
+    // Single pipe reader — waits for SurfaceHolder, then reads until done
     LaunchedEffect(isRunning) {
-        // Wait for shm file to appear
-        val shmFile = File(WestlakeVM.SHM_PATH)
-        var attempts = 0
-        while (isRunning && !shmFile.exists() && attempts < 100) {
-            delay(100)
-            attempts++
-        }
-
-        if (shmFile.exists() && shmFile.length() >= WLK_HEADER_SIZE) {
-            // Wait for header magic to be written by C side (race with shm_init)
-            var version = 0
-            for (retry in 0 until 50) {
-                val peekRaf = RandomAccessFile(shmFile, "r")
-                val peekBuf = ByteArray(32)
-                peekRaf.read(peekBuf)
-                peekRaf.close()
-                val peekBB = ByteBuffer.wrap(peekBuf).order(ByteOrder.LITTLE_ENDIAN)
-                val magic = peekBB.getInt(0)
-                version = peekBB.getInt(4)
-                if (magic == WLK_MAGIC) break
-                delay(100)
-            }
-            Log.i("WestlakeVM", "SHM version=$version, file=${shmFile.length()} bytes")
-
-            if (version == 2 && shmFile.length() >= WLK_DLIST_TOTAL_SIZE) {
-                // ── Display list replay mode ──
-                Log.i("WestlakeVM", "Display list mode (version=2)")
-                val raf = RandomAccessFile(shmFile, "r")
-                val channel = raf.channel
-                val shm = channel.map(FileChannel.MapMode.READ_ONLY, 0, WLK_DLIST_TOTAL_SIZE.toLong())
-                shm.order(ByteOrder.LITTLE_ENDIAN)
-
-                // Double-buffer: draw to bmpA, display bmpB, swap each frame
-                val bmpA = android.graphics.Bitmap.createBitmap(480, 800, android.graphics.Bitmap.Config.ARGB_8888)
-                val bmpB = android.graphics.Bitmap.createBitmap(480, 800, android.graphics.Bitmap.Config.ARGB_8888)
-                var drawBmp = bmpA
-                var showBmp = bmpB
-                val canvasA = Canvas(bmpA)
-                val canvasB = Canvas(bmpB)
-                var canvas = canvasA
-                val paint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-                    typeface = android.graphics.Typeface.createFromFile("/system/fonts/Roboto-Regular.ttf")
-                }
-                var lastSeq = -1
-
-                try {
-                    while (isRunning) {
-                        val seq = shm.getInt(16) // frame_seq
-                        if (seq != lastSeq) {
-                            lastSeq = seq
-                            val listSize = shm.getInt(20) // display_list_size
-
-                            // Save base state and clear canvas
-                            val baseCount = canvas.saveCount
-                            canvas.save()
-                            canvas.drawColor(android.graphics.Color.WHITE)
-
-                            // Replay display list
-                            var offset = WLK_HEADER_SIZE
-                            val endOffset = WLK_HEADER_SIZE + listSize.coerceAtMost(DLIST_MAX_SIZE)
-                            while (offset < endOffset) {
-                                val op = shm.get(offset).toInt() and 0xFF
-                                offset++
-                                when (op) {
-                                    OP_DRAW_COLOR -> {
-                                        canvas.drawColor(shm.getInt(offset))
-                                        offset += 4
-                                    }
-                                    OP_DRAW_RECT -> {
-                                        val l = shm.getFloat(offset); offset += 4
-                                        val t = shm.getFloat(offset); offset += 4
-                                        val r = shm.getFloat(offset); offset += 4
-                                        val b = shm.getFloat(offset); offset += 4
-                                        paint.color = shm.getInt(offset); offset += 4
-                                        paint.style = Paint.Style.FILL
-                                        canvas.drawRect(l, t, r, b, paint)
-                                    }
-                                    OP_DRAW_TEXT -> {
-                                        val x = shm.getFloat(offset); offset += 4
-                                        val y = shm.getFloat(offset); offset += 4
-                                        val size = shm.getFloat(offset); offset += 4
-                                        paint.textSize = size
-                                        paint.color = shm.getInt(offset); offset += 4
-                                        paint.style = Paint.Style.FILL
-                                        val len = shm.getShort(offset).toInt() and 0xFFFF; offset += 2
-                                        if (len > 0 && offset + len <= endOffset) {
-                                            val chars = ByteArray(len)
-                                            for (i in 0 until len) chars[i] = shm.get(offset + i)
-                                            offset += len
-                                            // Replace comma+space and period with clean ASCII to debug font issue
-                                            val text = String(chars, Charsets.UTF_8)
-                                            canvas.drawText(text, x, y, paint)
-                                        } else {
-                                            offset += len
-                                        }
-                                    }
-                                    OP_DRAW_LINE -> {
-                                        val x1 = shm.getFloat(offset); offset += 4
-                                        val y1 = shm.getFloat(offset); offset += 4
-                                        val x2 = shm.getFloat(offset); offset += 4
-                                        val y2 = shm.getFloat(offset); offset += 4
-                                        paint.color = shm.getInt(offset); offset += 4
-                                        paint.strokeWidth = shm.getFloat(offset); offset += 4
-                                        paint.style = Paint.Style.STROKE
-                                        canvas.drawLine(x1, y1, x2, y2, paint)
-                                    }
-                                    OP_SAVE -> {
-                                        canvas.save()
-                                    }
-                                    OP_RESTORE -> {
-                                        if (canvas.saveCount > baseCount + 1) canvas.restore()
-                                    }
-                                    OP_TRANSLATE -> {
-                                        val dx = shm.getFloat(offset); offset += 4
-                                        val dy = shm.getFloat(offset); offset += 4
-                                        canvas.translate(dx, dy)
-                                    }
-                                    OP_CLIP_RECT -> {
-                                        val l = shm.getFloat(offset); offset += 4
-                                        val t = shm.getFloat(offset); offset += 4
-                                        val r = shm.getFloat(offset); offset += 4
-                                        val b = shm.getFloat(offset); offset += 4
-                                        canvas.clipRect(l, t, r, b)
-                                    }
-                                    OP_DRAW_ROUND_RECT -> {
-                                        val l = shm.getFloat(offset); offset += 4
-                                        val t = shm.getFloat(offset); offset += 4
-                                        val r = shm.getFloat(offset); offset += 4
-                                        val b = shm.getFloat(offset); offset += 4
-                                        val rx = shm.getFloat(offset); offset += 4
-                                        val ry = shm.getFloat(offset); offset += 4
-                                        paint.color = shm.getInt(offset); offset += 4
-                                        paint.style = Paint.Style.FILL
-                                        canvas.drawRoundRect(l, t, r, b, rx, ry, paint)
-                                    }
-                                    OP_DRAW_CIRCLE -> {
-                                        val cx = shm.getFloat(offset); offset += 4
-                                        val cy = shm.getFloat(offset); offset += 4
-                                        val radius = shm.getFloat(offset); offset += 4
-                                        paint.color = shm.getInt(offset); offset += 4
-                                        paint.style = Paint.Style.FILL
-                                        canvas.drawCircle(cx, cy, radius, paint)
-                                    }
-                                    else -> {
-                                        Log.w("WestlakeVM", "Unknown dlist op $op at offset ${offset-1}, aborting frame")
-                                        break
-                                    }
-                                }
-                            }
-
-                            // Restore to base state (handles unbalanced save/restores)
-                            canvas.restoreToCount(baseCount)
-                            // Swap buffers: show what we just drew, draw to the other next frame
-                            frameBitmap = drawBmp
-                            frameCount++
-                            val tmp = drawBmp; drawBmp = showBmp; showBmp = tmp
-                            canvas = if (drawBmp === bmpA) canvasA else canvasB
-                        }
-                        delay(8) // fast polling
-                    }
-                } finally {
-                    channel.close()
-                    raf.close()
-                }
-            } else if (shmFile.length() >= WLK_TOTAL_SIZE) {
-                // ── Pixel buffer mode (version 1) ──
-                Log.i("WestlakeVM", "Pixel buffer mode (version=1)")
-                val raf = RandomAccessFile(shmFile, "r")
-                val channel = raf.channel
-                val shm = channel.map(FileChannel.MapMode.READ_ONLY, 0, WLK_TOTAL_SIZE.toLong())
-                shm.order(ByteOrder.LITTLE_ENDIAN)
-
-                val bmp = android.graphics.Bitmap.createBitmap(480, 800, android.graphics.Bitmap.Config.ARGB_8888)
-                var lastSeq = -1
-
-                try {
-                    while (isRunning) {
-                        val seq = shm.getInt(16) // frame_seq
-                        if (seq != lastSeq) {
-                            lastSeq = seq
-                            val activeBuf = shm.getInt(20)
-                            val offset = WLK_HEADER_SIZE + activeBuf * WLK_FRAME_SIZE
-
-                            // Copy pixels to bitmap
-                            shm.position(offset)
-                            bmp.copyPixelsFromBuffer(shm)
-
-                            frameBitmap = bmp
-                            frameCount++
-                        }
-                        delay(8) // fast polling
-                    }
-                } finally {
-                    channel.close()
-                    raf.close()
-                }
-            } else {
-                Log.w("WestlakeVM", "SHM file too small (${shmFile.length()} bytes), falling back to PNG")
-                // Inline PNG fallback for this edge case
-                while (isRunning) {
-                    delay(80)
-                    try {
-                        val file = File(WestlakeVM.PNG_PATH)
-                        if (file.exists() && file.length() > 100) {
-                            val bmp = BitmapFactory.decodeFile(file.absolutePath)
-                            if (bmp != null) { frameBitmap = bmp; frameCount++ }
-                        }
-                    } catch (_: Exception) {}
-                }
-            }
-        } else {
-            // Fallback to PNG polling if no shm
-            while (isRunning) {
-                delay(80) // ~12fps polling for responsive scrolling
-                try {
-                    val file = File(WestlakeVM.PNG_PATH)
-                    if (file.exists() && file.length() > 100) {
-                        val bmp = BitmapFactory.decodeFile(file.absolutePath)
-                        if (bmp != null) {
-                            frameBitmap = bmp
-                            frameCount++
-                        }
-                    }
-                } catch (_: Exception) {}
-            }
-        }
+        if (!isRunning) return@LaunchedEffect
+        val stream = WestlakeVM.pipeStream ?: return@LaunchedEffect
+        val holder = snapshotFlow { holderState }.filterNotNull().first()
+        readPipeAndRender(holder, stream, { isRunning }) { frameCount++ }
     }
 
     // Cleanup on leave
@@ -553,41 +496,31 @@ fun WestlakeVMScreen() {
                     isRunning = false
                     WestlakeVM.stop()
                     activity.showHome()
-                }) { Text("←", fontSize = 20.sp, color = Color.White) }
+                }) { Text("\u2190", fontSize = 20.sp, color = Color.White) }
                 Text("Westlake VM", fontSize = 16.sp, color = Color.White,
                     fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f))
                 Text("Frame: $frameCount", fontSize = 12.sp, color = Color.White.copy(0.6f))
             }
 
-            // Rendered frame display
+            // Rendered frame display (SurfaceView + loading overlay)
             Box(
                 modifier = Modifier.fillMaxWidth().weight(1f)
                     .pointerInput(Unit) {
                         awaitEachGesture {
                             val scaleX = 480f / size.width
                             val scaleY = 800f / size.height
-
-                            // Wait for first finger down
                             val down = awaitFirstDown(requireUnconsumed = false)
-                            val vx0 = down.position.x * scaleX
-                            val vy0 = down.position.y * scaleY
-                            WestlakeVM.sendTouch(0, vx0, vy0) // DOWN
-                            Log.i("WestlakeVM", "DOWN: (${vx0.toInt()}, ${vy0.toInt()})")
-
-                            // Track moves until release
-                            var lastMoveSeq = 0
+                            WestlakeVM.sendTouch(0, down.position.x * scaleX, down.position.y * scaleY)
+                            Log.i("WestlakeVM", "DOWN: (${(down.position.x * scaleX).toInt()}, ${(down.position.y * scaleY).toInt()})")
                             do {
                                 val event = awaitPointerEvent()
                                 val change = event.changes.firstOrNull() ?: break
                                 val vx = change.position.x * scaleX
                                 val vy = change.position.y * scaleY
-
                                 if (change.pressed) {
-                                    // Send every MOVE event for responsive scrolling
-                                    WestlakeVM.sendTouch(2, vx, vy) // MOVE
+                                    WestlakeVM.sendTouch(2, vx, vy)
                                 } else {
-                                    // Finger lifted — send UP
-                                    WestlakeVM.sendTouch(1, vx, vy) // UP
+                                    WestlakeVM.sendTouch(1, vx, vy)
                                     Log.i("WestlakeVM", "UP: (${vx.toInt()}, ${vy.toInt()})")
                                     break
                                 }
@@ -595,15 +528,27 @@ fun WestlakeVMScreen() {
                         }
                     }
             ) {
-                frameBitmap?.let { bmp ->
-                    Image(
-                        bitmap = bmp.asImageBitmap(),
-                        contentDescription = "Westlake VM Output",
-                        modifier = Modifier.fillMaxSize()
-                    )
-                } ?: run {
+                // SurfaceView for direct Skia rendering
+                AndroidView(
+                    factory = { context ->
+                        SurfaceView(context).also { sv ->
+                            sv.holder.addCallback(object : SurfaceHolder.Callback {
+                                override fun surfaceCreated(holder: SurfaceHolder) {
+                                    holder.setFixedSize(480, 800)
+                                    holderState = holder
+                                }
+                                override fun surfaceChanged(holder: SurfaceHolder, format: Int, width: Int, height: Int) {}
+                                override fun surfaceDestroyed(holder: SurfaceHolder) { holderState = null }
+                            })
+                        }
+                    },
+                    modifier = Modifier.fillMaxSize()
+                )
+
+                // Loading overlay (shown until first frame arrives)
+                if (frameCount == 0) {
                     Column(
-                        modifier = Modifier.fillMaxSize(),
+                        modifier = Modifier.fillMaxSize().background(Color.Black),
                         horizontalAlignment = Alignment.CenterHorizontally,
                         verticalArrangement = Arrangement.Center
                     ) {
@@ -621,7 +566,7 @@ fun WestlakeVMScreen() {
 
             // Status bar
             Text(
-                "dalvikvm ARM64 | OHBridge → DisplayList IPC → Canvas replay | Touch → file → VM",
+                "dalvikvm ARM64 | OHBridge \u2192 Pipe \u2192 SurfaceView | Touch \u2192 file \u2192 VM",
                 fontSize = 10.sp, color = Color(0xFF4CAF50),
                 modifier = Modifier.fillMaxWidth().background(Color(0xFF0A0A0A)).padding(4.dp)
             )
@@ -631,197 +576,37 @@ fun WestlakeVMScreen() {
 
 /**
  * WestlakeVMApkScreen — runs a real APK in the dalvikvm subprocess.
- * Same display list IPC as WestlakeVMScreen but launches via WestlakeLauncher
+ * Same pipe IPC as WestlakeVMScreen but launches via WestlakeLauncher
  * with the APK's classes.dex extracted and loaded.
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun WestlakeVMApkScreen(config: ApkVmConfig) {
     val activity = WestlakeActivity.instance ?: return
-    val scope = rememberCoroutineScope()
     var logs by remember { mutableStateOf(listOf("Preparing ${config.displayName}...")) }
-    var frameBitmap by remember { mutableStateOf<android.graphics.Bitmap?>(null) }
     var frameCount by remember { mutableIntStateOf(0) }
     var isRunning by remember { mutableStateOf(false) }
+    var holderState by remember { mutableStateOf<SurfaceHolder?>(null) }
 
     // Resolve APK path and start VM
     LaunchedEffect(Unit) {
-        // Resolve APK source dir from PackageManager
         val resolvedConfig = try {
             val appInfo = activity.packageManager.getApplicationInfo(config.packageName, 0)
             config.copy(apkSourceDir = appInfo.sourceDir)
         } catch (e: Exception) {
-            logs = listOf("ERROR: APK not installed: ${config.packageName}", e.message ?: "")
-            return@LaunchedEffect
+            // Not installed as APK — try as DEX-only app (e.g., tipcalc)
+            config.copy(apkSourceDir = null)
         }
         logs = WestlakeVM.startWithConfig(resolvedConfig)
         isRunning = true
     }
 
-    // Frame reader — identical to WestlakeVMScreen (display list replay)
+    // Single pipe reader — waits for SurfaceHolder, then reads until done
     LaunchedEffect(isRunning) {
-        val shmFile = File(WestlakeVM.SHM_PATH)
-        var attempts = 0
-        while (isRunning && !shmFile.exists() && attempts < 100) {
-            delay(100)
-            attempts++
-        }
-
-        if (shmFile.exists() && shmFile.length() >= WLK_HEADER_SIZE) {
-            var version = 0
-            for (retry in 0 until 50) {
-                val peekRaf = RandomAccessFile(shmFile, "r")
-                val peekBuf = ByteArray(32)
-                peekRaf.read(peekBuf)
-                peekRaf.close()
-                val peekBB = ByteBuffer.wrap(peekBuf).order(ByteOrder.LITTLE_ENDIAN)
-                val magic = peekBB.getInt(0)
-                version = peekBB.getInt(4)
-                if (magic == WLK_MAGIC) break
-                delay(100)
-            }
-            Log.i("WestlakeVM", "APK SHM version=$version, file=${shmFile.length()} bytes")
-
-            if (version == 2 && shmFile.length() >= WLK_DLIST_TOTAL_SIZE) {
-                Log.i("WestlakeVM", "APK display list mode (version=2)")
-                val raf = RandomAccessFile(shmFile, "r")
-                val channel = raf.channel
-                val shm = channel.map(FileChannel.MapMode.READ_ONLY, 0, WLK_DLIST_TOTAL_SIZE.toLong())
-                shm.order(ByteOrder.LITTLE_ENDIAN)
-
-                val bmpA = android.graphics.Bitmap.createBitmap(480, 800, android.graphics.Bitmap.Config.ARGB_8888)
-                val bmpB = android.graphics.Bitmap.createBitmap(480, 800, android.graphics.Bitmap.Config.ARGB_8888)
-                var drawBmp = bmpA
-                var showBmp = bmpB
-                val canvasA = Canvas(bmpA)
-                val canvasB = Canvas(bmpB)
-                var canvas = canvasA
-                val paint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-                    try { typeface = android.graphics.Typeface.createFromFile("/system/fonts/Roboto-Regular.ttf") } catch (_: Exception) {}
-                }
-                var lastSeq = -1
-
-                try {
-                    while (isRunning) {
-                        val seq = shm.getInt(16)
-                        if (seq != lastSeq) {
-                            lastSeq = seq
-                            val listSize = shm.getInt(20)
-                            val baseCount = canvas.saveCount
-                            canvas.save()
-                            canvas.drawColor(android.graphics.Color.WHITE)
-
-                            var offset = WLK_HEADER_SIZE
-                            val endOffset = WLK_HEADER_SIZE + listSize.coerceAtMost(DLIST_MAX_SIZE)
-                            while (offset < endOffset) {
-                                val op = shm.get(offset).toInt() and 0xFF
-                                offset++
-                                when (op) {
-                                    OP_DRAW_COLOR -> { canvas.drawColor(shm.getInt(offset)); offset += 4 }
-                                    OP_DRAW_RECT -> {
-                                        val l = shm.getFloat(offset); offset += 4
-                                        val t = shm.getFloat(offset); offset += 4
-                                        val r = shm.getFloat(offset); offset += 4
-                                        val b = shm.getFloat(offset); offset += 4
-                                        paint.color = shm.getInt(offset); offset += 4
-                                        paint.style = Paint.Style.FILL
-                                        canvas.drawRect(l, t, r, b, paint)
-                                    }
-                                    OP_DRAW_TEXT -> {
-                                        val x = shm.getFloat(offset); offset += 4
-                                        val y = shm.getFloat(offset); offset += 4
-                                        val size = shm.getFloat(offset); offset += 4
-                                        paint.textSize = size
-                                        paint.color = shm.getInt(offset); offset += 4
-                                        paint.style = Paint.Style.FILL
-                                        val len = shm.getShort(offset).toInt() and 0xFFFF; offset += 2
-                                        if (len > 0 && offset + len <= endOffset) {
-                                            val chars = ByteArray(len)
-                                            for (i in 0 until len) chars[i] = shm.get(offset + i)
-                                            offset += len
-                                            canvas.drawText(String(chars, Charsets.UTF_8), x, y, paint)
-                                        } else { offset += len }
-                                    }
-                                    OP_DRAW_LINE -> {
-                                        val x1 = shm.getFloat(offset); offset += 4
-                                        val y1 = shm.getFloat(offset); offset += 4
-                                        val x2 = shm.getFloat(offset); offset += 4
-                                        val y2 = shm.getFloat(offset); offset += 4
-                                        paint.color = shm.getInt(offset); offset += 4
-                                        paint.strokeWidth = shm.getFloat(offset); offset += 4
-                                        paint.style = Paint.Style.STROKE
-                                        canvas.drawLine(x1, y1, x2, y2, paint)
-                                    }
-                                    OP_SAVE -> canvas.save()
-                                    OP_RESTORE -> { if (canvas.saveCount > baseCount + 1) canvas.restore() }
-                                    OP_TRANSLATE -> {
-                                        val dx = shm.getFloat(offset); offset += 4
-                                        val dy = shm.getFloat(offset); offset += 4
-                                        canvas.translate(dx, dy)
-                                    }
-                                    OP_CLIP_RECT -> {
-                                        val l = shm.getFloat(offset); offset += 4
-                                        val t = shm.getFloat(offset); offset += 4
-                                        val r = shm.getFloat(offset); offset += 4
-                                        val b = shm.getFloat(offset); offset += 4
-                                        canvas.clipRect(l, t, r, b)
-                                    }
-                                    OP_DRAW_ROUND_RECT -> {
-                                        val l = shm.getFloat(offset); offset += 4
-                                        val t = shm.getFloat(offset); offset += 4
-                                        val r = shm.getFloat(offset); offset += 4
-                                        val b = shm.getFloat(offset); offset += 4
-                                        val rx = shm.getFloat(offset); offset += 4
-                                        val ry = shm.getFloat(offset); offset += 4
-                                        paint.color = shm.getInt(offset); offset += 4
-                                        paint.style = Paint.Style.FILL
-                                        canvas.drawRoundRect(l, t, r, b, rx, ry, paint)
-                                    }
-                                    OP_DRAW_CIRCLE -> {
-                                        val cx = shm.getFloat(offset); offset += 4
-                                        val cy = shm.getFloat(offset); offset += 4
-                                        val radius = shm.getFloat(offset); offset += 4
-                                        paint.color = shm.getInt(offset); offset += 4
-                                        paint.style = Paint.Style.FILL
-                                        canvas.drawCircle(cx, cy, radius, paint)
-                                    }
-                                    else -> { Log.w("WestlakeVM", "Unknown dlist op $op at offset ${offset-1}"); break }
-                                }
-                            }
-                            canvas.restoreToCount(baseCount)
-                            frameBitmap = drawBmp
-                            frameCount++
-                            val tmp = drawBmp; drawBmp = showBmp; showBmp = tmp
-                            canvas = if (drawBmp === bmpA) canvasA else canvasB
-                        }
-                        delay(8)
-                    }
-                } finally { channel.close(); raf.close() }
-            } else {
-                // Fallback to PNG polling
-                while (isRunning) {
-                    delay(80)
-                    try {
-                        val file = File(WestlakeVM.PNG_PATH)
-                        if (file.exists() && file.length() > 100) {
-                            val bmp = BitmapFactory.decodeFile(file.absolutePath)
-                            if (bmp != null) { frameBitmap = bmp; frameCount++ }
-                        }
-                    } catch (_: Exception) {}
-                }
-            }
-        } else {
-            while (isRunning) {
-                delay(80)
-                try {
-                    val file = File(WestlakeVM.PNG_PATH)
-                    if (file.exists() && file.length() > 100) {
-                        val bmp = BitmapFactory.decodeFile(file.absolutePath)
-                        if (bmp != null) { frameBitmap = bmp; frameCount++ }
-                    }
-                } catch (_: Exception) {}
-            }
-        }
+        if (!isRunning) return@LaunchedEffect
+        val stream = WestlakeVM.pipeStream ?: return@LaunchedEffect
+        val holder = snapshotFlow { holderState }.filterNotNull().first()
+        readPipeAndRender(holder, stream, { isRunning }) { frameCount++ }
     }
 
     DisposableEffect(Unit) {
@@ -845,7 +630,22 @@ fun WestlakeVMApkScreen(config: ApkVmConfig) {
                 }) { Text("<-", fontSize = 20.sp, color = Color.White) }
                 Text(config.displayName, fontSize = 16.sp, color = Color.White,
                     fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f))
-                Text("Frame: $frameCount", fontSize = 12.sp, color = Color.White.copy(0.6f))
+                IconButton(onClick = {
+                    // Show text input dialog
+                    val builder = android.app.AlertDialog.Builder(activity)
+                    builder.setTitle("Enter text")
+                    val input = android.widget.EditText(activity)
+                    input.inputType = android.text.InputType.TYPE_CLASS_TEXT
+                    builder.setView(input)
+                    builder.setPositiveButton("Send") { _, _ ->
+                        val text = input.text.toString()
+                        if (text.isNotBlank()) WestlakeVM.sendText(text)
+                    }
+                    builder.setNegativeButton("Cancel", null)
+                    builder.show()
+                    input.requestFocus()
+}) { Text("Aa", fontSize = 16.sp, color = Color.Yellow, fontWeight = FontWeight.Bold) }
+                Text("$frameCount", fontSize = 12.sp, color = Color.White.copy(0.6f))
             }
 
             // Rendered frame display
@@ -856,6 +656,7 @@ fun WestlakeVMApkScreen(config: ApkVmConfig) {
                             val scaleX = 480f / size.width
                             val scaleY = 800f / size.height
                             val down = awaitFirstDown(requireUnconsumed = false)
+                            val downTime = System.currentTimeMillis()
                             WestlakeVM.sendTouch(0, down.position.x * scaleX, down.position.y * scaleY)
                             do {
                                 val event = awaitPointerEvent()
@@ -866,21 +667,49 @@ fun WestlakeVMApkScreen(config: ApkVmConfig) {
                                     WestlakeVM.sendTouch(2, vx, vy)
                                 } else {
                                     WestlakeVM.sendTouch(1, vx, vy)
+                                    // Long press (>500ms) = show text input
+                                    if (System.currentTimeMillis() - downTime > 500) {
+                                        (activity as? android.app.Activity)?.runOnUiThread {
+                                            val builder = android.app.AlertDialog.Builder(activity)
+                                            builder.setTitle("Enter text")
+                                            val input = android.widget.EditText(activity)
+                                            input.inputType = android.text.InputType.TYPE_CLASS_TEXT
+                                            builder.setView(input)
+                                            builder.setPositiveButton("Send") { _, _ ->
+                                                val text = input.text.toString()
+                                                if (text.isNotBlank()) WestlakeVM.sendText(text)
+                                            }
+                                            builder.setNegativeButton("Cancel", null)
+                                            builder.show()
+                                            input.requestFocus()
+                                        }
+                                    }
                                     break
                                 }
                             } while (true)
                         }
                     }
             ) {
-                frameBitmap?.let { bmp ->
-                    Image(
-                        bitmap = bmp.asImageBitmap(),
-                        contentDescription = "${config.displayName} VM Output",
-                        modifier = Modifier.fillMaxSize()
-                    )
-                } ?: run {
+                AndroidView(
+                    factory = { context ->
+                        SurfaceView(context).also { sv ->
+                            sv.holder.addCallback(object : SurfaceHolder.Callback {
+                                override fun surfaceCreated(holder: SurfaceHolder) {
+                                    holder.setFixedSize(480, 800)
+                                    holderState = holder
+                                }
+                                override fun surfaceChanged(holder: SurfaceHolder, format: Int, width: Int, height: Int) {}
+                                override fun surfaceDestroyed(holder: SurfaceHolder) { holderState = null }
+                            })
+                        }
+                    },
+                    modifier = Modifier.fillMaxSize()
+                )
+
+                // Loading overlay
+                if (frameCount == 0) {
                     Column(
-                        modifier = Modifier.fillMaxSize(),
+                        modifier = Modifier.fillMaxSize().background(Color.Black),
                         horizontalAlignment = Alignment.CenterHorizontally,
                         verticalArrangement = Arrangement.Center
                     ) {
@@ -898,7 +727,7 @@ fun WestlakeVMApkScreen(config: ApkVmConfig) {
 
             // Status bar
             Text(
-                "dalvikvm ARM64 | ${config.packageName} | DisplayList IPC",
+                "dalvikvm ARM64 | ${config.packageName} | Pipe \u2192 SurfaceView",
                 fontSize = 10.sp, color = Color(0xFF9C27B0),
                 modifier = Modifier.fillMaxWidth().background(Color(0xFF0A0A0A)).padding(4.dp)
             )

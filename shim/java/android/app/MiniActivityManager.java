@@ -148,6 +148,7 @@ public class MiniActivityManager {
             if (callerActivity != null && !callerDestroyed) {
                 int resultCode = ShimCompat.getActivityIntField(activity, "mResultCode", 0);
                 android.content.Intent resultData = ShimCompat.getActivityField(activity, "mResultData", (android.content.Intent) null);
+                Log.i(TAG, "  delivering result: code=" + resultCode + " data=" + resultData + " reqCode=" + record.requestCode);
                 callerActivity.onActivityResult(
                     record.requestCode,
                     resultCode,
@@ -159,12 +160,14 @@ public class MiniActivityManager {
         // Remove from stack
         mStack.remove(record);
 
-        // Resume the new top activity
+        // Resume the new top activity and force re-layout
         if (!mStack.isEmpty()) {
             ActivityRecord top = mStack.get(mStack.size() - 1);
             performRestart(top);
             performStart(top);
             performResume(top);
+            // Force re-layout (data may have changed while paused)
+            top.activity.invalidateLayout();
         }
     }
 
@@ -264,13 +267,14 @@ public class MiniActivityManager {
             String pkg = activity.getPackageName();
             if (pkg == null) pkg = activity.getClass().getPackage().getName();
 
-            // Try to find Fragment classes in the app's package using common naming patterns
+            // Counter app special case: two fragments in a DrawerLayout
+            // Main content (0x7f0a004a) = CounterFragment, Drawer (0x7f0a004b) = CountersListFragment
             String actPkg = activity.getClass().getPackage().getName();
+            if (tryCounterAppFragments(activity, decor, pkg)) return;
+
             String[] fragmentCandidates = {
-                actPkg + ".CountersListFragment",     // Counter app specific
                 actPkg + ".MainFragment",
                 actPkg + ".HomeFragment",
-                pkg + ".ui.CountersListFragment",
                 pkg + ".ui.MainFragment",
                 pkg + ".ui.HomeFragment",
                 pkg + ".fragment.MainFragment",
@@ -365,6 +369,12 @@ public class MiniActivityManager {
                                         if (fragView != null) {
                                             containerVg.addView(fragView);
                                             Log.i(TAG, "  tryRecoverFragments: manually attached " + fragView.getClass().getSimpleName() + " to container");
+
+                                            // Call remaining Fragment lifecycle: onViewCreated, onActivityCreated, onStart, onResume
+                                            callFragmentLifecycle(fragment, fragClass, fragView);
+
+                                            // Manually populate any ListViews that got adapters during lifecycle
+                                            populateListViews(fragView);
                                         }
                                     }
                                 } catch (Exception ve) {
@@ -383,6 +393,312 @@ public class MiniActivityManager {
             Log.d(TAG, "  tryRecoverFragments: no suitable Fragment class found");
         } catch (Exception e) {
             Log.d(TAG, "  tryRecoverFragments error: " + e);
+        }
+    }
+
+    /**
+     * Special handling for Counter app: put CounterFragment in main content,
+     * CountersListFragment in drawer. Pass the first counter name as argument.
+     */
+    private boolean tryCounterAppFragments(Activity activity, android.view.View decor, String pkg) {
+        try {
+            Class<?> counterFragClass = null;
+            Class<?> listFragClass = null;
+            try { counterFragClass = ClassLoader.getSystemClassLoader().loadClass(pkg + ".ui.CounterFragment"); } catch (Exception e) {}
+            try { listFragClass = ClassLoader.getSystemClassLoader().loadClass(pkg + ".ui.CountersListFragment"); } catch (Exception e) {}
+            if (counterFragClass == null) return false;
+
+            Log.i(TAG, "  tryCounterAppFragments: found CounterFragment + CountersListFragment");
+
+            android.view.LayoutInflater inflater = android.view.LayoutInflater.from(activity);
+
+            // Get first counter name from SharedPreferences
+            android.content.SharedPreferences prefs = android.content.SharedPreferences.getInstance("counters");
+            java.util.Map<String, ?> all = prefs.getAll();
+            String firstCounter = all.isEmpty() ? "My Counter" : all.keySet().iterator().next();
+
+            // Main content container (0x7f0a004a)
+            android.view.View mainContainer = decor.findViewById(0x7f0a004a);
+            if (mainContainer instanceof android.view.ViewGroup) {
+                android.view.ViewGroup mc = (android.view.ViewGroup) mainContainer;
+                Object counterFrag = counterFragClass.newInstance();
+
+                // Set counter name via Bundle arguments
+                android.os.Bundle args = new android.os.Bundle();
+                args.putString("counterName", firstCounter);
+                try {
+                    java.lang.reflect.Method setArgs = counterFragClass.getMethod("setArguments", android.os.Bundle.class);
+                    setArgs.invoke(counterFrag, args);
+                } catch (Exception e) { /* may not have setArguments */ }
+
+                // Attach fragment to activity (so getActivity() works in onCreateView)
+                attachFragmentToActivity(counterFrag, counterFragClass, activity);
+                // Ensure mApplication is set (may have been lost during AppCompat init)
+                if (activity.getApplication() == null) {
+                    Application app = MiniServer.get().getApplication();
+                    ShimCompat.setActivityField(activity, "mApplication", app);
+                    Log.i(TAG, "  re-set mApplication: " + app.getClass().getSimpleName());
+                }
+
+                // Force-set counters on whatever Application the Fragment sees
+                try {
+                    // Get the Application the Fragment will access
+                    java.lang.reflect.Method ga = null;
+                    for (Class<?> c = counterFragClass; c != null; c = c.getSuperclass()) {
+                        try { ga = c.getMethod("getActivity"); break; } catch (NoSuchMethodException e) {}
+                    }
+                    if (ga != null) {
+                        Object fragActivity = ga.invoke(counterFrag);
+                        if (fragActivity != null) {
+                            java.lang.reflect.Method gApp = fragActivity.getClass().getMethod("getApplication");
+                            Object app = gApp.invoke(fragActivity);
+                            if (app != null) {
+                                java.lang.reflect.Field cf = app.getClass().getDeclaredField("counters");
+                                cf.setAccessible(true);
+                                if (cf.get(app) == null) {
+                                    // Build counters from SharedPreferences
+                                    java.util.LinkedHashMap<String, Integer> data = new java.util.LinkedHashMap<>();
+                                    android.content.SharedPreferences sp = android.content.SharedPreferences.getInstance("counters");
+                                    for (java.util.Map.Entry<String, ?> entry : sp.getAll().entrySet()) {
+                                        if (entry.getValue() instanceof Integer)
+                                            data.put(entry.getKey(), (Integer) entry.getValue());
+                                    }
+                                    cf.set(app, data);
+                                    Log.i(TAG, "  force-set counters on Fragment's Application: " + data.keySet());
+                                }
+                            } else {
+                                Log.w(TAG, "  Fragment's getApplication() returned null");
+                            }
+                        }
+                    }
+                } catch (Exception e) {
+                    Log.w(TAG, "  force-set counters failed: " + e.getMessage());
+                }
+
+                // Call onCreateView — if it crashes, inflate counter.xml directly
+                android.view.View fragView = callOnCreateView(counterFrag, counterFragClass, inflater, mc);
+                if (fragView == null) {
+                    // Inflate counter.xml from APK and populate manually
+                    Log.i(TAG, "  tryCounterAppFragments: inflating counter.xml directly");
+                    fragView = inflater.inflate(0x7f030018, mc, false); // counter.xml
+                    if (fragView != null) {
+                        final android.content.SharedPreferences sp =
+                            android.content.SharedPreferences.getInstance("counters");
+                        Object val = sp.getAll().get(firstCounter);
+                        final int[] count = { (val instanceof Integer) ? (Integer) val : 0 };
+
+                        // Find views by ID from the inflated XML
+                        android.widget.Button plusBtn = (android.widget.Button) fragView.findViewById(0x7f0a0042);
+                        android.widget.Button minusBtn = (android.widget.Button) fragView.findViewById(0x7f0a0043);
+                        final android.widget.TextView countTv = (android.widget.TextView) fragView.findViewById(0x7f0a0044);
+
+                        if (countTv != null) {
+                            countTv.setText(String.valueOf(count[0]));
+                            countTv.setTextSize(96);
+                            countTv.setTextColor(0xFFFFFFFF);
+                            // Force-center the count's parent FrameLayout
+                            android.view.View countParent = (android.view.View) countTv.getParent();
+                            if (countParent != null) {
+                                android.view.ViewGroup.LayoutParams clp = countParent.getLayoutParams();
+                                if (clp instanceof android.widget.FrameLayout.LayoutParams) {
+                                    ((android.widget.FrameLayout.LayoutParams) clp).gravity = 0x11; // CENTER
+                                } else {
+                                    // Replace with FrameLayout.LayoutParams
+                                    android.widget.FrameLayout.LayoutParams flp =
+                                        new android.widget.FrameLayout.LayoutParams(clp.width, clp.height);
+                                    flp.gravity = 0x11; // CENTER
+                                    countParent.setLayoutParams(flp);
+                                }
+                            }
+                        }
+                        // Set button text and make them larger for usability
+                        if (plusBtn != null) {
+                            if (plusBtn.getText() == null || plusBtn.getText().length() == 0) plusBtn.setText("+");
+                            plusBtn.setTextSize(48);
+                            android.view.ViewGroup.LayoutParams plp = plusBtn.getLayoutParams();
+                            if (plp != null) plp.height = 160;
+                        }
+                        if (minusBtn != null) {
+                            if (minusBtn.getText() == null || minusBtn.getText().length() == 0) minusBtn.setText("\u2212");
+                            minusBtn.setTextSize(48);
+                            android.view.ViewGroup.LayoutParams mlp = minusBtn.getLayoutParams();
+                            if (mlp != null) mlp.height = 160;
+                        }
+                        if (plusBtn != null) {
+                            plusBtn.setOnClickListener(new android.view.View.OnClickListener() {
+                                public void onClick(android.view.View v) {
+                                    count[0]++;
+                                    countTv.setText(String.valueOf(count[0]));
+                                    sp.edit().putInt(firstCounter, count[0]).apply();
+                                }
+                            });
+                        }
+                        if (minusBtn != null) {
+                            minusBtn.setOnClickListener(new android.view.View.OnClickListener() {
+                                public void onClick(android.view.View v) {
+                                    count[0]--;
+                                    countTv.setText(String.valueOf(count[0]));
+                                    sp.edit().putInt(firstCounter, count[0]).apply();
+                                }
+                            });
+                        }
+                        Log.i(TAG, "  tryCounterAppFragments: counter.xml inflated, count=" + count[0]);
+                    }
+                }
+                if (fragView != null) {
+                    mc.addView(fragView);
+                    Log.i(TAG, "  tryCounterAppFragments: CounterFragment added to main, counter=" + firstCounter);
+                }
+            }
+
+            // Drawer container (0x7f0a004b) — add CountersListFragment
+            if (listFragClass != null) {
+                android.view.View drawerContainer = decor.findViewById(0x7f0a004b);
+                if (drawerContainer instanceof android.view.ViewGroup) {
+                    android.view.ViewGroup dc = (android.view.ViewGroup) drawerContainer;
+                    Object listFrag = listFragClass.newInstance();
+                    attachFragmentToActivity(listFrag, listFragClass, activity);
+                    android.view.View listView = callOnCreateView(listFrag, listFragClass, inflater, dc);
+                    if (listView != null) {
+                        dc.addView(listView);
+                        callFragmentLifecycle(listFrag, listFragClass, listView);
+                        populateListViews(listView);
+                        Log.i(TAG, "  tryCounterAppFragments: CountersListFragment added to drawer");
+                    }
+                }
+            }
+
+            return true;
+        } catch (Exception e) {
+            Log.w(TAG, "  tryCounterAppFragments failed: " + e);
+            return false;
+        }
+    }
+
+    /** Set the mActivity/mHost field on a Fragment so getActivity() works */
+    private void attachFragmentToActivity(Object fragment, Class<?> fragClass, Activity activity) {
+        // Walk up the class hierarchy looking for mActivity or mHost fields
+        for (Class<?> c = fragClass; c != null && c != Object.class; c = c.getSuperclass()) {
+            // Try mActivity (framework Fragment)
+            try {
+                java.lang.reflect.Field f = c.getDeclaredField("mActivity");
+                f.setAccessible(true);
+                f.set(fragment, activity);
+                Log.d(TAG, "  attachFragment: set mActivity on " + c.getSimpleName());
+                return;
+            } catch (NoSuchFieldException e) { /* try next */ }
+            catch (Exception e) { /* try next */ }
+
+            // Try mHost (support library Fragment uses FragmentHostCallback)
+            // For support library, we need to call onAttach(Activity) instead
+        }
+        // Fallback: try calling onAttach(Activity) via reflection
+        try {
+            java.lang.reflect.Method onAttach = null;
+            for (Class<?> c = fragClass; c != null; c = c.getSuperclass()) {
+                try {
+                    onAttach = c.getDeclaredMethod("onAttach", Activity.class);
+                    break;
+                } catch (NoSuchMethodException e) { /* try parent */ }
+            }
+            if (onAttach != null) {
+                onAttach.setAccessible(true);
+                onAttach.invoke(fragment, activity);
+                Log.d(TAG, "  attachFragment: called onAttach(Activity)");
+            }
+        } catch (Exception e) {
+            Log.d(TAG, "  attachFragment: onAttach failed: " + e.getMessage());
+        }
+    }
+
+    private android.view.View callOnCreateView(Object fragment, Class<?> fragClass,
+            android.view.LayoutInflater inflater, android.view.ViewGroup container) {
+        for (Class<?> fc = fragClass; fc != null; fc = fc.getSuperclass()) {
+            try {
+                java.lang.reflect.Method ocv = fc.getDeclaredMethod("onCreateView",
+                    android.view.LayoutInflater.class, android.view.ViewGroup.class, android.os.Bundle.class);
+                ocv.setAccessible(true);
+                return (android.view.View) ocv.invoke(fragment, inflater, container, null);
+            } catch (NoSuchMethodException e) { /* try parent */ }
+            catch (Exception e) {
+                Throwable cause = e.getCause() != null ? e.getCause() : e;
+                Log.w(TAG, "  callOnCreateView failed: " + cause);
+                cause.printStackTrace();
+                return null;
+            }
+        }
+        return null;
+    }
+
+    /**
+     * Call Fragment lifecycle methods that happen after onCreateView:
+     * onViewCreated, onActivityCreated, onStart, onResume.
+     * This is where adapters/data are typically set up.
+     */
+    private void callFragmentLifecycle(Object fragment, Class<?> fragClass, android.view.View view) {
+        // onViewCreated(View, Bundle)
+        tryCallMethod(fragment, fragClass, "onViewCreated",
+            new Class<?>[]{android.view.View.class, android.os.Bundle.class},
+            new Object[]{view, null});
+
+        // onActivityCreated(Bundle) — this is where Counter sets up its adapter
+        tryCallMethod(fragment, fragClass, "onActivityCreated",
+            new Class<?>[]{android.os.Bundle.class},
+            new Object[]{(android.os.Bundle) null});
+
+        // onStart()
+        tryCallMethod(fragment, fragClass, "onStart", new Class<?>[0], new Object[0]);
+
+        // onResume()
+        tryCallMethod(fragment, fragClass, "onResume", new Class<?>[0], new Object[0]);
+    }
+
+    private void tryCallMethod(Object obj, Class<?> cls, String name, Class<?>[] paramTypes, Object[] args) {
+        for (Class<?> c = cls; c != null && c != Object.class; c = c.getSuperclass()) {
+            try {
+                java.lang.reflect.Method m = c.getDeclaredMethod(name, paramTypes);
+                m.setAccessible(true);
+                m.invoke(obj, args);
+                Log.i(TAG, "  fragment lifecycle: " + name + " OK");
+                return;
+            } catch (NoSuchMethodException e) { /* try parent */ }
+            catch (Exception e) {
+                Log.w(TAG, "  fragment lifecycle: " + name + " failed: " + e.getMessage());
+                return;
+            }
+        }
+    }
+
+    /**
+     * Manually populate ListViews by calling adapter.getView() for each item.
+     * The AOSP ListView.layoutChildren() is too complex for our shim,
+     * so we do it explicitly after the adapter is set.
+     */
+    private void populateListViews(android.view.View root) {
+        if (root instanceof android.widget.ListView) {
+            android.widget.ListView lv = (android.widget.ListView) root;
+            android.widget.ListAdapter adapter = lv.getAdapter();
+            if (adapter != null && adapter.getCount() > 0 && lv.getChildCount() == 0) {
+                int count = adapter.getCount();
+                Log.i(TAG, "  populateListViews: " + count + " items in " + lv);
+                for (int i = 0; i < count; i++) {
+                    try {
+                        android.view.View itemView = adapter.getView(i, null, lv);
+                        if (itemView != null) {
+                            lv.addView(itemView);
+                        }
+                    } catch (Exception e) {
+                        Log.w(TAG, "  populateListViews: getView(" + i + ") failed: " + e.getMessage());
+                        break;
+                    }
+                }
+            }
+        }
+        if (root instanceof android.view.ViewGroup) {
+            android.view.ViewGroup vg = (android.view.ViewGroup) root;
+            for (int i = 0; i < vg.getChildCount(); i++) {
+                populateListViews(vg.getChildAt(i));
+            }
         }
     }
 

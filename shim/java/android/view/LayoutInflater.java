@@ -621,6 +621,9 @@ public class LayoutInflater {
                     if (view instanceof TextView) {
                         String text = resolveStringAttr(bxp, i, res);
                         if (text != null) {
+                            if (text.length() > 100) {
+                                System.out.println("[LayoutInflater] WARNING: huge text (" + text.length() + " chars): " + text.substring(0, 80) + "...");
+                            }
                             ((TextView) view).setText(text);
                         }
                     }
@@ -784,14 +787,26 @@ public class LayoutInflater {
      * Generate LayoutParams for a child from the parser's current attributes.
      * Reads layout_width, layout_height, layout_weight.
      */
+    // layout attribute IDs
+    private static final int ATTR_LAYOUT_GRAVITY = 0x010100b3;
+    private static final int ATTR_LAYOUT_ALIGN_PARENT_LEFT = 0x0101018b;
+    private static final int ATTR_LAYOUT_ALIGN_PARENT_TOP = 0x0101018c;
+    private static final int ATTR_LAYOUT_ALIGN_PARENT_RIGHT = 0x0101018d;
+    private static final int ATTR_LAYOUT_ALIGN_PARENT_BOTTOM = 0x0101018e;
+    private static final int ATTR_LAYOUT_CENTER_IN_PARENT = 0x0101018f;
+    private static final int ATTR_LAYOUT_CENTER_HORIZONTAL = 0x01010190;
+    private static final int ATTR_LAYOUT_CENTER_VERTICAL = 0x01010191;
+
     private ViewGroup.LayoutParams generateLayoutParams(ViewGroup parent, XmlPullParser parser) {
         int width = ViewGroup.LayoutParams.WRAP_CONTENT;
         int height = ViewGroup.LayoutParams.WRAP_CONTENT;
         float weight = 0f;
+        int layoutGravity = -1;
 
         if (parser instanceof BinaryXmlParser) {
             BinaryXmlParser bxp = (BinaryXmlParser) parser;
             int count = bxp.getAttributeCount();
+            // First pass: explicit layout_gravity
             for (int i = 0; i < count; i++) {
                 int resId = bxp.getAttributeNameResource(i);
                 int data = bxp.getAttributeValueData(i);
@@ -802,13 +817,51 @@ public class LayoutInflater {
                     height = resolveLayoutDimension(data);
                 } else if (resId == ATTR_LAYOUT_WEIGHT) {
                     weight = Float.intBitsToFloat(data);
+                } else if (resId == ATTR_LAYOUT_GRAVITY) {
+                    layoutGravity = data;
+                }
+            }
+            // Second pass: map RelativeLayout attrs to gravity (for FrameLayout fallback)
+            if (layoutGravity == -1) {
+                int g = 0;
+                for (int i = 0; i < count; i++) {
+                    int resId = bxp.getAttributeNameResource(i);
+                    int data = bxp.getAttributeValueData(i);
+                    if (data == 0) continue; // false (true = -1 or nonzero)
+                    if (resId == ATTR_LAYOUT_CENTER_IN_PARENT) g = 0x11; // CENTER
+                    else if (resId == ATTR_LAYOUT_ALIGN_PARENT_TOP) g |= 0x30; // TOP
+                    else if (resId == ATTR_LAYOUT_ALIGN_PARENT_BOTTOM) g |= 0x50; // BOTTOM
+                    else if (resId == ATTR_LAYOUT_ALIGN_PARENT_LEFT) g |= 0x03; // LEFT
+                    else if (resId == ATTR_LAYOUT_ALIGN_PARENT_RIGHT) g |= 0x05; // RIGHT
+                    else if (resId == ATTR_LAYOUT_CENTER_HORIZONTAL) g |= 0x01; // CENTER_HORIZONTAL
+                    else if (resId == ATTR_LAYOUT_CENTER_VERTICAL) g |= 0x10; // CENTER_VERTICAL
+                }
+                if (g != 0) layoutGravity = g;
+                // Debug: log unrecognized layout attributes
+                if (g == 0) {
+                    for (int i = 0; i < count; i++) {
+                        int resId = bxp.getAttributeNameResource(i);
+                        String name = bxp.getAttributeName(i);
+                        if (name != null && name.startsWith("layout_") && resId != ATTR_LAYOUT_WIDTH
+                                && resId != ATTR_LAYOUT_HEIGHT && resId != ATTR_LAYOUT_WEIGHT) {
+                            System.out.println("[LayoutInflater] unhandled attr: " + name + " resId=0x" + Integer.toHexString(resId) + " data=" + bxp.getAttributeValueData(i));
+                        }
+                    }
                 }
             }
         }
 
-        if (parent instanceof LinearLayout && weight != 0f) {
+        if (parent instanceof LinearLayout) {
             LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(width, height);
             lp.weight = weight;
+            if (layoutGravity >= 0) lp.gravity = layoutGravity;
+            return lp;
+        }
+
+        if (parent instanceof android.widget.FrameLayout) {
+            android.widget.FrameLayout.LayoutParams lp =
+                new android.widget.FrameLayout.LayoutParams(width, height);
+            if (layoutGravity >= 0) lp.gravity = layoutGravity;
             return lp;
         }
 
@@ -822,8 +875,28 @@ public class LayoutInflater {
         if (data == -1 || data == -2) {
             return data; // MATCH_PARENT or WRAP_CONTENT
         }
-        // Could be a dimension value; for simple cases, use raw value
-        return data;
+        // Unpack dimension: low 4 bits = unit type, high bits = value (complex format)
+        // Android complex dimension: bits 0-3 = unit (0=px, 1=dp, 2=sp, 3=pt, 4=in, 5=mm)
+        //                            bits 4-7 = radix (0=23p0, 1=16p7, 2=8p15, 3=0p23)
+        //                            bits 8-31 = mantissa
+        int unitType = data & 0xF;
+        int radix = (data >> 4) & 0x3;
+        int mantissa = data >> 8;
+        float value;
+        switch (radix) {
+            case 0: value = mantissa; break;              // 23p0
+            case 1: value = mantissa / 128.0f; break;     // 16p7
+            case 2: value = mantissa / 32768.0f; break;   // 8p15
+            case 3: value = mantissa / 8388608.0f; break;  // 0p23
+            default: value = mantissa; break;
+        }
+        float density = android.content.res.Resources.getSystem().getDisplayMetrics().density;
+        switch (unitType) {
+            case 0: return (int) value;                   // px
+            case 1: return (int) (value * density + 0.5f); // dp
+            case 2: return (int) (value * density + 0.5f); // sp (treat as dp for layout)
+            default: return (int) (value * density + 0.5f); // fallback: treat as dp
+        }
     }
 
     /**

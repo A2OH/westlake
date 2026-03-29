@@ -7,8 +7,8 @@ public class Configuration {
     public static final int ORIENTATION_LANDSCAPE  = 2;
 
     public int             orientation   = ORIENTATION_PORTRAIT;
-    public int             screenWidthDp  = 360;
-    public int             screenHeightDp = 640;
+    public int             screenWidthDp  = 240;
+    public int             screenHeightDp = 400;
     public int             densityDpi     = 320;
     public java.util.Locale locale        = java.util.Locale.getDefault();
     public int             uiMode         = 0;

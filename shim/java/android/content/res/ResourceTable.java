@@ -491,7 +491,23 @@ public class ResourceTable {
         int res1 = buf.getShort() & 0xFFFF;
         int entryCount = buf.getInt();
         int entriesStart = buf.getInt();    // offset from start of this chunk to entry data
-        // Skip rest of header (ResTable_config)
+
+        // Read ResTable_config to determine if this is the default config.
+        // Config starts at offset 20 from chunk start; first field is size(4).
+        // A default config has all qualifier bytes as zero.
+        // Strategy: read config size, then check if the qualifier bytes are all zero.
+        boolean isDefaultConfig = true;
+        int configPos = chunkStart + 20; // after chunk header(8) + typeId(1) + res0(1) + res1(2) + entryCount(4) + entriesStart(4)
+        if (configPos + 4 <= data.length) {
+            buf.position(configPos);
+            int configSize = buf.getInt();
+            // Check qualifier bytes: bytes 4..configSize of config (skip the size field itself)
+            // If any qualifier byte is non-zero, this is a qualified config
+            int qualEnd = Math.min(configPos + configSize, data.length);
+            for (int q = configPos + 4; q < qualEnd; q++) {
+                if (data[q] != 0) { isDefaultConfig = false; break; }
+            }
+        }
 
         // Read entry offset array — starts right after the header
         buf.position(chunkStart + headerSize);
@@ -544,7 +560,9 @@ public class ResourceTable {
                 keyName = keyStringPool[keyIndex];
             }
             if (typeName != null && keyName != null) {
-                mNames.put(resId, typeName + "/" + keyName);
+                if (isDefaultConfig || !mNames.containsKey(resId)) {
+                    mNames.put(resId, typeName + "/" + keyName);
+                }
             }
 
             // If FLAG_COMPLEX (bag/map entry), skip it — we only handle simple values
@@ -561,12 +579,16 @@ public class ResourceTable {
             int dataType = buf.get() & 0xFF;
             int valueData = buf.getInt();
 
+            // Only store if default config, or if no value stored yet (first-wins).
+            // This ensures unqualified (default) resources take priority.
             switch (dataType) {
                 case TYPE_STRING:
                     // valueData is index into global string pool
                     if (mGlobalStringPool != null && valueData >= 0
                             && valueData < mGlobalStringPool.length) {
-                        mStrings.put(resId, mGlobalStringPool[valueData]);
+                        if (isDefaultConfig || !mStrings.containsKey(resId)) {
+                            mStrings.put(resId, mGlobalStringPool[valueData]);
+                        }
                     }
                     break;
 
@@ -581,12 +603,16 @@ public class ResourceTable {
                 case TYPE_FLOAT:
                 case TYPE_REFERENCE:
                 case TYPE_ATTRIBUTE:
-                    mIntegers.put(resId, valueData);
+                    if (isDefaultConfig || !mIntegers.containsKey(resId)) {
+                        mIntegers.put(resId, valueData);
+                    }
                     break;
 
                 case TYPE_INT_BOOL:
                     // Boolean: 0 = false, nonzero = true; store raw
-                    mIntegers.put(resId, valueData);
+                    if (isDefaultConfig || !mIntegers.containsKey(resId)) {
+                        mIntegers.put(resId, valueData);
+                    }
                     break;
 
                 default:

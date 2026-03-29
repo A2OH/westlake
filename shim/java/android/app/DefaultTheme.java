@@ -49,9 +49,9 @@ public class DefaultTheme {
     public static final int COLOR_ACCENT = 0xFF33B5E5;       // Holo blue
     public static final int COLOR_BUTTON_DARK = 0xFF4A4A4A;   // Dark button bg (Holo)
     public static final int COLOR_BUTTON_PRESSED = 0xFFBBBBBB;
-    public static final int COLOR_TEXT_PRIMARY = 0xFF757575;   // Medium gray (body text)
-    public static final int COLOR_TEXT_SECONDARY = 0xFFBDBDBD; // Light gray (headers)
-    public static final int COLOR_TEXT_HINT = 0xFFBDBDBD;      // Same as secondary
+    public static final int COLOR_TEXT_PRIMARY = 0xFFE0E0E0;   // Light gray (body text — high contrast on dark)
+    public static final int COLOR_TEXT_SECONDARY = 0xFFFFFFFF; // White (headers)
+    public static final int COLOR_TEXT_HINT = 0xFF9E9E9E;      // Medium gray (hints)
     public static final int COLOR_DIVIDER = 0xFFBDBDBD;
     public static final int COLOR_BG = 0xFF303030;            // Dark background (matches Counter's dark theme)
     public static final int COLOR_TRACK = 0xFFBDBDBD;          // Gray track
@@ -147,13 +147,18 @@ public class DefaultTheme {
     // ── TextView ────────────────────────────────────────────────────────
 
     private static void applyTextViewTheme(TextView tv) {
-        if (tv.getCurrentTextColor() != 0) return; // already colored
-        // Headers (18sp+) get gray, body text gets dark gray
-        float textSize = tv.getTextSize();
-        if (textSize >= 18.0f) {
-            tv.setTextColor(COLOR_TEXT_SECONDARY); // #757575 gray for headers
-        } else {
-            tv.setTextColor(COLOR_TEXT_PRIMARY);   // #212121 dark for body
+        // Ensure minimum readable text size (density=2.0, so 14sp = 28px)
+        if (tv.getTextSize() < 14.0f) {
+            tv.setTextSize(14.0f);
+        }
+        if (tv.getCurrentTextColor() == 0 || tv.getCurrentTextColor() == 0xFF000000) {
+            // Headers (18sp+) get white, body text gets light gray
+            float textSize = tv.getTextSize();
+            if (textSize >= 18.0f) {
+                tv.setTextColor(COLOR_TEXT_SECONDARY); // white for headers
+            } else {
+                tv.setTextColor(COLOR_TEXT_PRIMARY);   // light gray for body
+            }
         }
     }
 
@@ -419,7 +424,7 @@ public class DefaultTheme {
         // EditText Holo look: thin blue underline at bottom ONLY
         et.setBackground(new EditTextUnderlineDrawable());
         et.setPadding(8, 16, 8, 16);
-        if (et.getCurrentTextColor() == 0) {
+        if (et.getCurrentTextColor() == 0 || et.getCurrentTextColor() == 0xFF000000) {
             et.setTextColor(COLOR_TEXT_PRIMARY);
         }
     }

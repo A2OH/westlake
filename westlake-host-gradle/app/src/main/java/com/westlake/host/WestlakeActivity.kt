@@ -85,6 +85,26 @@ class WestlakeActivity : ComponentActivity() {
     /** Launch a custom app from the engine DEX by calling its init+show methods */
     fun launchCustomApp(className: String, initMethod: String?, showMethod: String) {
         if (className == "WESTLAKE_VM") { Log.i(TAG, "Launching WestlakeVM screen"); setContent { WestlakeVMScreen() }; return }
+        if (className == "WESTLAKE_VM_TODO") {
+            Log.i(TAG, "Launching TODO List VM")
+            val config = ApkVmConfig(
+                packageName = "com.example.todo",
+                activityName = "com.example.todo.TodoListActivity",
+                displayName = "TODO List"
+            )
+            setContent { WestlakeVMApkScreen(config) }
+            return
+        }
+        if (className == "WESTLAKE_VM_TIP") {
+            Log.i(TAG, "Launching Tip Calculator VM")
+            val config = ApkVmConfig(
+                packageName = "com.example.tipcalc",
+                activityName = "com.example.tipcalc.TipCalculator",
+                displayName = "Tip Calculator"
+            )
+            setContent { WestlakeVMApkScreen(config) }
+            return
+        }
         if (className.startsWith("VM_APK:")) {
             // Format: VM_APK:package:activity:displayName
             val parts = className.removePrefix("VM_APK:").split(":")
@@ -356,6 +376,8 @@ fun WestlakeHome() {
             AppInfo("Calculator (Native)", "Huawei Calculator in-process", Color(0xFF4CAF50), "NATIVE_APK:com.huawei.calculator:com.huawei.calculator.Calculator:Calculator", null, ""),
             AppInfo("Westlake VM", "Run MockDonalds in our own ART11 (subprocess)", Color(0xFF4CAF50), "WESTLAKE_VM", null, ""),
             AppInfo("Counter (VM)", "Simple Counter APK in ART11 subprocess", Color(0xFF9C27B0), "VM_APK:me.tsukanov.counter:me.tsukanov.counter.ui.MainActivity:Simple Counter", null, ""),
+            AppInfo("Tip Calculator (VM)", "Full app in ART11 subprocess", Color(0xFFFF9800), "WESTLAKE_VM_TIP", null, ""),
+            AppInfo("TODO List (VM)", "Multi-Activity app with ListView", Color(0xFF2196F3), "WESTLAKE_VM_TODO", null, ""),
             AppInfo("Compose Demo", "Navigation + Retrofit + Coil + ViewModel", Color(0xFF00BCD4), "COMPOSE_DEMO", null, ""),
             AppInfo("Noice (APK Resources)", "Production app → resources.arsc → Views", Color(0xFF26A69A), "APK_VIEW:com.github.ashutoshgngwr.noice:Noice", null, ""),
             AppInfo("Counter (APK Resources)", "Real APK → resources.arsc → Views", Color(0xFF9C27B0), "APK_VIEW:me.tsukanov.counter:Counter", null, ""),

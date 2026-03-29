@@ -422,7 +422,18 @@ public class ArrayAdapter<T> extends BaseAdapter implements Filterable, ThemedSp
         final TextView text;
 
         if (convertView == null) {
-            view = inflater.inflate(resource, parent, false);
+            // Built-in simple layouts: create a TextView directly instead of inflating XML
+            if (resource == android.R.layout.simple_list_item_1
+                    || resource == android.R.layout.simple_list_item_2
+                    || resource == 0x01090003 || resource == 0x01090004) {
+                TextView tv = new TextView(mContext);
+                tv.setPadding(24, 16, 24, 16);
+                tv.setTextSize(16);
+                tv.setTextColor(0xFFE0E0E0);
+                view = tv;
+            } else {
+                view = inflater.inflate(resource, parent, false);
+            }
         } else {
             view = convertView;
         }

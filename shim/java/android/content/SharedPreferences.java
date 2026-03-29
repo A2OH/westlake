@@ -52,6 +52,7 @@ public class SharedPreferences {
 
     @SuppressWarnings("unchecked")
     public Map<String, ?> getAll() {
+        System.out.println("[SharedPrefs:" + name + "] getAll() size=" + store.size() + " keys=" + store.keySet());
         synchronized (store) {
             // Return a defensive copy
             Map<String, Object> copy = new HashMap<String, Object>();
@@ -71,7 +72,9 @@ public class SharedPreferences {
     public String getString(String key, String defValue) {
         synchronized (store) {
             Object v = store.get(key);
-            return (v instanceof String) ? (String) v : defValue;
+            String result = (v instanceof String) ? (String) v : defValue;
+            System.out.println("[SharedPrefs:" + name + "] getString(" + key + ") = " + result);
+            return result;
         }
     }
 
