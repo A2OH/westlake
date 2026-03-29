@@ -72,7 +72,7 @@ public class LayoutInflater {
         sTagClassMap.put("ViewStub", "android.view.View");
         // android.widget.* classes
         sTagClassMap.put("LinearLayout", "android.widget.LinearLayout");
-        sTagClassMap.put("RelativeLayout", "android.widget.FrameLayout"); // approximate
+        sTagClassMap.put("RelativeLayout", "android.widget.RelativeLayout");
         sTagClassMap.put("FrameLayout", "android.widget.FrameLayout");
         sTagClassMap.put("ScrollView", "android.widget.ScrollView");
         sTagClassMap.put("HorizontalScrollView", "android.widget.ScrollView");
@@ -95,6 +95,17 @@ public class LayoutInflater {
         sTagClassMap.put("TableLayout", "android.widget.LinearLayout");
         sTagClassMap.put("TableRow", "android.widget.LinearLayout");
         // Placeholder tags (no-op)
+        // AndroidX components
+        sTagClassMap.put("androidx.recyclerview.widget.RecyclerView", "androidx.recyclerview.widget.RecyclerView");
+        sTagClassMap.put("androidx.constraintlayout.widget.ConstraintLayout", "androidx.constraintlayout.widget.ConstraintLayout");
+        sTagClassMap.put("androidx.cardview.widget.CardView", "androidx.cardview.widget.CardView");
+        sTagClassMap.put("androidx.coordinatorlayout.widget.CoordinatorLayout", "android.widget.FrameLayout");
+        sTagClassMap.put("androidx.appcompat.widget.Toolbar", "android.widget.Toolbar");
+        sTagClassMap.put("com.google.android.material.appbar.AppBarLayout", "com.google.android.material.appbar.AppBarLayout");
+        sTagClassMap.put("com.google.android.material.appbar.CollapsingToolbarLayout", "com.google.android.material.appbar.CollapsingToolbarLayout");
+        sTagClassMap.put("com.google.android.material.floatingactionbutton.FloatingActionButton", "com.google.android.material.floatingactionbutton.FloatingActionButton");
+        sTagClassMap.put("com.google.android.material.bottomnavigation.BottomNavigationView", "com.google.android.material.bottomnavigation.BottomNavigationView");
+
         sTagClassMap.put("include", null);
         sTagClassMap.put("merge", null);
         sTagClassMap.put("fragment", null);
@@ -862,6 +873,36 @@ public class LayoutInflater {
             android.widget.FrameLayout.LayoutParams lp =
                 new android.widget.FrameLayout.LayoutParams(width, height);
             if (layoutGravity >= 0) lp.gravity = layoutGravity;
+            return lp;
+        }
+
+        if (parent instanceof android.widget.RelativeLayout && parser instanceof BinaryXmlParser) {
+            android.widget.RelativeLayout.LayoutParams lp =
+                new android.widget.RelativeLayout.LayoutParams(width, height);
+            BinaryXmlParser bxp = (BinaryXmlParser) parser;
+            int count = bxp.getAttributeCount();
+            for (int i = 0; i < count; i++) {
+                int resId = bxp.getAttributeNameResource(i);
+                int data = bxp.getAttributeValueData(i);
+                // Map RelativeLayout rule attributes
+                switch (resId) {
+                    case 0x0101018b: lp.addRule(android.widget.RelativeLayout.ALIGN_PARENT_LEFT, data != 0 ? -1 : 0); break;
+                    case 0x0101018c: lp.addRule(android.widget.RelativeLayout.ALIGN_PARENT_TOP, data != 0 ? -1 : 0); break;
+                    case 0x0101018d: lp.addRule(android.widget.RelativeLayout.ALIGN_PARENT_RIGHT, data != 0 ? -1 : 0); break;
+                    case 0x0101018e: lp.addRule(android.widget.RelativeLayout.ALIGN_PARENT_BOTTOM, data != 0 ? -1 : 0); break;
+                    case 0x0101018f: lp.addRule(android.widget.RelativeLayout.CENTER_IN_PARENT, data != 0 ? -1 : 0); break;
+                    case 0x01010190: lp.addRule(android.widget.RelativeLayout.CENTER_HORIZONTAL, data != 0 ? -1 : 0); break;
+                    case 0x01010191: lp.addRule(android.widget.RelativeLayout.CENTER_VERTICAL, data != 0 ? -1 : 0); break;
+                    case 0x01010182: lp.addRule(android.widget.RelativeLayout.BELOW, data); break;
+                    case 0x01010183: lp.addRule(android.widget.RelativeLayout.ALIGN_LEFT, data); break;
+                    case 0x01010184: lp.addRule(android.widget.RelativeLayout.ABOVE, data); break;
+                    case 0x01010185: lp.addRule(android.widget.RelativeLayout.ALIGN_RIGHT, data); break;
+                    case 0x01010186: lp.addRule(android.widget.RelativeLayout.ALIGN_TOP, data); break;
+                    case 0x01010187: lp.addRule(android.widget.RelativeLayout.ALIGN_BOTTOM, data); break;
+                    case 0x01010188: lp.addRule(android.widget.RelativeLayout.LEFT_OF, data); break;
+                    case 0x01010189: lp.addRule(android.widget.RelativeLayout.RIGHT_OF, data); break;
+                }
+            }
             return lp;
         }
 
