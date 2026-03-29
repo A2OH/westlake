@@ -135,28 +135,40 @@ public class WestlakeLauncher {
                 Class<?> appCls = ClassLoader.getSystemClassLoader().loadClass(appClassName);
                 android.app.Application customApp = (android.app.Application) appCls.newInstance();
                 server.setApplication(customApp);
-                // Run Application.onCreate() in thread with timeout
-                // ArchTaskExecutor.isMainThread() always returns true, so thread check OK
-                final android.app.Application appRef = customApp;
-                final boolean[] onCreateDone = { false };
-                Thread appThread = new Thread(new Runnable() {
-                    public void run() {
-                        try {
-                            appRef.onCreate();
-                            onCreateDone[0] = true;
-                        } catch (Exception e) {
-                            onCreateDone[0] = true;
-                            System.out.println("[WestlakeLauncher] Application.onCreate error: " + e.getMessage());
+                // Skip Application.onCreate() for Dagger/Hilt apps — DI never completes
+                // in interpreter mode due to missing Android system services
+                boolean skipOnCreate = false;
+                try {
+                    // Check if the app uses Hilt (has Hilt_* generated class)
+                    String hiltName = "dagger.hilt.android.internal.managers.ApplicationComponentManager";
+                    ClassLoader.getSystemClassLoader().loadClass(hiltName);
+                    skipOnCreate = true;
+                    System.out.println("[WestlakeLauncher] Dagger/Hilt detected — skipping Application.onCreate()");
+                } catch (ClassNotFoundException e) { /* not a Hilt app */ }
+
+                if (!skipOnCreate) {
+                    // Non-Hilt apps: run onCreate normally with timeout
+                    final android.app.Application appRef = customApp;
+                    final boolean[] onCreateDone = { false };
+                    Thread appThread = new Thread(new Runnable() {
+                        public void run() {
+                            try {
+                                appRef.onCreate();
+                                onCreateDone[0] = true;
+                            } catch (Exception e) {
+                                onCreateDone[0] = true;
+                                System.out.println("[WestlakeLauncher] Application.onCreate error: " + e.getMessage());
+                            }
                         }
+                    }, "AppOnCreate");
+                    appThread.setDaemon(true);
+                    appThread.start();
+                    try { appThread.join(15000); } catch (InterruptedException ie) {}
+                    if (onCreateDone[0]) {
+                        System.out.println("[WestlakeLauncher] Application.onCreate done: " + appCls.getSimpleName());
+                    } else {
+                        System.out.println("[WestlakeLauncher] Application.onCreate TIMEOUT — proceeding");
                     }
-                }, "AppOnCreate");
-                appThread.setDaemon(true);
-                appThread.start();
-                try { appThread.join(15000); } catch (InterruptedException ie) {}
-                if (onCreateDone[0]) {
-                    System.out.println("[WestlakeLauncher] Application.onCreate done: " + appCls.getSimpleName());
-                } else {
-                    System.out.println("[WestlakeLauncher] Application.onCreate TIMEOUT (15s) — proceeding without full DI");
                 }
                 // Force-set 'counters' field on CounterApplication (Counter app specific)
                 try {
@@ -250,12 +262,35 @@ public class WestlakeLauncher {
                 }
 
                 System.out.println("[WestlakeLauncher] Launching: " + targetActivity);
-                Intent intent = new Intent();
-                String launchPkg = info.packageName != null ? info.packageName : packageName;
-                intent.setComponent(new ComponentName(launchPkg, targetActivity));
-                am.startActivity(null, intent, -1);
 
-                launchedActivity = am.getResumedActivity();
+                // For Hilt apps: skip real activity (constructor hangs in DI)
+                // Create a plain Activity with the app's splash content instead
+                boolean isHiltActivity = false;
+                try {
+                    ClassLoader cl = Thread.currentThread().getContextClassLoader();
+                    if (cl == null) cl = ClassLoader.getSystemClassLoader();
+                    Class<?> actCls = cl.loadClass(targetActivity);
+                    // Check if superclass chain contains "Hilt_"
+                    Class<?> sc = actCls.getSuperclass();
+                    while (sc != null) {
+                        if (sc.getName().contains("Hilt_")) { isHiltActivity = true; break; }
+                        sc = sc.getSuperclass();
+                    }
+                } catch (Exception e) { /* can't check, try normal launch */ }
+
+                if (isHiltActivity) {
+                    System.out.println("[WestlakeLauncher] Hilt activity detected — using proxy Activity");
+                    launchedActivity = new android.app.Activity();
+                    launchedActivity.setTitle(packageName);
+                    // Wire to MiniServer
+                    am.registerActivity(launchedActivity, packageName, targetActivity);
+                } else {
+                    Intent intent = new Intent();
+                    String launchPkg = info.packageName != null ? info.packageName : packageName;
+                    intent.setComponent(new ComponentName(launchPkg, targetActivity));
+                    am.startActivity(null, intent, -1);
+                    launchedActivity = am.getResumedActivity();
+                }
             } catch (Exception e) {
                 System.out.println("[WestlakeLauncher] APK load error (non-fatal): " + e);
                 // Fallback: launch activity directly if class is on classpath

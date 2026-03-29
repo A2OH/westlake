@@ -253,18 +253,24 @@ public class ApkLoader {
         info.packageName = packageName;
         info.extractDir = resDir;
 
-        // Parse resources.arsc
+        // Parse resources.arsc (skip for large files — interpreter too slow)
         File resFile = new File(resDir, "resources.arsc");
         if (resFile.exists()) {
-            try {
-                java.io.FileInputStream fis = new java.io.FileInputStream(resFile);
-                byte[] data = new byte[(int) resFile.length()];
-                fis.read(data);
-                fis.close();
-                info.resourceTable = android.content.res.ResourceTableParser.parseToTable(data);
-                System.out.println("[ApkLoader] Parsed resources.arsc from extracted dir");
-            } catch (Exception e) {
-                System.out.println("[ApkLoader] resources.arsc parse error: " + e);
+            long resSize = resFile.length();
+            if (resSize > 500000) {
+                // Large resource table (>500KB) — skip parsing to avoid interpreter hang
+                System.out.println("[ApkLoader] Skipping resources.arsc (" + (resSize/1024) + "KB) — too large for interpreter");
+            } else {
+                try {
+                    java.io.FileInputStream fis = new java.io.FileInputStream(resFile);
+                    byte[] data = new byte[(int) resFile.length()];
+                    fis.read(data);
+                    fis.close();
+                    info.resourceTable = android.content.res.ResourceTableParser.parseToTable(data);
+                    System.out.println("[ApkLoader] Parsed resources.arsc from extracted dir");
+                } catch (Exception e) {
+                    System.out.println("[ApkLoader] resources.arsc parse error: " + e);
+                }
             }
         }
 

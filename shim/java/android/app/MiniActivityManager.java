@@ -198,6 +198,22 @@ public class MiniActivityManager {
     }
 
     /**
+     * Register a pre-created Activity (bypass instantiation for Hilt apps).
+     */
+    public void registerActivity(Activity activity, String packageName, String className) {
+        ComponentName component = new ComponentName(packageName, className);
+        ShimCompat.setActivityField(activity, "mComponent", component);
+        ShimCompat.setActivityField(activity, "mApplication", mServer.getApplication());
+        ShimCompat.setActivityField(activity, "mFinished", Boolean.FALSE);
+        ActivityRecord record = new ActivityRecord();
+        record.activity = activity;
+        record.component = component;
+        mStack.add(record);
+        mResumed = record;
+        Log.d(TAG, "Registered proxy activity: " + className);
+    }
+
+    /**
      * Finish all activities (shutdown).
      */
     public void finishAll() {
@@ -256,10 +272,10 @@ public class MiniActivityManager {
         }, "ActivityOnCreate");
         ocThread.setDaemon(true);
         ocThread.start();
-        try { ocThread.join(15000); } catch (InterruptedException ie) {}
+        try { ocThread.join(5000); } catch (InterruptedException ie) {}
 
         if (!done[0]) {
-            Log.w(TAG, "performCreate TIMEOUT (15s) for " + r.component.getClassName() + " — proceeding");
+            Log.w(TAG, "performCreate TIMEOUT (5s) for " + r.component.getClassName() + " — proceeding");
         } else if (error[0] instanceof NullPointerException) {
             Log.w(TAG, "performCreate NPE (non-fatal): " + error[0].getMessage());
             createNPE = true;
