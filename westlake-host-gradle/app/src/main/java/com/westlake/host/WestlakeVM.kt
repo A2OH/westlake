@@ -107,9 +107,9 @@ object WestlakeVM {
         val runDir = DALVIKVM_DIR
         val bcp = "$runDir/core-oj.jar:$runDir/core-libart.jar:$runDir/core-icu4j.jar:$runDir/aosp-shim.dex"
 
-        // Use boot image for legacy MockDonalds (fast), interpreter for APK mode (picks up shim changes)
+        // Always use boot image when available (interpreter too slow for large shim)
         val hasBootImage = File("$runDir/arm64/boot.art").exists()
-        val bootArgs = if (hasBootImage && apkConfig == null) {
+        val bootArgs = if (hasBootImage) {
             log.add("Boot image -- AOT mode")
             arrayOf("-Ximage:$runDir/boot.art")
         } else {

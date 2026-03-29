@@ -258,8 +258,8 @@ public class Activity extends Context {
         android.view.View decorView = mWindow.getDecorView();
         if (decorView == null) return;
 
-        // Always re-layout (data may change from click handlers)
-        {
+        // Re-layout when content changed
+        if (!mLayoutDone || decorView != mLastDecorView) {
             DefaultTheme.applyToViewTree(decorView);
             int wSpec = android.view.View.MeasureSpec.makeMeasureSpec(mSurfaceWidth, android.view.View.MeasureSpec.EXACTLY);
             int hSpec = android.view.View.MeasureSpec.makeMeasureSpec(mSurfaceHeight, android.view.View.MeasureSpec.EXACTLY);
