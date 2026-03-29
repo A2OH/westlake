@@ -162,7 +162,10 @@ public class Context {
     public File getCacheDir() { return null; }
     public ClassLoader getClassLoader() { return getClass().getClassLoader(); }
     public File getCodeCacheDir() { return null; }
-    public ContentResolver getContentResolver() { return new ContentResolver(this); }
+    public ContentResolver getContentResolver() {
+        System.out.println("[Context] getContentResolver() called");
+        return new ContentResolver(this);
+    }
     public File getDataDir() { return null; }
     public File getDatabasePath(String p0) { return null; }
     public File getDir(String p0, int p1) { return null; }
@@ -248,7 +251,11 @@ public class Context {
             Object hostService = android.app.HostBridge.getHostSystemService(p0);
             if (hostService != null) return hostService;
         }
-        return android.app.SystemServiceRegistry.getService(p0);
+        Object svc = android.app.SystemServiceRegistry.getService(p0);
+        if (svc == null && p0 != null) {
+            System.out.println("[Context] getSystemService(\"" + p0 + "\") = null (not registered)");
+        }
+        return svc;
     }
     @SuppressWarnings("unchecked")
     public <T> T getSystemService(Class<T> serviceClass) {
