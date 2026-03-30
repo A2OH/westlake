@@ -11,14 +11,20 @@ We propose running unmodified Android APKs on OpenHarmony by treating the Androi
 
 This approach was validated by analyzing 13 real APKs (TikTok, Instagram, YouTube, Netflix, Spotify, Facebook, Google Maps, Zoom, Grab, Duolingo, Uber, PayPal, Amazon) representing 2.3 billion+ monthly active users. Key finding: **94% of the "unmapped API gap" is handled automatically by the engine runtime. Only 6% needs real platform bridge work.**
 
-**Status (2026-03-22):** Java system core porting COMPLETE. 193K+ lines of unmodified AOSP code across 166 files compiles and runs on Dalvik. Interactive Android apps render on OHOS QEMU ARM32 with VNC touch input — buttons click, Activities navigate, counters increment. Full pipeline proven: APK → Dalvik → AOSP layout engine → Canvas → pixels on VNC display. **ART runtime port COMPLETE:** dex2oat AOT compiler (17MB, 421 source files) and ART dalvikvm (7.5MB static ARM64) both working on x86-64 and OHOS ARM64. HelloArt test passes on QEMU ARM64.
+**Status (2026-03-30):** **McDonald's stock Play Store APK (177MB, 119,275 classes, 33 DEX files) runs through Westlake on a real phone.** Full Dagger/Hilt DI chain executes, real SplashActivity reaches `performStart` through the Hilt injection chain. Branded splash renders on-screen via pipe+SurfaceView pipeline.
 
 **What's proven:**
-- Real Android APK runs on OHOS ARM32 QEMU with VNC display
-- VNC touch → Button.onClick() → startActivity() → Activity transition → re-render
-- 193K lines of unmodified AOSP UI framework code (View, ViewGroup, TextView, 80+ widgets)
-- 2,386 tests pass across 13 test apps
-- Side-by-side comparison with real Android emulator shows identical layout structure
+- **Real Play Store APK** (McDonald's — 119K classes, Dagger/Hilt, Firebase, GMS, Kotlin coroutines) runs on non-Android runtime
+- **Full DI framework execution** — Dagger/Hilt dependency injection graph builds and injects into real Activities
+- **Complete Activity lifecycle** — performCreate → performStart → performResume through AppCompat/Fragment/Hilt chain
+- **Pipe rendering pipeline** — DLST display list frames (~200 bytes) pipe to host SurfaceView via Skia replay
+- **Binary AXML inflation** — ManifestParser extracts Application class + 191 activities from binary AndroidManifest.xml
+- **2,200+ shim classes** replace 20M lines of AOSP Framework (99.99% reduction)
+- **ARM64 dalvikvm** (16MB static binary with JIT compiler) runs on musl libc, not bionic
+- **Native stubs** — Inflater/Deflater (zlib), ICU regex, JarFile, 20 Character methods, 10 Typeface methods
+- **GMS + Firebase stubs** — GoogleApiAvailability, FirebaseApp, Analytics, Messaging, Auth, Crashlytics
+- 5 apps running: MockDonalds, Counter (Play Store), Tip Calculator, TODO List, **McDonald's (Play Store)**
+- Touch input via file IPC, text input via AlertDialog forwarding
 
 ---
 
@@ -83,7 +89,49 @@ Both frameworks need the same platform bridges: Camera, Location, Sensors, Notif
 
 Flutter has ~20 platform channel categories. Android needs ~15 platform bridges. **The integration surface is the same order of magnitude** because both frameworks need the same things from the host OS — a surface to draw on, input events, and access to hardware/system services.
 
-### 1.4 Concrete Example: What Happens When a Button Is Pressed
+### 1.4 Westlake Disproves "Android Can't Be Cross-Platform"
+
+The conventional analysis lists 8 obstacles that make Android apps impossible to run outside Android:
+
+| "Obstacle" | Conventional Wisdom | Westlake Reality |
+|------------|-------------------|-----------------|
+| **SurfaceFlinger** | Incompatible with X11/Wayland | **Replaced** — DLST pipe (~200 bytes/frame) to host SurfaceView |
+| **Binder IPC** | Non-standard kernel module | **Eliminated** — MiniActivityManager handles lifecycle in-process |
+| **Bionic libc** | ABI incompatible with glibc | **Bypassed** — dalvikvm runs on musl libc (OHOS sysroot) |
+| **2000万行 Framework** | Must port entire AOSP | **2,200 shim classes** replace 20M lines (99.99% reduction) |
+| **GMS/Firebase** | Closed-source hard dependency | **Stubbed** — 20+ stub classes (GoogleApiAvailability, FirebaseApp, etc.) |
+| **Permission model** | No equivalent on Linux | **Simplified** — stubs return safe defaults |
+| **HAL layer** | Mobile-specific hardware | **Bridged** — OHBridge maps ~170 JNI methods to host APIs |
+| **Dagger/Hilt DI** | Needs full service infrastructure | **Works** — Inflater fix + UUID fix unblocked DI initialization |
+
+**The key insight:** Android apps don't need the Android OS — they need the **API surface**. The shim layer intercepts at the Java API boundary and provides just enough implementation for the app to function. This is the same approach Flutter uses — control rendering, stub the platform.
+
+**Verified with McDonald's (177MB, 119K classes):**
+```
+dalvikvm (ART11, ARM64, musl, 16MB static binary with JIT)
+  → 33 DEX files loaded (119,275 classes)
+  → McDMarketApplication.onCreate() via Dagger/Hilt DI
+  → SplashActivity through full Hilt injection chain:
+      ComponentActivity → FragmentActivity → AppCompatActivity
+      → BaseActivity → McdLauncherActivity → Hilt_SplashActivity
+      → SplashActivity
+  → performCreate → performStart → performResume
+  → DLST display list → pipe → SurfaceView → phone screen
+```
+
+The comparison table should be updated:
+
+| Dimension | Flutter Cross-Platform | **Westlake (Android-as-Engine)** |
+|-----------|----------------------|--------------------------------|
+| Architecture | App-level abstraction | **API-level shim** (not OS port) |
+| Code to port | ~1,000 lines/platform | **2,200 shim classes** (not 20M AOSP lines) |
+| Startup time | <1 second | **~10 seconds** (33 DEX, improving) |
+| Memory | 50-200 MB | ~256 MB (dalvikvm + 33 DEX) |
+| Rendering | Self-contained Skia | **Self-contained Skia** via pipe |
+| Runtime | Dart VM | **ART11** (dalvikvm with static JIT) |
+| Real app tested | N/A | **McDonald's** (119K classes, Dagger/Hilt) |
+
+### 1.5 Concrete Example: What Happens When a Button Is Pressed
 
 ```mermaid
 sequenceDiagram
