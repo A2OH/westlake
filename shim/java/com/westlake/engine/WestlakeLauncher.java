@@ -267,7 +267,7 @@ public class WestlakeLauncher {
                     }
                 } catch (Exception e) { /* can't check, try normal launch */ }
 
-                if (isHiltActivity) {
+                if (false && isHiltActivity) {
                     System.err.println("[WestlakeLauncher] Hilt activity — building interactive proxy");
                     launchedActivity = new android.app.Activity();
                     launchedActivity.setTitle(packageName);

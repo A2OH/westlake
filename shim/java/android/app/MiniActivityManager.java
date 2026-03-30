@@ -273,10 +273,10 @@ public class MiniActivityManager {
         }, "ActivityOnCreate");
         ocThread.setDaemon(true);
         ocThread.start();
-        try { ocThread.join(30000); } catch (InterruptedException ie) {}
+        try { ocThread.join(60000); } catch (InterruptedException ie) {}
 
         if (!done[0]) {
-            Log.w(TAG, "performCreate TIMEOUT (30s) for " + r.component.getClassName() + " — proceeding");
+            Log.w(TAG, "performCreate TIMEOUT (60s) for " + r.component.getClassName() + " — proceeding");
         } else if (error[0] instanceof NullPointerException) {
             Log.w(TAG, "performCreate NPE (non-fatal): " + error[0].getMessage());
             createNPE = true;
@@ -798,17 +798,20 @@ public class MiniActivityManager {
     private void performStart(ActivityRecord r) {
         Log.d(TAG, "  performStart: " + r.component.getClassName());
         ShimCompat.setActivityField(r.activity, "mStarted", Boolean.TRUE);
-        try {
-            r.activity.onStart();
-        } catch (IllegalAccessError e) {
-            try {
-                java.lang.reflect.Method m = Activity.class.getDeclaredMethod("onStart");
-                m.setAccessible(true);
-                m.invoke(r.activity);
-            } catch (Exception ex) { Log.e(TAG, "performStart reflection failed: " + ex); }
-        } catch (Exception e) {
-            Log.w(TAG, "performStart error (non-fatal): " + e.getMessage());
-        }
+        // Run onStart with timeout (Fragment lifecycle can hang in interpreter)
+        final Activity actRef = r.activity;
+        final boolean[] startDone = { false };
+        Thread startThread = new Thread(new Runnable() {
+            public void run() {
+                Thread.currentThread().setContextClassLoader(ClassLoader.getSystemClassLoader());
+                try { actRef.onStart(); startDone[0] = true; }
+                catch (Throwable e) { startDone[0] = true; Log.w(TAG, "onStart error: " + e.getMessage()); }
+            }
+        }, "ActivityOnStart");
+        startThread.setDaemon(true);
+        startThread.start();
+        try { startThread.join(10000); } catch (InterruptedException ie) {}
+        if (!startDone[0]) Log.w(TAG, "performStart TIMEOUT (10s) for " + r.component.getClassName());
         try {
             dispatchLifecycleEvent(r.activity, "ON_START");
         } catch (Exception e) {
@@ -820,19 +823,19 @@ public class MiniActivityManager {
         Log.d(TAG, "  performResume: " + r.component.getClassName());
         ShimCompat.setActivityField(r.activity, "mResumed", Boolean.TRUE);
         mResumed = r;
-        try {
-            r.activity.onResume();
-        } catch (NullPointerException e) {
-            Log.w(TAG, "performResume NPE (non-fatal): " + e.getMessage());
-        } catch (IllegalAccessError e) {
-            try {
-                java.lang.reflect.Method m = Activity.class.getDeclaredMethod("onResume");
-                m.setAccessible(true);
-                m.invoke(r.activity);
-            } catch (Exception ex) { Log.e(TAG, "performResume reflection failed: " + ex); }
-        } catch (Exception e) {
-            Log.w(TAG, "performResume error (non-fatal): " + e.getMessage());
-        }
+        final Activity actRef = r.activity;
+        final boolean[] resumeDone = { false };
+        Thread resumeThread = new Thread(new Runnable() {
+            public void run() {
+                Thread.currentThread().setContextClassLoader(ClassLoader.getSystemClassLoader());
+                try { actRef.onResume(); resumeDone[0] = true; }
+                catch (Throwable e) { resumeDone[0] = true; Log.w(TAG, "onResume error: " + e.getMessage()); }
+            }
+        }, "ActivityOnResume");
+        resumeThread.setDaemon(true);
+        resumeThread.start();
+        try { resumeThread.join(10000); } catch (InterruptedException ie) {}
+        if (!resumeDone[0]) Log.w(TAG, "performResume TIMEOUT (10s) for " + r.component.getClassName());
         try {
             r.activity.onPostResume();
         } catch (NullPointerException e) {
