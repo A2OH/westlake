@@ -35,7 +35,7 @@ public class Configuration {
     public static final int SCREENLAYOUT_SIZE_LARGE = 3;
     public static final int SCREENLAYOUT_SIZE_XLARGE = 4;
     public int screenLayout = 0;
-    public int fontScale = 1;
+    public float fontScale = 1.0f;
 
     public Configuration() {}
 
@@ -50,5 +50,36 @@ public class Configuration {
         this.fontScale = o.fontScale;
     }
 
+    public int smallestScreenWidthDp = 320;
+    public int navigation = 0;
+    public int touchscreen = 0;
+    public int keyboard = 0;
+    public int keyboardHidden = 0;
+    public int hardKeyboardHidden = 0;
+    public int navigationHidden = 0;
+    public int mnc = 0;
+    public int mcc = 0;
+    public int colorMode = 0;
+    public int screenLayoutLong = 0;
+
     public boolean isScreenRound() { return false; }
+
+    public android.os.LocaleList getLocales() {
+        return new android.os.LocaleList(locale != null ? locale : java.util.Locale.getDefault());
+    }
+
+    public void setLocales(android.os.LocaleList locales) {
+        if (locales != null && locales.size() > 0) {
+            locale = locales.get(0);
+        }
+    }
+
+    public void setToDefaults() {
+        fontScale = 1.0f;
+        orientation = ORIENTATION_UNDEFINED;
+        uiMode = 0;
+        locale = java.util.Locale.getDefault();
+    }
+
+    public int diff(Configuration delta) { return 0; }
 }
