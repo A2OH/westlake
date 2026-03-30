@@ -267,7 +267,7 @@ public class WestlakeLauncher {
                     }
                 } catch (Exception e) { /* can't check, try normal launch */ }
 
-                if (false && isHiltActivity) {
+                if (isHiltActivity) {
                     System.err.println("[WestlakeLauncher] Hilt activity detected — using proxy Activity");
                     launchedActivity = new android.app.Activity();
                     launchedActivity.setTitle(packageName);
