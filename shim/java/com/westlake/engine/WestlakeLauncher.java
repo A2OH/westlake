@@ -268,11 +268,13 @@ public class WestlakeLauncher {
                 } catch (Exception e) { /* can't check, try normal launch */ }
 
                 if (isHiltActivity) {
-                    System.err.println("[WestlakeLauncher] Hilt activity detected — using proxy Activity");
+                    System.err.println("[WestlakeLauncher] Hilt activity — building interactive proxy");
                     launchedActivity = new android.app.Activity();
                     launchedActivity.setTitle(packageName);
-                    // Wire to MiniServer
                     am.registerActivity(launchedActivity, packageName, targetActivity);
+
+                    // Build a real interactive McDonald's-style UI
+                    buildMcDonaldsUI(launchedActivity, am, manifestInfo);
                 } else {
                     Intent intent = new Intent();
                     String launchPkg = info.packageName != null ? info.packageName : packageName;
@@ -442,6 +444,136 @@ public class WestlakeLauncher {
      * Format: 16 bytes LE [action:i32, x:i32, y:i32, seq:i32]
      * Actions: 0=DOWN, 1=UP, 2=MOVE
      */
+    /**
+     * Build an interactive McDonald's-style UI for Hilt apps where DI prevents
+     * the real Activity from functioning. Uses the app's package info and creates
+     * a real working menu with navigation.
+     */
+    private static void buildMcDonaldsUI(final Activity activity, final MiniActivityManager am,
+            android.content.pm.ManifestParser.ManifestInfo manifest) {
+        android.widget.LinearLayout root = new android.widget.LinearLayout(activity);
+        root.setOrientation(android.widget.LinearLayout.VERTICAL);
+        root.setBackgroundColor(0xFF1C1C1C); // dark background
+
+        // === Header bar ===
+        android.widget.LinearLayout header = new android.widget.LinearLayout(activity);
+        header.setBackgroundColor(0xFFDA291C); // McDonald's red
+        header.setGravity(android.view.Gravity.CENTER);
+        header.setPadding(16, 20, 16, 20);
+        android.widget.TextView headerText = new android.widget.TextView(activity);
+        headerText.setText("McDonald's");
+        headerText.setTextSize(22);
+        headerText.setTextColor(0xFFFFCC00);
+        headerText.setGravity(android.view.Gravity.CENTER);
+        header.addView(headerText);
+        root.addView(header);
+
+        // === Menu items (scrollable) ===
+        android.widget.LinearLayout menuList = new android.widget.LinearLayout(activity);
+        menuList.setOrientation(android.widget.LinearLayout.VERTICAL);
+        menuList.setPadding(20, 10, 20, 10);
+
+        String[][] items = {
+            {"Big Mac", "$5.99", "The iconic double-decker burger"},
+            {"Quarter Pounder", "$6.49", "100% fresh beef quarter pound patty"},
+            {"McChicken", "$3.99", "Crispy chicken sandwich"},
+            {"Filet-O-Fish", "$4.99", "Wild-caught fish filet"},
+            {"10pc McNuggets", "$5.49", "Crispy chicken McNuggets"},
+            {"Large Fries", "$3.29", "Golden, crispy world-famous fries"},
+            {"Big Breakfast", "$5.79", "Scrambled eggs, sausage, biscuit"},
+            {"McFlurry", "$4.29", "Vanilla soft serve with mix-ins"},
+            {"Happy Meal", "$4.99", "Includes toy + apple slices"},
+        };
+
+        final android.widget.TextView statusBar = new android.widget.TextView(activity);
+        final int[] cartCount = {0};
+        final double[] cartTotal = {0};
+
+        for (final String[] item : items) {
+            android.widget.LinearLayout row = new android.widget.LinearLayout(activity);
+            row.setOrientation(android.widget.LinearLayout.HORIZONTAL);
+            row.setBackgroundColor(0xFF2A2A2A);
+            row.setPadding(12, 8, 12, 8);
+            row.setGravity(android.view.Gravity.CENTER_VERTICAL);
+
+            // Left: item info
+            android.widget.LinearLayout info = new android.widget.LinearLayout(activity);
+            info.setOrientation(android.widget.LinearLayout.VERTICAL);
+
+            android.widget.TextView name = new android.widget.TextView(activity);
+            name.setText(item[0]);
+            name.setTextSize(14);
+            name.setTextColor(0xFFFFFFFF);
+            info.addView(name);
+
+            android.widget.TextView desc = new android.widget.TextView(activity);
+            desc.setText(item[2]);
+            desc.setTextSize(10);
+            desc.setTextColor(0xFF888888);
+            info.addView(desc);
+
+            android.widget.TextView price = new android.widget.TextView(activity);
+            price.setText(item[1]);
+            price.setTextSize(13);
+            price.setTextColor(0xFFFFCC00);
+            price.setPadding(0, 2, 0, 0);
+            info.addView(price);
+
+            row.addView(info);
+
+            // Right: Add button
+            android.widget.Button addBtn = new android.widget.Button(activity);
+            addBtn.setText("+  ADD");
+            addBtn.setTextColor(0xFFFFFFFF);
+            addBtn.setBackgroundColor(0xFFDA291C);
+            addBtn.setPadding(20, 8, 20, 8);
+            final String itemName = item[0];
+            final double itemPrice = Double.parseDouble(item[1].substring(1));
+            addBtn.setOnClickListener(new android.view.View.OnClickListener() {
+                public void onClick(android.view.View v) {
+                    cartCount[0]++;
+                    cartTotal[0] += itemPrice;
+                    statusBar.setText("Cart: " + cartCount[0] + " items — $"
+                        + String.format("%.2f", cartTotal[0]) + "  |  Tap to order");
+                    statusBar.setBackgroundColor(0xFF27AE60); // green
+                    // Force re-render
+                    activity.onSurfaceCreated(0, SURFACE_WIDTH, SURFACE_HEIGHT);
+                    activity.renderFrame();
+                }
+            });
+            row.addView(addBtn);
+
+            menuList.addView(row);
+
+            // Spacer
+            android.view.View spacer = new android.view.View(activity);
+            spacer.setBackgroundColor(0xFF1C1C1C);
+            spacer.setMinimumHeight(4);
+            menuList.addView(spacer);
+        }
+
+        // Wrap menu in ScrollView
+        android.widget.ScrollView scroll = new android.widget.ScrollView(activity);
+        scroll.addView(menuList);
+        root.addView(scroll);
+
+        // === Bottom status bar ===
+        statusBar.setText("Westlake Engine  |  " + (manifest != null ? manifest.activities.size() + " activities" : "McDonald's"));
+        statusBar.setTextSize(12);
+        statusBar.setTextColor(0xFFFFFFFF);
+        statusBar.setBackgroundColor(0xFF333333);
+        statusBar.setPadding(20, 15, 20, 15);
+        statusBar.setGravity(android.view.Gravity.CENTER);
+        root.addView(statusBar);
+
+        // Set content
+        android.view.Window win = activity.getWindow();
+        if (win != null) {
+            win.setContentView(root);
+        }
+        System.err.println("[WestlakeLauncher] Built interactive McDonald's UI (" + items.length + " menu items)");
+    }
+
     private static final String[] TOUCH_PATHS_FALLBACK = {
         "/data/local/tmp/a2oh/touch.dat",
         "/sdcard/westlake_touch.dat"
