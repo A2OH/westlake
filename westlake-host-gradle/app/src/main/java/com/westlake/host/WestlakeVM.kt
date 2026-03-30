@@ -70,6 +70,7 @@ object WestlakeVM {
     // Boot image files for AOT startup (core JARs only, in arm64/ subdir)
     private val BOOT_IMAGE_FILES = listOf(
         "boot.art", "boot.oat", "boot.vdex",
+        "boot-core-oj.art", "boot-core-oj.oat", "boot-core-oj.vdex",
         "boot-core-libart.art", "boot-core-libart.oat", "boot-core-libart.vdex",
         "boot-core-icu4j.art", "boot-core-icu4j.oat", "boot-core-icu4j.vdex",
         "boot-aosp-shim.art", "boot-aosp-shim.oat", "boot-aosp-shim.vdex"
@@ -106,7 +107,11 @@ object WestlakeVM {
         // Run from /data/local/tmp/westlake/ directly so boot image paths match
         val dvm = dvmDst.absolutePath
         val runDir = DALVIKVM_DIR
-        val bcp = "$runDir/core-oj.jar:$runDir/core-libart.jar:$runDir/core-icu4j.jar:$runDir/aosp-shim.dex"
+        // UUID fix must be FIRST on bootclasspath (overrides core-oj's broken UUID)
+        val uuidFixPath = "$runDir/uuid-fix.dex"
+        val hasUuidFix = File(uuidFixPath).exists()
+        val bcp = (if (hasUuidFix) "$uuidFixPath:" else "") +
+            "$runDir/core-oj.jar:$runDir/core-libart.jar:$runDir/core-icu4j.jar:$runDir/aosp-shim.dex"
 
         // Copy boot image to app dir (SELinux blocks .oat execution from shell_data_file)
         val appArm64 = File(vmDir, "arm64").apply { mkdirs() }
