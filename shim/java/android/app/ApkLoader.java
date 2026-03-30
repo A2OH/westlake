@@ -257,9 +257,9 @@ public class ApkLoader {
         File resFile = new File(resDir, "resources.arsc");
         if (resFile.exists()) {
             long resSize = resFile.length();
-            if (resSize > 500000) {
-                // Large resource table (>500KB) — skip parsing to avoid interpreter hang
-                System.out.println("[ApkLoader] Skipping resources.arsc (" + (resSize/1024) + "KB) — too large for interpreter");
+            if (false && resSize > 500000) {
+                // DISABLED: with speed boot image, resource parsing completes fast enough
+                System.out.println("[ApkLoader] Skipping resources.arsc (" + (resSize/1024) + "KB) — disabled");
             } else {
                 try {
                     java.io.FileInputStream fis = new java.io.FileInputStream(resFile);
