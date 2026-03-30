@@ -21,6 +21,17 @@ public class Build {
     public static final String DEVICE = MODEL;
     public static final String PRODUCT = MODEL;
     public static final String DISPLAY = safeGetString("getOSVersion");
+    public static final String FINGERPRINT = BRAND + "/" + PRODUCT + "/" + DEVICE + ":Westlake";
+    public static final String HARDWARE = "westlake";
+    public static final String HOST = "localhost";
+    public static final String ID = "WESTLAKE";
+    public static final String BOARD = "westlake";
+    public static final String BOOTLOADER = "unknown";
+    public static final String TYPE = "userdebug";
+    public static final String TAGS = "release-keys";
+    public static final String USER = "westlake";
+    public static final String SERIAL = "unknown";
+    public static final long TIME = System.currentTimeMillis();
 
     public static class VERSION {
         public static final String RELEASE = safeGetString("getOSVersion");

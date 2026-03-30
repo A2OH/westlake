@@ -272,10 +272,10 @@ public class MiniActivityManager {
         }, "ActivityOnCreate");
         ocThread.setDaemon(true);
         ocThread.start();
-        try { ocThread.join(5000); } catch (InterruptedException ie) {}
+        try { ocThread.join(30000); } catch (InterruptedException ie) {}
 
         if (!done[0]) {
-            Log.w(TAG, "performCreate TIMEOUT (5s) for " + r.component.getClassName() + " — proceeding");
+            Log.w(TAG, "performCreate TIMEOUT (30s) for " + r.component.getClassName() + " — proceeding");
         } else if (error[0] instanceof NullPointerException) {
             Log.w(TAG, "performCreate NPE (non-fatal): " + error[0].getMessage());
             createNPE = true;
