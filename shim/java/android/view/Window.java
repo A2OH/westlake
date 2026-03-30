@@ -79,9 +79,12 @@ public class Window {
     public View getDecorView() { return mDecorView; }
     public LayoutInflater getLayoutInflater() { return LayoutInflater.from(mContext); }
 
-    public Object findViewById(int p0) {
-        if (mDecorView != null) return mDecorView.findViewById(p0);
+    public <T extends View> T findViewById(int id) {
+        if (mDecorView != null) return mDecorView.findViewById(id);
         return null;
+    }
+    public Object findViewById_legacy(int p0) {
+        return findViewById(p0);
     }
     public boolean getAllowEnterTransitionOverlap() { return false; }
     public boolean getAllowReturnTransitionOverlap() { return false; }

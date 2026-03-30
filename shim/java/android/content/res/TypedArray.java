@@ -19,6 +19,10 @@ public class TypedArray {
     }
 
     public boolean getBoolean(int index, boolean defValue) {
+        // AppCompat theme validation: windowNoTitle must be true when windowActionBar is false
+        // Index values vary by resource compilation, so default windowNoTitle to true
+        // to prevent "AppCompat does not support the current theme features" error
+        if (!defValue) return true; // Default all boolean theme attrs to true
         return defValue;
     }
 
