@@ -27,6 +27,7 @@ public class SystemServiceRegistry {
         sServices.put("power", new android.os.PowerManager());
         sServices.put("vibrator", new android.os.Vibrator());
         sServices.put("battery", new android.os.BatteryManager());
+        sServices.put("accessibility", new android.view.accessibility.AccessibilityManager());
 
         // Media
         sServices.put("audio", new android.media.AudioManager());

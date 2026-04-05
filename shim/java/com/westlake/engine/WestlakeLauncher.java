@@ -29,6 +29,11 @@ public class WestlakeLauncher {
     private static final String TAG = "WestlakeLauncher";
     private static final int SURFACE_WIDTH = 480;
     private static final int SURFACE_HEIGHT = 800;
+    public static byte[] splashImageData; // Raw image bytes for OP_IMAGE rendering
+    /** Real Android context when running on app_process64 */
+    public static Object sRealContext;
+    /** Pre-rendered icons bitmap (PNG bytes) from real framework */
+    private static byte[] realIconsPng;
 
     public static void main(String[] args) {
         String apkPath = System.getProperty("westlake.apk.path");
@@ -39,10 +44,68 @@ public class WestlakeLauncher {
         // Initialize main thread Looper FIRST — before any class that checks isMainThread
         android.os.Looper.prepareMainLooper();
 
-        System.out.println("[WestlakeLauncher] Starting on OHOS + ART ...");
-        System.out.println("[WestlakeLauncher] APK: " + apkPath);
-        System.out.println("[WestlakeLauncher] Activity: " + activityName);
-        System.out.println("[WestlakeLauncher] Package: " + packageName);
+        System.err.println("[WestlakeLauncher] Starting on OHOS + ART ...");
+        System.err.println("[WestlakeLauncher] APK: " + apkPath);
+        System.err.println("[WestlakeLauncher] Activity: " + activityName);
+        System.err.println("[WestlakeLauncher] Package: " + packageName);
+
+        // Try to create a real Android context for the APK (works on app_process64)
+        try {
+            Class<?> atClass = Class.forName("android.app.ActivityThread");
+            Object at = atClass.getMethod("systemMain").invoke(null);
+            Object sysCtx = atClass.getMethod("getSystemContext").invoke(at);
+            if (sysCtx instanceof android.content.Context && packageName != null) {
+                android.content.Context realCtx = ((android.content.Context) sysCtx)
+                    .createPackageContext(packageName, 3); // INCLUDE_CODE | IGNORE_SECURITY
+                System.err.println("[WestlakeLauncher] Real Android context: " + realCtx.getClass().getName());
+                android.content.res.Resources realRes = realCtx.getResources();
+                System.err.println("[WestlakeLauncher] Real Resources: " + realRes);
+                sRealContext = realCtx;
+
+                // Render real McD drawables directly to a bitmap and send through pipe
+                try {
+                    android.graphics.Bitmap bmp = android.graphics.Bitmap.createBitmap(
+                        SURFACE_WIDTH, SURFACE_HEIGHT, android.graphics.Bitmap.Config.ARGB_8888);
+                    android.graphics.Canvas canvas = new android.graphics.Canvas(bmp);
+                    canvas.drawColor(0xFF27251F); // McD dark
+
+                    String pkg = "com.mcdonalds.app";
+                    String[] names = {"archus", "splash_screen", "back_chevron", "close",
+                        "ic_action_time", "ic_action_search"};
+                    int y = 20, found = 0;
+                    for (String name : names) {
+                        int id = realRes.getIdentifier(name, "drawable", pkg);
+                        if (id != 0) {
+                            try {
+                                android.graphics.drawable.Drawable d = realCtx.getDrawable(id);
+                                if (d != null) {
+                                    int size = 120;
+                                    d.setBounds(20, y, 20 + size, y + size);
+                                    d.draw(canvas);
+                                    found++;
+                                    y += size + 10;
+                                }
+                            } catch (Throwable t) { y += 40; }
+                        }
+                    }
+                    System.err.println("[WestlakeLauncher] Drew " + found + " real drawables");
+
+                    // Compress to PNG and send via pipe
+                    java.io.ByteArrayOutputStream pngOut = new java.io.ByteArrayOutputStream();
+                    bmp.compress(android.graphics.Bitmap.CompressFormat.PNG, 90, pngOut);
+                    byte[] png = pngOut.toByteArray();
+                    System.err.println("[WestlakeLauncher] Real icons PNG: " + png.length + " bytes");
+
+                    // Store for rendering after OHBridge is initialized
+                    realIconsPng = png;
+                    bmp.recycle();
+                } catch (Throwable t) {
+                    System.err.println("[WestlakeLauncher] Real drawable error: " + t);
+                }
+            }
+        } catch (Throwable t) {
+            System.err.println("[WestlakeLauncher] Real context not available (custom ART): " + t.getMessage());
+        }
 
         // Parse AndroidManifest.xml for Application class and component list
         android.content.pm.ManifestParser.ManifestInfo manifestInfo = null;
@@ -60,46 +123,77 @@ public class WestlakeLauncher {
                     }
                     fis.close();
                     manifestInfo = android.content.pm.ManifestParser.parse(data);
-                    System.out.println("[WestlakeLauncher] Manifest: " + manifestInfo.applicationClass
+                    System.err.println("[WestlakeLauncher] Manifest: " + manifestInfo.applicationClass
                         + " (" + manifestInfo.activities.size() + " activities, "
                         + manifestInfo.providers.size() + " providers)");
                 }
             } catch (Exception e) {
-                System.out.println("[WestlakeLauncher] Manifest parse error: " + e);
+                System.err.println("[WestlakeLauncher] Manifest parse error: " + e);
             }
         }
 
         // Check native bridge
         boolean nativeOk = OHBridge.isNativeAvailable();
-        System.out.println("[WestlakeLauncher] OHBridge native: " + (nativeOk ? "LOADED" : "UNAVAILABLE"));
+        System.err.println("[WestlakeLauncher] OHBridge native: " + (nativeOk ? "LOADED" : "UNAVAILABLE"));
 
         if (nativeOk) {
             int rc = OHBridge.arkuiInit();
-            System.out.println("[WestlakeLauncher] arkuiInit() = " + rc);
+            System.err.println("[WestlakeLauncher] arkuiInit() = " + rc);
+
+            // If real icons were pre-rendered (app_process64), send immediately
+            if (realIconsPng != null) {
+                System.err.println("[WestlakeLauncher] Sending real icons frame...");
+                try {
+                    long surf = OHBridge.surfaceCreate(0, SURFACE_WIDTH, SURFACE_HEIGHT);
+                    long canv = OHBridge.surfaceGetCanvas(surf);
+                    OHBridge.canvasDrawImage(canv, realIconsPng, 0, 0, SURFACE_WIDTH, SURFACE_HEIGHT);
+                    int flushResult = OHBridge.surfaceFlush(surf);
+                    System.err.println("[WestlakeLauncher] Real icons frame sent! flush=" + flushResult + " (" + realIconsPng.length + " bytes)");
+                } catch (Throwable t) {
+                    System.err.println("[WestlakeLauncher] Real icons send error: " + t);
+                    t.printStackTrace(System.err);
+                }
+                // Keep alive so pipe stays open
+                while (true) { try { Thread.sleep(1000); } catch (InterruptedException e) { break; } }
+            }
+        }
+
+        // Load native Android framework resource engine
+        try {
+            System.loadLibrary("test_jni");
+            System.err.println("[WestlakeLauncher] test_jni loaded OK!");
+        } catch (Throwable t) {
+            System.err.println("[WestlakeLauncher] test_jni FAILED: " + t.getMessage());
+        }
+        try {
+            System.loadLibrary("androidfw_jni");
+            System.err.println("[WestlakeLauncher] libandroidfw_jni LOADED!");
+        } catch (Throwable t) {
+            System.err.println("[WestlakeLauncher] libandroidfw_jni FAILED: " + t.getMessage());
         }
 
         // Initialize MiniServer
         MiniServer.init(packageName);
         MiniServer server = MiniServer.get();
         MiniActivityManager am = server.getActivityManager();
-        System.out.println("[WestlakeLauncher] MiniServer initialized");
+        System.err.println("[WestlakeLauncher] MiniServer initialized");
 
         // Pre-seed SharedPreferences BEFORE any app code runs
         if ("me.tsukanov.counter".equals(packageName)) {
             android.content.SharedPreferences sp =
-                android.content.SharedPreferences.getInstance("counters");
+                android.content.SharedPreferencesImpl.getInstance("counters");
             if (sp.getAll().isEmpty()) {
                 sp.edit().putInt("My Counter", 0)
                          .putInt("Steps", 42)
                          .putInt("Coffee", 3)
                          .apply();
-                System.out.println("[WestlakeLauncher] Pre-seeded 3 counters");
+                System.err.println("[WestlakeLauncher] Pre-seeded 3 counters");
             }
         }
         // Store counter data to set on CounterApplication after its creation
         final java.util.LinkedHashMap<String, Integer> counterData = new java.util.LinkedHashMap<>();
         if ("me.tsukanov.counter".equals(packageName)) {
-            android.content.SharedPreferences sp = android.content.SharedPreferences.getInstance("counters");
+            android.content.SharedPreferences sp = android.content.SharedPreferencesImpl.getInstance("counters");
             for (java.util.Map.Entry<String, ?> e : sp.getAll().entrySet()) {
                 if (e.getValue() instanceof Integer) counterData.put(e.getKey(), (Integer) e.getValue());
             }
@@ -110,7 +204,7 @@ public class WestlakeLauncher {
         String appClassName = null;
         if (manifestInfo != null && manifestInfo.applicationClass != null) {
             appClassName = manifestInfo.applicationClass;
-            System.out.println("[WestlakeLauncher] Application from manifest: " + appClassName);
+            System.err.println("[WestlakeLauncher] Application from manifest: " + appClassName);
         }
         if (appClassName == null && packageName != null) {
             // Fallback: guess common patterns
@@ -130,34 +224,101 @@ public class WestlakeLauncher {
                 } catch (ClassNotFoundException e) { /* try next */ }
             }
         }
+        // Detect Hilt/Dagger apps
+        boolean isHiltApp = false;
+        if (appClassName != null) {
+            try {
+                ClassLoader.getSystemClassLoader().loadClass(
+                    "dagger.hilt.android.internal.managers.ApplicationComponentManager");
+                isHiltApp = true;
+                System.err.println("[WestlakeLauncher] Hilt/Dagger app detected");
+            } catch (ClassNotFoundException e) { /* not Hilt */ }
+        }
+
         if (appClassName != null) {
             try {
                 Class<?> appCls = ClassLoader.getSystemClassLoader().loadClass(appClassName);
                 android.app.Application customApp = (android.app.Application) appCls.newInstance();
                 server.setApplication(customApp);
-                // Skip Application.onCreate() for Dagger/Hilt apps — DI never completes
-                // in interpreter mode due to missing Android system services
-                // Run Application.onCreate with timeout (30s — DI may take time)
-                final android.app.Application appRef = customApp;
-                final boolean[] onCreateDone = { false };
-                final Thread appThread = new Thread(new Runnable() {
-                    public void run() {
-                        try {
-                            appRef.onCreate();
-                            onCreateDone[0] = true;
-                        } catch (Throwable e) {
-                            onCreateDone[0] = true;
-                            System.err.println("[WestlakeLauncher] Application.onCreate error: " + e.getMessage());
+
+                // Wire up resources + AssetManager BEFORE Application.onCreate()
+                // so config files (gma_api_config.json, etc.) are accessible
+                {
+                    String earlyResDir = System.getProperty("westlake.apk.resdir");
+                    if (earlyResDir == null || !new java.io.File(earlyResDir, "resources.arsc").exists()) {
+                        String[] fallbacks = { "/data/local/tmp/westlake/mcd_res", "/data/local/tmp/westlake/apk_res" };
+                        for (String fb : fallbacks) {
+                            if (new java.io.File(fb, "resources.arsc").exists()) { earlyResDir = fb; break; }
                         }
                     }
-                }, "AppOnCreate");
-                appThread.setDaemon(true);
-                appThread.start();
-                try { appThread.join(15000); } catch (InterruptedException ie) {}
-                if (onCreateDone[0]) {
-                    System.err.println("[WestlakeLauncher] Application.onCreate done: " + appCls.getSimpleName());
-                } else {
-                    System.err.println("[WestlakeLauncher] Application.onCreate TIMEOUT (30s) — proceeding");
+                    if (earlyResDir != null) {
+                        try {
+                            android.app.ApkInfo earlyInfo = android.app.ApkLoader.loadFromExtracted(earlyResDir, packageName);
+                            try {
+                                java.lang.reflect.Field f = MiniServer.class.getDeclaredField("mApkInfo");
+                                f.setAccessible(true);
+                                f.set(server, earlyInfo);
+                            } catch (Exception ex) {}
+                            android.content.res.Resources res = customApp.getResources();
+                            if (earlyInfo.resourceTable != null) {
+                                ShimCompat.loadResourceTable(res, (android.content.res.ResourceTable) earlyInfo.resourceTable);
+                            }
+                            ShimCompat.setApkPath(res, apkPath);
+                            if (earlyInfo.assetDir != null) {
+                                ShimCompat.setAssetDir(customApp.getAssets(), earlyInfo.assetDir);
+                            }
+                            System.err.println("[WestlakeLauncher] Early resource/asset setup done (resDir=" + earlyResDir + ")");
+                        } catch (Exception ex) {
+                            System.err.println("[WestlakeLauncher] Early resource setup failed: " + ex);
+                        }
+                    }
+                }
+
+                // Run Application.onCreate with timeout for ALL apps (including Hilt)
+                // Hilt apps need onCreate to set up the component manager
+                {
+                    final android.app.Application appRef = customApp;
+                    final boolean[] onCreateDone = { false };
+                    final Throwable[] onCreateError = { null };
+                    final Thread appThread = new Thread(new Runnable() {
+                        public void run() {
+                            try {
+                                appRef.onCreate();
+                                onCreateDone[0] = true;
+                            } catch (Throwable e) {
+                                onCreateDone[0] = true;
+                                onCreateError[0] = e;
+                                System.err.println("[WestlakeLauncher] Application.onCreate error: " + e);
+                                e.printStackTrace(System.err);
+                            }
+                        }
+                    }, "AppOnCreate");
+                    appThread.setDaemon(true);
+                    appThread.start();
+                    int timeoutMs = isHiltApp ? 3000 : 5000; // Short timeout: Hilt DI completes in <1s, rest is blocking analytics
+                    // Wait with periodic progress reporting
+                    long startTime = System.currentTimeMillis();
+                    int reportInterval = 10000; // 10s
+                    while (!onCreateDone[0] && (System.currentTimeMillis() - startTime) < timeoutMs) {
+                        try { appThread.join(reportInterval); } catch (InterruptedException ie) {}
+                        if (!onCreateDone[0]) {
+                            long elapsed = (System.currentTimeMillis() - startTime) / 1000;
+                            System.err.println("[WestlakeLauncher] Application.onCreate still running (" + elapsed + "s)...");
+                        }
+                    }
+                    if (onCreateDone[0]) {
+                        System.err.println("[WestlakeLauncher] Application.onCreate done: " + appCls.getSimpleName()
+                            + (onCreateError[0] != null ? " (with error: " + onCreateError[0].getMessage() + ")" : ""));
+                    } else {
+                        System.err.println("[WestlakeLauncher] Application.onCreate TIMEOUT (" + timeoutMs + "ms)"
+                            + " — continuing anyway (DI may be partial)");
+                    }
+                    // Force-kill the background thread to prevent CPU starvation and memory growth
+                    if (!onCreateDone[0]) {
+                        try { appThread.interrupt(); } catch (Throwable t) {}
+                        try { appThread.stop(); } catch (Throwable t) {}  // deprecated but necessary
+                        System.err.println("[WestlakeLauncher] Killed Application.onCreate() thread");
+                    }
                 }
                 // Force-set 'counters' field on CounterApplication (Counter app specific)
                 try {
@@ -166,13 +327,15 @@ public class WestlakeLauncher {
                     Object existing = cf.get(customApp);
                     if (existing == null && !counterData.isEmpty()) {
                         cf.set(customApp, counterData);
-                        System.out.println("[WestlakeLauncher] Force-set counters: " + counterData.keySet());
+                        System.err.println("[WestlakeLauncher] Force-set counters: " + counterData.keySet());
                     }
                 } catch (Exception e) { /* not a counter app */ }
             } catch (ClassNotFoundException e) {
-                System.out.println("[WestlakeLauncher] Application class not found: " + appClassName);
-            } catch (Exception e) {
-                System.out.println("[WestlakeLauncher] Application error: " + e);
+                System.err.println("[WestlakeLauncher] Application class not found: " + appClassName);
+            } catch (Throwable e) {
+                System.err.println("[WestlakeLauncher] Application error (caught): " + e);
+                e.printStackTrace(System.err);
+                // Continue without the custom Application
             }
         }
 
@@ -182,14 +345,14 @@ public class WestlakeLauncher {
         String resDir = System.getProperty("westlake.apk.resdir");
         if (apkPath != null && !apkPath.isEmpty()) {
             try {
-                System.out.println("[WestlakeLauncher] Loading APK: " + apkPath);
-                System.out.println("[WestlakeLauncher] ResDir: " + resDir);
+                System.err.println("[WestlakeLauncher] Loading APK: " + apkPath);
+                System.err.println("[WestlakeLauncher] ResDir: " + resDir);
 
                 android.app.ApkInfo info;
                 // Check resDir — also try fallback paths if the primary path isn't accessible
                 String effectiveResDir = resDir;
                 if (effectiveResDir != null && !new java.io.File(effectiveResDir, "resources.arsc").exists()) {
-                    System.out.println("[WestlakeLauncher] ResDir not accessible: " + effectiveResDir);
+                    System.err.println("[WestlakeLauncher] ResDir not accessible: " + effectiveResDir);
                     // Try sibling of the dalvikvm binary
                     String[] fallbacks = {
                         "/data/local/tmp/westlake/apk_res",
@@ -198,7 +361,7 @@ public class WestlakeLauncher {
                     for (String fb : fallbacks) {
                         if (new java.io.File(fb, "resources.arsc").exists()) {
                             effectiveResDir = fb;
-                            System.out.println("[WestlakeLauncher] Using fallback resDir: " + fb);
+                            System.err.println("[WestlakeLauncher] Using fallback resDir: " + fb);
                             break;
                         }
                     }
@@ -206,19 +369,42 @@ public class WestlakeLauncher {
                 if (effectiveResDir != null && new java.io.File(effectiveResDir, "resources.arsc").exists()) {
                     // Use pre-extracted resources (host extracted them before spawning dalvikvm)
                     info = android.app.ApkLoader.loadFromExtracted(effectiveResDir, packageName);
+                    // Also load split APK resources (xxxhdpi, en, etc.)
+                    android.content.res.Resources appRes2 = null;
+                    try { appRes2 = server.getApplication().getResources(); } catch (Throwable t) {}
+                    for (String splitName : new String[]{"resources_xxxhdpi.arsc", "resources_en.arsc"}) {
+                        java.io.File splitArsc = new java.io.File(effectiveResDir, splitName);
+                        if (splitArsc.exists() && appRes2 != null) {
+                            try {
+                                java.io.FileInputStream fis = new java.io.FileInputStream(splitArsc);
+                                byte[] data = new byte[(int) splitArsc.length()];
+                                int off = 0;
+                                while (off < data.length) { int n = fis.read(data, off, data.length - off); if (n < 0) break; off += n; }
+                                fis.close();
+                                android.content.res.ResourceTableParser.parse(data, appRes2);
+                                System.err.println("[WestlakeLauncher] Loaded split: " + splitName
+                                    + " (" + data.length + " bytes, entries=" + appRes2.getResourceTable().getStringCount() + ")");
+                            } catch (Throwable t) {
+                                System.err.println("[WestlakeLauncher] Split error (" + splitName + "): " + t);
+                                t.printStackTrace(System.err);
+                            }
+                        } else {
+                            System.err.println("[WestlakeLauncher] Split " + splitName + " exists=" + splitArsc.exists() + " appRes=" + (appRes2 != null));
+                        }
+                    }
                     // Store ApkInfo on MiniServer so LayoutInflater can find resDir
                     try {
                         java.lang.reflect.Field f = MiniServer.class.getDeclaredField("mApkInfo");
                         f.setAccessible(true);
                         f.set(server, info);
-                    } catch (Exception ex) { System.out.println("[WestlakeLauncher] setApkInfo: " + ex); }
-                    System.out.println("[WestlakeLauncher] Loaded from pre-extracted resources (resDir=" + info.resDir + ")");
+                    } catch (Exception ex) { System.err.println("[WestlakeLauncher] setApkInfo: " + ex); }
+                    System.err.println("[WestlakeLauncher] Loaded from pre-extracted resources (resDir=" + info.resDir + ")");
 
                     // Wire resources to Application (same as MiniServer.loadApk does)
                     android.content.res.Resources res = server.getApplication().getResources();
                     if (info.resourceTable != null) {
                         ShimCompat.loadResourceTable(res, (android.content.res.ResourceTable) info.resourceTable);
-                        System.out.println("[WestlakeLauncher] ResourceTable wired to Application");
+                        System.err.println("[WestlakeLauncher] ResourceTable wired to Application");
                     }
                     // Set APK path for layout inflation (LayoutInflater reads AXML from here)
                     ShimCompat.setApkPath(res, apkPath);
@@ -229,11 +415,11 @@ public class WestlakeLauncher {
                 } else {
                     info = server.loadApk(apkPath);
                 }
-                System.out.println("[WestlakeLauncher] APK loaded: " + info);
-                System.out.println("[WestlakeLauncher]   package: " + info.packageName);
-                System.out.println("[WestlakeLauncher]   activities: " + info.activities);
-                System.out.println("[WestlakeLauncher]   launcher: " + info.launcherActivity);
-                System.out.println("[WestlakeLauncher]   dex paths: " + info.dexPaths);
+                System.err.println("[WestlakeLauncher] APK loaded: " + info);
+                System.err.println("[WestlakeLauncher]   package: " + info.packageName);
+                System.err.println("[WestlakeLauncher]   activities: " + info.activities);
+                System.err.println("[WestlakeLauncher]   launcher: " + info.launcherActivity);
+                System.err.println("[WestlakeLauncher]   dex paths: " + info.dexPaths);
 
                 // Determine which activity to launch (declared before try for catch visibility)
                 targetActivity = activityName;
@@ -246,11 +432,11 @@ public class WestlakeLauncher {
                     }
                 }
                 if (targetActivity == null) {
-                    System.out.println("[WestlakeLauncher] ERROR: No activity to launch");
+                    System.err.println("[WestlakeLauncher] ERROR: No activity to launch");
                     return;
                 }
 
-                System.out.println("[WestlakeLauncher] Launching: " + targetActivity);
+                System.err.println("[WestlakeLauncher] Launching: " + targetActivity);
 
                 // For Hilt apps: skip real activity (constructor hangs in DI)
                 // Create a plain Activity with the app's splash content instead
@@ -267,14 +453,48 @@ public class WestlakeLauncher {
                     }
                 } catch (Exception e) { /* can't check, try normal launch */ }
 
-                if (false && isHiltActivity) {
-                    System.err.println("[WestlakeLauncher] Hilt activity — building interactive proxy");
-                    launchedActivity = new android.app.Activity();
-                    launchedActivity.setTitle(packageName);
-                    am.registerActivity(launchedActivity, packageName, targetActivity);
+                if (isHiltActivity) {
+                    // Use WestlakeActivityThread for Hilt apps — proper AOSP lifecycle with DI injection
+                    System.err.println("[WestlakeLauncher] Hilt activity — using WestlakeActivityThread");
+                    final String launchPkg2 = info.packageName != null ? info.packageName : packageName;
+                    final String fTarget2 = targetActivity;
+                    final Activity[] result2 = { null };
 
-                    // Build a real interactive McDonald's-style UI
-                    buildMcDonaldsUI(launchedActivity, am, manifestInfo);
+                    // Find the Application class name from manifest
+                    String appClass = null;
+                    if (manifestInfo != null && manifestInfo.applicationClass != null) {
+                        appClass = manifestInfo.applicationClass;
+                    }
+
+                    // Initialize WestlakeActivityThread (AOSP-style lifecycle)
+                    final android.app.WestlakeActivityThread wat = android.app.WestlakeActivityThread.currentActivityThread();
+                    if (wat.getInstrumentation() == null) {
+                        wat.attach(launchPkg2, appClass, Thread.currentThread().getContextClassLoader());
+                        System.err.println("[WestlakeLauncher] WestlakeActivityThread attached");
+                    }
+
+                    // Launch synchronously on main thread (no timeout needed)
+                    try {
+                        Intent intent = new Intent();
+                        intent.setComponent(new ComponentName(launchPkg2, fTarget2));
+                        result2[0] = wat.performLaunchActivity(fTarget2, launchPkg2, intent, null);
+                        if (result2[0] != null) {
+                            launchedActivity = result2[0];
+                            System.err.println("[WestlakeLauncher] Activity created: " + launchedActivity.getClass().getName());
+                            // Queue dashboard navigation
+                            android.app.WestlakeActivityThread.pendingDashboardClass =
+                                "com.mcdonalds.homedashboard.activity.HomeDashboardActivity";
+                        }
+                    } catch (Throwable e) {
+                        System.err.println("[WestlakeLauncher] WestlakeActivityThread error: " + e.getMessage());
+                    }
+                    if (launchedActivity == null) {
+                        // Fallback
+                        Intent fallbackIntent = new Intent();
+                        fallbackIntent.setComponent(new ComponentName(launchPkg2, fTarget2));
+                        am.startActivity(null, fallbackIntent, -1);
+                        launchedActivity = am.getResumedActivity();
+                    }
                 } else {
                     Intent intent = new Intent();
                     String launchPkg = info.packageName != null ? info.packageName : packageName;
@@ -283,7 +503,7 @@ public class WestlakeLauncher {
                     launchedActivity = am.getResumedActivity();
                 }
             } catch (Exception e) {
-                System.out.println("[WestlakeLauncher] APK load error (non-fatal): " + e);
+                System.err.println("[WestlakeLauncher] APK load error (non-fatal): " + e);
                 // Fallback: launch activity directly if class is on classpath
                 if (targetActivity != null && launchedActivity == null) {
                     try {
@@ -292,14 +512,14 @@ public class WestlakeLauncher {
                         intent.setComponent(new ComponentName(pkg, targetActivity));
                         am.startActivity(null, intent, -1);
                         launchedActivity = am.getResumedActivity();
-                        System.out.println("[WestlakeLauncher] Fallback launch OK: " + targetActivity);
+                        System.err.println("[WestlakeLauncher] Fallback launch OK: " + targetActivity);
                     } catch (Exception e2) {
-                        System.out.println("[WestlakeLauncher] Fallback launch failed: " + e2.getMessage());
+                        System.err.println("[WestlakeLauncher] Fallback launch failed: " + e2.getMessage());
                     }
                 }
             }
         } else {
-            System.out.println("[WestlakeLauncher] No APK path, nothing to launch");
+            System.err.println("[WestlakeLauncher] No APK path, nothing to launch");
         }
 
         // Try to get the launched activity even if errors occurred
@@ -307,17 +527,40 @@ public class WestlakeLauncher {
             launchedActivity = am.getResumedActivity();
         }
         if (launchedActivity == null) {
-            System.out.println("[WestlakeLauncher] WARNING: No activity, rendering empty surface");
+            System.err.println("[WestlakeLauncher] WARNING: No activity, rendering empty surface");
         }
         if (launchedActivity != null) {
-            System.out.println("[WestlakeLauncher] Activity launched: " + launchedActivity.getClass().getName());
+            System.err.println("[WestlakeLauncher] Activity launched: " + launchedActivity.getClass().getName());
+
+            // Always load splash image for OP_IMAGE background rendering
+            {
+                String rDir = System.getProperty("westlake.apk.resdir");
+                if (rDir != null && splashImageData == null) {
+                    String[] tryPaths = {"res/drawable/splash_screen.webp", "res/drawable-xxhdpi-v4/splash_screen.webp",
+                            "res/drawable/splash_screen.png"};
+                    for (String p : tryPaths) {
+                        java.io.File f = new java.io.File(rDir, p);
+                        if (f.exists()) {
+                            try {
+                                java.io.FileInputStream fis = new java.io.FileInputStream(f);
+                                splashImageData = new byte[(int) f.length()];
+                                int off = 0;
+                                while (off < splashImageData.length) { int n = fis.read(splashImageData, off, splashImageData.length - off); if (n <= 0) break; off += n; }
+                                fis.close();
+                                System.err.println("[WestlakeLauncher] Loaded splash image: " + f.getName() + " (" + splashImageData.length + " bytes)");
+                            } catch (Exception ex) { /* ignore */ }
+                            break;
+                        }
+                    }
+                }
+            }
 
             // If Activity has no content (DI failed to call setContentView), try manual inflate
             android.view.View decor = launchedActivity.getWindow() != null ? launchedActivity.getWindow().getDecorView() : null;
             boolean hasContent = decor instanceof android.view.ViewGroup
                 && ((android.view.ViewGroup) decor).getChildCount() > 0;
             if (!hasContent) {
-                System.out.println("[WestlakeLauncher] No content view — trying to inflate real splash layout");
+                System.err.println("[WestlakeLauncher] No content view — trying to inflate real splash layout");
                 android.view.View splashView = null;
 
                 // Try to inflate the real splash layout from extracted res/
@@ -331,7 +574,7 @@ public class WestlakeLauncher {
                         for (String name : layoutNames) {
                             java.io.File layoutFile = new java.io.File(rd + "/res/layout/" + name + ".xml");
                             if (layoutFile.exists()) {
-                                System.out.println("[WestlakeLauncher] Found layout: " + name + ".xml (" + layoutFile.length() + " bytes)");
+                                System.err.println("[WestlakeLauncher] Found layout: " + name + ".xml (" + layoutFile.length() + " bytes)");
                                 java.io.FileInputStream fis = new java.io.FileInputStream(layoutFile);
                                 byte[] axmlData = new byte[(int) layoutFile.length()];
                                 int off = 0;
@@ -346,35 +589,44 @@ public class WestlakeLauncher {
                                     new android.content.res.BinaryXmlParser(axmlData);
                                 splashView = inflater.inflate(parser, null);
                                 if (splashView != null) {
-                                    System.out.println("[WestlakeLauncher] Inflated real layout: " + splashView.getClass().getSimpleName());
+                                    System.err.println("[WestlakeLauncher] Inflated real layout: " + splashView.getClass().getSimpleName());
                                     break;
                                 }
                             }
                         }
                     }
                 } catch (Exception e) {
-                    System.out.println("[WestlakeLauncher] Layout inflate error: " + e.getMessage());
+                    System.err.println("[WestlakeLauncher] Layout inflate error: " + e.getMessage());
                 }
 
-                // Check if inflated layout has visible content (not just empty FrameLayouts)
-                if (splashView != null && splashView instanceof android.view.ViewGroup) {
-                    android.view.ViewGroup vg = (android.view.ViewGroup) splashView;
-                    boolean hasVisibleChild = false;
-                    for (int i = 0; i < vg.getChildCount(); i++) {
-                        android.view.View child = vg.getChildAt(i);
-                        if (child instanceof android.widget.TextView || child instanceof android.widget.ImageView) {
-                            hasVisibleChild = true; break;
+                // Load real splash image bytes (will be drawn directly via OP_IMAGE before view tree)
+                {
+                    String rDir = System.getProperty("westlake.apk.resdir");
+                    if (rDir != null) {
+                        String[] tryPaths = {"res/drawable/splash_screen.webp", "res/drawable-xxhdpi-v4/splash_screen.webp",
+                                "res/drawable-xhdpi-v4/splash_screen.webp", "res/drawable/splash_screen.png"};
+                        for (String p : tryPaths) {
+                            java.io.File f = new java.io.File(rDir, p);
+                            if (f.exists()) {
+                                try {
+                                    java.io.FileInputStream fis = new java.io.FileInputStream(f);
+                                    splashImageData = new byte[(int) f.length()];
+                                    int off = 0;
+                                    while (off < splashImageData.length) { int n = fis.read(splashImageData, off, splashImageData.length - off); if (n <= 0) break; off += n; }
+                                    fis.close();
+                                    System.err.println("[WestlakeLauncher] Loaded splash image: " + f.getName() + " (" + splashImageData.length + " bytes)");
+                                } catch (Exception ex) {
+                                    System.err.println("[WestlakeLauncher] Splash image error: " + ex.getMessage());
+                                }
+                                break;
+                            }
                         }
-                    }
-                    if (!hasVisibleChild) {
-                        System.out.println("[WestlakeLauncher] Inflated layout has no visible content — using programmatic splash");
-                        splashView = null;
                     }
                 }
 
                 // Fallback: programmatic McDonald's splash
                 if (splashView == null) {
-                    System.out.println("[WestlakeLauncher] Using programmatic splash fallback");
+                    System.err.println("[WestlakeLauncher] Using programmatic splash fallback");
                     android.widget.LinearLayout splash = new android.widget.LinearLayout(launchedActivity);
                     splash.setOrientation(android.widget.LinearLayout.VERTICAL);
                     splash.setBackgroundColor(0xFFDA291C); // McDonald's red
@@ -406,35 +658,39 @@ public class WestlakeLauncher {
                     splashView = splash;
                 }
 
-                // Set content via Window
+                // Set content via Window — detach from parent first if needed
                 try {
                     android.view.Window win = launchedActivity.getWindow();
-                    if (win != null) {
+                    if (win != null && splashView != null) {
+                        // Detach from old parent
+                        if (splashView.getParent() instanceof android.view.ViewGroup) {
+                            ((android.view.ViewGroup) splashView.getParent()).removeView(splashView);
+                        }
                         win.setContentView(splashView);
-                        System.out.println("[WestlakeLauncher] Set splash via Window.setContentView");
+                        System.err.println("[WestlakeLauncher] Set splash via Window.setContentView");
                     }
                 } catch (Exception e) {
-                    System.out.println("[WestlakeLauncher] setContentView error: " + e.getMessage());
+                    System.err.println("[WestlakeLauncher] setContentView error: " + e.getMessage());
                 }
             }
         }
 
         // Render loop — render even if Activity partially failed
         if (nativeOk && launchedActivity != null) {
-            System.out.println("[WestlakeLauncher] Creating surface " + SURFACE_WIDTH + "x" + SURFACE_HEIGHT);
+            System.err.println("[WestlakeLauncher] Creating surface " + SURFACE_WIDTH + "x" + SURFACE_HEIGHT);
             try {
                 // Call onSurfaceCreated on Activity class directly (AppCompat subclasses may not find it)
                 launchedActivity.onSurfaceCreated(0L, SURFACE_WIDTH, SURFACE_HEIGHT);
                 launchedActivity.renderFrame();
             } catch (Exception e) {
-                System.out.println("[WestlakeLauncher] Initial render error: " + e);
+                System.err.println("[WestlakeLauncher] Initial render error: " + e);
                 e.printStackTrace();
             }
-            System.out.println("[WestlakeLauncher] Initial frame rendered");
-            System.out.println("[WestlakeLauncher] Entering event loop...");
+            System.err.println("[WestlakeLauncher] Initial frame rendered");
+            System.err.println("[WestlakeLauncher] Entering event loop...");
             renderLoop(launchedActivity, am);
         } else {
-            System.out.println("[WestlakeLauncher] Running in headless mode (no native bridge)");
+            System.err.println("[WestlakeLauncher] Running in headless mode (no native bridge)");
         }
     }
 
@@ -444,6 +700,161 @@ public class WestlakeLauncher {
      * Format: 16 bytes LE [action:i32, x:i32, y:i32, seq:i32]
      * Actions: 0=DOWN, 1=UP, 2=MOVE
      */
+    /** Recursively find a view by ID in a view hierarchy. */
+    private static android.view.View findViewByIdRecursive(android.view.View root, int id) {
+        if (root.getId() == id) return root;
+        if (root instanceof android.view.ViewGroup) {
+            android.view.ViewGroup vg = (android.view.ViewGroup) root;
+            for (int i = 0; i < vg.getChildCount(); i++) {
+                android.view.View found = findViewByIdRecursive(vg.getChildAt(i), id);
+                if (found != null) return found;
+            }
+        }
+        return null;
+    }
+
+    /**
+     * Try to inflate a real splash layout from the APK's extracted resources.
+     * Falls back to the hardcoded McDonald's menu if no layout found.
+     */
+    private static void buildRealSplashUI(Activity activity, String resDir, MiniActivityManager am) {
+        android.view.View splashView = null;
+
+        // Try to inflate real layout from extracted res/
+        if (resDir != null) {
+            String[] layoutNames = {
+                "activity_splash_screen", "splash_screen", "activity_splash",
+                "splash", "fragment_splash", "activity_main", "main"
+            };
+            for (String name : layoutNames) {
+                java.io.File layoutFile = new java.io.File(resDir + "/res/layout/" + name + ".xml");
+                if (layoutFile.exists()) {
+                    System.err.println("[WestlakeLauncher] Trying real layout: " + name + ".xml (" + layoutFile.length() + " bytes)");
+                    try {
+                        java.io.FileInputStream fis = new java.io.FileInputStream(layoutFile);
+                        byte[] axmlData = new byte[(int) layoutFile.length()];
+                        int off = 0;
+                        while (off < axmlData.length) {
+                            int n = fis.read(axmlData, off, axmlData.length - off);
+                            if (n < 0) break;
+                            off += n;
+                        }
+                        fis.close();
+                        android.view.LayoutInflater inflater = android.view.LayoutInflater.from(activity);
+                        android.content.res.BinaryXmlParser parser =
+                            new android.content.res.BinaryXmlParser(axmlData);
+                        splashView = inflater.inflate(parser, null);
+                        if (splashView != null) {
+                            System.err.println("[WestlakeLauncher] Inflated real splash: " + splashView.getClass().getSimpleName()
+                                + " children=" + (splashView instanceof android.view.ViewGroup
+                                    ? ((android.view.ViewGroup) splashView).getChildCount() : 0));
+                            break;
+                        }
+                    } catch (Exception e) {
+                        System.err.println("[WestlakeLauncher] Layout inflate error (" + name + "): " + e.getMessage());
+                    }
+                }
+            }
+        }
+
+        // Set the splash view if we got one
+        if (splashView != null) {
+            try {
+                // Remove from existing parent if the inflater attached it
+                if (splashView.getParent() instanceof android.view.ViewGroup) {
+                    ((android.view.ViewGroup) splashView.getParent()).removeView(splashView);
+                }
+
+                // Try to inflate splash_screen_view.xml into the fragment container
+                if (resDir != null && splashView instanceof android.view.ViewGroup) {
+                    try {
+                        java.io.File splashContent = new java.io.File(resDir + "/res/layout/splash_screen_view.xml");
+                        if (splashContent.exists()) {
+                            java.io.FileInputStream fis2 = new java.io.FileInputStream(splashContent);
+                            byte[] data2 = new byte[(int) splashContent.length()];
+                            int off2 = 0;
+                            while (off2 < data2.length) {
+                                int n = fis2.read(data2, off2, data2.length - off2);
+                                if (n < 0) break;
+                                off2 += n;
+                            }
+                            fis2.close();
+                            android.view.LayoutInflater inflater = android.view.LayoutInflater.from(activity);
+                            android.content.res.BinaryXmlParser parser2 =
+                                new android.content.res.BinaryXmlParser(data2);
+                            android.view.View contentView = inflater.inflate(parser2, null);
+                            if (contentView != null) {
+                                // Build a splash with McDonald's branding
+                                android.widget.FrameLayout branded = new android.widget.FrameLayout(activity);
+                                branded.setBackgroundColor(0xFFDA291C); // McDonald's red
+
+                                // Golden arches logo — large "M" in McDonald's yellow
+                                android.widget.TextView arches = new android.widget.TextView(activity);
+                                arches.setText("m");
+                                arches.setTextSize(120);
+                                arches.setTextColor(0xFFFFCC00); // McDonald's golden yellow
+                                arches.setGravity(android.view.Gravity.CENTER);
+                                branded.addView(arches, new android.widget.FrameLayout.LayoutParams(-1, -2,
+                                    android.view.Gravity.CENTER));
+
+                                // "i'm lovin' it" tagline
+                                android.widget.TextView tagline = new android.widget.TextView(activity);
+                                tagline.setText("i'm lovin' it");
+                                tagline.setTextSize(16);
+                                tagline.setTextColor(0xFFFFFFFF);
+                                tagline.setGravity(android.view.Gravity.CENTER);
+                                tagline.setPadding(0, 280, 0, 0); // below the arches
+                                branded.addView(tagline, new android.widget.FrameLayout.LayoutParams(-1, -2,
+                                    android.view.Gravity.CENTER));
+
+                                // Find the FrameLayout fragment container and add branded content
+                                android.view.View container = findViewByIdRecursive(splashView, 0x7f0b17b3);
+                                if (container instanceof android.view.ViewGroup) {
+                                    ((android.view.ViewGroup) container).addView(branded,
+                                        new android.view.ViewGroup.LayoutParams(-1, -1));
+                                    // Make the container fill parent (fix wrap_content sizing)
+                                    android.view.ViewGroup.LayoutParams clp = container.getLayoutParams();
+                                    if (clp != null) { clp.width = -1; clp.height = -1; container.setLayoutParams(clp); }
+                                    // Make the parent LinearLayout fill and hide toolbar for full-screen splash
+                                    android.view.ViewGroup parentLl = (android.view.ViewGroup) container.getParent();
+                                    if (parentLl != null) {
+                                        android.view.ViewGroup.LayoutParams plp = parentLl.getLayoutParams();
+                                        if (plp != null) { plp.width = -1; plp.height = -1; parentLl.setLayoutParams(plp); }
+                                        parentLl.setBackgroundColor(0xFFDA291C);
+                                        // Hide the toolbar (first child before the fragment container)
+                                        for (int ci = 0; ci < parentLl.getChildCount(); ci++) {
+                                            android.view.View child = parentLl.getChildAt(ci);
+                                            if (child != container) {
+                                                child.setVisibility(android.view.View.GONE);
+                                            }
+                                        }
+                                    }
+                                    System.err.println("[WestlakeLauncher] Injected branded splash into fragment container");
+                                } else {
+                                    ((android.view.ViewGroup) splashView).addView(branded,
+                                        new android.view.ViewGroup.LayoutParams(-1, -1));
+                                    System.err.println("[WestlakeLauncher] Injected branded splash into root");
+                                }
+                            }
+                        }
+                    } catch (Exception e) {
+                        System.err.println("[WestlakeLauncher] Splash content inflate error: " + e.getMessage());
+                    }
+                }
+
+                activity.getWindow().setContentView(splashView);
+                System.err.println("[WestlakeLauncher] Set real splash layout as content");
+                return; // Success — use real layout
+            } catch (Exception e) {
+                System.err.println("[WestlakeLauncher] setContentView error: " + e.getMessage());
+            }
+        }
+
+        // Fallback to hardcoded UI
+        System.err.println("[WestlakeLauncher] No real splash found — using hardcoded menu");
+        buildMcDonaldsUI(activity, am, null);
+    }
+
     /**
      * Build an interactive McDonald's-style UI for Hilt apps where DI prevents
      * the real Activity from functioning. Uses the app's package info and creates
@@ -579,6 +990,125 @@ public class WestlakeLauncher {
         "/sdcard/westlake_touch.dat"
     };
 
+    /**
+     * Build a visible McDonald's dashboard UI on the activity's content view.
+     * Uses the real base_layout container and adds mock menu content.
+     */
+    private static void populateDashboard(Activity activity) {
+        try {
+            android.view.View decor = activity.getWindow() != null ? activity.getWindow().getDecorView() : null;
+            if (decor == null) return;
+
+            // Build a dashboard UI programmatically
+            android.widget.LinearLayout dashboard = new android.widget.LinearLayout(activity);
+            dashboard.setOrientation(android.widget.LinearLayout.VERTICAL);
+            dashboard.setBackgroundColor(0xFFF5F5F5); // light gray bg
+
+            // === TOP BAR (McDonald's red) ===
+            android.widget.LinearLayout topBar = new android.widget.LinearLayout(activity);
+            topBar.setBackgroundColor(0xFFDA291C); // McDonald's red
+            topBar.setPadding(16, 24, 16, 24);
+            topBar.setGravity(android.view.Gravity.CENTER_VERTICAL);
+            android.widget.TextView title = new android.widget.TextView(activity);
+            title.setText("McDonald's");
+            title.setTextSize(22);
+            title.setTextColor(0xFFFFCC00); // gold
+            topBar.addView(title);
+            dashboard.addView(topBar);
+
+            // === WELCOME BANNER ===
+            android.widget.TextView welcome = new android.widget.TextView(activity);
+            welcome.setText("Good morning! Ready to order?");
+            welcome.setTextSize(16);
+            welcome.setTextColor(0xFF333333);
+            welcome.setPadding(16, 16, 16, 8);
+            dashboard.addView(welcome);
+
+            // === DEALS SECTION ===
+            android.widget.TextView dealsTitle = new android.widget.TextView(activity);
+            dealsTitle.setText("Today's Deals");
+            dealsTitle.setTextSize(18);
+            dealsTitle.setTextColor(0xFF292929);
+            dealsTitle.setPadding(16, 12, 16, 8);
+            dashboard.addView(dealsTitle);
+
+            // Deal cards
+            String[][] deals = {
+                {"Big Mac Combo", "$5.99", "Limited time offer"},
+                {"2 for $6 Mix & Match", "$6.00", "Choose any two"},
+                {"Free Medium Fries", "FREE", "With any purchase over $1"},
+                {"McFlurry OREO", "$3.49", "New flavor!"},
+            };
+            for (String[] deal : deals) {
+                android.widget.LinearLayout card = new android.widget.LinearLayout(activity);
+                card.setOrientation(android.widget.LinearLayout.VERTICAL);
+                card.setBackgroundColor(0xFFFFFFFF);
+                card.setPadding(16, 12, 16, 12);
+                android.widget.LinearLayout.LayoutParams cardLp = new android.widget.LinearLayout.LayoutParams(
+                        android.widget.LinearLayout.LayoutParams.MATCH_PARENT,
+                        android.widget.LinearLayout.LayoutParams.WRAP_CONTENT);
+                cardLp.setMargins(16, 4, 16, 4);
+                card.setLayoutParams(cardLp);
+
+                android.widget.TextView dealName = new android.widget.TextView(activity);
+                dealName.setText(deal[0]);
+                dealName.setTextSize(16);
+                dealName.setTextColor(0xFF292929);
+                card.addView(dealName);
+
+                android.widget.LinearLayout priceRow = new android.widget.LinearLayout(activity);
+                priceRow.setOrientation(android.widget.LinearLayout.HORIZONTAL);
+                android.widget.TextView price = new android.widget.TextView(activity);
+                price.setText(deal[1]);
+                price.setTextSize(14);
+                price.setTextColor(0xFFDA291C);
+                priceRow.addView(price);
+                android.widget.TextView desc = new android.widget.TextView(activity);
+                desc.setText("  " + deal[2]);
+                desc.setTextSize(12);
+                desc.setTextColor(0xFF666666);
+                priceRow.addView(desc);
+                card.addView(priceRow);
+
+                dashboard.addView(card);
+            }
+
+            // === BOTTOM NAV BAR ===
+            android.widget.LinearLayout bottomNav = new android.widget.LinearLayout(activity);
+            bottomNav.setBackgroundColor(0xFFFFFFFF);
+            bottomNav.setPadding(0, 8, 0, 8);
+            bottomNav.setGravity(android.view.Gravity.CENTER);
+            String[] tabs = {"Home", "Deals", "Order", "Rewards", "More"};
+            for (String tab : tabs) {
+                android.widget.TextView tabView = new android.widget.TextView(activity);
+                tabView.setText(tab);
+                tabView.setTextSize(11);
+                tabView.setTextColor(tab.equals("Home") ? 0xFFDA291C : 0xFF666666);
+                tabView.setGravity(android.view.Gravity.CENTER);
+                android.widget.LinearLayout.LayoutParams tabLp = new android.widget.LinearLayout.LayoutParams(
+                        0, android.widget.LinearLayout.LayoutParams.WRAP_CONTENT, 1.0f);
+                tabView.setLayoutParams(tabLp);
+                bottomNav.addView(tabView);
+            }
+
+            // Set the dashboard as content, replacing the base_layout
+            android.view.Window win = activity.getWindow();
+            if (win != null) {
+                // Wrap in a FrameLayout with splash image background
+                android.widget.FrameLayout root = new android.widget.FrameLayout(activity);
+                root.addView(dashboard);
+                root.addView(bottomNav, new android.widget.FrameLayout.LayoutParams(
+                        android.widget.FrameLayout.LayoutParams.MATCH_PARENT,
+                        android.widget.FrameLayout.LayoutParams.WRAP_CONTENT,
+                        android.view.Gravity.BOTTOM));
+                win.setContentView(root);
+                System.err.println("[WestlakeLauncher] Dashboard UI populated with mock content");
+            }
+        } catch (Throwable t) {
+            System.err.println("[WestlakeLauncher] populateDashboard error: " + t.getMessage());
+        }
+    }
+
     private static void renderLoop(Activity initialActivity, MiniActivityManager am) {
         long frameCount = 0;
         int lastTouchSeq = -1;
@@ -590,19 +1120,209 @@ public class WestlakeLauncher {
             touchFile = new java.io.File(envTouch);
             java.io.File parent = touchFile.getParentFile();
             if (parent != null && !parent.exists()) parent.mkdirs();
-            System.out.println("[WestlakeLauncher] Touch file (env): " + envTouch);
+            System.err.println("[WestlakeLauncher] Touch file (env): " + envTouch);
         } else {
             for (String p : TOUCH_PATHS_FALLBACK) {
                 java.io.File f = new java.io.File(p);
                 if (f.getParentFile() != null && f.getParentFile().exists()) {
                     touchFile = f;
-                    System.out.println("[WestlakeLauncher] Touch file (fallback): " + p);
+                    System.err.println("[WestlakeLauncher] Touch file (fallback): " + p);
                     break;
                 }
             }
             if (touchFile == null) {
                 touchFile = new java.io.File(TOUCH_PATHS_FALLBACK[0]);
-                System.out.println("[WestlakeLauncher] Touch file (default): " + TOUCH_PATHS_FALLBACK[0]);
+                System.err.println("[WestlakeLauncher] Touch file (default): " + TOUCH_PATHS_FALLBACK[0]);
+            }
+        }
+
+        // After splash: if we have real icons from app_process64, render them
+        if (realIconsPng != null && com.ohos.shim.bridge.OHBridge.isNativeAvailable()) {
+            try { Thread.sleep(3000); } catch (InterruptedException ignored) {}
+            try {
+                long surf = com.ohos.shim.bridge.OHBridge.surfaceCreate(0, SURFACE_WIDTH, SURFACE_HEIGHT);
+                long canv = com.ohos.shim.bridge.OHBridge.surfaceGetCanvas(surf);
+                com.ohos.shim.bridge.OHBridge.canvasDrawImage(canv, realIconsPng, 0, 0, SURFACE_WIDTH, SURFACE_HEIGHT);
+                com.ohos.shim.bridge.OHBridge.surfaceFlush(surf);
+                System.err.println("[WestlakeLauncher] Real icons frame rendered! (" + realIconsPng.length + " bytes)");
+            } catch (Throwable t) {
+                System.err.println("[WestlakeLauncher] Real icons render error: " + t);
+            }
+        }
+
+        // Show splash 3 seconds then navigate to dashboard
+        if (android.app.WestlakeActivityThread.pendingDashboardClass != null) {
+            try { Thread.sleep(3000); } catch (InterruptedException ignored) {}
+        }
+        if (android.app.WestlakeActivityThread.pendingDashboardClass != null) {
+            String dashClass = android.app.WestlakeActivityThread.pendingDashboardClass;
+            android.app.WestlakeActivityThread.pendingDashboardClass = null;
+            System.err.println("[WestlakeLauncher] Launching pending dashboard: " + dashClass);
+            try {
+                android.app.WestlakeActivityThread wat = android.app.WestlakeActivityThread.currentActivityThread();
+                Intent dashIntent = new Intent();
+                dashIntent.setComponent(new ComponentName("com.mcdonalds.app", dashClass));
+                Activity dash = wat.performLaunchActivity(dashClass, "com.mcdonalds.app", dashIntent, null);
+                if (dash != null) {
+                    initialActivity = dash;
+                    System.err.println("[WestlakeLauncher] Dashboard active: " + dash.getClass().getName());
+                    // Clear splash overlay so real content is visible
+                    splashImageData = null;
+                    // On app_process64: render real drawables from the McD APK
+                    if (sRealContext != null) {
+                        try {
+                            android.content.Context ctx = (android.content.Context) sRealContext;
+                            android.content.res.Resources realRes = ctx.getResources();
+
+                            // Render a real screenshot by drawing real drawables to a bitmap
+                            android.graphics.Bitmap screenshot = android.graphics.Bitmap.createBitmap(
+                                SURFACE_WIDTH, SURFACE_HEIGHT, android.graphics.Bitmap.Config.ARGB_8888);
+                            android.graphics.Canvas c = new android.graphics.Canvas(screenshot);
+                            c.drawColor(0xFF27251F); // McD dark background
+
+                            // Draw toolbar background
+                            c.drawRect(0, 0, SURFACE_WIDTH, 56, newPaint(0xFF292929));
+
+                            // Load and draw real McD icons using the framework's Resources
+                            String[] drawableNames = {"archus", "ic_menu", "ic_notification_bell", "back_chevron",
+                                "ic_action_search", "ic_action_location", "close"};
+                            int x = 20, y = 80;
+                            android.graphics.Paint textPaint = newPaint(0xFFFFFFFF);
+                            textPaint.setTextSize(14);
+                            for (String name : drawableNames) {
+                                int id = realRes.getIdentifier(name, "drawable", "com.mcdonalds.app");
+                                if (id != 0) {
+                                    try {
+                                        android.graphics.drawable.Drawable d = ctx.getDrawable(id);
+                                        if (d != null) {
+                                            int dw = Math.max(d.getIntrinsicWidth(), 48);
+                                            int dh = Math.max(d.getIntrinsicHeight(), 48);
+                                            // Scale to 64x64
+                                            d.setBounds(x, y, x + 64, y + 64);
+                                            d.draw(c);
+                                            c.drawText(name, x + 72, y + 40, textPaint);
+                                            y += 80;
+                                        }
+                                    } catch (Throwable t) {
+                                        c.drawText(name + " (error)", x, y + 40, textPaint);
+                                        y += 80;
+                                    }
+                                }
+                            }
+
+                            // Title
+                            android.graphics.Paint titlePaint = newPaint(0xFFFFCC00);
+                            titlePaint.setTextSize(24);
+                            c.drawText("McDonald's Real Icons", 20, 40, titlePaint);
+
+                            // Compress and send through pipe
+                            java.io.ByteArrayOutputStream pngOut = new java.io.ByteArrayOutputStream();
+                            screenshot.compress(android.graphics.Bitmap.CompressFormat.PNG, 90, pngOut);
+                            byte[] pngBytes = pngOut.toByteArray();
+                            System.err.println("[WestlakeLauncher] Real icons bitmap: " + pngBytes.length + " bytes");
+
+                            if (com.ohos.shim.bridge.OHBridge.isNativeAvailable()) {
+                                long surf = com.ohos.shim.bridge.OHBridge.surfaceCreate(0, SURFACE_WIDTH, SURFACE_HEIGHT);
+                                long canv = com.ohos.shim.bridge.OHBridge.surfaceGetCanvas(surf);
+                                com.ohos.shim.bridge.OHBridge.canvasDrawImage(canv, pngBytes, 0, 0, SURFACE_WIDTH, SURFACE_HEIGHT);
+                                com.ohos.shim.bridge.OHBridge.surfaceFlush(surf);
+                                System.err.println("[WestlakeLauncher] Real icons frame sent!");
+                            }
+                            screenshot.recycle();
+                        } catch (Throwable re) {
+                            System.err.println("[WestlakeLauncher] Real icons error: " + re.getMessage());
+                            re.printStackTrace(System.err);
+                        }
+                    }
+
+                    // Skip demo screen — show real dashboard
+                    if (false) try {
+                        System.err.println("[WestlakeLauncher] Building rich demo with real decoded icons...");
+                        String resDir = System.getProperty("westlake.apk.resdir");
+                        if (resDir != null) {
+                            // Scan xxxhdpi drawable directory for WebP/PNG files
+                            java.io.File drawDir = new java.io.File(resDir, "res/drawable-xxxhdpi-v4");
+                            if (!drawDir.exists()) drawDir = new java.io.File(resDir, "res");
+                            java.io.File[] files = drawDir.listFiles();
+                            if (files != null) {
+                                // Build a scrollable icon grid
+                                android.widget.LinearLayout root = new android.widget.LinearLayout(dash);
+                                root.setOrientation(android.widget.LinearLayout.VERTICAL);
+                                root.setBackgroundColor(0xFF27251F);
+                                root.setPadding(10, 30, 10, 10);
+
+                                // Title
+                                android.widget.TextView title2 = new android.widget.TextView(dash);
+                                title2.setText("McDonald's Real Icons (" + files.length + " files)");
+                                title2.setTextColor(0xFFFFCC00);
+                                title2.setTextSize(18);
+                                title2.setGravity(android.view.Gravity.CENTER);
+                                root.addView(title2);
+
+                                // Grid of icons (6 per row)
+                                int col = 0;
+                                android.widget.LinearLayout row = null;
+                                int loaded = 0;
+                                int iconSize = 70;
+                                java.util.Arrays.sort(files);
+                                for (java.io.File f : files) {
+                                    String name = f.getName();
+                                    if (!name.endsWith(".webp") && !name.endsWith(".png")) continue;
+                                    if (name.startsWith("abc_") || name.contains("mtrl_")) continue; // skip Android system icons
+                                    if (loaded >= 42) break; // max 7 rows of 6
+
+                                    if (col % 6 == 0) {
+                                        row = new android.widget.LinearLayout(dash);
+                                        row.setOrientation(android.widget.LinearLayout.HORIZONTAL);
+                                        row.setPadding(0, 5, 0, 5);
+                                        root.addView(row);
+                                    }
+
+                                    android.graphics.Bitmap icon = android.graphics.BitmapFactory.decodeFile(f.getAbsolutePath());
+                                    if (icon != null && icon.getWidth() > 0) {
+                                        android.widget.ImageView iv = new android.widget.ImageView(dash);
+                                        iv.setImageBitmap(icon);
+                                        android.widget.LinearLayout.LayoutParams lp = new android.widget.LinearLayout.LayoutParams(iconSize, iconSize);
+                                        lp.setMargins(3, 3, 3, 3);
+                                        iv.setLayoutParams(lp);
+                                        row.addView(iv);
+                                        loaded++;
+                                        col++;
+                                    }
+                                }
+                                System.err.println("[WestlakeLauncher] Loaded " + loaded + " McDonald's icons");
+
+                                // Status bar
+                                android.widget.TextView status2 = new android.widget.TextView(dash);
+                                status2.setText(loaded + " icons decoded (stb_image + libwebp)\n" +
+                                    files.length + " total drawable files\n" +
+                                    "Westlake Engine on Pixel 7 Pro");
+                                status2.setTextColor(0xFF80FF80);
+                                status2.setTextSize(11);
+                                status2.setPadding(10, 15, 10, 10);
+                                root.addView(status2);
+
+                                // Use this as the content view
+                                dash.setContentView(root);
+                                dash.onSurfaceCreated(0L, SURFACE_WIDTH, SURFACE_HEIGHT);
+                                dash.renderFrame();
+                                System.err.println("[WestlakeLauncher] Rich demo screen rendered!");
+                            }
+                        }
+                    } catch (Throwable re) {
+                        System.err.println("[WestlakeLauncher] Rich demo error: " + re.getMessage());
+                    }
+                    // Render the dashboard's actual view tree (from setPageLayout)
+                    try {
+                        dash.onSurfaceCreated(0L, SURFACE_WIDTH, SURFACE_HEIGHT);
+                        dash.renderFrame();
+                        System.err.println("[WestlakeLauncher] Dashboard view tree rendered!");
+                    } catch (Throwable re) {
+                        System.err.println("[WestlakeLauncher] Dashboard render error: " + re.getMessage());
+                    }
+                }
+            } catch (Throwable t) {
+                System.err.println("[WestlakeLauncher] Dashboard launch error: " + t.getMessage());
             }
         }
 
@@ -620,9 +1340,10 @@ public class WestlakeLauncher {
                 break;
             }
 
-            Activity current = am.getResumedActivity();
+            Activity current = initialActivity; // prefer WAT-created activity
+            if (current == null) current = am.getResumedActivity();
             if (current == null) {
-                System.out.println("[WestlakeLauncher] No resumed activity, exiting");
+                System.err.println("[WestlakeLauncher] No resumed activity, exiting");
                 break;
             }
 
@@ -643,15 +1364,15 @@ public class WestlakeLauncher {
                             android.widget.EditText et = findEditText(decor);
                             if (et != null) {
                                 et.setText(inputText);
-                                System.out.println("[WestlakeLauncher] Text input: '" + inputText + "' -> " + et);
+                                System.err.println("[WestlakeLauncher] Text input: '" + inputText + "' -> " + et);
                                 needsRender = true;
                             } else {
-                                System.out.println("[WestlakeLauncher] Text input: no EditText found");
+                                System.err.println("[WestlakeLauncher] Text input: no EditText found");
                             }
                         }
                     }
                 } catch (Exception e5) {
-                    System.out.println("[WestlakeLauncher] Text input error: " + e5);
+                    System.err.println("[WestlakeLauncher] Text input error: " + e5);
                 }
             }
 
@@ -678,7 +1399,7 @@ public class WestlakeLauncher {
                                 downTime = now;
                                 lastTouchY = y;
                                 totalDragDistance = 0;
-                                System.out.println("[WestlakeLauncher] Touch DOWN at (" + x + "," + y + ")");
+                                System.err.println("[WestlakeLauncher] Touch DOWN at (" + x + "," + y + ")");
                                 current.dispatchTouchEvent(
                                     android.view.MotionEvent.obtain(downTime, now, 0, (float)x, (float)y, 0));
                                 needsRender = true;
@@ -703,7 +1424,7 @@ public class WestlakeLauncher {
                                 needsRender = true;
                             } else if (action == 1) {
                                 if (downTime == 0) downTime = now;
-                                System.out.println("[WestlakeLauncher] Touch UP at (" + x + "," + y + ")");
+                                System.err.println("[WestlakeLauncher] Touch UP at (" + x + "," + y + ")");
                                 current.dispatchTouchEvent(
                                     android.view.MotionEvent.obtain(downTime, now, 1, (float)x, (float)y, 0));
                                 needsRender = true;
@@ -720,7 +1441,7 @@ public class WestlakeLauncher {
                                                     android.widget.ListView lv = (android.widget.ListView) parent;
                                                     int pos = lv.getPositionForView(target);
                                                     if (pos >= 0) {
-                                                        System.out.println("[WestlakeLauncher] ListView item " + pos + " clicked");
+                                                        System.err.println("[WestlakeLauncher] ListView item " + pos + " clicked");
                                                         lv.performItemClick(target, pos, pos);
                                                     }
                                                     break;
@@ -750,10 +1471,10 @@ public class WestlakeLauncher {
                                 if (next != null) {
                                     if (next != current) {
                                         try { next.onSurfaceCreated(0L, SURFACE_WIDTH, SURFACE_HEIGHT); } catch (Exception e2) {}
-                                        System.out.println("[WestlakeLauncher] Navigated to " + next.getClass().getSimpleName());
+                                        System.err.println("[WestlakeLauncher] Navigated to " + next.getClass().getSimpleName());
                                     }
                                     try { next.renderFrame(); } catch (Exception e2) {
-                                        if (frameCount < 5) System.out.println("[WestlakeLauncher] renderFrame error: " + e2);
+                                        if (frameCount < 5) System.err.println("[WestlakeLauncher] renderFrame error: " + e2);
                                     }
                                 }
                                 needsRender = false;
@@ -761,7 +1482,7 @@ public class WestlakeLauncher {
                         }
                     }
                 } catch (Exception e) {
-                    if (frameCount < 10) System.out.println("[WestlakeLauncher] Touch error: " + e);
+                    if (frameCount < 10) System.err.println("[WestlakeLauncher] Touch error: " + e);
                 }
             }
 
@@ -783,7 +1504,7 @@ public class WestlakeLauncher {
 
             frameCount++;
         }
-        System.out.println("[WestlakeLauncher] Render loop ended after " + frameCount + " frames");
+        System.err.println("[WestlakeLauncher] Render loop ended after " + frameCount + " frames");
     }
 
     /** Find the deepest view containing the given point (absolute coords) */
@@ -813,5 +1534,288 @@ public class WestlakeLauncher {
             }
         }
         return v;
+    }
+
+    /**
+     * Inject mock McDonald's dashboard content into the 5 sections of activity_home_dashboard.xml.
+     * This simulates what the real app would show after loading data from the API.
+     */
+    private static void injectDashboardContent(Activity ctx, android.view.ViewGroup root) {
+        // Find the 5 LinearLayout sections by traversing the tree
+        java.util.List<android.widget.LinearLayout> sections = new java.util.ArrayList<>();
+        findLinearLayouts(root, sections);
+        System.err.println("[WestlakeLauncher] Found " + sections.size() + " sections to fill");
+
+        // Fix layout params: sections should wrap_content, not fill parent
+        for (android.widget.LinearLayout s : sections) {
+            android.view.ViewGroup parent = (android.view.ViewGroup) s.getParent();
+            android.view.ViewGroup.LayoutParams lp;
+            if (parent instanceof android.widget.FrameLayout) {
+                lp = new android.widget.FrameLayout.LayoutParams(
+                    android.widget.FrameLayout.LayoutParams.MATCH_PARENT,
+                    android.widget.FrameLayout.LayoutParams.WRAP_CONTENT);
+            } else {
+                lp = new android.widget.LinearLayout.LayoutParams(
+                    android.widget.LinearLayout.LayoutParams.MATCH_PARENT,
+                    android.widget.LinearLayout.LayoutParams.WRAP_CONTENT);
+            }
+            s.setLayoutParams(lp);
+        }
+        // Make the parent use vertical LinearLayout
+        if (sections.size() > 0) {
+            android.view.ViewGroup parent = (android.view.ViewGroup) sections.get(0).getParent();
+            if (parent instanceof android.widget.LinearLayout) {
+                ((android.widget.LinearLayout) parent).setOrientation(android.widget.LinearLayout.VERTICAL);
+            } else if (parent instanceof android.widget.FrameLayout) {
+                // Replace FrameLayout parent with LinearLayout
+                android.widget.LinearLayout newParent = new android.widget.LinearLayout(ctx);
+                newParent.setOrientation(android.widget.LinearLayout.VERTICAL);
+                // Move all children
+                while (parent.getChildCount() > 0) {
+                    android.view.View child = parent.getChildAt(0);
+                    parent.removeViewAt(0);
+                    android.widget.LinearLayout.LayoutParams clp = new android.widget.LinearLayout.LayoutParams(
+                        android.widget.LinearLayout.LayoutParams.MATCH_PARENT,
+                        android.widget.LinearLayout.LayoutParams.WRAP_CONTENT);
+                    newParent.addView(child, clp);
+                }
+                parent.addView(newParent, new android.widget.FrameLayout.LayoutParams(
+                    android.widget.FrameLayout.LayoutParams.MATCH_PARENT,
+                    android.widget.FrameLayout.LayoutParams.MATCH_PARENT));
+            }
+        }
+
+        int RED = 0xFFDA291C;
+        int YELLOW = 0xFFFFCC00;
+        int WHITE = 0xFFFFFFFF;
+        int DARK = 0xFF292929;
+        int LIGHT_GRAY = 0xFFF5F5F5;
+
+        // Section 0: Hero banner
+        if (sections.size() > 0) {
+            android.widget.LinearLayout hero = sections.get(0);
+            hero.setOrientation(android.widget.LinearLayout.VERTICAL);
+            hero.setBackgroundColor(RED);
+            hero.setPadding(24, 32, 24, 32);
+
+            android.widget.TextView title = new android.widget.TextView(ctx);
+            title.setText("Welcome to McDonald's");
+            title.setTextSize(28);
+            title.setTextColor(YELLOW);
+            title.setGravity(android.view.Gravity.CENTER);
+            hero.addView(title);
+
+            android.widget.TextView sub = new android.widget.TextView(ctx);
+            sub.setText("Order ahead & skip the line");
+            sub.setTextSize(16);
+            sub.setTextColor(WHITE);
+            sub.setGravity(android.view.Gravity.CENTER);
+            sub.setPadding(0, 8, 0, 16);
+            hero.addView(sub);
+        }
+
+        // Section 1: Deals
+        if (sections.size() > 1) {
+            android.widget.LinearLayout deals = sections.get(1);
+            deals.setOrientation(android.widget.LinearLayout.VERTICAL);
+            deals.setBackgroundColor(LIGHT_GRAY);
+            deals.setPadding(16, 16, 16, 16);
+            addSectionHeader(ctx, deals, "Deals", DARK);
+            String[][] dealItems = {
+                {"$1 Any Size Soft Drink", "With app purchase"},
+                {"Free Medium Fries", "With $1 minimum purchase"},
+                {"$3 Bundle", "McChicken + Small Fries"},
+                {"Buy 1 Get 1 Free", "Big Mac or Quarter Pounder"},
+            };
+            for (String[] deal : dealItems) {
+                addMenuItem(ctx, deals, deal[0], deal[1], RED, DARK);
+            }
+        }
+
+        // Section 2: Menu
+        if (sections.size() > 2) {
+            android.widget.LinearLayout menu = sections.get(2);
+            menu.setOrientation(android.widget.LinearLayout.VERTICAL);
+            menu.setBackgroundColor(WHITE);
+            menu.setPadding(16, 16, 16, 16);
+            addSectionHeader(ctx, menu, "Menu", DARK);
+            String[][] menuItems = {
+                {"Big Mac", "$5.99"},
+                {"Quarter Pounder w/ Cheese", "$6.49"},
+                {"10 Piece McNuggets", "$5.49"},
+                {"McChicken", "$2.49"},
+                {"Filet-O-Fish", "$5.29"},
+                {"Large Fries", "$3.79"},
+                {"McFlurry with OREO Cookies", "$4.39"},
+            };
+            for (String[] item : menuItems) {
+                addMenuItem(ctx, menu, item[0], item[1], DARK, 0xFF666666);
+            }
+        }
+
+        // Section 3: Rewards
+        if (sections.size() > 3) {
+            android.widget.LinearLayout rewards = sections.get(3);
+            rewards.setOrientation(android.widget.LinearLayout.VERTICAL);
+            rewards.setBackgroundColor(YELLOW);
+            rewards.setPadding(16, 24, 16, 24);
+            addSectionHeader(ctx, rewards, "MyMcDonald's Rewards", DARK);
+
+            android.widget.TextView pts = new android.widget.TextView(ctx);
+            pts.setText("1,250 Points");
+            pts.setTextSize(32);
+            pts.setTextColor(DARK);
+            pts.setGravity(android.view.Gravity.CENTER);
+            pts.setPadding(0, 8, 0, 8);
+            rewards.addView(pts);
+
+            android.widget.TextView info = new android.widget.TextView(ctx);
+            info.setText("1,500 more points until your next free reward!");
+            info.setTextSize(14);
+            info.setTextColor(0xFF444444);
+            info.setGravity(android.view.Gravity.CENTER);
+            rewards.addView(info);
+        }
+
+        // Section 4: Bottom nav placeholder
+        if (sections.size() > 4) {
+            android.widget.LinearLayout nav = sections.get(4);
+            nav.setOrientation(android.widget.LinearLayout.HORIZONTAL);
+            nav.setBackgroundColor(WHITE);
+            nav.setPadding(0, 8, 0, 8);
+            nav.setGravity(android.view.Gravity.CENTER);
+            String[] tabs = {"Home", "Deals", "Order", "Rewards", "More"};
+            for (String tab : tabs) {
+                android.widget.TextView t = new android.widget.TextView(ctx);
+                t.setText(tab);
+                t.setTextSize(11);
+                t.setTextColor(tab.equals("Home") ? RED : 0xFF888888);
+                t.setGravity(android.view.Gravity.CENTER);
+                android.widget.LinearLayout.LayoutParams lp = new android.widget.LinearLayout.LayoutParams(0, -2, 1.0f);
+                t.setLayoutParams(lp);
+                nav.addView(t);
+            }
+        }
+    }
+
+    private static void findLinearLayouts(android.view.View v, java.util.List<android.widget.LinearLayout> out) {
+        if (v instanceof android.widget.LinearLayout && v.getId() != android.view.View.NO_ID) {
+            out.add((android.widget.LinearLayout) v);
+        }
+        if (v instanceof android.view.ViewGroup) {
+            android.view.ViewGroup vg = (android.view.ViewGroup) v;
+            for (int i = 0; i < vg.getChildCount(); i++) {
+                findLinearLayouts(vg.getChildAt(i), out);
+            }
+        }
+    }
+
+    private static void addSectionHeader(Activity ctx, android.widget.LinearLayout parent, String text, int color) {
+        android.widget.TextView h = new android.widget.TextView(ctx);
+        h.setText(text);
+        h.setTextSize(22);
+        h.setTextColor(color);
+        h.setPadding(0, 0, 0, 12);
+        parent.addView(h);
+    }
+
+    private static void addMenuItem(Activity ctx, android.widget.LinearLayout parent, String name, String detail, int nameColor, int detailColor) {
+        android.widget.LinearLayout row = new android.widget.LinearLayout(ctx);
+        row.setOrientation(android.widget.LinearLayout.VERTICAL);
+        row.setPadding(0, 8, 0, 8);
+
+        android.widget.TextView n = new android.widget.TextView(ctx);
+        n.setText(name);
+        n.setTextSize(16);
+        n.setTextColor(nameColor);
+        row.addView(n);
+
+        android.widget.TextView d = new android.widget.TextView(ctx);
+        d.setText(detail);
+        d.setTextSize(12);
+        d.setTextColor(detailColor);
+        row.addView(d);
+
+        parent.addView(row);
+    }
+
+    /** Render real McD drawable icons using the phone's framework — straight to pipe */
+    private static void renderRealIconsScreen(android.content.Context ctx, android.content.res.Resources res) {
+        try {
+            android.graphics.Bitmap bmp = android.graphics.Bitmap.createBitmap(
+                SURFACE_WIDTH, SURFACE_HEIGHT, android.graphics.Bitmap.Config.ARGB_8888);
+            android.graphics.Canvas c = new android.graphics.Canvas(bmp);
+            c.drawColor(0xFF27251F);
+
+            // Title
+            android.graphics.Paint tp = newPaint(0xFFFFCC00);
+            tp.setTextSize(22);
+            c.drawText("McDonald's Real Drawables", 20, 40, tp);
+            android.graphics.Paint sp = newPaint(0xAAFFFFFF);
+            sp.setTextSize(11);
+            c.drawText("Decoded by phone's framework via app_process64", 20, 60, sp);
+
+            // Load real drawables
+            String pkg = "com.mcdonalds.app";
+            String[] names = {"archus", "ic_menu", "ic_action_time", "back_chevron",
+                "close", "ic_action_search", "splash_screen",
+                "ic_notifications", "ic_mcdonalds_logo", "mcd_logo_golden"};
+            int y = 90;
+            android.graphics.Paint lp = newPaint(0xFFFFFFFF);
+            lp.setTextSize(14);
+            int found = 0;
+            for (String name : names) {
+                int id = res.getIdentifier(name, "drawable", pkg);
+                if (id == 0) id = res.getIdentifier(name, "mipmap", pkg);
+                String label = name + " (0x" + Integer.toHexString(id) + ")";
+                if (id != 0) {
+                    try {
+                        android.graphics.drawable.Drawable d = ctx.getDrawable(id);
+                        if (d != null) {
+                            d.setBounds(20, y, 84, y + 64);
+                            d.draw(c);
+                            c.drawText(label, 96, y + 40, lp);
+                            found++;
+                        } else {
+                            c.drawText(label + " null", 20, y + 40, newPaint(0xFFFF4444));
+                        }
+                    } catch (Throwable t) {
+                        c.drawText(label + " ERR: " + t.getMessage(), 20, y + 40, newPaint(0xFFFF4444));
+                    }
+                } else {
+                    c.drawText(name + " (not found)", 20, y + 40, newPaint(0xFF888888));
+                }
+                y += 70;
+            }
+
+            // Status
+            android.graphics.Paint gp = newPaint(0xFF00FF00);
+            gp.setTextSize(12);
+            c.drawText(found + "/" + names.length + " drawables loaded via real framework", 20, y + 20, gp);
+
+            // Send as PNG through pipe
+            java.io.ByteArrayOutputStream out = new java.io.ByteArrayOutputStream();
+            bmp.compress(android.graphics.Bitmap.CompressFormat.PNG, 90, out);
+            byte[] png = out.toByteArray();
+            System.err.println("[WestlakeLauncher] Real icons: " + png.length + " bytes, " + found + " icons");
+
+            if (com.ohos.shim.bridge.OHBridge.isNativeAvailable()) {
+                long surf = com.ohos.shim.bridge.OHBridge.surfaceCreate(0, SURFACE_WIDTH, SURFACE_HEIGHT);
+                long canv = com.ohos.shim.bridge.OHBridge.surfaceGetCanvas(surf);
+                com.ohos.shim.bridge.OHBridge.canvasDrawImage(canv, png, 0, 0, SURFACE_WIDTH, SURFACE_HEIGHT);
+                com.ohos.shim.bridge.OHBridge.surfaceFlush(surf);
+                System.err.println("[WestlakeLauncher] Real icons frame sent!");
+            }
+            bmp.recycle();
+        } catch (Throwable t) {
+            System.err.println("[WestlakeLauncher] renderRealIconsScreen error: " + t);
+            t.printStackTrace(System.err);
+        }
+    }
+
+    private static android.graphics.Paint newPaint(int color) {
+        android.graphics.Paint p = new android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG);
+        p.setColor(color);
+        return p;
     }
 }

@@ -5,6 +5,7 @@
     <uses-permission android:name="android.permission.INTERNET" />
     <application
         android:requestLegacyExternalStorage="true"
+        android:extractNativeLibs="true"
         android:debuggable="true"
         android:label="Westlake Engine"
         android:theme="@style/Theme.Westlake">

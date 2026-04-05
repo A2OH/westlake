@@ -52,16 +52,22 @@ public class ResourceTable {
     private static final int FLAG_COMPLEX = 0x0001;
 
     /** Maps resource ID to string value (for string-type resources). */
-    private final Map<Integer, String> mStrings = new HashMap<>();
+    /** Shared global strings map — all ResourceTable instances share the same data */
+    private static final Map<Integer, String> sGlobalStrings = new HashMap<>();
+    private final Map<Integer, String> mStrings = sGlobalStrings;
 
     /** Maps resource ID to integer value (colors, dimensions, ints, booleans). */
     private final Map<Integer, Integer> mIntegers = new HashMap<>();
 
     /** Maps resource ID to resource name ("type/key"). */
-    private final Map<Integer, String> mNames = new HashMap<>();
+    private static final Map<Integer, String> sGlobalNames = new HashMap<>();
+    private final Map<Integer, String> mNames = sGlobalNames;
+    private static final Map<Integer, Integer> sGlobalEntryValues = new HashMap<>();
+    private final Map<Integer, Integer> mEntryValues = sGlobalEntryValues;
 
     /** Global string pool (all string values). */
     private String[] mGlobalStringPool;
+    private String[] mPrevStringPool; // saved base pool during split parsing
 
     /**
      * Parse a resources.arsc byte array.
@@ -98,6 +104,8 @@ public class ResourceTable {
 
             switch (chunkType) {
                 case RES_STRING_POOL_TYPE:
+                    // For split resources, save the OLD pool and restore after parsing
+                    mPrevStringPool = mGlobalStringPool;
                     mGlobalStringPool = parseStringPool(buf, chunkStart, chunkHeaderSize, chunkSize);
                     break;
 
@@ -143,6 +151,20 @@ public class ResourceTable {
         return mNames.get(resId);
     }
 
+    /** Reverse lookup: find resource ID by "type/name" key */
+    public int getIdentifier(String key) {
+        for (Map.Entry<Integer, String> entry : mNames.entrySet()) {
+            if (key.equals(entry.getValue())) return entry.getKey();
+        }
+        // Try partial match (just the name part)
+        for (Map.Entry<Integer, String> entry : mNames.entrySet()) {
+            String val = entry.getValue();
+            if (val != null && val.endsWith("/" + key)) return entry.getKey();
+            if (val != null && val.endsWith(key)) return entry.getKey();
+        }
+        return 0;
+    }
+
     /**
      * Get the layout file name for a layout resource ID.
      * Returns e.g. "res/layout/activity_main.xml", or the raw string value if present.
@@ -159,6 +181,49 @@ public class ResourceTable {
         }
         return null;
     }
+
+    /**
+     * Get the file path for a resource entry (layout, drawable, etc.)
+     * by looking up the raw string pool value for this resource ID.
+     * This handles the case where the parser didn't store it in mStrings.
+     */
+    public String getEntryFilePath(int resId) {
+        // First try the already-parsed mStrings
+        String val = mStrings.get(resId);
+        if (val != null && val.startsWith("res/")) return val;
+
+        // Otherwise, look up directly in the raw data
+        // The global string pool is stored in mGlobalStringPool
+        // We need to find the entry for this resId in the type chunks
+        // For now, try ALL string pool entries that start with "res/" and match
+        // the type (layout = type 0x0e)
+        int typeId = (resId >> 16) & 0xFF;
+        int entryId = resId & 0xFFFF;
+        // Walk mFilePathCache (lazy-built from raw data)
+        if (mFilePathCache == null && mGlobalStringPool != null) {
+            mFilePathCache = new java.util.HashMap<>();
+            // Index all res/ paths in the global string pool
+            for (int i = 0; i < mGlobalStringPool.length; i++) {
+                String s = mGlobalStringPool[i];
+                if (s != null && s.startsWith("res/") && s.endsWith(".xml")) {
+                    mFilePathCache.put(i, s);
+                }
+            }
+        }
+        // Look up the entry's value data index in the raw arsc data
+        // This requires re-parsing the type chunk for typeId
+        // For a quick fix, check if we stored it in mEntryValues during initial parse
+        if (mEntryValues != null) {
+            Integer stringIdx = mEntryValues.get(resId);
+            if (stringIdx != null && mGlobalStringPool != null && stringIdx >= 0 && stringIdx < mGlobalStringPool.length) {
+                String path = mGlobalStringPool[stringIdx];
+                if (path != null && path.startsWith("res/")) return path;
+            }
+        }
+        return null;
+    }
+
+    private java.util.HashMap<Integer, String> mFilePathCache;
 
     /**
      * Get the number of string resources parsed.
@@ -560,9 +625,17 @@ public class ResourceTable {
                 keyName = keyStringPool[keyIndex];
             }
             if (typeName != null && keyName != null) {
-                if (isDefaultConfig || !mNames.containsKey(resId)) {
+                if (!mNames.containsKey(resId)) {
                     mNames.put(resId, typeName + "/" + keyName);
                 }
+            }
+
+            // Debug: log type 8 (drawable) entries
+            if (typeId == 8 && i < 5) {
+                System.err.println("[RT] typeId=8 entry=" + i + " resId=0x" + Integer.toHexString(resId) + " name=" + keyName + " flags=0x" + Integer.toHexString(entryFlags));
+            }
+            if (typeId == 8 && (i == 0x0108 || i == 0x00fd)) {
+                System.err.println("[RT] FOUND typeId=8 entry=0x" + Integer.toHexString(i) + " resId=0x" + Integer.toHexString(resId) + " name=" + keyName);
             }
 
             // If FLAG_COMPLEX (bag/map entry), skip it — we only handle simple values
@@ -581,13 +654,21 @@ public class ResourceTable {
 
             // Only store if default config, or if no value stored yet (first-wins).
             // This ensures unqualified (default) resources take priority.
+            if (resId == 0x7f080108) {
+                System.err.println("[RT] 0x7f080108: dataType=" + dataType + " valueData=" + valueData + " poolLen=" + (mGlobalStringPool != null ? mGlobalStringPool.length : -1) + " inStrings=" + mStrings.containsKey(resId));
+            }
             switch (dataType) {
                 case TYPE_STRING:
-                    // valueData is index into global string pool
                     if (mGlobalStringPool != null && valueData >= 0
                             && valueData < mGlobalStringPool.length) {
-                        if (isDefaultConfig || !mStrings.containsKey(resId)) {
+                        if (!mStrings.containsKey(resId)) {
                             mStrings.put(resId, mGlobalStringPool[valueData]);
+                            if (resId == 0x7f080108) {
+                                System.err.println("[RT] STORED 0x7f080108 = " + mGlobalStringPool[valueData]);
+                            }
+                        }
+                        if (!mEntryValues.containsKey(resId)) {
+                            mEntryValues.put(resId, valueData);
                         }
                     }
                     break;

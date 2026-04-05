@@ -154,7 +154,40 @@ public class BitmapFactory {
     private static Bitmap doDecode(byte[] data, int offset, int length, Options opts) {
         if (data == null || length <= 0) return null;
 
-        // Parse image header
+        // Try native decoding via OHBridge stb_image
+        try {
+            if (com.ohos.shim.bridge.OHBridge.isNativeAvailable()) {
+                byte[] imgData = (offset == 0 && length == data.length) ? data :
+                    java.util.Arrays.copyOfRange(data, offset, offset + length);
+                int[] decoded = com.ohos.shim.bridge.OHBridge.imageDecodeToPixels(imgData);
+                if (decoded != null && decoded.length >= 3) {
+                    int w = decoded[0], h = decoded[1];
+                    if (opts != null) {
+                        opts.outWidth = w; opts.outHeight = h;
+                        opts.outMimeType = "image/png";
+                        if (opts.inJustDecodeBounds) return null;
+                        int s = Math.max(1, opts.inSampleSize);
+                        if (s > 1) { w = Math.max(1, w / s); h = Math.max(1, h / s); }
+                    }
+                    // Create bitmap and fill with decoded ARGB pixels
+                    Bitmap bmp = Bitmap.createBitmap(w, h, Bitmap.Config.ARGB_8888);
+                    int[] pixels = new int[w * h];
+                    int srcW = decoded[0];
+                    for (int y = 0; y < h; y++) {
+                        for (int x = 0; x < w; x++) {
+                            int srcIdx = 2 + y * srcW + x;
+                            pixels[y * w + x] = (srcIdx < decoded.length) ? decoded[srcIdx] : 0;
+                        }
+                    }
+                    bmp.setPixels(pixels, 0, w, 0, 0, w, h);
+                    return bmp;
+                }
+            }
+        } catch (Throwable t) {
+            System.err.println("[BitmapFactory] Native decode error: " + t.getMessage());
+        }
+
+        // Parse image header for dimensions
         ImageInfo info = null;
         if (isPng(data, offset, length)) {
             info = parsePng(data, offset, length);

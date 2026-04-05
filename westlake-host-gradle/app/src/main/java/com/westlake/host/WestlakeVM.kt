@@ -46,6 +46,8 @@ private const val OP_TRANSLATE       = 7
 private const val OP_CLIP_RECT       = 8
 private const val OP_DRAW_ROUND_RECT = 9
 private const val OP_DRAW_CIRCLE     = 10
+private const val OP_DRAW_IMAGE      = 11
+private const val OP_ARGB_BITMAP     = 12
 
 /**
  * Configuration for launching an APK in the Westlake VM subprocess.
@@ -66,14 +68,38 @@ object WestlakeVM {
     var process: Process? = null
     var pipeStream: java.io.InputStream? = null  // stdout pipe (binary display list frames)
     var touchSeq = 0
+    @Volatile var surfaceHolder: Any? = null  // SurfaceHolder or Surface
+    var onFrameCallback: (() -> Unit)? = null
+    private var pipeReaderThread: Thread? = null
+
+    fun startPipeReader() {
+        Log.i(TAG, "startPipeReader: pipe=${pipeStream != null} holder=${surfaceHolder != null} thread=${pipeReaderThread?.isAlive}")
+        if (pipeReaderThread?.isAlive == true) return
+        val stream = pipeStream ?: return
+        val holder = surfaceHolder ?: return
+        pipeReaderThread = Thread({
+            Log.i(TAG, "PIPE READER: started, holder=$holder")
+            try {
+                kotlinx.coroutines.runBlocking {
+                    readPipeAndRender(holder, stream, { surfaceHolder != null }) {
+                        onFrameCallback?.invoke()
+                    }
+                }
+            } catch (e: Exception) {
+                Log.e(TAG, "PIPE READER: error: $e")
+            }
+            Log.i(TAG, "PIPE READER: exited")
+        }, "PipeReader")
+        pipeReaderThread!!.isDaemon = true
+        pipeReaderThread!!.start()
+    }
 
     // Boot image files for AOT startup (core JARs only, in arm64/ subdir)
+    // 3-component speed boot image: core-oj (primary), core-libart, core-icu4j
     private val BOOT_IMAGE_FILES = listOf(
         "boot.art", "boot.oat", "boot.vdex",
-        "boot-core-oj.art", "boot-core-oj.oat", "boot-core-oj.vdex",
         "boot-core-libart.art", "boot-core-libart.oat", "boot-core-libart.vdex",
-        "boot-core-icu4j.art", "boot-core-icu4j.oat", "boot-core-icu4j.vdex",
-        "boot-aosp-shim.art", "boot-aosp-shim.oat", "boot-aosp-shim.vdex"
+        "boot-core-icu4j.art", "boot-core-icu4j.oat", "boot-core-icu4j.vdex"
     )
 
     /** Start MockDonalds (legacy entry point) */
@@ -107,39 +133,83 @@ object WestlakeVM {
         // Run from /data/local/tmp/westlake/ directly so boot image paths match
         val dvm = dvmDst.absolutePath
         val runDir = DALVIKVM_DIR
-        // UUID fix must be FIRST on bootclasspath (overrides core-oj's broken UUID)
-        val uuidFixPath = "$runDir/uuid-fix.dex"
-        val hasUuidFix = File(uuidFixPath).exists()
-        val bcp = (if (hasUuidFix) "$uuidFixPath:" else "") +
-            "$runDir/core-oj.jar:$runDir/core-libart.jar:$runDir/core-icu4j.jar:$runDir/aosp-shim.dex"
+        // BCP must match boot image order: core-oj, core-libart, core-icu4j, then extras, then shim
+        // bouncycastle.jar provides BouncyCastleProvider for java.security (UUID, SecureRandom)
+        // Conscrypt stubs in aosp-shim.dex satisfy Providers strict init check
+        // aosp-shim.dex FIRST (provides native stubs: SystemProperties, MessageQueue, etc.)
+        // framework.jar SECOND (provides real TypedArray, Theme, Material support)
+        val fwJar = if (File("$runDir/framework.jar").exists()) ":$runDir/framework.jar" else ""
+        val bcp = "$runDir/core-oj.jar:$runDir/core-libart.jar:$runDir/core-icu4j.jar:$runDir/bouncycastle.jar:$runDir/aosp-shim.dex$fwJar"
 
-        // Copy boot image to app dir (SELinux blocks .oat execution from shell_data_file)
-        val appArm64 = File(vmDir, "arm64").apply { mkdirs() }
-        val srcArm64 = File("$runDir/arm64")
-        if (srcArm64.exists()) {
-            for (name in BOOT_IMAGE_FILES) {
-                val src = File(srcArm64, name)
-                val dst = File(appArm64, name)
-                if (src.exists() && (!dst.exists() || dst.length() != src.length())) {
+        // Boot image: ALL files packaged as .so in APK → extracted to nativeLibraryDir
+        // with apk_data_file SELinux context (allows mmap PROT_EXEC on EMUI)
+        // ART discovers boot images at $ANDROID_ROOT/arm64/ — symlink .so files from nativeLibDir
+        val fwArm64 = File(vmDir, "arm64").apply { mkdirs() }
+        // Also create framework/arm64 for compatibility
+        File(vmDir, "framework/arm64").mkdirs()
+        val nativeLibDir = activity.applicationInfo.nativeLibraryDir
+        val bootFileMap = mapOf(
+            "boot.art" to "libboot_art.so", "boot.oat" to "libboot_oat.so", "boot.vdex" to "libboot_vdex.so",
+            "boot-core-libart.art" to "libboot_core_libart_art.so",
+            "boot-core-libart.oat" to "libboot_core_libart_oat.so",
+            "boot-core-libart.vdex" to "libboot_core_libart_vdex.so",
+            "boot-core-icu4j.art" to "libboot_core_icu4j_art.so",
+            "boot-core-icu4j.oat" to "libboot_core_icu4j_oat.so",
+            "boot-core-icu4j.vdex" to "libboot_core_icu4j_vdex.so"
+        )
+        for ((artName, soName) in bootFileMap) {
+            val src = File(nativeLibDir, soName)
+            val dst = File(fwArm64, artName)
+            if (src.exists() && !dst.exists()) {
+                try {
+                    Runtime.getRuntime().exec(arrayOf("ln", "-sf", src.absolutePath, dst.absolutePath)).waitFor()
+                } catch (e: Exception) {
+                    Log.w(TAG, "Symlink failed for $artName: $e")
                     src.copyTo(dst, overwrite = true)
-                    dst.setExecutable(true, false)
                 }
             }
         }
-        // Also copy boot.art to vmDir root
-        val bootArtSrc = File("$runDir/boot.art")
-        val bootArtDst = File(vmDir, "boot.art")
-        if (bootArtSrc.exists() && (!bootArtDst.exists() || bootArtDst.length() != bootArtSrc.length())) {
-            bootArtSrc.copyTo(bootArtDst, overwrite = true)
+        // Create fake dex2oat to prevent ART from hanging trying to generate images
+        val fakeDex2oat = File(vmDir, "bin/dex2oat")
+        if (!fakeDex2oat.exists()) {
+            fakeDex2oat.parentFile.mkdirs()
+            fakeDex2oat.writeText("#!/system/bin/sh\nexit 1\n")
+            fakeDex2oat.setExecutable(true, false)
         }
+        // Also create dalvik-cache dir (ART expects it)
+        File(runDir, "dalvik-cache/arm64").mkdirs()
 
-        // Use boot image from app dir (SELinux-safe)
-        val hasBootImage = File(appArm64, "boot.art").exists()
+        // Symlink pre-compiled app odex/vdex files from nativeLibDir (apk_data_file context)
+        // to oat/arm64/ where ART expects them. This enables AOT execution for app code.
+        val oatDir = File(runDir, "oat/arm64").apply { mkdirs() }
+        val nativeLibFiles = File(nativeLibDir).listFiles() ?: emptyArray()
+        for (soFile in nativeLibFiles) {
+            if (soFile.name.startsWith("libmcd_") && (soFile.name.endsWith("_odex.so") || soFile.name.endsWith("_vdex.so"))) {
+                // libmcd_classes_odex.so -> mcd_classes.odex
+                val artName = soFile.name.removePrefix("lib").replace("_odex.so", ".odex").replace("_vdex.so", ".vdex")
+                val dst = File(oatDir, artName)
+                if (!dst.exists()) {
+                    try {
+                        Runtime.getRuntime().exec(arrayOf("ln", "-sf", soFile.absolutePath, dst.absolutePath)).waitFor()
+                    } catch (e: Exception) {
+                        try { soFile.copyTo(dst, overwrite = true) } catch (_: Exception) {}
+                    }
+                }
+            }
+        }
+        Log.i(TAG, "App OAT symlinks: ${oatDir.listFiles()?.size ?: 0} files in ${oatDir.absolutePath}")
+
+        // Also try direct path to native lib dir (bypass framework discovery)
+        val nativeBootArt = File(nativeLibDir, "libboot_art.so")
+        val nativeBootOat = File(nativeLibDir, "libboot_oat.so")
+        val hasBootImage = nativeBootArt.exists() && nativeBootOat.exists()
         val bootArgs = if (hasBootImage) {
-            log.add("Boot image -- AOT mode (app dir)")
-            arrayOf("-Ximage:${vmDir.absolutePath}/boot.art")
+            log.add("Boot image -- AOT mode")
+            // Use relative "boot.art" — ART discovers at $ANDROID_ROOT/framework/arm64/boot.art
+            // (symlinked to nativeLibDir which has apk_data_file context allowing PROT_EXEC)
+            arrayOf("-Ximage:boot.art")
         } else {
-            log.add("Interpreter mode")
+            log.add("Interpreter mode (+ JIT)")
             arrayOf("-Xnoimage-dex2oat")
         }
 
@@ -154,9 +224,10 @@ object WestlakeVM {
             val isDexOnly = (apkSrc == null || !File(apkSrc).exists()) && File(dexOnlyPath).exists()
 
             // Check for pre-pushed multi-DEX (e.g., mcd_classes.dex, mcd_classes2.dex, ...)
+            // ALWAYS prefer pre-pushed DEX over installed APK (our shim + fixes are in the pre-pushed DEX)
             val multiDexPrefix = "mcd_classes"
             val multiDexFirst = File("$runDir/${multiDexPrefix}.dex")
-            val isMultiDexPushed = (apkSrc == null || !File(apkSrc).exists()) && !isDexOnly && multiDexFirst.exists()
+            val isMultiDexPushed = !isDexOnly && multiDexFirst.exists()
                     && apkConfig.packageName == "com.mcdonalds.app"
 
             if (!isDexOnly && !isMultiDexPushed && (apkSrc == null || !File(apkSrc).exists())) {
@@ -177,27 +248,27 @@ object WestlakeVM {
                 )
                 log.add("DEX-only: ${apkConfig.displayName}")
             } else if (isMultiDexPushed) {
-                // Multi-DEX app pre-pushed to device (McDonald's)
-                val dexPaths = mutableListOf("$runDir/${multiDexPrefix}.dex")
+                // Multi-DEX app (McDonald's) — bionic dalvikvm with stb_image + libwebp
+                val mcdCp = StringBuilder("$runDir/${multiDexPrefix}.dex")
                 for (i in 2..33) {
                     val f = File("$runDir/${multiDexPrefix}${i}.dex")
-                    if (f.exists()) dexPaths.add(f.absolutePath)
+                    if (f.exists()) mcdCp.append(":${f.absolutePath}")
                 }
-                val dexClasspath = dexPaths.joinToString(":")
-                val resDir = "$runDir/mcd_res"
-                val manifestPath = "$resDir/AndroidManifest.xml"
+                val mcdBcp = "$runDir/core-oj.jar:$runDir/core-libart.jar:$runDir/core-icu4j.jar:$runDir/aosp-shim.dex"
                 cmd = arrayOf(
-                    dvm, "-Xbootclasspath:$bcp", *bootArgs, "-Xverify:none",
-                    "-Xgc:nonconcurrent", "-Xms128m", "-Xmx256m",
-                    "-Dwestlake.apk.path=$runDir/${multiDexPrefix}.dex",
-                    "-Dwestlake.apk.activity=${apkConfig.activityName}",
+                    dvm, "-Xbootclasspath:$mcdBcp", "-Xnoimage-dex2oat", "-Xverify:none",
+                    "-Xusejit:false", "-Xint",
+                    "-Xgc:nonconcurrent", "-Xms256m", "-Xmx768m", "-Xss4m",
+                    "-Djava.home=$runDir",
                     "-Dwestlake.apk.package=${apkConfig.packageName}",
-                    "-Dwestlake.apk.resdir=$resDir",
-                    "-Dwestlake.apk.manifest=$manifestPath",
-                    "-classpath", dexClasspath,
+                    "-Dwestlake.apk.activity=${apkConfig.activityName}",
+                    "-Dwestlake.apk.path=$runDir/mcd_classes.dex",
+                    "-Dwestlake.apk.resdir=$runDir/mcd_res",
+                    "-Dwestlake.apk.manifest=$runDir/mcd_res/AndroidManifest.xml",
+                    "-classpath", mcdCp.toString(),
                     "com.westlake.engine.WestlakeLauncher"
                 )
-                log.add("Multi-DEX: ${apkConfig.displayName} (${dexPaths.size} DEX files)")
+                log.add("Multi-DEX: ${apkConfig.displayName} (subprocess pipe mode)")
             } else {
 
             // Copy APK to app's private dir (writable by our process)
@@ -283,17 +354,55 @@ object WestlakeVM {
             log.add("Launching MockDonalds (legacy)")
         }
 
+        // Ensure security.properties exists so SecureRandom/UUID work
+        // (ANDROID_ROOT/etc/security/security.properties registers our Sun stub provider)
+        val secDir = File(vmDir, "etc/security")
+        secDir.mkdirs()
+        val secProps = File(secDir, "security.properties")
+        if (!secProps.exists()) {
+            secProps.writeText("security.provider.1=sun.security.provider.Sun\n")
+            log.add("Created security.properties")
+        }
+
+        // Ensure public.libraries.txt exists so libnativeloader doesn't abort
+        val pubLibs = File(vmDir, "etc/public.libraries.txt")
+        if (!pubLibs.exists()) {
+            pubLibs.writeText("libandroid.so\nlibc.so\nlibdl.so\nliblog.so\nlibm.so\nlibz.so\n")
+        }
+
         log.add("Starting from ${vmDir.absolutePath}...")
         try {
             val pb = ProcessBuilder(*cmd)
             pb.directory(File(runDir))
             pb.environment()["ANDROID_DATA"] = runDir
+            // ANDROID_ROOT: for multi-DEX, use runDir (has arm64/boot.art for shell runs)
+            // For app context, vmDir has fake dex2oat + security.properties
             pb.environment()["ANDROID_ROOT"] = runDir
+            pb.environment()["BOOTCLASSPATH"] = bcp
+            pb.environment()["DEX2OATBOOTCLASSPATH"] = bcp
             pb.environment()["WESTLAKE_TOUCH"] = TOUCH_PATH
+            pb.environment()["LD_LIBRARY_PATH"] = runDir
+            // For app_process64: CLASSPATH tells it which DEX to load
+            val mcdApkEnv = try {
+                activity.packageManager.getApplicationInfo("com.mcdonalds.app", 0).sourceDir
+            } catch (e: Exception) { "" }
+            if (mcdApkEnv.isNotEmpty()) {
+                pb.environment()["CLASSPATH"] = "$runDir/aosp-shim.dex:$mcdApkEnv"
+            }
             // Do NOT redirectErrorStream — stdout is binary pipe, stderr is text logs
             process = pb.start()
             pipeStream = process!!.inputStream  // stdout = binary display list frames
             log.add("VM process started (pipe mode)")
+            // Start a thread that polls until surface is ready, then starts pipe reader
+            Thread({
+                for (i in 0..100) {
+                    if (surfaceHolder != null && pipeStream != null) {
+                        startPipeReader()
+                        if (pipeReaderThread?.isAlive == true) break
+                    }
+                    Thread.sleep(200)
+                }
+            }, "PipeReaderStarter").start()
 
             // Read stderr in background for logs
             Thread {
@@ -356,11 +465,25 @@ object WestlakeVM {
 private val pipeReaderMutex = Mutex()
 
 /** Replay a display list byte array onto a Canvas. */
+private var framesDumped = 0
 private fun replayDisplayList(canvas: Canvas, paint: Paint, data: ByteArray, size: Int) {
     val bb = ByteBuffer.wrap(data, 0, size).order(ByteOrder.LITTLE_ENDIAN)
     val baseCount = canvas.saveCount
     canvas.save()
-    canvas.drawColor(android.graphics.Color.WHITE)
+    canvas.drawColor(android.graphics.Color.BLACK)
+
+    // Dump first 3 frames for debugging
+    if (framesDumped < 3) {
+        val ops = StringBuilder("Frame $framesDumped ($size bytes): ")
+        val dbg = ByteBuffer.wrap(data, 0, size).order(ByteOrder.LITTLE_ENDIAN)
+        while (dbg.hasRemaining()) {
+            val op = dbg.get().toInt() and 0xFF
+            ops.append("op$op ")
+            if (ops.length > 200) { ops.append("..."); break }
+        }
+        Log.i("WestlakeVM", ops.toString())
+        framesDumped++
+    }
 
     try {
         while (bb.hasRemaining()) {
@@ -416,8 +539,47 @@ private fun replayDisplayList(canvas: Canvas, paint: Paint, data: ByteArray, siz
                     paint.style = Paint.Style.FILL
                     canvas.drawCircle(cx, cy, radius, paint)
                 }
+                OP_DRAW_IMAGE -> {
+                    val x = bb.getFloat(); val y = bb.getFloat()
+                    val w = bb.getInt(); val h = bb.getInt()
+                    val dataLen = bb.getInt()
+                    if (dataLen > 0 && bb.remaining() >= dataLen) {
+                        val imgBytes = ByteArray(dataLen)
+                        bb.get(imgBytes)
+                        val bmp = android.graphics.BitmapFactory.decodeByteArray(imgBytes, 0, dataLen)
+                        if (bmp != null) {
+                            val dst = android.graphics.RectF(x, y, x + (if (w > 0) w.toFloat() else bmp.width.toFloat()),
+                                y + (if (h > 0) h.toFloat() else bmp.height.toFloat()))
+                            canvas.drawBitmap(bmp, null, dst, paint)
+                            bmp.recycle()
+                        }
+                    }
+                }
+                OP_ARGB_BITMAP -> {
+                    val x = bb.getFloat(); val y = bb.getFloat()
+                    val w = bb.getInt(); val h = bb.getInt()
+                    val dataLen = bb.getInt()
+                    if (dataLen > 0 && w > 0 && h > 0 && bb.remaining() >= dataLen) {
+                        val rgbaBytes = ByteArray(dataLen)
+                        bb.get(rgbaBytes)
+                        // Convert RGBA bytes to ARGB int array for Bitmap
+                        val pixelCount = w * h
+                        val pixels = IntArray(pixelCount)
+                        for (i in 0 until minOf(pixelCount, dataLen / 4)) {
+                            val r = rgbaBytes[i*4].toInt() and 0xFF
+                            val g = rgbaBytes[i*4+1].toInt() and 0xFF
+                            val b = rgbaBytes[i*4+2].toInt() and 0xFF
+                            val a = rgbaBytes[i*4+3].toInt() and 0xFF
+                            pixels[i] = (a shl 24) or (r shl 16) or (g shl 8) or b
+                        }
+                        val bmp = android.graphics.Bitmap.createBitmap(pixels, w, h, android.graphics.Bitmap.Config.ARGB_8888)
+                        val dst = android.graphics.RectF(x, y, x + w, y + h)
+                        canvas.drawBitmap(bmp, null, dst, paint)
+                        bmp.recycle()
+                    }
+                }
                 else -> {
-                    Log.w("WestlakeVM", "Unknown dlist op, aborting frame")
+                    Log.w("WestlakeVM", "Unknown dlist op ${bb.position()-1}, aborting frame")
                     break
                 }
             }
@@ -434,7 +596,7 @@ private fun replayDisplayList(canvas: Canvas, paint: Paint, data: ByteArray, siz
  * Called from LaunchedEffect in composables.
  */
 private suspend fun readPipeAndRender(
-    holder: SurfaceHolder,
+    holder: Any,
     stream: java.io.InputStream,
     isRunning: () -> Boolean,
     onFrame: () -> Unit
@@ -448,7 +610,7 @@ private suspend fun readPipeAndRender(
 }
 
 private suspend fun readPipeAndRenderLocked(
-    holder: SurfaceHolder,
+    holder: Any,
     stream: java.io.InputStream,
     isRunning: () -> Boolean,
     onFrame: () -> Unit
@@ -457,6 +619,7 @@ private suspend fun readPipeAndRenderLocked(
     val paint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
         try { typeface = android.graphics.Typeface.createFromFile("/system/fonts/Roboto-Regular.ttf") } catch (_: Exception) {}
     }
+    Log.i("WestlakeVM", "Pipe reader started, syncing to DLST magic...")
     try {
         // Sync past initial text to first DLST magic marker
         val syncBuf = ByteArray(4)
@@ -469,7 +632,7 @@ private suspend fun readPipeAndRenderLocked(
             syncMagic = ByteBuffer.wrap(syncBuf).order(ByteOrder.LITTLE_ENDIAN).getInt()
             skipped++
         }
-        if (skipped > 0) Log.i("WestlakeVM", "Synced past $skipped bytes of initial text")
+        Log.i("WestlakeVM", "Sync complete: skipped=$skipped bytes, magic=0x${Integer.toHexString(syncMagic)}")
 
         while (isRunning()) {
             // Read [4-byte LE size]
@@ -484,12 +647,48 @@ private suspend fun readPipeAndRenderLocked(
             val data = ByteArray(size)
             input.readFully(data)
 
-            // Render to SurfaceView
-            val canvas = holder.lockCanvas() ?: continue
-            try {
-                replayDisplayList(canvas, paint, data, size)
-            } finally {
-                holder.unlockCanvasAndPost(canvas)
+            val target = WestlakeVM.surfaceHolder ?: holder
+            when (target) {
+                is android.graphics.Bitmap -> {
+                    val canvas = Canvas(target)
+                    replayDisplayList(canvas, paint, data, size)
+                    Log.i("WestlakeVM", "Frame: ${size} bytes → Bitmap, pixel(0,0)=0x${Integer.toHexString(target.getPixel(0,0))}")
+                    // Save frames to app's cache dir (always writable)
+                    if (framesDumped <= 3) {
+                        try {
+                            val cacheDir = WestlakeActivity.instance?.cacheDir
+                            if (cacheDir != null) {
+                                val f = java.io.File(cacheDir, "frame_${framesDumped}.png")
+                                val os = java.io.FileOutputStream(f)
+                                target.compress(android.graphics.Bitmap.CompressFormat.PNG, 100, os)
+                                os.close()
+                                Log.i("WestlakeVM", "Saved ${f.absolutePath}")
+                            }
+                        } catch (e: Exception) { Log.e("WestlakeVM", "Save: $e") }
+                    }
+                }
+                is SurfaceHolder -> {
+                    val canvas = target.lockCanvas()
+                    if (canvas == null) { Thread.sleep(100); continue }
+                    try {
+                        val sx = canvas.width / 480f; val sy = canvas.height / 800f
+                        canvas.save(); canvas.scale(sx, sy)
+                        replayDisplayList(canvas, paint, data, size)
+                        canvas.restore()
+                    } finally { target.unlockCanvasAndPost(canvas) }
+                    Log.i("WestlakeVM", "Frame: ${size} bytes → Surface")
+                }
+                is android.view.Surface -> {
+                    val canvas = try { target.lockHardwareCanvas() } catch (e: Exception) { null }
+                    if (canvas == null) { Thread.sleep(100); continue }
+                    try {
+                        val sx = canvas.width / 480f; val sy = canvas.height / 800f
+                        canvas.save(); canvas.scale(sx, sy)
+                        replayDisplayList(canvas, paint, data, size)
+                        canvas.restore()
+                    } finally { target.unlockCanvasAndPost(canvas) }
+                    Log.i("WestlakeVM", "Frame: ${size} bytes → TextureSurface")
+                }
             }
             onFrame()
 
@@ -596,11 +795,16 @@ fun WestlakeVMScreen() {
                         SurfaceView(context).also { sv ->
                             sv.holder.addCallback(object : SurfaceHolder.Callback {
                                 override fun surfaceCreated(holder: SurfaceHolder) {
+                                    Log.i("WestlakeVM", "SurfaceCreated ${holder.surfaceFrame}")
                                     holder.setFixedSize(480, 800)
-                                    holderState = holder
+                                    WestlakeVM.surfaceHolder = holder
+                                    WestlakeVM.onFrameCallback = { frameCount++ }
+                                    WestlakeVM.startPipeReader()
                                 }
-                                override fun surfaceChanged(holder: SurfaceHolder, format: Int, width: Int, height: Int) {}
-                                override fun surfaceDestroyed(holder: SurfaceHolder) { holderState = null }
+                                override fun surfaceChanged(holder: SurfaceHolder, f: Int, w: Int, h: Int) {}
+                                override fun surfaceDestroyed(holder: SurfaceHolder) {
+                                    WestlakeVM.surfaceHolder = null
+                                }
                             })
                         }
                     },
@@ -650,26 +854,21 @@ fun WestlakeVMApkScreen(config: ApkVmConfig) {
     var isRunning by remember { mutableStateOf(false) }
     var holderState by remember { mutableStateOf<SurfaceHolder?>(null) }
 
-    // Resolve APK path and start VM
+    // Resolve APK path and start VM on background thread (main thread must stay free for SurfaceView)
     LaunchedEffect(Unit) {
-        val resolvedConfig = try {
-            val appInfo = activity.packageManager.getApplicationInfo(config.packageName, 0)
-            config.copy(apkSourceDir = appInfo.sourceDir)
-        } catch (e: Exception) {
-            // Not installed as APK — try as DEX-only app (e.g., tipcalc)
-            config.copy(apkSourceDir = null)
+        withContext(Dispatchers.IO) {
+            val resolvedConfig = try {
+                val appInfo = activity.packageManager.getApplicationInfo(config.packageName, 0)
+                config.copy(apkSourceDir = appInfo.sourceDir)
+            } catch (e: Exception) {
+                config.copy(apkSourceDir = null)
+            }
+            logs = WestlakeVM.startWithConfig(resolvedConfig)
         }
-        logs = WestlakeVM.startWithConfig(resolvedConfig)
         isRunning = true
     }
 
-    // Single pipe reader — waits for SurfaceHolder, then reads until done
-    LaunchedEffect(isRunning) {
-        if (!isRunning) return@LaunchedEffect
-        val stream = WestlakeVM.pipeStream ?: return@LaunchedEffect
-        val holder = snapshotFlow { holderState }.filterNotNull().first()
-        readPipeAndRender(holder, stream, { isRunning }) { frameCount++ }
-    }
+    // Pipe reader is started directly from surfaceCreated callback via WestlakeVM.startPipeReader()
 
     DisposableEffect(Unit) {
         onDispose {
@@ -757,21 +956,26 @@ fun WestlakeVMApkScreen(config: ApkVmConfig) {
                         SurfaceView(context).also { sv ->
                             sv.holder.addCallback(object : SurfaceHolder.Callback {
                                 override fun surfaceCreated(holder: SurfaceHolder) {
+                                    Log.i("WestlakeVM", "SurfaceCreated ${holder.surfaceFrame}")
                                     holder.setFixedSize(480, 800)
-                                    holderState = holder
+                                    WestlakeVM.surfaceHolder = holder
+                                    WestlakeVM.onFrameCallback = { frameCount++ }
+                                    WestlakeVM.startPipeReader()
                                 }
-                                override fun surfaceChanged(holder: SurfaceHolder, format: Int, width: Int, height: Int) {}
-                                override fun surfaceDestroyed(holder: SurfaceHolder) { holderState = null }
+                                override fun surfaceChanged(holder: SurfaceHolder, f: Int, w: Int, h: Int) {}
+                                override fun surfaceDestroyed(holder: SurfaceHolder) {
+                                    WestlakeVM.surfaceHolder = null
+                                }
                             })
                         }
                     },
                     modifier = Modifier.fillMaxSize()
                 )
 
-                // Loading overlay
-                if (frameCount == 0) {
+                // Loading text — disabled to not interfere with SurfaceView creation
+                if (false && frameCount == 0) {
                     Column(
-                        modifier = Modifier.fillMaxSize().background(Color.Black),
+                        modifier = Modifier.fillMaxSize(),
                         horizontalAlignment = Alignment.CenterHorizontally,
                         verticalArrangement = Arrangement.Center
                     ) {

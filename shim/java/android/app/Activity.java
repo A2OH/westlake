@@ -275,6 +275,8 @@ public class Activity extends Context implements android.view.Window.Callback {
             int hSpec = android.view.View.MeasureSpec.makeMeasureSpec(mSurfaceHeight, android.view.View.MeasureSpec.EXACTLY);
             decorView.measure(wSpec, hSpec);
             decorView.layout(0, 0, mSurfaceWidth, mSurfaceHeight);
+            // Force BottomNavigationView to bottom of screen after layout
+            fixBottomNav(decorView, mSurfaceWidth, mSurfaceHeight);
             mLayoutDone = true;
             mLastDecorView = decorView;
             // Dump view tree bounds for debugging
@@ -286,6 +288,12 @@ public class Activity extends Context implements android.view.Window.Callback {
 
         android.graphics.Canvas canvas = new android.graphics.Canvas(canvasHandle, mSurfaceWidth, mSurfaceHeight);
         canvas.drawColor(DefaultTheme.COLOR_BG);
+
+        // Draw splash background image if available (sent as OP_IMAGE for host decoding)
+        byte[] splashImg = com.westlake.engine.WestlakeLauncher.splashImageData;
+        if (splashImg != null) {
+            com.ohos.shim.bridge.OHBridge.canvasDrawImage(canvasHandle, splashImg, 0, 0, mSurfaceWidth, mSurfaceHeight);
+        }
 
         int scrollY = decorView.getScrollY();
         if (scrollY != 0) {
@@ -304,6 +312,22 @@ public class Activity extends Context implements android.view.Window.Callback {
 
     /** Force re-layout on next renderFrame */
     public void invalidateLayout() { mLayoutDone = false; }
+
+    /** Force BottomNavigationView to bottom of screen after layout pass */
+    private void fixBottomNav(android.view.View root, int screenW, int screenH) {
+        if (root.getClass().getSimpleName().contains("BottomNavigationView")) {
+            int navH = root.getMeasuredHeight();
+            if (navH < 50) navH = 112;
+            root.layout(0, screenH - navH, screenW, screenH);
+            return;
+        }
+        if (root instanceof android.view.ViewGroup) {
+            android.view.ViewGroup vg = (android.view.ViewGroup) root;
+            for (int i = 0; i < vg.getChildCount(); i++) {
+                fixBottomNav(vg.getChildAt(i), screenW, screenH);
+            }
+        }
+    }
 
     private void dumpViewTree(android.view.View v, String indent, int depth) {
         if (depth > 8) return;
@@ -414,7 +438,9 @@ public class Activity extends Context implements android.view.Window.Callback {
     public void dump(Object p0, Object p1, Object p2, Object p3) {}
     public boolean enterPictureInPictureMode(Object p0) { return false; }
     public android.view.View findViewById(int id) {
-        return mWindow != null ? (android.view.View) mWindow.findViewById(id) : null;
+        android.view.View v = mWindow != null ? (android.view.View) mWindow.findViewById(id) : null;
+        // Return null for missing views — WestlakeInstrumentation catches NPE/ClassCastException
+        return v;
     }
     public Object findViewById(Object p0) {
         if (p0 instanceof Integer) return findViewById(((Integer) p0).intValue());

@@ -15,6 +15,11 @@ import java.io.File;
 import java.util.concurrent.Executor;
 
 public class Context {
+    // Real Android context for resource loading (set when running on app_process64)
+    private static Object sRealContext;
+    public static void setRealContext(Object ctx) { sRealContext = ctx; }
+    public static Object getRealContext() { return sRealContext; }
+
     // Service name constants (AOSP values)
     public static final String ACCESSIBILITY_SERVICE = "accessibility";
     public static final String ACCOUNT_SERVICE = "account";
@@ -159,20 +164,32 @@ public class Context {
         if (mAssets == null) mAssets = new AssetManager();
         return mAssets;
     }
-    public File getCacheDir() { return null; }
+    private static File sBaseDir;
+    private static File ensureBaseDir() {
+        if (sBaseDir == null) {
+            // Use the westlake data dir or fall back to /data/local/tmp/westlake/files
+            String base = System.getProperty("westlake.data.dir", "/data/local/tmp/westlake");
+            sBaseDir = new File(base);
+            new File(sBaseDir, "files").mkdirs();
+            new File(sBaseDir, "cache").mkdirs();
+            new File(sBaseDir, "databases").mkdirs();
+        }
+        return sBaseDir;
+    }
+    public File getCacheDir() { return new File(ensureBaseDir(), "cache"); }
     public ClassLoader getClassLoader() { return getClass().getClassLoader(); }
-    public File getCodeCacheDir() { return null; }
+    public File getCodeCacheDir() { return new File(ensureBaseDir(), "code_cache"); }
     public ContentResolver getContentResolver() {
         System.out.println("[Context] getContentResolver() called");
         return new ContentResolver(this);
     }
-    public File getDataDir() { return null; }
-    public File getDatabasePath(String p0) { return null; }
-    public File getDir(String p0, int p1) { return null; }
-    public File[] getExternalCacheDirs() { return null; }
-    public File[] getExternalFilesDirs(String p0) { return null; }
-    public File getFileStreamPath(String p0) { return null; }
-    public File getFilesDir() { return null; }
+    public File getDataDir() { return ensureBaseDir(); }
+    public File getDatabasePath(String p0) { return new File(new File(ensureBaseDir(), "databases"), p0); }
+    public File getDir(String p0, int p1) { File d = new File(ensureBaseDir(), "app_" + p0); d.mkdirs(); return d; }
+    public File[] getExternalCacheDirs() { return new File[]{ getCacheDir() }; }
+    public File[] getExternalFilesDirs(String p0) { return new File[]{ getFilesDir() }; }
+    public File getFileStreamPath(String p0) { return new File(getFilesDir(), p0); }
+    public File getFilesDir() { return new File(ensureBaseDir(), "files"); }
     public Executor getMainExecutor() {
         return new Executor() {
             @Override public void execute(Runnable r) { r.run(); }
@@ -222,7 +239,7 @@ public class Context {
                 new Class[]{String.class, int.class}, p0, p1);
             if (sp != null) {
                 // Wrap the host's real SP in our shim SP (copies data)
-                SharedPreferences shimSp = SharedPreferences.getInstance(p0);
+                SharedPreferences shimSp = SharedPreferencesImpl.getInstance(p0);
                 // Copy values from host SP to shim SP via reflection
                 try {
                     java.util.Map<String, ?> all = (java.util.Map<String, ?>)
@@ -243,7 +260,7 @@ public class Context {
                 return shimSp;
             }
         }
-        return SharedPreferences.getInstance(p0);
+        return SharedPreferencesImpl.getInstance(p0);
     }
     public Object getSystemService(String p0) {
         // Try host's real system services first (provides real WindowManager, LayoutInflater, etc.)
@@ -266,8 +283,12 @@ public class Context {
     public boolean isRestricted() { return false; }
     public boolean moveDatabaseFrom(Context p0, String p1) { return false; }
     public boolean moveSharedPreferencesFrom(Context p0, String p1) { return false; }
-    public java.io.FileInputStream openFileInput(String p0) { return null; }
-    public java.io.FileOutputStream openFileOutput(String p0, int p1) { return null; }
+    public java.io.FileInputStream openFileInput(String p0) throws java.io.FileNotFoundException {
+        return new java.io.FileInputStream(new java.io.File(getFilesDir(), p0));
+    }
+    public java.io.FileOutputStream openFileOutput(String p0, int p1) throws java.io.FileNotFoundException {
+        return new java.io.FileOutputStream(new java.io.File(getFilesDir(), p0), (p1 & 0x8000) != 0);
+    }
     public SQLiteDatabase openOrCreateDatabase(String p0, int p1, Object p2) { return null; }
     public SQLiteDatabase openOrCreateDatabase(String p0, int p1, Object p2, DatabaseErrorHandler p3) { return null; }
     public void registerComponentCallbacks(ComponentCallbacks p0) {}
@@ -334,7 +355,62 @@ public class Context {
         return new android.content.res.TypedArray();
     }
 
-    public android.graphics.drawable.Drawable getDrawable(int id) { return new android.graphics.drawable.ColorDrawable(0); }
+    public android.graphics.drawable.Drawable getDrawable(int id) {
+        // Try real Android context first (app_process64 mode)
+        Object realCtx = com.westlake.engine.WestlakeLauncher.sRealContext;
+        if (realCtx != null) {
+            try {
+                java.lang.reflect.Method m = realCtx.getClass().getMethod("getDrawable", int.class);
+                Object d = m.invoke(realCtx, id);
+                if (d instanceof android.graphics.drawable.Drawable) return (android.graphics.drawable.Drawable) d;
+            } catch (Throwable t) { /* fall through to shim */ }
+        }
+        // Shim fallback: load from resource table + file
+        // Check BOTH activity's and application's resource tables
+        android.content.res.Resources res = getResources();
+        android.content.res.ResourceTable table = null;
+        if (res != null) table = res.getResourceTable();
+        // Also try MiniServer's application Resources (has merged split tables)
+        if (table == null || table.getString(id) == null) {
+            try {
+                android.content.res.Resources appRes = android.app.MiniServer.get().getApplication().getResources();
+                if (appRes != null && appRes.getResourceTable() != null) {
+                    android.content.res.ResourceTable appTable = appRes.getResourceTable();
+                    if (appTable.getString(id) != null || appTable.getEntryFilePath(id) != null) {
+                        table = appTable;
+                    }
+                }
+            } catch (Throwable t) {}
+        }
+        if (table != null) {
+            if (table != null) {
+                String filePath = table.getString(id);
+                if (filePath == null) filePath = table.getEntryFilePath(id);
+                String name = table.getResourceName(id);
+                System.err.println("[Context] getDrawable(0x" + Integer.toHexString(id) + ") name=" + name + " path=" + filePath);
+                if (filePath != null) {
+                    String resDir = System.getProperty("westlake.apk.resdir");
+                    if (resDir != null) {
+                        java.io.File f = new java.io.File(resDir, filePath);
+                        if (f.exists()) {
+                            if (filePath.endsWith(".png") || filePath.endsWith(".webp") || filePath.endsWith(".jpg") || filePath.endsWith(".9.png")) {
+                                try {
+                                    android.graphics.Bitmap bmp = android.graphics.BitmapFactory.decodeFile(f.getAbsolutePath());
+                                    if (bmp != null) {
+                                        System.err.println("[Context] getDrawable(0x" + Integer.toHexString(id) + ") → " + filePath + " " + bmp.getWidth() + "x" + bmp.getHeight());
+                                        return new android.graphics.drawable.BitmapDrawable(res, bmp);
+                                    }
+                                } catch (Throwable t) { /* fall through */ }
+                            } else {
+                                System.err.println("[Context] getDrawable(0x" + Integer.toHexString(id) + ") → " + filePath + " (non-image, skipped)");
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        return new android.graphics.drawable.ColorDrawable(0);
+    }
     public android.content.res.Resources.Theme getTheme() { return new android.content.res.Resources.Theme(); }
     public boolean isAutofillCompatibilityEnabled() { return false; }
     public AutofillOptions getAutofillOptions() { return null; }

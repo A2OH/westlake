@@ -74,6 +74,15 @@ public class OHBridge {
         return nativeAvailable;
     }
 
+    // ── Image decoding (stb_image) ──────────────────────────────
+    /**
+     * Decode PNG/JPEG bytes to ARGB pixel array.
+     * Returns int[] = [width, height, pixel0, pixel1, ...] or null.
+     */
+    public static native int[] imageDecodeToPixels(byte[] data);
+    /** Draw ARGB pixel array to canvas at position */
+    public static native void canvasDrawArgbBitmap(long canvas, int[] pixels, float x, float y, int w, int h);
+
     // ── Preferences (SharedPreferences shim) ──────────────────────
 
     public static native long preferencesOpen(String name);
@@ -258,6 +267,8 @@ public class OHBridge {
     public static native void canvasDrawLine(long canvas, float x1, float y1, float x2, float y2, long pen);
     public static native void canvasDrawPath(long canvas, long path, long pen, long brush);
     public static native void canvasDrawBitmap(long canvas, long bitmap, float x, float y);
+    /** Draw raw image bytes (PNG/JPEG/WebP) — host decodes and renders */
+    public static native void canvasDrawImage(long canvas, byte[] imageData, float x, float y, int w, int h);
     public static native void canvasDrawText(long canvas, String text, float x, float y, long font, long pen, long brush);
     public static native void canvasSave(long canvas);
     public static native void canvasRestore(long canvas);

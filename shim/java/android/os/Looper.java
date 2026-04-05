@@ -13,9 +13,13 @@ public final class Looper {
 
     /** Call from the main thread before any other Looper use. */
     public static void prepareMainLooper() {
+        sMainThread = Thread.currentThread();
         if (sMainLooper == null) {
-            sMainThread = Thread.currentThread();
             sMainLooper = new Looper(sMainThread);
+        } else {
+            // Update the thread reference even if already initialized
+            // (static init may have captured a different thread)
+            sMainLooper.mThread = sMainThread;
         }
     }
 
@@ -31,7 +35,7 @@ public final class Looper {
         }
     };
 
-    private final Thread mThread;
+    private volatile Thread mThread;
     private final MessageQueue mQueue;
 
     private Looper(Thread thread) {
@@ -44,12 +48,10 @@ public final class Looper {
         return sMainLooper;
     }
 
-    /** Return the Looper for the calling thread. Returns main looper for the main thread. */
+    /** Return the Looper for the calling thread.
+     *  In Westlake engine: always returns main looper (single-threaded app execution). */
     public static Looper myLooper() {
-        if (Thread.currentThread() == sMainLooper.mThread) {
-            return sMainLooper;
-        }
-        return sThreadLocal.get();
+        return sMainLooper;
     }
 
     /** No-op — present so code that calls Looper.prepare() compiles. */

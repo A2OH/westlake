@@ -7720,22 +7720,29 @@ public abstract class ViewGroup extends View implements ViewParent, ViewManager 
         return result;
     }
 
+    private boolean mResolvingTextDirection;
     /**
      * @hide
      */
     @Override
     public boolean resolveTextDirection() {
-        final boolean result = super.resolveTextDirection();
-        if (result) {
-            int count = getChildCount();
-            for (int i = 0; i < count; i++) {
-                final View child = getChildAt(i);
-                if (child.isTextDirectionInherited()) {
-                    child.resolveTextDirection();
+        if (mResolvingTextDirection) return true; // prevent infinite recursion
+        mResolvingTextDirection = true;
+        try {
+            final boolean result = super.resolveTextDirection();
+            if (result) {
+                int count = getChildCount();
+                for (int i = 0; i < count; i++) {
+                    final View child = getChildAt(i);
+                    if (child.isTextDirectionInherited()) {
+                        child.resolveTextDirection();
+                    }
                 }
             }
+            return result;
+        } finally {
+            mResolvingTextDirection = false;
         }
-        return result;
     }
 
     /**
@@ -7806,15 +7813,8 @@ public abstract class ViewGroup extends View implements ViewParent, ViewManager 
     @TestApi
     @Override
     public void resetResolvedLayoutDirection() {
-        super.resetResolvedLayoutDirection();
-
-        int count = getChildCount();
-        for (int i = 0; i < count; i++) {
-            final View child = getChildAt(i);
-            if (child.isLayoutDirectionInherited()) {
-                child.resetResolvedLayoutDirection();
-            }
-        }
+        // No-op — layout direction is always LTR in Westlake engine.
+        // The recursive traversal causes StackOverflow on deeply nested views.
     }
 
     /**
@@ -7823,66 +7823,25 @@ public abstract class ViewGroup extends View implements ViewParent, ViewManager 
     @TestApi
     @Override
     public void resetResolvedTextDirection() {
-        super.resetResolvedTextDirection();
-
-        int count = getChildCount();
-        for (int i = 0; i < count; i++) {
-            final View child = getChildAt(i);
-            if (child.isTextDirectionInherited()) {
-                child.resetResolvedTextDirection();
-            }
-        }
+        // No-op — always LTR in Westlake engine
     }
 
-    /**
-     * @hide
-     */
     @TestApi
     @Override
     public void resetResolvedTextAlignment() {
-        super.resetResolvedTextAlignment();
-
-        int count = getChildCount();
-        for (int i = 0; i < count; i++) {
-            final View child = getChildAt(i);
-            if (child.isTextAlignmentInherited()) {
-                child.resetResolvedTextAlignment();
-            }
-        }
+        // No-op — always LTR in Westlake engine
     }
 
-    /**
-     * @hide
-     */
     @TestApi
     @Override
     public void resetResolvedPadding() {
-        super.resetResolvedPadding();
-
-        int count = getChildCount();
-        for (int i = 0; i < count; i++) {
-            final View child = getChildAt(i);
-            if (child.isLayoutDirectionInherited()) {
-                child.resetResolvedPadding();
-            }
-        }
+        // No-op — always LTR in Westlake engine
     }
 
-    /**
-     * @hide
-     */
     @TestApi
     @Override
     protected void resetResolvedDrawables() {
-        super.resetResolvedDrawables();
-
-        int count = getChildCount();
-        for (int i = 0; i < count; i++) {
-            final View child = getChildAt(i);
-            if (child.isLayoutDirectionInherited()) {
-                child.resetResolvedDrawables();
-            }
-        }
+        // No-op — always LTR in Westlake engine
     }
 
     /**

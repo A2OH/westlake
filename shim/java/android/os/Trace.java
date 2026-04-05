@@ -33,6 +33,11 @@ public final class Trace {
         return false;
     }
 
+    /** Returns whether tracing is enabled. Always false in shim. */
+    public static boolean isEnabled() {
+        return false;
+    }
+
     /** Writes a trace counter event. No-op in shim. */
     public static void setCounter(String counterName, long counterValue) {}
     public static void traceBegin(long traceTag, String methodName) {}

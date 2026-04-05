@@ -84,11 +84,11 @@ public class DefaultTheme {
     }
 
     private static void applyRecursive(View v) {
-        applyToView(v);
+        try { applyToView(v); } catch (Throwable t) { /* skip this view */ }
         if (v instanceof ViewGroup) {
             ViewGroup vg = (ViewGroup) v;
             for (int i = 0; i < vg.getChildCount(); i++) {
-                applyRecursive(vg.getChildAt(i));
+                try { applyRecursive(vg.getChildAt(i)); } catch (Throwable t) { break; }
             }
         }
     }

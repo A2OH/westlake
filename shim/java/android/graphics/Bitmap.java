@@ -20,11 +20,26 @@ public class Bitmap {
         HARDWARE
     }
 
+    public enum CompressFormat {
+        JPEG, PNG, WEBP, WEBP_LOSSY, WEBP_LOSSLESS
+    }
+
+    public boolean compress(CompressFormat format, int quality, java.io.OutputStream stream) {
+        // Stub — real implementation on app_process64 via framework Bitmap
+        return false;
+    }
+
     private final int width;
     private final int height;
     private final Config config;
     private boolean recycled = false;
     private long nativeHandle;
+    /** Raw image file bytes (PNG/JPEG/WebP) for pipe-mode rendering */
+    public byte[] mImageData;
+    /** Decoded ARGB pixel data */
+    public int[] mPixels;
+    public int mWidth;
+    public int mHeight;
 
     private Bitmap(int width, int height, Config config) {
         this.width  = width;
@@ -54,6 +69,15 @@ public class Bitmap {
         return bmp;
     }
 
+    /** Create a Bitmap holding raw image file bytes for pipe-mode rendering */
+    public static Bitmap createFromImageData(byte[] imageData, int width, int height) {
+        Bitmap bmp = new Bitmap(width > 0 ? width : 1, height > 0 ? height : 1, Config.ARGB_8888);
+        bmp.mImageData = imageData;
+        bmp.mWidth = width;
+        bmp.mHeight = height;
+        return bmp;
+    }
+
     private static int configToFormat(Config config) {
         if (config == null) return 0;
         switch (config) {
@@ -74,6 +98,25 @@ public class Bitmap {
     public int getHeight() { return height; }
     public Config getConfig() { return config; }
     public boolean isRecycled() { return recycled; }
+
+    public void setPixels(int[] pixels, int offset, int stride, int x, int y, int w, int h) {
+        if (mPixels == null) mPixels = new int[width * height];
+        for (int row = 0; row < h; row++) {
+            System.arraycopy(pixels, offset + row * stride, mPixels, (y + row) * width + x, w);
+        }
+    }
+
+    public void getPixels(int[] pixels, int offset, int stride, int x, int y, int w, int h) {
+        if (mPixels == null) return;
+        for (int row = 0; row < h; row++) {
+            System.arraycopy(mPixels, (y + row) * width + x, pixels, offset + row * stride, w);
+        }
+    }
+
+    public int getPixel(int x, int y) {
+        if (mPixels != null && x >= 0 && y >= 0 && x < width && y < height) return mPixels[y * width + x];
+        return 0;
+    }
 
     public void recycle() {
         if (nativeHandle != 0) { OHBridge.bitmapDestroy(nativeHandle); nativeHandle = 0; }
@@ -98,10 +141,7 @@ public class Bitmap {
         if (nativeHandle != 0) OHBridge.bitmapSetPixel(nativeHandle, x, y, color);
     }
 
-    public int getPixel(int x, int y) {
-        if (nativeHandle != 0) return OHBridge.bitmapGetPixel(nativeHandle, x, y);
-        return 0;
-    }
+    // getPixel already defined above with mPixels support
 
     // Methods needed for View.java compilation
     public void eraseColor(int color) { /* no-op */ }

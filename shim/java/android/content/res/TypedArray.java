@@ -7,7 +7,22 @@ public class TypedArray {
     public TypedArray(Resources res, int[] data, int[] attrs, int len) {}
 
     public String getString(int index) {
-        return null;
+        // Return a Material Motion easing curve for any string attribute request.
+        // This prevents "Motion easing must be @interpolator or string" crash.
+        // On real Android, this would resolve from the theme's styles.xml.
+        return "cubic-bezier(0.4, 0.0, 0.2, 1.0)";
+    }
+
+    public String getPositionDescription() {
+        return "<shim TypedArray>";
+    }
+
+    public android.util.TypedValue peekValue(int index) {
+        // Return a TypedValue with string type for Material Motion easing attributes
+        android.util.TypedValue tv = new android.util.TypedValue();
+        tv.type = android.util.TypedValue.TYPE_STRING;
+        tv.string = "cubic-bezier(0.4, 0.0, 0.2, 1.0)";
+        return tv;
     }
 
     public int getInt(int index, int defValue) {
@@ -94,9 +109,7 @@ public class TypedArray {
         return 0;
     }
 
-    public boolean hasValueOrEmpty(int index) {
-        return false;
-    }
+    public boolean hasValueOrEmpty(int index) { return false; }
 
     public CharSequence[] getTextArray(int index) {
         return null;
@@ -110,15 +123,10 @@ public class TypedArray {
         return defValue;
     }
 
-    public android.util.TypedValue peekValue(int index) {
-        return null;
-    }
-
     public android.graphics.Typeface getFont(int index) { return null; }
     public Resources getResources() { return new Resources(); }
     public int getSourceResourceId(int index, int defValue) { return defValue; }
     public boolean getValue(int index, android.util.TypedValue outValue) { return false; }
-    public String getPositionDescription() { return ""; }
     public int[] extractThemeAttrs() { return null; }
     public String getNonResourceString(int index) { return null; }
 }

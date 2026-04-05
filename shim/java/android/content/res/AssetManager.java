@@ -7,19 +7,27 @@ import java.io.InputStream;
 
 public class AssetManager {
     private File mAssetDir;
+    private static File sGlobalAssetDir;  // shared across all AssetManager instances
 
     /** Set the root directory where APK assets were extracted. */
     public void setAssetDir(String path) {
         mAssetDir = (path != null) ? new File(path) : null;
+        if (mAssetDir != null) sGlobalAssetDir = mAssetDir;
     }
 
     public InputStream open(String fileName) throws IOException {
-        if (mAssetDir != null) {
-            File f = new File(mAssetDir, fileName);
-            if (f.exists() && f.isFile()) {
-                return new FileInputStream(f);
+        // Try instance dir first, then global dir
+        File[] dirs = { mAssetDir, sGlobalAssetDir };
+        for (File dir : dirs) {
+            if (dir != null) {
+                File f = new File(dir, fileName);
+                if (f.exists() && f.isFile()) {
+                    System.err.println("[AssetManager] open(" + fileName + ") -> " + f.getAbsolutePath() + " (" + f.length() + " bytes)");
+                    return new FileInputStream(f);
+                }
             }
         }
+        System.err.println("[AssetManager] open(" + fileName + ") NOT FOUND (local=" + mAssetDir + " global=" + sGlobalAssetDir + ")");
         throw new IOException("Asset not found: " + fileName);
     }
 

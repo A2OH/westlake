@@ -87,6 +87,47 @@ public class MiniActivityManager {
             return;
         }
 
+        // Inject DI fields directly from the singleton component
+        // The Hilt injection mechanism fails because componentManager() silently catches errors.
+        // We bypass Hilt entirely: get the singleton component and call inject directly.
+        try {
+            Object singleton = dagger.hilt.android.internal.managers.ApplicationComponentManager.singletonComponent;
+            Log.d(TAG, "  Singleton component: " + (singleton != null ? singleton.getClass().getName() : "NULL"));
+            if (singleton != null) {
+                // The singleton implements DataSourceModuleProvider transitively (via SingletonC interface)
+                // Try casting directly — if it works, the activity can access it too
+                for (Class<?> iface : singleton.getClass().getInterfaces()) {
+                    if (iface.getName().contains("DataSourceModuleProvider")) {
+                        Log.d(TAG, "  Singleton DOES implement DataSourceModuleProvider!");
+                    }
+                }
+                // Set null interface fields on the activity to the singleton (which implements them transitively)
+                int injected = 0;
+                Class<?> cls = activity.getClass();
+                while (cls != null && cls != Object.class) {
+                    for (java.lang.reflect.Field f : cls.getDeclaredFields()) {
+                        if (java.lang.reflect.Modifier.isStatic(f.getModifiers())) continue;
+                        Class<?> ftype = f.getType();
+                        if (!ftype.isInterface()) continue;
+                        f.setAccessible(true);
+                        if (f.get(activity) != null) continue;
+                        // Check if singleton implements this interface (transitively)
+                        if (ftype.isInstance(singleton)) {
+                            f.set(activity, singleton);
+                            Log.d(TAG, "  Set " + f.getName() + " = singleton (implements " + ftype.getSimpleName() + ")");
+                            injected++;
+                        }
+                    }
+                    cls = cls.getSuperclass();
+                }
+                Log.d(TAG, "  Injected " + injected + " fields from singleton component");
+            }
+        } catch (Throwable t) {
+            Log.d(TAG, "  Direct DI injection failed: " + t.getMessage());
+        }
+        // Fill null DI fields
+        dagger.hilt.android.internal.managers.ActivityComponentManager.fillNullInterfaceFields(activity);
+
         // Initialize framework state (via reflection — on real Android, Activity fields differ)
         ShimCompat.setActivityField(activity, "mIntent", intent);
         ShimCompat.setActivityField(activity, "mComponent", component);
@@ -119,6 +160,14 @@ public class MiniActivityManager {
         } catch (Throwable e) {
             Log.e(TAG, "startActivity performCreate threw: " + e.getClass().getSimpleName() + ": " + e.getMessage());
         }
+        // Check if onCreate set content — if not, skip start/resume (avoids lifecycle observer hangs)
+        boolean hasContent = false;
+        try {
+            android.view.View decor = record.activity.getWindow() != null ? record.activity.getWindow().getDecorView() : null;
+            hasContent = decor instanceof android.view.ViewGroup && ((android.view.ViewGroup) decor).getChildCount() > 0;
+        } catch (Throwable e) { /* ignore */ }
+        // Always continue lifecycle — NPE in super.onCreate() doesn't mean the activity is dead.
+        // The activity might set content in onStart/onResume or via delayed navigation.
         try {
             performStart(record);
             Log.d(TAG, "  performStart DONE for " + className);
@@ -130,6 +179,9 @@ public class MiniActivityManager {
             Log.d(TAG, "  performResume DONE for " + className);
         } catch (Throwable e) {
             Log.e(TAG, "startActivity performResume threw: " + e.getClass().getSimpleName() + ": " + e.getMessage());
+        }
+        if (!hasContent) {
+            Log.w(TAG, "Note: onCreate didn't set content view (NPE in super) — splash fallback will be used if needed");
         }
     }
 
@@ -265,18 +317,24 @@ public class MiniActivityManager {
                 try {
                     actRef.onCreate(ssRef);
                     done[0] = true;
-                } catch (Exception e) {
-                    error[0] = e;
+                } catch (Throwable e) {
+                    error[0] = (e instanceof Exception) ? (Exception) e : new RuntimeException(e);
                     done[0] = true;
                 }
             }
         }, "ActivityOnCreate");
         ocThread.setDaemon(true);
         ocThread.start();
-        try { ocThread.join(60000); } catch (InterruptedException ie) {}
+        try { ocThread.join(5000); } catch (InterruptedException ie) {}
+        // CRITICAL: Stop the thread if still running to prevent GC deadlock.
+        // SplashActivity.onCreate may catch UUID errors and continue with DI code
+        // that never reaches a safepoint, causing nonconcurrent GC to freeze all threads.
+        if (ocThread.isAlive()) {
+            try { ocThread.stop(); } catch (Throwable t) { /* ThreadDeath expected */ }
+        }
 
         if (!done[0]) {
-            Log.w(TAG, "performCreate TIMEOUT (60s) for " + r.component.getClassName() + " — proceeding");
+            Log.w(TAG, "performCreate TIMEOUT (5s) for " + r.component.getClassName() + " — proceeding");
         } else if (error[0] instanceof NullPointerException) {
             Log.w(TAG, "performCreate NPE (non-fatal): " + error[0].getMessage());
             createNPE = true;
@@ -284,8 +342,34 @@ public class MiniActivityManager {
             Log.e(TAG, "performCreate error: " + error[0].getClass().getSimpleName() + ": " + error[0].getMessage());
         }
 
-        // If onCreate NPE'd (e.g., ActionBar null), try to discover and add missing fragments
-        if (createNPE) {
+        // If onCreate NPE'd, try to manually set content view with the splash layout
+        if (createNPE || !done[0]) {
+            Log.d(TAG, "  tryRecoverContent: attempting manual setContentView for " + r.component.getClassName());
+            // Fill null interface fields with dynamic Proxies (surviving DI failure)
+            fillNullFieldsWithProxies(r.activity);
+            // Retry onCreate with non-null stub fields
+            try {
+                Log.d(TAG, "  Retrying onCreate with stub DI fields...");
+                r.activity.onCreate(null);
+                Log.d(TAG, "  Retry onCreate SUCCESS");
+            } catch (Throwable retryEx) {
+                Log.d(TAG, "  Retry onCreate failed: " + retryEx.getClass().getSimpleName() + ": " + retryEx.getMessage());
+            }
+            try {
+                // Try setContentView with the splash layout resource ID
+                // First try via getIdentifier, then hardcoded McDonald's splash ID
+                android.content.res.Resources res = r.activity.getResources();
+                int layoutId = 0;
+                if (res != null) {
+                    layoutId = res.getIdentifier("activity_splash_screen", "layout",
+                            r.component.getPackageName());
+                }
+                if (layoutId == 0) layoutId = 0x7f0e0530; // McDonald's splash layout
+                r.activity.setContentView(layoutId);
+                Log.d(TAG, "  tryRecoverContent: setContentView(0x" + Integer.toHexString(layoutId) + ") OK");
+            } catch (Throwable ex) {
+                Log.d(TAG, "  tryRecoverContent failed: " + ex.getMessage());
+            }
             tryRecoverFragments(r.activity);
         }
         try {
@@ -299,6 +383,52 @@ public class MiniActivityManager {
      * After an NPE in onCreate (often from getSupportActionBar()), the fragment setup
      * code was skipped. Try to discover Fragment classes and add them to empty containers.
      */
+
+    /**
+     * Fill null fields in the activity (and superclasses) with dynamic Proxy stubs.
+     * This recovers from DI injection failures by providing non-null stub implementations
+     * for interface-typed fields.
+     */
+    private void fillNullFieldsWithProxies(Activity activity) {
+        int filled = 0;
+        try {
+            Class<?> cls = activity.getClass();
+            while (cls != null && cls != Object.class) {
+                for (java.lang.reflect.Field f : cls.getDeclaredFields()) {
+                    if (java.lang.reflect.Modifier.isStatic(f.getModifiers())) continue;
+                    Class<?> type = f.getType();
+                    if (!type.isInterface()) continue;
+                    f.setAccessible(true);
+                    if (f.get(activity) != null) continue;
+                    // Create a Proxy that returns null/0/false for all methods
+                    try {
+                        Object proxy = java.lang.reflect.Proxy.newProxyInstance(
+                            type.getClassLoader(),
+                            new Class<?>[]{ type },
+                            new java.lang.reflect.InvocationHandler() {
+                                @Override
+                                public Object invoke(Object p, java.lang.reflect.Method m, Object[] args) {
+                                    Class<?> rt = m.getReturnType();
+                                    if (rt == void.class) return null;
+                                    if (rt == boolean.class) return false;
+                                    if (rt == int.class) return 0;
+                                    if (rt == long.class) return 0L;
+                                    if (rt == float.class) return 0f;
+                                    if (rt == double.class) return 0.0;
+                                    if (rt == String.class) return "";
+                                    return null;
+                                }
+                            });
+                        f.set(activity, proxy);
+                        filled++;
+                    } catch (Throwable ex) { /* skip this field */ }
+                }
+                cls = cls.getSuperclass();
+            }
+        } catch (Throwable t) { /* reflection failure */ }
+        if (filled > 0) Log.d(TAG, "  fillNullFieldsWithProxies: filled " + filled + " null interface fields");
+    }
+
     private void tryRecoverFragments(Activity activity) {
         try {
             // Initialize any null SharedPreferences fields on the activity
@@ -462,7 +592,7 @@ public class MiniActivityManager {
             android.view.LayoutInflater inflater = android.view.LayoutInflater.from(activity);
 
             // Get first counter name from SharedPreferences
-            android.content.SharedPreferences prefs = android.content.SharedPreferences.getInstance("counters");
+            android.content.SharedPreferences prefs = android.content.SharedPreferencesImpl.getInstance("counters");
             java.util.Map<String, ?> all = prefs.getAll();
             String firstCounter = all.isEmpty() ? "My Counter" : all.keySet().iterator().next();
 
@@ -507,7 +637,7 @@ public class MiniActivityManager {
                                 if (cf.get(app) == null) {
                                     // Build counters from SharedPreferences
                                     java.util.LinkedHashMap<String, Integer> data = new java.util.LinkedHashMap<>();
-                                    android.content.SharedPreferences sp = android.content.SharedPreferences.getInstance("counters");
+                                    android.content.SharedPreferences sp = android.content.SharedPreferencesImpl.getInstance("counters");
                                     for (java.util.Map.Entry<String, ?> entry : sp.getAll().entrySet()) {
                                         if (entry.getValue() instanceof Integer)
                                             data.put(entry.getKey(), (Integer) entry.getValue());
@@ -532,7 +662,7 @@ public class MiniActivityManager {
                     fragView = inflater.inflate(0x7f030018, mc, false); // counter.xml
                     if (fragView != null) {
                         final android.content.SharedPreferences sp =
-                            android.content.SharedPreferences.getInstance("counters");
+                            android.content.SharedPreferencesImpl.getInstance("counters");
                         Object val = sp.getAll().get(firstCounter);
                         final int[] count = { (val instanceof Integer) ? (Integer) val : 0 };
 
@@ -838,20 +968,15 @@ public class MiniActivityManager {
         if (!resumeDone[0]) Log.w(TAG, "performResume TIMEOUT (10s) for " + r.component.getClassName());
         try {
             r.activity.onPostResume();
-        } catch (NullPointerException e) {
-            Log.w(TAG, "onPostResume NPE (non-fatal): " + e.getMessage());
-        } catch (IllegalAccessError e) {
-            try {
-                java.lang.reflect.Method m = Activity.class.getDeclaredMethod("onPostResume");
-                m.setAccessible(true);
-                m.invoke(r.activity);
-            } catch (Exception ex) { /* onPostResume is optional */ }
+        } catch (Throwable e) {
+            Log.w(TAG, "onPostResume error (non-fatal): " + e.getClass().getSimpleName() + ": " + e.getMessage());
         }
         try {
             dispatchLifecycleEvent(r.activity, "ON_RESUME");
-        } catch (Exception e) {
-            Log.w(TAG, "performResume lifecycle dispatch error: " + e.getMessage());
+        } catch (Throwable e) {
+            Log.w(TAG, "performResume lifecycle dispatch error: " + e.getClass().getSimpleName() + ": " + e.getMessage());
         }
+        Log.d(TAG, "  performResume completed for " + r.component.getClassName());
     }
 
     private void performPause(ActivityRecord r) {

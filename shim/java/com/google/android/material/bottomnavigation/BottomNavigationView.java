@@ -3,35 +3,28 @@ package com.google.android.material.bottomnavigation;
 import android.content.Context;
 import android.util.AttributeSet;
 import android.view.MenuItem;
-import android.widget.LinearLayout;
-import android.widget.TextView;
+import com.google.android.material.navigation.NavigationBarView;
 
 /**
- * Minimal BottomNavigationView shim — renders as a horizontal LinearLayout with tab labels.
+ * BottomNavigationView shim — extends NavigationBarView.
+ * Renders as a horizontal bar with tab labels at the bottom.
  */
-public class BottomNavigationView extends LinearLayout {
+public class BottomNavigationView extends NavigationBarView {
     private OnNavigationItemSelectedListener mListener;
-    private int mSelectedItemId = -1;
 
     public BottomNavigationView(Context context) { super(context); init(); }
     public BottomNavigationView(Context context, AttributeSet attrs) { super(context, attrs); init(); }
 
     private void init() {
-        setOrientation(HORIZONTAL);
-        setBackgroundColor(0xFF212121);
+        setBackgroundColor(0xFF27251F); // McD dark
         setPadding(0, 8, 0, 8);
+        // Set a minimum height so it's visible
+        setMinimumHeight(112);
     }
 
     public void setOnNavigationItemSelectedListener(OnNavigationItemSelectedListener listener) {
         mListener = listener;
     }
-
-    public int getSelectedItemId() { return mSelectedItemId; }
-    public void setSelectedItemId(int id) { mSelectedItemId = id; }
-    public android.view.Menu getMenu() { return null; }
-    public void setLabelVisibilityMode(int mode) {}
-    public void setItemIconTintList(android.content.res.ColorStateList tint) {}
-    public void setItemTextColor(android.content.res.ColorStateList color) {}
 
     public interface OnNavigationItemSelectedListener {
         boolean onNavigationItemSelected(MenuItem item);

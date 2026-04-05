@@ -25566,6 +25566,10 @@ public class View implements Drawable.Callback, KeyEvent.Callback,
      * {@link #MEASURED_STATE_TOO_SMALL}.
      */
     protected final void setMeasuredDimension(int measuredWidth, int measuredHeight) {
+        // Cap dimensions to prevent layout explosion from oversized drawables/vectors
+        // Only cap extremely large values (>10x screen) — let LinearLayout weight work normally
+        if (measuredWidth > 5000) measuredWidth = 480;
+        if (measuredHeight > 5000) measuredHeight = 800;
         boolean optical = isLayoutModeOptical(this);
         if (optical != isLayoutModeOptical(mParent)) {
             Insets insets = getOpticalInsets();

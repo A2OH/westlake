@@ -162,26 +162,44 @@ public class Canvas {
 
     public void drawBitmap(Bitmap bitmap, float left, float top, Paint paint) {
         if (nativeCanvas != 0 && bitmap != null) {
-            OHBridge.canvasDrawBitmap(nativeCanvas, bitmap.getNativeHandle(), left, top);
+            int bw = bitmap.getWidth(), bh = bitmap.getHeight();
+            // Skip views with insane dimensions (corrupt layout)
+            if (bw > 4000 || bh > 4000) return;
+            if (bitmap.mPixels != null && bw * bh <= 4096) {
+                // Small decoded ARGB pixels — send through OP_ARGB_BITMAP (skip large to avoid dlist overflow)
+                OHBridge.canvasDrawArgbBitmap(nativeCanvas, bitmap.mPixels, left, top, bw, bh);
+            } else if (bitmap.mImageData != null) {
+                // Raw image file bytes — host decodes via OP_IMAGE
+                OHBridge.canvasDrawImage(nativeCanvas, bitmap.mImageData, left, top, bw, bh);
+            } else {
+                OHBridge.canvasDrawBitmap(nativeCanvas, bitmap.getNativeHandle(), left, top);
+            }
         }
     }
 
     public void drawBitmap(Bitmap bitmap, Rect src, Rect dst, Paint paint) {
         if (nativeCanvas == 0 || bitmap == null || dst == null) return;
-        // Save, translate+scale to map src→dst, draw at origin, restore
-        save();
-        translate(dst.left, dst.top);
-        float dstW = dst.width();
-        float dstH = dst.height();
-        float srcW = (src != null) ? src.width() : bitmap.getWidth();
-        float srcH = (src != null) ? src.height() : bitmap.getHeight();
-        if (srcW > 0 && srcH > 0) {
-            scale(dstW / srcW, dstH / srcH);
+        if (bitmap.mPixels != null && bitmap.getWidth() * bitmap.getHeight() <= 4096) {
+            OHBridge.canvasDrawArgbBitmap(nativeCanvas, bitmap.mPixels,
+                    (float) dst.left, (float) dst.top, dst.width(), dst.height());
+        } else if (bitmap.mImageData != null) {
+            OHBridge.canvasDrawImage(nativeCanvas, bitmap.mImageData,
+                    (float) dst.left, (float) dst.top, dst.width(), dst.height());
+        } else {
+            save();
+            translate(dst.left, dst.top);
+            float dstW = dst.width();
+            float dstH = dst.height();
+            float srcW = (src != null) ? src.width() : bitmap.getWidth();
+            float srcH = (src != null) ? src.height() : bitmap.getHeight();
+            if (srcW > 0 && srcH > 0) {
+                scale(dstW / srcW, dstH / srcH);
+            }
+            float srcX = (src != null) ? -src.left : 0;
+            float srcY = (src != null) ? -src.top : 0;
+            OHBridge.canvasDrawBitmap(nativeCanvas, bitmap.getNativeHandle(), srcX, srcY);
+            restore();
         }
-        float srcX = (src != null) ? -src.left : 0;
-        float srcY = (src != null) ? -src.top : 0;
-        OHBridge.canvasDrawBitmap(nativeCanvas, bitmap.getNativeHandle(), srcX, srcY);
-        restore();
     }
 
     public void drawBitmap(Bitmap bitmap, Rect src, RectF dst, Paint paint) {

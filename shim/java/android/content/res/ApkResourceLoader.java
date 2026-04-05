@@ -35,7 +35,7 @@ public class ApkResourceLoader {
             if (arscEntry != null) {
                 byte[] arscData = readEntry(zip, arscEntry);
                 ResourceTableParser.parse(arscData, res);
-                System.out.println("[ApkResourceLoader] resources.arsc: " + arscData.length +
+                System.err.println("[ApkResourceLoader] resources.arsc: " + arscData.length +
                     " bytes, strings=" + res.getResourceTable().getStringCount() +
                     " integers=" + res.getResourceTable().getIntegerCount());
             }
@@ -45,7 +45,7 @@ public class ApkResourceLoader {
 
             zip.close();
         } catch (Exception e) {
-            System.out.println("[ApkResourceLoader] Error: " + e.getMessage());
+            System.err.println("[ApkResourceLoader] Error: " + e.getMessage());
         }
         return res;
     }

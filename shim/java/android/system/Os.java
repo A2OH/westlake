@@ -251,7 +251,7 @@ public final class Os {
                 return 100L;
             case OsConstants._SC_NPROCESSORS_CONF:
             case OsConstants._SC_NPROCESSORS_ONLN:
-                return Runtime.getRuntime().availableProcessors();
+                return 4L; // Hardcoded — avoids infinite recursion with Runtime.availableProcessors()
             case OsConstants._SC_OPEN_MAX:
                 return 1024L;
             default:

@@ -2,6 +2,7 @@ package android.preference;
 
 import android.content.Context;
 import android.content.SharedPreferences;
+import android.content.SharedPreferencesImpl;
 
 /**
  * Shim: android.preference.PreferenceManager
@@ -36,7 +37,7 @@ public class PreferenceManager {
     }
 
     public SharedPreferences getSharedPreferences() {
-        return SharedPreferences.getInstance("default_preferences");
+        return SharedPreferencesImpl.getInstance("default_preferences");
     }
 
     public void setSharedPreferencesName(String sharedPreferencesName) {}

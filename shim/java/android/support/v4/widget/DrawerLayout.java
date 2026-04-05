@@ -23,6 +23,26 @@ public class DrawerLayout extends ViewGroup {
     public DrawerLayout(Context context, AttributeSet attrs, int defStyle) { super(context, attrs, defStyle); }
 
     @Override
+    public void addView(View child, int index, LayoutParams params) {
+        super.addView(child, index, params);
+        // Hide drawer panels (all children after the first are drawers)
+        if (getChildCount() > 1 && child != getChildAt(0)) {
+            child.setVisibility(View.GONE);
+        }
+    }
+
+    @Override
+    protected void dispatchDraw(android.graphics.Canvas canvas) {
+        // Only draw the first child (main content). Drawer panels are hidden.
+        if (getChildCount() > 0) {
+            View content = getChildAt(0);
+            if (content.getVisibility() != GONE) {
+                content.draw(canvas);
+            }
+        }
+    }
+
+    @Override
     protected void onMeasure(int widthMeasureSpec, int heightMeasureSpec) {
         int width = MeasureSpec.getSize(widthMeasureSpec);
         int height = MeasureSpec.getSize(heightMeasureSpec);

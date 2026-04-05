@@ -56,7 +56,7 @@ public class BaseDexClassLoader extends ClassLoader {
         return null;
     }
 
-    private static String[] splitByChar(String s, char delim) {
+    public static String[] splitByChar(String s, char delim) {
         java.util.List<String> parts = new java.util.ArrayList<>();
         int start = 0;
         for (int i = 0; i <= s.length(); i++) {

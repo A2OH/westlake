@@ -52,6 +52,17 @@ public class Application extends Context {
     void setPackageName(String pkg) { mPackageName = pkg; }
 
     public static String getProcessName() { return null; }
+
+    // Hilt/Dagger: obfuscated componentManager() — returns ApplicationComponentManager
+    // McD app calls Application.b() to get the GeneratedComponentManager
+    private dagger.hilt.android.internal.managers.ApplicationComponentManager mComponentManager;
+    public dagger.hilt.android.internal.managers.ApplicationComponentManager b() {
+        if (mComponentManager == null) {
+            mComponentManager = new dagger.hilt.android.internal.managers.ApplicationComponentManager(null);
+        }
+        return mComponentManager;
+    }
+    public Object componentManager() { return b(); }
     public void registerActivityLifecycleCallbacks(ActivityLifecycleCallbacks cb) {
         if (cb != null) mCallbacks.add(cb);
     }

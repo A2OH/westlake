@@ -1145,6 +1145,9 @@ public class ImageView extends View {
             h = mDrawableHeight;
             if (w <= 0) w = 1;
             if (h <= 0) h = 1;
+            // Cap intrinsic size to prevent layout explosion from huge vector drawables
+            if (w > 1000) w = 1000;
+            if (h > 1000) h = 1000;
 
             // We are supposed to adjust view bounds to match the aspect
             // ratio of our drawable. See if that is possible.
@@ -1233,6 +1236,9 @@ public class ImageView extends View {
             heightSize = resolveSizeAndState(h, heightMeasureSpec, 0);
         }
 
+        // Cap measured dimensions to prevent layout explosion from corrupt/oversized drawables
+        if (widthSize > 2000) widthSize = 2000;
+        if (heightSize > 2000) heightSize = 2000;
         setMeasuredDimension(widthSize, heightSize);
     }
 

@@ -106,13 +106,73 @@ class WestlakeActivity : ComponentActivity() {
             return
         }
         if (className == "WESTLAKE_VM_MCD") {
-            Log.i(TAG, "Launching McDonald's VM")
-            val config = ApkVmConfig(
-                packageName = "com.mcdonalds.app",
-                activityName = "com.mcdonalds.mcdcoreapp.common.activity.SplashActivity",
-                displayName = "McDonald's"
-            )
-            setContent { WestlakeVMApkScreen(config) }
+            Log.i(TAG, "Launching McDonald's VM (raw SurfaceView)")
+            // Disable edge-to-edge to prevent SurfaceView destruction during window setup
+            window.clearFlags(android.view.WindowManager.LayoutParams.FLAG_DRAWS_SYSTEM_BAR_BACKGROUNDS)
+            // Use raw Android layout instead of Compose to avoid SurfaceView lifecycle issues
+            val sv = android.view.SurfaceView(this)
+            sv.holder.addCallback(object : android.view.SurfaceHolder.Callback {
+                override fun surfaceCreated(holder: android.view.SurfaceHolder) {
+                    Log.i(TAG, "McD SurfaceCreated ${holder.surfaceFrame}")
+                    // Don't setFixedSize — it destroys the surface. Scale during rendering instead.
+                    WestlakeVM.surfaceHolder = holder
+                    WestlakeVM.startPipeReader()
+                }
+                override fun surfaceChanged(holder: android.view.SurfaceHolder, f: Int, w: Int, h2: Int) {
+                    Log.i(TAG, "McD SurfaceChanged ${w}x${h2}")
+                    WestlakeVM.surfaceHolder = holder
+                    WestlakeVM.startPipeReader()
+                }
+                override fun surfaceDestroyed(holder: android.view.SurfaceHolder) {
+                    Log.i(TAG, "McD SurfaceDestroyed (NOT clearing holder)")
+                    // Don't clear holder — the surface will be recreated and we keep the reference
+                }
+            })
+            // Touch handling
+            sv.setOnTouchListener { _, event ->
+                val sx = 480f / sv.width; val sy = 800f / sv.height
+                when (event.action) {
+                    android.view.MotionEvent.ACTION_DOWN -> WestlakeVM.sendTouch(0, event.x * sx, event.y * sy)
+                    android.view.MotionEvent.ACTION_MOVE -> WestlakeVM.sendTouch(2, event.x * sx, event.y * sy)
+                    android.view.MotionEvent.ACTION_UP -> WestlakeVM.sendTouch(1, event.x * sx, event.y * sy)
+                }
+                true
+            }
+            // Use ImageView + Bitmap — simplest rendering approach, no surface lifecycle issues
+            val imageView = android.widget.ImageView(this)
+            imageView.scaleType = android.widget.ImageView.ScaleType.FIT_XY
+            imageView.setBackgroundColor(android.graphics.Color.BLACK)
+            val bitmap = android.graphics.Bitmap.createBitmap(480, 800, android.graphics.Bitmap.Config.ARGB_8888)
+            imageView.setImageBitmap(bitmap)
+            WestlakeVM.surfaceHolder = bitmap  // pass bitmap as render target
+            WestlakeVM.onFrameCallback = {
+                Log.i(TAG, "onFrame → invalidate")
+                imageView.postInvalidate()  // thread-safe invalidate
+            }
+            // Touch
+            imageView.setOnTouchListener { _, event ->
+                val sx = 480f / imageView.width; val sy = 800f / imageView.height
+                when (event.action) {
+                    android.view.MotionEvent.ACTION_DOWN -> WestlakeVM.sendTouch(0, event.x * sx, event.y * sy)
+                    android.view.MotionEvent.ACTION_MOVE -> WestlakeVM.sendTouch(2, event.x * sx, event.y * sy)
+                    android.view.MotionEvent.ACTION_UP -> WestlakeVM.sendTouch(1, event.x * sx, event.y * sy)
+                }
+                true
+            }
+            setContentView(imageView)
+            // Start VM on background thread
+            Thread({
+                val config = ApkVmConfig(
+                    packageName = "com.mcdonalds.app",
+                    activityName = "com.mcdonalds.mcdcoreapp.common.activity.SplashActivity",
+                    displayName = "McDonald's"
+                )
+                val resolvedConfig = try {
+                    val appInfo = packageManager.getApplicationInfo(config.packageName, 0)
+                    config.copy(apkSourceDir = appInfo.sourceDir)
+                } catch (e: Exception) { config }
+                WestlakeVM.startWithConfig(resolvedConfig)
+            }, "VMStarter").start()
             return
         }
         if (className.startsWith("VM_APK:")) {
@@ -196,13 +256,22 @@ class WestlakeActivity : ComponentActivity() {
         instance = this
         Log.i(TAG, "WestlakeActivity onCreate (ComponentActivity + Compose)")
 
-        // Show Compose UI immediately
-        setContent {
-            WestlakeHome()
+        // Check for auto-launch intent extra (e.g., --es launch WESTLAKE_VM_MCD)
+        val autoLaunch = intent?.getStringExtra("launch")
+        if (autoLaunch != null) {
+            Log.i(TAG, "Auto-launching: $autoLaunch")
+            launchCustomApp(autoLaunch, null, "")
+        } else {
+            // Show Compose UI immediately
+            setContent {
+                WestlakeHome()
+            }
         }
 
-        // Load engine DEX files in background
-        Thread(Runnable { loadEngine() }, "WestlakeEngine").start()
+        // Load engine DEX files in background (skip for McD raw SurfaceView mode)
+        if (autoLaunch != "WESTLAKE_VM_MCD") {
+            Thread(Runnable { loadEngine() }, "WestlakeEngine").start()
+        }
     }
 
     private fun loadEngine() {

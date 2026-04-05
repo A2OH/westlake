@@ -55,14 +55,17 @@ public class ResourceTableParser {
         if (data == null || resources == null) return;
         if (data.length < 12) return;
 
-        ResourceTable table = new ResourceTable();
-        table.parse(data);
+        // If Resources already has a table, parse INTO it (merging split resources)
+        ResourceTable table = resources.getResourceTable();
+        if (table != null) {
+            table.parse(data);
+        } else {
+            table = new ResourceTable();
+            table.parse(data);
+            resources.loadResourceTable(table);
+        }
 
-        // Attach the table so Resources can use it for lookups
-        resources.loadResourceTable(table);
-
-        // Also push every parsed entry into the registry so the
-        // values survive even if the ResourceTable reference is cleared.
+        // Also push every parsed entry into the registry
         String[] globalPool = table.getGlobalStringPool();
 
         // Walk all possible resource IDs that the table knows about.

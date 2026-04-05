@@ -152,9 +152,23 @@ public class Window {
         android.util.Log.i("Window", "setContentView(resId=0x" + Integer.toHexString(layoutResID) + ")");
         LayoutInflater inflater = LayoutInflater.from(mContext);
         if (inflater == null) { android.util.Log.e("Window", "LayoutInflater is null!"); return; }
-        View inflated = inflater.inflate(layoutResID, null);
-        android.util.Log.i("Window", "inflate result: " + (inflated != null ? inflated.getClass().getSimpleName() : "null"));
-        if (inflated != null) {
+        // Inflate into a temporary FrameLayout root (needed for <merge> tags and LayoutParams)
+        // Then move children to the decor
+        android.widget.FrameLayout tempRoot = new android.widget.FrameLayout(mContext);
+        View inflated = null;
+        try {
+            inflated = inflater.inflate(layoutResID, tempRoot, true);
+        } catch (Throwable t) {
+            try { inflated = inflater.inflate(layoutResID, null); } catch (Throwable t2) {}
+        }
+        android.util.Log.i("Window", "inflate result: " + (inflated != null ? inflated.getClass().getSimpleName() : "null")
+            + " children=" + tempRoot.getChildCount());
+        if (tempRoot.getChildCount() > 0) {
+            // Use the first child (the actual content) — avoid wrapping in extra FrameLayout
+            View content = tempRoot.getChildAt(0);
+            tempRoot.removeAllViews();
+            setContentView(content);
+        } else if (inflated != null && inflated != tempRoot) {
             setContentView(inflated);
         }
     }
@@ -167,6 +181,7 @@ public class Window {
             ViewGroup decor = (ViewGroup) mDecorView;
             decor.removeAllViews();
             decor.addView(p0);
+            System.err.println("[Window] setContentView(View) decor children=" + decor.getChildCount());
         }
         // Tag decor with the owning Activity so View.invalidate() can trigger renderFrame()
         if (mContext instanceof android.app.Activity) {

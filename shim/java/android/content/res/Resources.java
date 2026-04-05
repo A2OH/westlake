@@ -38,7 +38,16 @@ public class Resources {
     /** Minimal Theme stub so getColor(int, Theme) / getDrawable(int, Theme) compile. */
     public static class Theme {
         public Theme() {}
-        public boolean resolveAttribute(int resid, android.util.TypedValue outValue, boolean resolveRefs) { return false; }
+        public boolean resolveAttribute(int resid, android.util.TypedValue outValue, boolean resolveRefs) {
+            // Return true for ALL attribute lookups — prevents MaterialComponents
+            // "TextAppearance not found" exceptions. The TypedValue gets a dummy resource.
+            if (outValue != null) {
+                outValue.type = android.util.TypedValue.TYPE_INT_DEC;
+                outValue.data = 0;
+                outValue.resourceId = resid;
+            }
+            return true;
+        }
         public int[] getAttributeResolutionStack(int defStyleAttr, int defStyleRes, int explicitStyleRes) { return new int[0]; }
         public TypedArray obtainStyledAttributes(int[] attrs) { return new TypedArray(); }
         public TypedArray obtainStyledAttributes(android.util.AttributeSet set, int[] attrs) { return new TypedArray(); }
@@ -50,6 +59,13 @@ public class Resources {
         public void setTo(Theme other) {}
         public TypedArray resolveAttributes(int[] values, int[] attrs) { return new TypedArray(); }
         public Resources getResources() { return Resources.getSystem(); }
+        public android.graphics.drawable.Drawable getDrawable(int id) { return new android.graphics.drawable.ColorDrawable(0); }
+        public android.graphics.drawable.Drawable getDrawable(int id, android.content.res.Resources.Theme theme) { return new android.graphics.drawable.ColorDrawable(0); }
+        public int getColor(int id) { return 0; }
+        public float getDimension(int id) { return 0f; }
+        public int getDimensionPixelSize(int id) { return 0; }
+        public CharSequence getText(int id) { return ""; }
+        public String getString(int id) { return ""; }
     }
 
     private final DisplayMetrics mDisplayMetrics = new DisplayMetrics();
@@ -226,12 +242,65 @@ public class Resources {
             return new ColorDrawable(((Integer) reg).intValue());
         }
         if (mTable != null) {
+            // Check if the resource is a file path (drawable image)
+            String path = mTable.getString(id);
+            if (path != null && (path.endsWith(".webp") || path.endsWith(".png") ||
+                    path.endsWith(".jpg") || path.endsWith(".jpeg") || path.endsWith(".gif"))) {
+                Drawable d = loadDrawableFromFile(path);
+                if (d != null) return d;
+            }
             int color = mTable.getColor(id);
             if (color != 0xFF000000) {
                 return new ColorDrawable(color);
             }
         }
         return new ColorDrawable(0xFFCCCCCC);
+    }
+
+    private Drawable loadDrawableFromFile(String resPath) {
+        // Find the actual file in the extracted res directory
+        String resDir = null;
+        try {
+            java.lang.reflect.Field f = android.app.MiniServer.class.getDeclaredField("mApkInfo");
+            f.setAccessible(true);
+            Object info = f.get(android.app.MiniServer.get());
+            if (info != null) {
+                java.lang.reflect.Field rd = info.getClass().getField("resDir");
+                resDir = (String) rd.get(info);
+            }
+        } catch (Exception e) { /* ignore */ }
+        if (resDir == null) resDir = System.getProperty("westlake.apk.resdir");
+        if (resDir == null) return null;
+
+        java.io.File file = new java.io.File(resDir, resPath);
+        if (!file.exists()) {
+            // Try without "res/" prefix or with different density
+            String name = file.getName();
+            String[] tryDirs = {"res/drawable", "res/drawable-xxhdpi-v4", "res/drawable-xhdpi-v4",
+                    "res/drawable-hdpi-v4", "res/drawable-mdpi-v4"};
+            for (String dir : tryDirs) {
+                java.io.File alt = new java.io.File(resDir, dir + "/" + name);
+                if (alt.exists()) { file = alt; break; }
+            }
+        }
+        if (!file.exists()) return null;
+
+        try {
+            java.io.FileInputStream fis = new java.io.FileInputStream(file);
+            byte[] data = new byte[(int) file.length()];
+            int off = 0;
+            while (off < data.length) {
+                int n = fis.read(data, off, data.length - off);
+                if (n <= 0) break;
+                off += n;
+            }
+            fis.close();
+            // Create a Bitmap with the raw image data (host will decode it)
+            android.graphics.Bitmap bmp = android.graphics.Bitmap.createFromImageData(data, 480, 800);
+            return new android.graphics.drawable.BitmapDrawable(this, bmp);
+        } catch (Exception e) {
+            return null;
+        }
     }
 
     public Drawable getDrawable(int id, Theme theme) {
@@ -331,6 +400,11 @@ public class Resources {
     // ── Resource ID lookup ───────────────────────────────────────────────────
 
     public int getIdentifier(String name, String defType, String defPackage) {
+        if (mTable != null) {
+            // Search the ResourceTable for "type/name" pattern
+            String key = (defType != null ? defType + "/" : "") + name;
+            return mTable.getIdentifier(key);
+        }
         return 0;
     }
 
