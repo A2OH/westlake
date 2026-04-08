@@ -255,11 +255,28 @@ object WestlakeVM {
                     if (f.exists()) mcdCp.append(":${f.absolutePath}")
                 }
                 val mcdBcp = "$runDir/core-oj.jar:$runDir/core-libart.jar:$runDir/core-icu4j.jar:$runDir/aosp-shim.dex"
+
+                // Start mock backend server for cached API responses
+                val mockDataDir = "$runDir/mock-backend"
+                val mockPort = if (File(mockDataDir, "url-map.json").exists()) {
+                    val p = MockBackendServer.start(mockDataDir)
+                    log.add("Mock backend on port $p (${File(mockDataDir, "url-map.json").length()/1024}KB map)")
+                    p
+                } else {
+                    log.add("No mock-backend data found, network will fail")
+                    0
+                }
+                val proxyArgs = if (mockPort > 0) arrayOf(
+                    "-Dhttp.proxyHost=127.0.0.1", "-Dhttp.proxyPort=$mockPort",
+                    "-Dhttps.proxyHost=127.0.0.1", "-Dhttps.proxyPort=$mockPort"
+                ) else emptyArray()
+
                 cmd = arrayOf(
                     dvm, "-Xbootclasspath:$mcdBcp", "-Xnoimage-dex2oat", "-Xverify:none",
                     "-Xusejit:false", "-Xint",
                     "-Xgc:nonconcurrent", "-Xms256m", "-Xmx768m", "-Xss4m",
                     "-Djava.home=$runDir",
+                    *proxyArgs,
                     "-Dwestlake.apk.package=${apkConfig.packageName}",
                     "-Dwestlake.apk.activity=${apkConfig.activityName}",
                     "-Dwestlake.apk.path=$runDir/mcd_classes.dex",

@@ -137,7 +137,8 @@ public class WestlakeLauncher {
         System.err.println("[WestlakeLauncher] OHBridge native: " + (nativeOk ? "LOADED" : "UNAVAILABLE"));
 
         if (nativeOk) {
-            int rc = OHBridge.arkuiInit();
+            int rc = 0;
+            try { rc = OHBridge.arkuiInit(); } catch (UnsatisfiedLinkError e) { /* subprocess — no arkui */ }
             System.err.println("[WestlakeLauncher] arkuiInit() = " + rc);
 
             // If real icons were pre-rendered (app_process64), send immediately

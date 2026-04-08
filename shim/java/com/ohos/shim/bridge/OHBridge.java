@@ -38,7 +38,19 @@ public class OHBridge {
 
     static {
         System.out.println("[OHBridge] Static init starting...");
-        String[] paths = {"/data/local/tmp/westlake/libohbridge_sub.so",
+        boolean isSubprocess = System.getProperty("westlake.apk.package") != null;
+        // In subprocess, JNI stubs are statically linked — trigger JNI_OnLoad_ohbridge
+        if (isSubprocess) {
+            try {
+                System.out.println("[OHBridge] Subprocess: loadLibrary(ohbridge) for static JNI");
+                System.loadLibrary("ohbridge");
+                nativeAvailable = true;
+                System.out.println("[OHBridge] Subprocess: ohbridge JNI registered OK");
+            } catch (Throwable t) {
+                System.out.println("[OHBridge] Subprocess ohbridge load: " + t);
+            }
+        }
+        String[] paths = isSubprocess ? new String[0] : new String[]{"/data/local/tmp/westlake/libohbridge_sub.so",
                           "/data/local/tmp/westlake/libwestlake_natives.so"};
         for (String path : paths) {
             try {
@@ -54,7 +66,7 @@ public class OHBridge {
                 System.out.println("[OHBridge] System.load FAIL: " + t);
             }
         }
-        if (!nativeAvailable) {
+        if (!nativeAvailable && !isSubprocess) {
             String[] libs = {"westlake_natives", "oh_bridge"};
             for (String lib : libs) {
                 try {
