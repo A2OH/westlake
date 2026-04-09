@@ -39,15 +39,21 @@ public class OHBridge {
     static {
         System.out.println("[OHBridge] Static init starting...");
         boolean isSubprocess = System.getProperty("westlake.apk.package") != null;
-        // In subprocess, JNI stubs are statically linked — trigger JNI_OnLoad_ohbridge
+        // In subprocess, JNI stubs are registered by ART during InitNativeMethods()
+        // (LoadNativeLibrary("libohbridge.so") triggers JNI_OnLoad_ohbridge in the static binary)
+        // So we skip Java-side loadLibrary and check if natives are already available.
         if (isSubprocess) {
             try {
-                System.out.println("[OHBridge] Subprocess: loadLibrary(ohbridge) for static JNI");
-                System.loadLibrary("ohbridge");
+                // Test if a known native method is already registered
+                surfaceCreate(0, 1, 1);
                 nativeAvailable = true;
-                System.out.println("[OHBridge] Subprocess: ohbridge JNI registered OK");
+                System.out.println("[OHBridge] Subprocess: JNI stubs already registered by ART init");
+            } catch (UnsatisfiedLinkError e) {
+                System.out.println("[OHBridge] Subprocess: JNI stubs NOT registered: " + e.getMessage());
             } catch (Throwable t) {
-                System.out.println("[OHBridge] Subprocess ohbridge load: " + t);
+                // surfaceCreate may throw other errors (null pointer etc.) — that means it IS linked
+                nativeAvailable = true;
+                System.out.println("[OHBridge] Subprocess: JNI stubs registered (surfaceCreate threw: " + t + ")");
             }
         }
         String[] paths = isSubprocess ? new String[0] : new String[]{"/data/local/tmp/westlake/libohbridge_sub.so",
