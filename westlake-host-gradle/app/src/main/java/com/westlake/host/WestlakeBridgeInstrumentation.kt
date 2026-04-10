@@ -84,6 +84,17 @@ class WestlakeBridgeInstrumentation : Instrumentation() {
                         mInitApp.set(at, mcdApp)
                         Log.i(TAG, "Application registered with ActivityThread")
                     } catch (e: Throwable) { Log.w(TAG, "App register: ${e.message}") }
+                    // Wire Application into LoadedApk BEFORE onCreate
+                    // so getApplicationContext() returns mcdApp during DI init
+                    try {
+                        val mPkgInfoField = mcdCtx.javaClass.getDeclaredField("mPackageInfo")
+                        mPkgInfoField.isAccessible = true
+                        val loadedApk = mPkgInfoField.get(mcdCtx)
+                        val mAppField = loadedApk.javaClass.getDeclaredField("mApplication")
+                        mAppField.isAccessible = true
+                        mAppField.set(loadedApk, mcdApp)
+                        Log.i(TAG, "Application wired to LoadedApk (pre-onCreate)")
+                    } catch (e: Throwable) { Log.w(TAG, "Early LoadedApk wire: ${e.message}") }
                     try { mcdApp.onCreate() }
                     catch (e: Throwable) { Log.w(TAG, "App.onCreate: ${e.message}") }
                 } catch (e: Throwable) {
@@ -98,6 +109,20 @@ class WestlakeBridgeInstrumentation : Instrumentation() {
             val activity = newActivity(mcdCtx.classLoader, activityClass,
                 Intent(Intent.ACTION_MAIN)) as Activity
             Log.i(TAG, "Activity created: ${activity.javaClass.name}")
+
+            // Wire Application into LoadedApk so getApplicationContext() returns it
+            if (mcdApp != null) {
+                try {
+                    // mcdCtx is a ContextImpl — get its mPackageInfo (LoadedApk)
+                    val mPkgInfoField = mcdCtx.javaClass.getDeclaredField("mPackageInfo")
+                    mPkgInfoField.isAccessible = true
+                    val loadedApk = mPkgInfoField.get(mcdCtx)
+                    val mAppField = loadedApk.javaClass.getDeclaredField("mApplication")
+                    mAppField.isAccessible = true
+                    mAppField.set(loadedApk, mcdApp)
+                    Log.i(TAG, "Application wired to LoadedApk")
+                } catch (e: Throwable) { Log.w(TAG, "LoadedApk wire: ${e.message}") }
+            }
 
             // Attach with real framework — we're in a registered process!
             val appInfo = ctx.packageManager.getApplicationInfo("com.mcdonalds.app", 0)
@@ -137,10 +162,22 @@ class WestlakeBridgeInstrumentation : Instrumentation() {
             // Apply theme
             if (actInfo.theme != 0) activity.setTheme(actInfo.theme)
 
-            // Call onCreate
+            // Call onCreate — catch and continue past DI failures
             Log.i(TAG, "Calling onCreate...")
-            callActivityOnCreate(activity, null)
-            Log.i(TAG, "onCreate DONE!")
+            try {
+                callActivityOnCreate(activity, null)
+                Log.i(TAG, "onCreate DONE!")
+            } catch (e: Throwable) {
+                Log.w(TAG, "onCreate error (continuing): ${e.message}")
+                // Try to set content view manually if onCreate failed
+                try {
+                    val layoutId = mcdCtx.resources.getIdentifier("activity_splash_screen", "layout", "com.mcdonalds.app")
+                    if (layoutId != 0) {
+                        activity.setContentView(layoutId)
+                        Log.i(TAG, "setContentView(R.layout.activity_splash_screen) OK!")
+                    }
+                } catch (e2: Throwable) { Log.w(TAG, "Manual setContentView: ${e2.message}") }
+            }
 
             if (activity != null) {
                 // Wait for it to render
