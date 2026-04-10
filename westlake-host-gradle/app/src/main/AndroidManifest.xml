@@ -19,4 +19,8 @@
             </intent-filter>
         </activity>
     </application>
+    <instrumentation
+        android:name=".WestlakeBridgeInstrumentation"
+        android:targetPackage="com.westlake.host"
+        android:label="Westlake Bridge" />
 </manifest>
