@@ -56,7 +56,9 @@ public class OHBridge {
                 System.out.println("[OHBridge] Subprocess: JNI stubs registered (surfaceCreate threw: " + t + ")");
             }
         }
-        String[] paths = isSubprocess ? new String[0] : new String[]{"/data/local/tmp/westlake/libohbridge_sub.so",
+        // Try loading native library — even in subprocess mode (app_process64 doesn't have static JNI)
+        String[] paths = {"/data/local/tmp/westlake/liboh_bridge.so",
+                          "/data/local/tmp/westlake/libohbridge_sub.so",
                           "/data/local/tmp/westlake/libwestlake_natives.so"};
         for (String path : paths) {
             try {
@@ -72,7 +74,7 @@ public class OHBridge {
                 System.out.println("[OHBridge] System.load FAIL: " + t);
             }
         }
-        if (!nativeAvailable && !isSubprocess) {
+        if (!nativeAvailable) {
             String[] libs = {"westlake_natives", "oh_bridge"};
             for (String lib : libs) {
                 try {

@@ -36,6 +36,35 @@ public class WestlakeLauncher {
     private static byte[] realIconsPng;
 
     public static void main(String[] args) {
+        // Disable hidden API restrictions FIRST (critical for app_process64 mode)
+        try {
+            Class<?> vmRuntime = Class.forName("dalvik.system.VMRuntime");
+            java.lang.reflect.Method getRuntime = vmRuntime.getDeclaredMethod("getRuntime");
+            getRuntime.setAccessible(true);
+            Object runtime = getRuntime.invoke(null);
+            java.lang.reflect.Method setExemptions = vmRuntime.getDeclaredMethod(
+                "setHiddenApiExemptions", String[].class);
+            setExemptions.setAccessible(true);
+            setExemptions.invoke(runtime, (Object) new String[]{"L"});
+            System.err.println("[WestlakeLauncher] Hidden API exemptions set (all classes)");
+        } catch (Throwable t) {
+            System.err.println("[WestlakeLauncher] Hidden API bypass: " + t.getMessage());
+        }
+
+        // Load framework native stubs BEFORE any framework class init
+        try {
+            System.loadLibrary("framework_stubs");
+            System.err.println("[WestlakeLauncher] Framework stubs loaded");
+        } catch (Throwable t) {
+            // Try absolute path
+            try {
+                System.load("/data/local/tmp/westlake/libframework_stubs.so");
+                System.err.println("[WestlakeLauncher] Framework stubs loaded (absolute)");
+            } catch (Throwable t2) {
+                System.err.println("[WestlakeLauncher] Framework stubs: " + t2.getMessage());
+            }
+        }
+
         String apkPath = System.getProperty("westlake.apk.path");
         String activityName = System.getProperty("westlake.apk.activity");
         String packageName = System.getProperty("westlake.apk.package", "com.example.app");
@@ -154,8 +183,7 @@ public class WestlakeLauncher {
                     System.err.println("[WestlakeLauncher] Real icons send error: " + t);
                     t.printStackTrace(System.err);
                 }
-                // Keep alive so pipe stays open
-                while (true) { try { Thread.sleep(1000); } catch (InterruptedException e) { break; } }
+                // Continue to Activity launch (don't block here — pipe stays open via render loop)
             }
         }
 
@@ -240,6 +268,18 @@ public class WestlakeLauncher {
             try {
                 Class<?> appCls = ClassLoader.getSystemClassLoader().loadClass(appClassName);
                 android.app.Application customApp = (android.app.Application) appCls.newInstance();
+                // Attach real Android context as base (critical for app_process64 mode)
+                if (sRealContext instanceof android.content.Context) {
+                    try {
+                        java.lang.reflect.Method attach = android.content.ContextWrapper.class
+                            .getDeclaredMethod("attachBaseContext", android.content.Context.class);
+                        attach.setAccessible(true);
+                        attach.invoke(customApp, (android.content.Context) sRealContext);
+                        System.err.println("[WestlakeLauncher] Attached real context to Application");
+                    } catch (Throwable t) {
+                        System.err.println("[WestlakeLauncher] attachBaseContext failed: " + t);
+                    }
+                }
                 server.setApplication(customApp);
 
                 // Wire up resources + AssetManager BEFORE Application.onCreate()

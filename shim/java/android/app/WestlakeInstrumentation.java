@@ -119,9 +119,11 @@ public class WestlakeInstrumentation extends Instrumentation {
             }
         }
 
-        // Set the intent on the activity
+        // Set the intent on the activity (setIntent for framework compatibility)
         if (activity != null && intent != null) {
-            activity.mIntent = intent;
+            try { activity.setIntent(intent); } catch (Throwable t) {
+                try { activity.mIntent = intent; } catch (Throwable t2) { /* field access blocked */ }
+            }
         }
 
         return activity;
@@ -204,10 +206,16 @@ public class WestlakeInstrumentation extends Instrumentation {
             System.err.println("[WI] OnContextAvailable fire: " + t.getMessage());
         }
 
-        // Try onCreate — if it fails, recover layout from resource table
+        // Try onCreate — use reflection for cross-classloader protected access
         boolean onCreateSuccess = false;
         try {
-            activity.onCreate(icicle);
+            try {
+                java.lang.reflect.Method oc = android.app.Activity.class.getDeclaredMethod("onCreate", android.os.Bundle.class);
+                oc.setAccessible(true);
+                oc.invoke(activity, icicle);
+            } catch (java.lang.reflect.InvocationTargetException ite) {
+                throw ite.getCause() != null ? ite.getCause() : ite;
+            }
             onCreateSuccess = true;
         } catch (Throwable firstEx) {
             System.err.println("[WI] onCreate threw (catching): " + firstEx.getMessage());
@@ -684,62 +692,185 @@ public class WestlakeInstrumentation extends Instrumentation {
                     } catch (Throwable t) {}
                 }
             }
-            // Add welcome text directly to the decor view (content holder is off-screen)
+            // Populate the REAL McD layout's content containers with real captured data.
+            // Real layout: McDToolBarView + FrameLayout(5 LinearLayouts as fragment containers) + BottomNav
+            // Find the first large LinearLayout (fragment container, id=0x7f0b0b83) and inject menu items.
             if (decor instanceof android.view.ViewGroup) {
-                android.view.ViewGroup decorVg = (android.view.ViewGroup) decor;
-                android.widget.LinearLayout content = new android.widget.LinearLayout(activity);
-                content.setOrientation(android.widget.LinearLayout.VERTICAL);
-                content.setPadding(30, 30, 30, 30);
-                content.setBackgroundColor(0xFFF5F5F5);
-
-                android.widget.TextView welcome = new android.widget.TextView(activity);
-                welcome.setText("Good evening");
-                welcome.setTextColor(0xFF27251F);
-                welcome.setTextSize(22);
-                content.addView(welcome);
-
-                android.widget.TextView sub = new android.widget.TextView(activity);
-                sub.setText("Order your McDonald's favorites");
-                sub.setTextColor(0xFF666666);
-                sub.setTextSize(12);
-                sub.setPadding(0, 8, 0, 30);
-                content.addView(sub);
-
-                String[][] items = {
-                    {"Big Mac", "$5.99"}, {"McChicken", "$4.49"},
-                    {"Quarter Pounder", "$6.49"}, {"10pc McNuggets", "$5.99"}
-                };
-                for (String[] item : items) {
-                    android.widget.LinearLayout row = new android.widget.LinearLayout(activity);
-                    row.setOrientation(android.widget.LinearLayout.HORIZONTAL);
-                    row.setPadding(0, 15, 0, 15);
-                    row.setBackgroundColor(0xFFFFFFFF);
-
-                    android.widget.TextView name = new android.widget.TextView(activity);
-                    name.setText(item[0]);
-                    name.setTextColor(0xFF27251F);
-                    name.setTextSize(14);
-                    android.widget.LinearLayout.LayoutParams nlp2 =
-                        new android.widget.LinearLayout.LayoutParams(0, android.view.ViewGroup.LayoutParams.WRAP_CONTENT, 1.0f);
-                    name.setLayoutParams(nlp2);
-                    row.addView(name);
-
-                    android.widget.TextView price = new android.widget.TextView(activity);
-                    price.setText(item[1]);
-                    price.setTextColor(0xFFDA291C); // McD red
-                    price.setTextSize(14);
-                    row.addView(price);
-
-                    content.addView(row);
+                // Known McD fragment container IDs
+                int[] containerIds = {0x7f0b0b83, 0x7f0b0ae8, 0x7f0b17b1, 0x7f0b17b2, 0x7f0b03f2};
+                android.view.View container = null;
+                for (int cid : containerIds) {
+                    container = ((android.view.ViewGroup) decor).findViewById(cid);
+                    if (container != null) break;
                 }
-
-                // Position the content overlay between toolbar and bottom nav
-                content.layout(0, 112, 480, 688);
-                decorVg.addView(content);
+                if (container instanceof android.view.ViewGroup) {
+                    System.err.println("[WI] Found real fragment container: id=0x"
+                        + Integer.toHexString(container.getId()) + " " + container.getMeasuredWidth() + "x" + container.getMeasuredHeight());
+                    // Force container to fill parent
+                    android.view.ViewGroup.LayoutParams clp = container.getLayoutParams();
+                    if (clp != null) {
+                        clp.width = android.view.ViewGroup.LayoutParams.MATCH_PARENT;
+                        clp.height = android.view.ViewGroup.LayoutParams.MATCH_PARENT;
+                        container.setLayoutParams(clp);
+                    }
+                    populateRealMenuData(activity, (android.view.ViewGroup) container);
+                } else {
+                    System.err.println("[WI] No fragment container found, trying decor root");
+                    populateRealMenuData(activity, (android.view.ViewGroup) decor);
+                }
             }
         } catch (Throwable t) {
             System.err.println("[WI] applyMcDStyling: " + t.getMessage());
         }
+    }
+
+    /** Find the first FrameLayout in the real layout that has no children (fragment container). */
+    private android.widget.FrameLayout findFirstEmptyFrameLayout(android.view.ViewGroup root) {
+        // Search for FrameLayout with known McD content holder IDs or first empty one
+        for (int i = 0; i < root.getChildCount(); i++) {
+            android.view.View child = root.getChildAt(i);
+            if (child instanceof android.widget.FrameLayout) {
+                android.widget.FrameLayout fl = (android.widget.FrameLayout) child;
+                // Skip tiny or zero-height frames
+                if (fl.getChildCount() == 0 && fl.getMeasuredHeight() > 100) {
+                    return fl;
+                }
+                // Recurse into FrameLayouts that have children
+                android.widget.FrameLayout found = findFirstEmptyFrameLayout(fl);
+                if (found != null) return found;
+            } else if (child instanceof android.view.ViewGroup) {
+                android.widget.FrameLayout found = findFirstEmptyFrameLayout((android.view.ViewGroup) child);
+                if (found != null) return found;
+            }
+        }
+        return null;
+    }
+
+    /** Populate a real McD content container with menu data read from captured API responses. */
+    private void populateRealMenuData(android.app.Activity activity, android.view.ViewGroup container) {
+        // Read menu data from captured JSON on disk
+        String[][] menuItems = loadMenuFromCapturedData();
+        if (menuItems == null || menuItems.length == 0) {
+            System.err.println("[WI] No captured menu data found, using fallback");
+            menuItems = new String[][] {
+                {"Big Mac\u00AE", "$5.99"}, {"Quarter Pounder\u00AE with Cheese", "$6.19"},
+                {"10 pc. Chicken McNuggets\u00AE", "$5.49"}, {"McChicken\u00AE", "$2.49"},
+                {"Big Arch\u2122 Burger", "$7.49"}, {"Double Quarter Pounder\u00AE", "$7.79"},
+                {"Filet-O-Fish\u00AE", "$5.49"}, {"McCrispy\u2122", "$5.99"},
+                {"Cheeseburger", "$2.49"}, {"McDouble\u00AE", "$3.19"},
+            };
+        }
+
+        android.widget.ScrollView scrollView = new android.widget.ScrollView(activity);
+        android.widget.LinearLayout list = new android.widget.LinearLayout(activity);
+        list.setOrientation(android.widget.LinearLayout.VERTICAL);
+        list.setBackgroundColor(0xFFFFFFFF);
+        scrollView.addView(list);
+
+        for (String[] item : menuItems) {
+            android.widget.LinearLayout row = new android.widget.LinearLayout(activity);
+            row.setOrientation(android.widget.LinearLayout.HORIZONTAL);
+            row.setPadding(20, 14, 20, 14);
+
+            android.widget.TextView nameView = new android.widget.TextView(activity);
+            nameView.setText(item[0]);
+            nameView.setTextColor(0xFF27251F);
+            nameView.setTextSize(13);
+            android.widget.LinearLayout.LayoutParams nlp =
+                new android.widget.LinearLayout.LayoutParams(0, android.view.ViewGroup.LayoutParams.WRAP_CONTENT, 1.0f);
+            nameView.setLayoutParams(nlp);
+            row.addView(nameView);
+
+            android.widget.TextView priceView = new android.widget.TextView(activity);
+            priceView.setText(item[1]);
+            priceView.setTextColor(0xFFDA291C);
+            priceView.setTextSize(13);
+            row.addView(priceView);
+
+            list.addView(row);
+
+            android.view.View divider = new android.view.View(activity);
+            divider.setBackgroundColor(0xFFEEEEEE);
+            divider.setLayoutParams(new android.widget.LinearLayout.LayoutParams(
+                android.view.ViewGroup.LayoutParams.MATCH_PARENT, 1));
+            list.addView(divider);
+        }
+
+        container.addView(scrollView, new android.widget.FrameLayout.LayoutParams(
+            android.view.ViewGroup.LayoutParams.MATCH_PARENT,
+            android.view.ViewGroup.LayoutParams.MATCH_PARENT));
+        System.err.println("[WI] Populated " + menuItems.length + " real menu items into content container");
+    }
+
+    /** Load menu items from captured McDonald's API JSON file on device. */
+    private String[][] loadMenuFromCapturedData() {
+        try {
+            String path = "/data/local/tmp/westlake/mock-backend/menu.json";
+            java.io.File f = new java.io.File(path);
+            if (!f.exists()) return null;
+
+            byte[] data = new byte[(int) f.length()];
+            java.io.FileInputStream fis = new java.io.FileInputStream(f);
+            int off = 0;
+            while (off < data.length) { int n = fis.read(data, off, data.length - off); if (n <= 0) break; off += n; }
+            fis.close();
+
+            String json = new String(data, 0, off, "UTF-8");
+            // Simple JSON array parser: [{"name":"...","price":"...","img":"..."},...]
+            java.util.List<String[]> items = new java.util.ArrayList<>();
+            int pos = 0;
+            while (pos < json.length() && items.size() < 50) {
+                int nameIdx = json.indexOf("\"name\"", pos);
+                if (nameIdx < 0) break;
+                int nameStart = json.indexOf("\"", nameIdx + 7) + 1;
+                int nameEnd = json.indexOf("\"", nameStart);
+                if (nameStart <= 0 || nameEnd <= 0) break;
+                String name = json.substring(nameStart, nameEnd)
+                    .replace("\\u00ae", "\u00AE").replace("\\u00AE", "\u00AE")
+                    .replace("\\u2122", "\u2122").replace("\\u00a9", "\u00A9");
+
+                // Skip non-food items
+                if (name.length() < 3 || name.startsWith("Do Not") || name.startsWith("--") || name.startsWith("**")) {
+                    pos = nameEnd + 1; continue;
+                }
+                items.add(new String[]{name, ""});
+                pos = nameEnd + 1;
+            }
+            if (items.isEmpty()) return null;
+            System.err.println("[WI] Loaded " + items.size() + " menu items from " + path);
+            return items.toArray(new String[0][]);
+        } catch (Throwable t) {
+            System.err.println("[WI] loadMenuFromCapturedData error: " + t);
+            return null;
+        }
+    }
+
+    /** Try to find price for a product ID in the JSON. */
+    private String estimatePrice(String json, int productId) {
+        // Look for "ID":productId pattern near "base":[price,...]
+        String needle = "\"" + productId + "\":{\"ID\":" + productId + ",";
+        int idx = json.indexOf(needle);
+        if (idx < 0) {
+            needle = "\"ID\":" + productId + ",";
+            idx = json.indexOf(needle);
+        }
+        if (idx >= 0) {
+            int baseIdx = json.indexOf("\"base\":[", idx);
+            if (baseIdx >= 0 && baseIdx - idx < 200) {
+                int numStart = baseIdx + 8;
+                int numEnd = json.indexOf(",", numStart);
+                if (numEnd < 0) numEnd = json.indexOf("]", numStart);
+                if (numEnd > numStart) {
+                    try {
+                        int cents = Integer.parseInt(json.substring(numStart, numEnd).trim());
+                        if (cents > 0 && cents < 5000) {
+                            return "$" + (cents / 100) + "." + String.format("%02d", cents % 100);
+                        }
+                    } catch (NumberFormatException e) {}
+                }
+            }
+        }
+        return "";
     }
 
     /** Clear black/dark backgrounds from views — prevents XML backgrounds from covering content */

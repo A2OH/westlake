@@ -271,11 +271,31 @@ object WestlakeVM {
                     "-Dhttps.proxyHost=127.0.0.1", "-Dhttps.proxyPort=$mockPort"
                 ) else emptyArray()
 
+                // Deploy boot image from nativeLibDir to framework/arm64/ if not already done
+                val fwDir = File("$runDir/framework/arm64").apply { mkdirs() }
+                for ((artName, soName) in bootFileMap) {
+                    val src = File(nativeLibDir, soName)
+                    val dst = File(fwDir, artName)
+                    if (src.exists() && (!dst.exists() || dst.length() != src.length())) {
+                        try {
+                            Runtime.getRuntime().exec(arrayOf("ln", "-sf", src.absolutePath, dst.absolutePath)).waitFor()
+                        } catch (e: Exception) {
+                            try { src.copyTo(dst, overwrite = true) } catch (_: Exception) {}
+                        }
+                    }
+                }
+                // Force interpreter-only mode: JIT gets SIGILL under untrusted_app SELinux context
+                // String factory rewrites work in interpreter mode on Pixel 7 Pro (Android 16)
+                val mcdImageArgs = arrayOf("-Xnoimage-dex2oat", "-Xusejit:false", "-Xint")
+                log.add("Interpreter mode (JIT disabled — SELinux)")
+
                 cmd = arrayOf(
-                    dvm, "-Xbootclasspath:$mcdBcp", "-Xnoimage-dex2oat", "-Xverify:none",
-                    "-Xusejit:false", "-Xint",
+                    dvm, "-Xbootclasspath:$mcdBcp", *mcdImageArgs, "-Xverify:none",
                     "-Xgc:nonconcurrent", "-Xms256m", "-Xmx768m", "-Xss4m",
                     "-Djava.home=$runDir",
+                    // Fix kotlinx.coroutines scheduler — static dalvikvm reports bogus availableProcessors()
+                    "-Dkotlinx.coroutines.scheduler.core.pool.size=4",
+                    "-Dkotlinx.coroutines.scheduler.max.pool.size=8",
                     *proxyArgs,
                     "-Dwestlake.apk.package=${apkConfig.packageName}",
                     "-Dwestlake.apk.activity=${apkConfig.activityName}",
@@ -656,7 +676,7 @@ private suspend fun readPipeAndRenderLocked(
             val sizeBytes = ByteArray(4)
             input.readFully(sizeBytes)
             val size = ByteBuffer.wrap(sizeBytes).order(ByteOrder.LITTLE_ENDIAN).getInt()
-            if (size <= 0 || size > 512 * 1024) {
+            if (size <= 0 || size > 2 * 1024 * 1024) {  // 2MB for screen capture frames
                 Log.w("WestlakeVM", "Bad frame size $size, skipping")
                 continue
             }

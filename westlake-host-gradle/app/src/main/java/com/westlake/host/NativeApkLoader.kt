@@ -95,12 +95,20 @@ object NativeApkLoader {
                     android.content.ComponentName(packageName, activityName), 0)
                 actInfo.applicationInfo = appInfo
 
+                // Get host Activity's window token for WindowManager registration
+                val hostToken = try {
+                    val tokenField = Activity::class.java.getDeclaredField("mToken")
+                    tokenField.isAccessible = true
+                    tokenField.get(host) as? android.os.IBinder
+                } catch (e: Exception) { null }
+                // Use the host's existing window so the MCD Activity renders into it
+                val hostWindow = host.window
                 attachMethod.invoke(act,
-                    apkContext, actThread, instr, null, 0,
+                    apkContext, actThread, instr, hostToken, 0,
                     host.application,
                     android.content.Intent(android.content.Intent.ACTION_MAIN),
                     actInfo, packageName, null, null, null,
-                    host.resources.configuration, null, null, null)
+                    host.resources.configuration, null, null, hostWindow)
                 steps.add("✅ Activity.attach() done")
             } catch (e: Exception) {
                 steps.add("⚠️ attach: ${e.cause?.message ?: e.message}")
@@ -124,14 +132,65 @@ object NativeApkLoader {
                     val pwClass = Class.forName("com.android.internal.policy.PhoneWindow")
                     val pw = pwClass.getConstructor(Context::class.java).newInstance(apkContext)
                     Activity::class.java.getDeclaredField("mWindow").apply { isAccessible = true }.set(act, pw)
-                    // attachBaseContext
-                    val attachBase = ContextThemeWrapper::class.java.getDeclaredMethod("attachBaseContext", Context::class.java)
-                    attachBase.isAccessible = true
-                    attachBase.invoke(act, apkContext)
-                    steps.add("✅ Fallback field setup done")
+                    // Set mBase — use apkContext (has MCD resources) wrapped to also provide system services
+                    try {
+                        // apkContext has MCD resources but may lack system services
+                        // Try calling the real attachBaseContext first
+                        val attachBase = android.content.ContextWrapper::class.java.getDeclaredMethod("attachBaseContext", Context::class.java)
+                        attachBase.isAccessible = true
+                        attachBase.invoke(act, apkContext)
+                    } catch (_: Exception) {
+                        try {
+                            val mBase = android.content.ContextWrapper::class.java.getDeclaredField("mBase")
+                            mBase.isAccessible = true
+                            mBase.set(act, apkContext)
+                        } catch (_: Exception) {}
+                    }
+                    // Set mResources (Activity.getResources() uses this)
+                    try {
+                        val mRes = android.content.ContextWrapper::class.java.getDeclaredField("mResources")
+                        mRes.isAccessible = true
+                        mRes.set(act, apkContext.resources)
+                    } catch (_: Exception) {
+                        try {
+                            // Try on ContextThemeWrapper
+                            val mRes = android.view.ContextThemeWrapper::class.java.getDeclaredField("mResources")
+                            mRes.isAccessible = true
+                            mRes.set(act, apkContext.resources)
+                        } catch (_: Exception) {}
+                    }
+                    // Set mTheme
+                    try {
+                        val mTheme = android.view.ContextThemeWrapper::class.java.getDeclaredField("mTheme")
+                        mTheme.isAccessible = true
+                        mTheme.set(act, apkContext.theme)
+                    } catch (_: Exception) {}
+                    // Set Window's callback to this Activity
+                    try { (pw as android.view.Window).callback = act } catch (_: Exception) {}
+                    steps.add("✅ Fallback field setup done (mBase+mResources+mWindow)")
                 } catch (e2: Exception) {
                     steps.add("⚠️ Fallback: ${e2.message?.take(60)}")
                 }
+            }
+
+            // Step 6.5: Apply AppCompat theme from MCD APK
+            try {
+                // Get the theme ID from the APK's manifest
+                val actInfo2 = host.packageManager.getActivityInfo(
+                    android.content.ComponentName(packageName, activityName), 0)
+                var themeId = actInfo2.themeResource
+                if (themeId == 0) themeId = actInfo2.applicationInfo.theme
+                if (themeId != 0) {
+                    act.setTheme(themeId)
+                    steps.add("✅ Theme applied: 0x${Integer.toHexString(themeId)}")
+                } else {
+                    // Fallback: use a standard AppCompat theme
+                    act.setTheme(android.R.style.Theme_Material_Light_NoActionBar)
+                    steps.add("✅ Fallback theme: Material.Light.NoActionBar")
+                }
+            } catch (e: Exception) {
+                try { act.setTheme(android.R.style.Theme_Material_Light_NoActionBar) } catch (_: Exception) {}
+                steps.add("⚠️ Theme: ${e.message?.take(40)}")
             }
 
             // Step 7: Call onCreate via Instrumentation

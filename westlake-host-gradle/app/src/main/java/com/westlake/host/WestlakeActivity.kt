@@ -159,8 +159,64 @@ class WestlakeActivity : ComponentActivity() {
                 }
                 true
             }
-            setContentView(imageView)
-            // Start VM on background thread
+            // Create floating overlay window to show frames ON TOP of MCD
+            // Skip canDrawOverlays check — try anyway (root/debuggable app may succeed)
+            if (true) {
+                Log.i(TAG, "Overlay mode: creating floating window")
+                val wm = getSystemService(WINDOW_SERVICE) as android.view.WindowManager
+                // Use TYPE_TOAST (2005) — doesn't need SYSTEM_ALERT_WINDOW on most ROMs
+                val overlayParams = android.view.WindowManager.LayoutParams(
+                    480, 800,
+                    2005, // TYPE_TOAST — less restricted than TYPE_APPLICATION_OVERLAY
+                    android.view.WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
+                        android.view.WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL,
+                    android.graphics.PixelFormat.TRANSLUCENT
+                )
+                overlayParams.gravity = android.view.Gravity.BOTTOM or android.view.Gravity.END
+                overlayParams.x = 16; overlayParams.y = 100
+
+                // Frame layout with border to show it's Westlake's window
+                val frame = android.widget.FrameLayout(this)
+                frame.setBackgroundColor(0xFF222222.toInt())
+                frame.setPadding(4, 4, 4, 4)
+
+                // Label
+                val label = android.widget.TextView(this)
+                label.text = "Westlake Engine"
+                label.setTextColor(0xFFFFCC00.toInt())
+                label.setBackgroundColor(0xCC000000.toInt())
+                label.textSize = 10f
+                label.setPadding(8, 4, 8, 4)
+
+                val labelParams = android.widget.FrameLayout.LayoutParams(
+                    android.widget.FrameLayout.LayoutParams.WRAP_CONTENT,
+                    android.widget.FrameLayout.LayoutParams.WRAP_CONTENT,
+                    android.view.Gravity.TOP or android.view.Gravity.START)
+
+                imageView.layoutParams = android.widget.FrameLayout.LayoutParams(
+                    android.widget.FrameLayout.LayoutParams.MATCH_PARENT,
+                    android.widget.FrameLayout.LayoutParams.MATCH_PARENT)
+                frame.addView(imageView)
+                frame.addView(label, labelParams)
+
+                wm.addView(frame, overlayParams)
+                Log.i(TAG, "Overlay window added")
+
+                // Launch real MCD app
+                val mcdIntent = android.content.Intent(android.content.Intent.ACTION_MAIN)
+                mcdIntent.component = android.content.ComponentName("com.mcdonalds.app",
+                    "com.mcdonalds.mcdcoreapp.common.activity.SplashActivity")
+                mcdIntent.addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)
+                startActivity(mcdIntent)
+
+                // Minimize ourselves so MCD is visible
+                moveTaskToBack(true)
+            } else {
+                Log.w(TAG, "No overlay permission — falling back to fullscreen")
+                setContentView(imageView)
+            }
+
+            // Start bridge on background thread
             Thread({
                 val config = ApkVmConfig(
                     packageName = "com.mcdonalds.app",

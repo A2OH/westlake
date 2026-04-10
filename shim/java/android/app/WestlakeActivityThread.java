@@ -564,29 +564,18 @@ public class WestlakeActivityThread {
     private void attachActivity(Activity activity, Context baseContext,
                                  Application app, Intent intent,
                                  ComponentName component) {
-        // Try 1: AOSP-style attach() via reflection (full signature)
+        // Skip AOSP attach() — it calls protected attachBaseContext() which fails
+        // cross-classloader. Instead, set mBase directly via reflection + Unsafe.
         boolean attached = false;
         try {
-            java.lang.reflect.Method attachMethod = findAttachMethod(activity.getClass());
-            if (attachMethod != null) {
-                attachMethod.setAccessible(true);
-                int paramCount = attachMethod.getParameterCount();
-                if (paramCount >= 6) {
-                    // Call with as many params as the method accepts
-                    // Minimum: attach(Context, ActivityThread-like, Instrumentation,
-                    //          IBinder, int, Application, Intent, ...)
-                    // We pass nulls for params we don't have.
-                    Object[] args = buildAttachArgs(attachMethod, baseContext, app,
-                                                    intent, component);
-                    attachMethod.invoke(activity, args);
-                    attached = true;
-                    log("D", "  Attached via reflection (" + paramCount + " params)");
-                }
-            }
+            // Use ContextWrapper.mBase field to inject the context directly
+            java.lang.reflect.Field mBase = android.content.ContextWrapper.class.getDeclaredField("mBase");
+            mBase.setAccessible(true);
+            mBase.set(activity, baseContext);
+            attached = true;
+            log("D", "  Set mBase directly on Activity (skip attach())");
         } catch (Exception e) {
-            // attach() exists but threw -- not fatal, fall through to direct set
-            log("D", "  attach() reflection failed: " + e.getClass().getSimpleName()
-                    + ": " + e.getMessage());
+            log("D", "  mBase set failed: " + e.getClass().getSimpleName() + ": " + e.getMessage());
         }
 
         // Try 2: Direct field setting (always works with the shim's Activity)
@@ -670,12 +659,8 @@ public class WestlakeActivityThread {
             log("W", "Resource wiring: " + t.getMessage());
         }
 
-        // Call attachBaseContext if the activity has it (Context method)
-        try {
-            activity.attachBaseContext(baseContext);
-        } catch (Exception e) {
-            // May throw if already attached -- ignore
-        }
+        // Skip attachBaseContext — mBase was already set directly above.
+        // attachBaseContext is protected and inaccessible cross-classloader on app_process64.
 
         if (!attached) {
             log("D", "  Attached via direct field setting");
