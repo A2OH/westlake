@@ -162,22 +162,16 @@ class WestlakeBridgeInstrumentation : Instrumentation() {
             // Apply theme
             if (actInfo.theme != 0) activity.setTheme(actInfo.theme)
 
-            // Call onCreate — catch and continue past DI failures
-            Log.i(TAG, "Calling onCreate...")
-            try {
-                callActivityOnCreate(activity, null)
-                Log.i(TAG, "onCreate DONE!")
-            } catch (e: Throwable) {
-                Log.w(TAG, "onCreate error (continuing): ${e.message}")
-                // Try to set content view manually if onCreate failed
-                try {
-                    val layoutId = mcdCtx.resources.getIdentifier("activity_splash_screen", "layout", "com.mcdonalds.app")
-                    if (layoutId != 0) {
-                        activity.setContentView(layoutId)
-                        Log.i(TAG, "setContentView(R.layout.activity_splash_screen) OK!")
-                    }
-                } catch (e2: Throwable) { Log.w(TAG, "Manual setContentView: ${e2.message}") }
-            }
+            // Launch our WestlakeMcdActivity (in our package, so it shows on screen)
+            // It will use MCD's resources to inflate the real MCD layout
+            Log.i(TAG, "Launching WestlakeMcdActivity...")
+            val launchIntent = Intent(ctx, WestlakeMcdActivity::class.java)
+            launchIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            val launched = startActivitySync(launchIntent)
+            Log.i(TAG, "Activity on screen: ${launched?.javaClass?.simpleName}")
+
+            // Give it time to render
+            Thread.sleep(5000)
 
             if (activity != null) {
                 // Wait for it to render
