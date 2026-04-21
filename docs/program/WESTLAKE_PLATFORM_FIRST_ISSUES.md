@@ -4,6 +4,9 @@ Last updated: 2026-04-20
 
 This file mirrors the active platform-first issue structure used for execution.
 
+Umbrella issue:
+- `Platform-first Westlake delivery program`: `A2OH/westlake#569`
+
 Primary issue families:
 - `PF-001` guest execution purity: `A2OH/westlake#558`
 - `PF-101` standalone guest boot: `A2OH/westlake#559`
