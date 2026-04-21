@@ -19,6 +19,7 @@ Primary issue families:
 - `PF-401` app-owned AndroidX/AppCompat host integrity: `A2OH/westlake#566`
 - `PF-501` McDonald's launch validation: `A2OH/westlake#567`
 - `PF-601` real McDonald's dashboard body takeover: `A2OH/westlake#568`
+- `PF-801` reproducibility and evidence discipline: `A2OH/westlake#570`
 
 The detailed local tracker remains in:
 - `/home/dspfac/openharmony/WESTLAKE-PLATFORM-FIRST-OPEN-ISSUES.md`
