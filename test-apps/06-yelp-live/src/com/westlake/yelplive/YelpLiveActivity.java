@@ -1,11 +1,17 @@
 package com.westlake.yelplive;
 
 import android.app.Activity;
+import android.graphics.Bitmap;
 import android.os.Bundle;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
+import android.widget.AdapterView;
+import android.widget.BaseAdapter;
 import android.widget.Button;
+import android.widget.ImageView;
+import android.widget.LinearLayout;
+import android.widget.ListView;
 import android.widget.TextView;
 import com.westlake.engine.WestlakeLauncher;
 
@@ -92,12 +98,16 @@ public final class YelpLiveActivity extends Activity {
     private TextView titleView;
     private TextView statusView;
     private TextView cardView;
-    private TextView listView;
+    private TextView listSummaryView;
+    private ListView resultsListView;
     private Button loadButton;
     private Button nextButton;
     private Button searchButton;
     private Button detailsButton;
     private Button saveButton;
+    private VenueAdapter venueAdapter;
+    private final boolean[] adapterBoundPositions = new boolean[MAX_PLACES];
+    private final boolean[] adapterImageBoundPositions = new boolean[MAX_PLACES];
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -129,7 +139,8 @@ public final class YelpLiveActivity extends Activity {
         titleView = text(root, R.id.yelp_title, "yelp_title");
         statusView = text(root, R.id.yelp_status, "yelp_status");
         cardView = text(root, R.id.yelp_card, "yelp_card");
-        listView = text(root, R.id.yelp_list, "yelp_list");
+        listSummaryView = text(root, R.id.yelp_list, "yelp_list");
+        resultsListView = list(root, R.id.yelp_results, "yelp_results");
 
         loadButton = button(root, R.id.yelp_load, "yelp_load");
         nextButton = button(root, R.id.yelp_next, "yelp_next");
@@ -188,12 +199,30 @@ public final class YelpLiveActivity extends Activity {
         setClick(root, R.id.yelp_scroll_down, "yelp_scroll_down", new View.OnClickListener() {
             public void onClick(View view) { scrollListDown(); }
         });
+        if (resultsListView != null) {
+            venueAdapter = new VenueAdapter();
+            resultsListView.setAdapter(venueAdapter);
+            resultsListView.setOnItemClickListener(new AdapterView.OnItemClickListener() {
+                public void onItemClick(AdapterView parent, View view, int position, long id) {
+                    openPlaceAt(position);
+                    YelpLiveLog.mark("ADAPTER_ITEM_CLICK_OK",
+                            "position=" + position
+                                    + " id=" + id
+                                    + " count=" + venueAdapter.getCount());
+                }
+            });
+            YelpLiveLog.mark("ADAPTER_ATTACH_OK",
+                    "list=true class=" + className(resultsListView)
+                            + " adapter=" + className(venueAdapter)
+                            + " count=" + venueAdapter.getCount());
+        }
 
         YelpLiveLog.mark("XML_BIND_OK",
                 "title=" + (titleView != null)
                         + " status=" + (statusView != null)
                         + " card=" + (cardView != null)
-                        + " list=" + (listView != null)
+                        + " list=" + (listSummaryView != null)
+                        + " adapterList=" + (resultsListView != null)
                         + " buttons=" + boundButtonCount());
     }
 
@@ -203,6 +232,7 @@ public final class YelpLiveActivity extends Activity {
             int hSpec = View.MeasureSpec.makeMeasureSpec(1013, View.MeasureSpec.EXACTLY);
             root.measure(wSpec, hSpec);
             root.layout(0, 0, 480, 1013);
+            probeAdapterLayout();
             YelpLiveLog.mark("XML_LAYOUT_PROBE_OK",
                     "target=480x1013"
                             + " measured=" + root.getMeasuredWidth() + "x" + root.getMeasuredHeight()
@@ -221,6 +251,15 @@ public final class YelpLiveActivity extends Activity {
             return (TextView) view;
         }
         markXmlBindGap(label, view, "TextView");
+        return null;
+    }
+
+    private ListView list(View root, int id, String label) {
+        View view = root.findViewById(id);
+        if (view instanceof ListView) {
+            return (ListView) view;
+        }
+        markXmlBindGap(label, view, "ListView");
         return null;
     }
 
@@ -246,6 +285,81 @@ public final class YelpLiveActivity extends Activity {
     private void markXmlBindGap(String label, View actual, String expected) {
         YelpLiveLog.mark("XML_BIND_GAP",
                 "id=" + label + " expected=" + expected + " actual=" + className(actual));
+    }
+
+    private void probeAdapterLayout() {
+        try {
+            if (resultsListView == null || venueAdapter == null) {
+                return;
+            }
+            YelpLiveLog.mark("ADAPTER_LAYOUT_PROBE_OK",
+                    "count=" + venueAdapter.getCount()
+                            + " childCount=" + resultsListView.getChildCount()
+                            + " first=" + resultsListView.getFirstVisiblePosition()
+                            + " measured=" + resultsListView.getMeasuredWidth()
+                            + "x" + resultsListView.getMeasuredHeight());
+        } catch (Throwable t) {
+            YelpLiveLog.mark("ADAPTER_LAYOUT_PROBE_FAIL",
+                    "err=" + YelpLiveLog.token(t.getClass().getName())
+                            + " msg=" + YelpLiveLog.token(shortMessage(t)));
+        }
+    }
+
+    private void notifyVenueAdapter(String reason) {
+        try {
+            if (venueAdapter == null) {
+                return;
+            }
+            if (reason != null && reason.startsWith("ui_") && adapterImageCount() >= 5) {
+                YelpLiveLog.mark("ADAPTER_NOTIFY_SKIP_OK",
+                        "reason=" + YelpLiveLog.token(reason)
+                                + " images=" + adapterImageCount()
+                                + " cause=image_rich_ui_update");
+                return;
+            }
+            venueAdapter.notifyDataSetChanged();
+            probeAdapterBindings(reason);
+            YelpLiveLog.mark("ADAPTER_NOTIFY_OK",
+                    "reason=" + YelpLiveLog.token(reason)
+                            + " count=" + venueAdapter.getCount()
+                            + " images=" + adapterImageCount());
+        } catch (Throwable t) {
+            YelpLiveLog.mark("ADAPTER_NOTIFY_FAIL",
+                    "reason=" + YelpLiveLog.token(reason)
+                            + " err=" + YelpLiveLog.token(t.getClass().getName()));
+        }
+    }
+
+    private void probeAdapterBindings(String reason) {
+        if (venueAdapter == null || resultsListView == null) {
+            return;
+        }
+        int count = venueAdapter.getCount();
+        int limit = count < 5 ? count : 5;
+        for (int i = 0; i < limit; i++) {
+            venueAdapter.getView(i, null, resultsListView);
+        }
+        YelpLiveLog.mark("ADAPTER_BIND_PROBE_OK",
+                "reason=" + YelpLiveLog.token(reason)
+                        + " rows=" + limit
+                        + " count=" + count);
+    }
+
+    private void resetAdapterMarkers() {
+        for (int i = 0; i < MAX_PLACES; i++) {
+            adapterBoundPositions[i] = false;
+            adapterImageBoundPositions[i] = false;
+        }
+    }
+
+    private int adapterImageCount() {
+        int count = 0;
+        for (int i = 0; i < MAX_PLACES; i++) {
+            if (placeImageBytes[i] > 0) {
+                count++;
+            }
+        }
+        return count;
     }
 
     private int boundButtonCount() {
@@ -325,6 +439,8 @@ public final class YelpLiveActivity extends Activity {
             }
             updateRows();
             applyPlace(0);
+            resetAdapterMarkers();
+            notifyVenueAdapter("parsed");
             YelpLiveLog.mark("LIVE_JSON_OK",
                     "status=" + feed.status
                             + " bytes=" + feed.bytes.length
@@ -333,7 +449,7 @@ public final class YelpLiveActivity extends Activity {
                             + " source=" + YelpLiveLog.token(source)
                             + " transport=host_bridge");
 
-            int imageLimit = parsed < 6 ? parsed : 6;
+            int imageLimit = parsed < 5 ? parsed : 5;
             for (int i = 0; i < imageLimit; i++) {
                 String rowImageUrl = thumbnailUrlFor(i);
                 if (rowImageUrl == null || rowImageUrl.length() == 0) {
@@ -342,6 +458,7 @@ public final class YelpLiveActivity extends Activity {
                 FetchResult image = bridgeGet(rowImageUrl, 128 * 1024);
                 storePlaceImage(i, image.bytes);
                 updateRows();
+                notifyVenueAdapter("image_" + i);
                 if (i == placeIndex) {
                     applyPlace(i);
                 }
@@ -365,9 +482,9 @@ public final class YelpLiveActivity extends Activity {
             status = "Live " + source + " results loaded";
             lastAction = "Live loaded";
             renderDirty = true;
-            runOnUiThread(new Runnable() {
-                public void run() { updateUi("Live loaded"); }
-            });
+            notifyVenueAdapter("live_loaded");
+            YelpLiveLog.mark("UI_WORKER_VIEW_MUTATION_SKIP_OK",
+                    "reason=live_loaded shim_runOnUiThread=synchronous");
             YelpLiveLog.mark("CARD_OK",
                     "name=" + YelpLiveLog.token(placeName)
                             + " rating=" + ratingText()
@@ -378,9 +495,8 @@ public final class YelpLiveActivity extends Activity {
             status = shortMessage(t);
             lastAction = "Network failed";
             renderDirty = true;
-            runOnUiThread(new Runnable() {
-                public void run() { updateUi("Network failed"); }
-            });
+            YelpLiveLog.mark("UI_WORKER_VIEW_MUTATION_SKIP_OK",
+                    "reason=network_failed shim_runOnUiThread=synchronous");
             YelpLiveLog.mark("NETWORK_FETCH_FAIL",
                     "err=" + YelpLiveLog.token(t.getClass().getName())
                             + " msg=" + YelpLiveLog.token(shortMessage(t)));
@@ -967,9 +1083,10 @@ public final class YelpLiveActivity extends Activity {
                     + "\n" + ratingText() + " stars | " + reviewCount + " reviews"
                     + "\nimage bytes " + imageBytes + " hash " + intHex(imageHash));
         }
-        if (listView != null) {
-            listView.setText(listSummary());
+        if (listSummaryView != null) {
+            listSummaryView.setText(listSummary());
         }
+        notifyVenueAdapter("ui_" + action);
     }
 
     private String listSummary() {
@@ -1049,6 +1166,12 @@ public final class YelpLiveActivity extends Activity {
             imageHash = placeImageHashes[index];
             imageWidth = safe.length > 0 ? 96 : 0;
             imageHeight = safe.length > 0 ? 64 : 0;
+        }
+        if (safe.length > 0 && venueAdapter != null) {
+            YelpLiveLog.mark("ADAPTER_IMAGE_REBIND_OK",
+                    "index=" + index
+                            + " bytes=" + safe.length
+                            + " hash=" + intHex(placeImageHashes[index]));
         }
     }
 
@@ -1238,6 +1361,150 @@ public final class YelpLiveActivity extends Activity {
         if (msg == null || msg.length() == 0) return t.getClass().getName();
         if (msg.length() > 80) return msg.substring(0, 80);
         return msg;
+    }
+
+    private final class VenueAdapter extends BaseAdapter {
+        public int getCount() {
+            return placeCount > 0 ? placeCount : 5;
+        }
+
+        public Object getItem(int position) {
+            return placeSummaryName(position, "Loading nearby restaurants");
+        }
+
+        public long getItemId(int position) {
+            return position;
+        }
+
+        public View getView(int position, View convertView, ViewGroup parent) {
+            RowHolder holder;
+            LinearLayout row;
+            boolean reused = false;
+            if (convertView instanceof LinearLayout && convertView.getTag() instanceof RowHolder) {
+                row = (LinearLayout) convertView;
+                holder = (RowHolder) convertView.getTag();
+                reused = true;
+            } else {
+                row = new LinearLayout(YelpLiveActivity.this);
+                row.setOrientation(LinearLayout.HORIZONTAL);
+                row.setPadding(8, 6, 8, 6);
+                row.setMinimumHeight(82);
+                row.setBackgroundColor(0xffffffff);
+                row.setLayoutParams(new android.widget.AbsListView.LayoutParams(
+                        ViewGroup.LayoutParams.MATCH_PARENT, 86));
+
+                ImageView image = new ImageView(YelpLiveActivity.this);
+                image.setBackgroundColor(0xffeceff1);
+                image.setScaleType(ImageView.ScaleType.CENTER_CROP);
+                row.addView(image, new LinearLayout.LayoutParams(76, 56));
+
+                LinearLayout textColumn = new LinearLayout(YelpLiveActivity.this);
+                textColumn.setOrientation(LinearLayout.VERTICAL);
+                textColumn.setPadding(10, 0, 0, 0);
+                row.addView(textColumn, new LinearLayout.LayoutParams(
+                        0, ViewGroup.LayoutParams.WRAP_CONTENT, 1.0f));
+
+                TextView title = new TextView(YelpLiveActivity.this);
+                title.setTextColor(0xff202124);
+                title.setTextSize(14);
+                textColumn.addView(title, new LinearLayout.LayoutParams(
+                        ViewGroup.LayoutParams.MATCH_PARENT,
+                        ViewGroup.LayoutParams.WRAP_CONTENT));
+
+                TextView meta = new TextView(YelpLiveActivity.this);
+                meta.setTextColor(0xff5f6368);
+                meta.setTextSize(11);
+                textColumn.addView(meta, new LinearLayout.LayoutParams(
+                        ViewGroup.LayoutParams.MATCH_PARENT,
+                        ViewGroup.LayoutParams.WRAP_CONTENT));
+
+                TextView badge = new TextView(YelpLiveActivity.this);
+                badge.setTextColor(0xffd32323);
+                badge.setTextSize(10);
+                textColumn.addView(badge, new LinearLayout.LayoutParams(
+                        ViewGroup.LayoutParams.MATCH_PARENT,
+                        ViewGroup.LayoutParams.WRAP_CONTENT));
+
+                holder = new RowHolder(image, title, meta, badge);
+                row.setTag(holder);
+            }
+
+            String name = placeSummaryName(position, "Live restaurants loading");
+            String meta = placeSummaryMeta(position, "Pulling from host bridge");
+            int bytes = imageBytesFor(position);
+            holder.title.setText((position + 1) + ". " + name);
+            holder.meta.setText(meta);
+            holder.badge.setText(bytes > 0
+                    ? "image " + bytes + " bytes"
+                    : "waiting for image");
+
+            Bitmap bitmap = createRowBitmap(position);
+            holder.image.setImageBitmap(bitmap);
+            holder.image.setContentDescription("row image " + position);
+
+            if (position >= 0 && position < MAX_PLACES) {
+                boolean shouldMark = !adapterBoundPositions[position]
+                        || (bytes > 0 && !adapterImageBoundPositions[position]);
+                if (shouldMark) {
+                    YelpLiveLog.mark("ADAPTER_GET_VIEW_OK",
+                            "position=" + position
+                                    + " convert=" + reused
+                                    + " name=" + YelpLiveLog.token(name)
+                                    + " rating=" + ratingText(position < MAX_PLACES
+                                            ? ratings[position] : 46));
+                    YelpLiveLog.mark("ADAPTER_BIND_OK",
+                            "position=" + position
+                                    + " name=" + YelpLiveLog.token(name)
+                                    + " imageBytes=" + bytes
+                                    + " bitmap=" + (bitmap != null)
+                                    + " reused=" + reused
+                                    + " source=BaseAdapter.getView");
+                    adapterBoundPositions[position] = true;
+                    if (bytes > 0) {
+                        adapterImageBoundPositions[position] = true;
+                        YelpLiveLog.mark("ADAPTER_IMAGE_BIND_OK",
+                                "position=" + position
+                                        + " bytes=" + bytes
+                                        + " hash=" + intHex(imageHashFor(position))
+                                        + " bitmap=" + (bitmap != null)
+                                        + " imageView=" + (holder.image != null));
+                    }
+                }
+            }
+            return row;
+        }
+    }
+
+    private Bitmap createRowBitmap(int position) {
+        byte[] bytes = imageFor(position);
+        if (bytes == null || bytes.length == 0) {
+            return null;
+        }
+        try {
+            java.lang.reflect.Method createFromImageData = Bitmap.class.getMethod(
+                    "createFromImageData", byte[].class, Integer.TYPE, Integer.TYPE);
+            return (Bitmap) createFromImageData.invoke(null, bytes, 96, 64);
+        } catch (Throwable t) {
+            YelpLiveLog.mark("ADAPTER_IMAGE_BITMAP_FAIL",
+                    "position=" + position
+                            + " bytes=" + bytes.length
+                            + " err=" + YelpLiveLog.token(t.getClass().getName()));
+            return null;
+        }
+    }
+
+    private static final class RowHolder {
+        final ImageView image;
+        final TextView title;
+        final TextView meta;
+        final TextView badge;
+
+        RowHolder(ImageView image, TextView title, TextView meta, TextView badge) {
+            this.image = image;
+            this.title = title;
+            this.meta = meta;
+            this.badge = badge;
+        }
     }
 
     private static final class FetchResult {

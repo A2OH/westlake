@@ -183,6 +183,12 @@
             android:textColor="#3C4043"
             android:textSize="13sp" />
 
+        <ListView
+            android:id="@+id/yelp_results"
+            android:layout_width="match_parent"
+            android:layout_height="260dp"
+            android:paddingTop="8dp" />
+
         <LinearLayout
             android:id="@+id/yelp_scroll_controls"
             android:layout_width="match_parent"

@@ -36,6 +36,7 @@ HOST_PKG="com.westlake.host"
 HOST_ACTIVITY="com.westlake.host/.WestlakeActivity"
 YELP_PKG="com.westlake.yelplive"
 YELP_ACTIVITY="com.westlake.yelplive.YelpLiveActivity"
+YELP_STAGE_PREFIX="${YELP_PKG//./_}"
 LABEL="yelp_live_target"
 
 if [ -n "$ADB_HOST" ]; then
@@ -330,6 +331,10 @@ echo "[1/6] Force-stopping old app state..."
 "${ADB[@]}" shell run-as "$HOST_PKG" rm -f "$RUNAS_TRACE_PATH" >/dev/null 2>&1 || true
 "${ADB[@]}" shell rm -f "$PUBLIC_MARKER_PATH" "$PUBLIC_TRACE_PATH" >/dev/null 2>&1 || true
 "${ADB[@]}" shell rm -f "$HOST_TOUCH_PATH_A" "$HOST_TOUCH_PATH_B" >/dev/null 2>&1 || true
+"${ADB[@]}" shell "rm -rf '$PHONE_DIR/${YELP_STAGE_PREFIX}.apk' '$PHONE_DIR/${YELP_STAGE_PREFIX}'_classes*.dex '$PHONE_DIR/${YELP_STAGE_PREFIX}_res'" >/dev/null 2>&1 || true
+"${ADB[@]}" shell run-as "$HOST_PKG" sh -c \
+    "'rm -rf files/vm/${YELP_STAGE_PREFIX}.apk files/vm/${YELP_STAGE_PREFIX}_classes*.dex files/vm/${YELP_STAGE_PREFIX}_res'" \
+    >/dev/null 2>&1 || true
 if [ "$SUPERVISOR_HTTP_PROXY" != "1" ]; then
     "${ADB[@]}" shell rm -f "$HOST_PROXY_PATH_A" "$HOST_PROXY_PATH_B" >/dev/null 2>&1 || true
 fi
@@ -483,6 +488,15 @@ if [ "$INTERACT" = "1" ]; then
     require_marker "^YELP_GENERIC_HIT_OK .*clicked=true .*text=Details .*source=inflated_xml" "YELP_GENERIC_HIT_OK Details"
     require_marker "^YELP_GENERIC_HIT_OK .*clicked=true .*text=Saved .*source=inflated_xml" "YELP_GENERIC_HIT_OK Saved"
     require_marker "^YELP_GENERIC_SCROLL_OK .*container=android.widget.ScrollView .*source=inflated_xml" "YELP_GENERIC_SCROLL_OK"
+    require_marker "^YELP_ADAPTER_ATTACH_OK .*class=android.widget.ListView .*adapter=.*VenueAdapter" "YELP_ADAPTER_ATTACH_OK"
+    require_marker "^YELP_ADAPTER_LAYOUT_PROBE_OK " "YELP_ADAPTER_LAYOUT_PROBE_OK"
+    require_marker "^YELP_ADAPTER_BIND_PROBE_OK .*rows=[1-9]" "YELP_ADAPTER_BIND_PROBE_OK"
+    require_marker "^YELP_ADAPTER_GET_VIEW_OK .*position=4 " "YELP_ADAPTER_GET_VIEW_OK position=4"
+    require_marker "^YELP_ADAPTER_NOTIFY_OK .*images=[5-9]" "YELP_ADAPTER_NOTIFY_OK images>=5"
+    require_marker "^YELP_ADAPTER_IMAGE_REBIND_OK index=4 " "YELP_ADAPTER_IMAGE_REBIND_OK index=4"
+    require_marker "^YELP_ADAPTER_IMAGE_BIND_OK .*position=4 .*bitmap=true .*imageView=true" "YELP_ADAPTER_IMAGE_BIND_OK position=4"
+    require_marker "^YELP_GENERIC_ADAPTER_ITEM_CLICK_OK .*clicked=true .*position=2 .*source=inflated_xml" "YELP_GENERIC_ADAPTER_ITEM_CLICK_OK"
+    require_marker "^YELP_ADAPTER_ITEM_CLICK_OK position=2 " "YELP_ADAPTER_ITEM_CLICK_OK position=2"
     require_marker "^YELP_NETWORK_FETCH_BEGIN " "YELP_NETWORK_FETCH_BEGIN"
     require_marker "^YELP_NETWORK_BRIDGE_OK " "YELP_NETWORK_BRIDGE_OK"
     require_marker "^YELP_LIVE_JSON_OK " "YELP_LIVE_JSON_OK"
@@ -532,6 +546,16 @@ fi
 if grep -qE "^YELP_GENERIC_SCROLL_FAIL " "$MARKERS_PATH"; then
     echo "ERROR: Yelp generic scroll marker failed" >&2
     grep -E "^YELP_GENERIC_SCROLL_FAIL " "$MARKERS_PATH" >&2 || true
+    missing=1
+fi
+if grep -qE "^YELP_ADAPTER_.*_FAIL " "$MARKERS_PATH"; then
+    echo "ERROR: Yelp adapter/list marker failed" >&2
+    grep -E "^YELP_ADAPTER_.*_FAIL " "$MARKERS_PATH" >&2 || true
+    missing=1
+fi
+if grep -qE "^YELP_GENERIC_ADAPTER_ITEM_CLICK_FAIL " "$MARKERS_PATH"; then
+    echo "ERROR: Yelp generic adapter item click marker failed" >&2
+    grep -E "^YELP_GENERIC_ADAPTER_ITEM_CLICK_FAIL " "$MARKERS_PATH" >&2 || true
     missing=1
 fi
 if grep -qE "^YELP_DIRECT_FRAME_FAIL " "$MARKERS_PATH"; then

@@ -6790,6 +6790,7 @@ public class WestlakeLauncher {
         boolean genericDetailsProbed = false;
         boolean genericSavedProbed = false;
         boolean genericScrollProbed = false;
+        boolean genericAdapterClickProbed = false;
         String touchPath = null;
         try {
             String envTouch = System.getenv("WESTLAKE_TOUCH");
@@ -6891,6 +6892,10 @@ public class WestlakeLauncher {
                                 : routeYelpLiveDirectTouch(activity, action, x, y));
                 if (!genericDetailsProbed && directHandled
                         && tabBeforeDirect != 2 && isYelpLiveRowOpenTap(x, y)) {
+                    if (!genericAdapterClickProbed) {
+                        genericAdapterClickProbed = probeYelpLiveGenericAdapterItemClick(
+                                activity, 2, x, y, seq);
+                    }
                     genericDetailsProbed = routeYelpLiveGenericButtonHit(
                             activity, "Details", x, y, seq);
                 }
@@ -7136,6 +7141,62 @@ public class WestlakeLauncher {
         return null;
     }
 
+    private static boolean probeYelpLiveGenericAdapterItemClick(
+            Activity activity, int position, int x, int y, int seq) {
+        try {
+            android.view.View decor = activity != null && activity.getWindow() != null
+                    ? activity.getWindow().getDecorView() : null;
+            android.widget.ListView list = decor != null ? findFirstListView(decor) : null;
+            if (list == null || list.getAdapter() == null) {
+                return false;
+            }
+            int count = list.getAdapter().getCount();
+            if (position < 0 || position >= count) {
+                return false;
+            }
+            int childIndex = position - list.getFirstVisiblePosition();
+            android.view.View child = childIndex >= 0 && childIndex < list.getChildCount()
+                    ? list.getChildAt(childIndex) : null;
+            long id = list.getAdapter().getItemId(position);
+            boolean clicked = list.performItemClick(child, position, id);
+            appendCutoffCanaryMarker("YELP_GENERIC_ADAPTER_ITEM_CLICK_OK seq="
+                    + intAscii(seq)
+                    + " x=" + intAscii(x)
+                    + " y=" + intAscii(y)
+                    + " clicked=" + boolToken(clicked)
+                    + " position=" + intAscii(position)
+                    + " count=" + intAscii(count)
+                    + " child=" + safeMarkerToken(child != null
+                            ? child.getClass().getName() : "null")
+                    + " source=inflated_xml");
+            return clicked;
+        } catch (Throwable t) {
+            startupLog("[WestlakeLauncher] Yelp live generic adapter click error", t);
+            appendCutoffCanaryMarker("YELP_GENERIC_ADAPTER_ITEM_CLICK_FAIL err="
+                    + t.getClass().getName());
+            return false;
+        }
+    }
+
+    private static android.widget.ListView findFirstListView(android.view.View view) {
+        if (view == null) {
+            return null;
+        }
+        if (view instanceof android.widget.ListView) {
+            return (android.widget.ListView) view;
+        }
+        if (view instanceof android.view.ViewGroup) {
+            android.view.ViewGroup group = (android.view.ViewGroup) view;
+            for (int i = 0; i < group.getChildCount(); i++) {
+                android.widget.ListView found = findFirstListView(group.getChildAt(i));
+                if (found != null) {
+                    return found;
+                }
+            }
+        }
+        return null;
+    }
+
     private static boolean routeYelpLiveGenericButtonHit(
             Activity activity, String label, int x, int y, int seq) {
         try {
@@ -7208,6 +7269,8 @@ public class WestlakeLauncher {
                     + " views=" + intAscii(stats.views)
                     + " texts=" + intAscii(stats.texts)
                     + " buttons=" + intAscii(stats.buttons)
+                    + " images=" + intAscii(stats.images)
+                    + " lists=" + intAscii(stats.listViews)
                     + " height=" + intAscii(YELP_SURFACE_HEIGHT)
                     + " source=inflated_xml");
             return true;
@@ -8724,6 +8787,8 @@ public class WestlakeLauncher {
         int texts;
         int progress;
         int buttons;
+        int images;
+        int listViews;
     }
 
     private static void collectShowcaseTreeStats(android.view.View view, int depth,
@@ -8747,6 +8812,12 @@ public class WestlakeLauncher {
         if (view instanceof android.widget.Button
                 || view instanceof android.widget.CompoundButton) {
             stats.buttons++;
+        }
+        if (view instanceof android.widget.ImageView) {
+            stats.images++;
+        }
+        if (view instanceof android.widget.ListView) {
+            stats.listViews++;
         }
         if (view instanceof android.view.ViewGroup) {
             android.view.ViewGroup group = (android.view.ViewGroup) view;
@@ -8939,10 +9010,14 @@ public class WestlakeLauncher {
         boolean isEdit = view instanceof android.widget.EditText;
         boolean isProgress = view instanceof android.widget.ProgressBar;
         boolean isImage = view instanceof android.widget.ImageView;
+        boolean isList = view instanceof android.widget.ListView;
         boolean isBottomNav = view.getClass().getName().indexOf("BottomNavigationView") >= 0;
 
         if (depth == 0) {
             showcaseRect(out, 0, 0, SURFACE_WIDTH, clipHeight, 0xfff7f4ef);
+        } else if (isList) {
+            stats.listViews++;
+            showcaseRect(out, left, top, right, bottom, 0xfffdfefe);
         } else if (isBottomNav) {
             showcaseRect(out, left, top, right, bottom, 0xffffffff);
         } else if (isButton) {
@@ -8957,6 +9032,7 @@ public class WestlakeLauncher {
                     left + 6, top + Math.max(8, (bottom - top) / 2 - 4),
                     right - 6, top + Math.max(16, (bottom - top) / 2 + 4));
         } else if (isImage) {
+            stats.images++;
             showcaseRect(out, left, top, right, bottom, 0xffeceff1);
             showcaseText(out, "icon", left + 8, top + Math.min(32, Math.max(18, bottom - top - 6)),
                     10, 0xff5f6368);
