@@ -53,16 +53,17 @@ high-entropy photo region so a block-only card cannot satisfy PF-453.
 PF-453 latest evidence:
 
 - `dalvikvm=58ea9cb7470e0f5990f3b90b353e46c0041ddc503c7173c8417a24e82a7d1a3e`
-- `aosp-shim.dex=6e85a7e1a30686526c41e612e899ca14c7afbe4a0749ae7dd4b41b6262b90a5d`
+- `aosp-shim.dex=c3180ca02a3d7b6b0a79597746e4e7051b266d7228156819dc74dd23740e2ed0`
 - `westlake-yelp-live-debug.apk=0916735eb1c64713cf3d9395035c0c2b28679768e8d1e805aeb87aecd4211a5c`
 - Screenshot/log/markers/trace:
   `/mnt/c/Users/dspfa/TempWestlake/yelp_live_target.*`
 - Stable accepted copy:
-  `/mnt/c/Users/dspfa/TempWestlake/accepted/yelp_live/6e85a7e1a30686526c41e612e899ca14c7afbe4a0749ae7dd4b41b6262b90a5d_0916735eb1c64713cf3d9395035c0c2b28679768e8d1e805aeb87aecd4211a5c/`
+  `/mnt/c/Users/dspfa/TempWestlake/accepted/yelp_live/c3180ca02a3d7b6b0a79597746e4e7051b266d7228156819dc74dd23740e2ed0_0916735eb1c64713cf3d9395035c0c2b28679768e8d1e805aeb87aecd4211a5c/`
 - Visual gate:
   `/mnt/c/Users/dspfa/TempWestlake/yelp_live_target.visual`
-  (`1080x2280`, `distinct_colors=4798`, `top_red_samples=3033`,
+  (`1080x2280`, `distinct_colors=4929`, `top_red_samples=3033`,
   `bottom_nav_light_samples=5199`, `bottom_nav_red_samples=26`,
+  `adapter_teal_samples=697`,
   `photo_distinct_colors=9837`, `photo_colored_samples=21517`,
   `photo_natural_samples=5069`)
 - Host log includes `Surface buffer 1080x2280 for com.westlake.yelplive`.
@@ -78,6 +79,7 @@ PF-453 latest evidence:
   `YELP_ADAPTER_IMAGE_BIND_OK position=4`,
   `YELP_GENERIC_ADAPTER_ITEM_CLICK_OK position=2`,
   `YELP_ADAPTER_ITEM_CLICK_OK position=2`,
+  `YELP_VISUAL_DELTA_V4_OK surface=adapter_feed`,
   `YELP_NETWORK_BRIDGE_OK`, `YELP_LIVE_JSON_OK status=200 bytes=1627 places=8
   transport=host_bridge`, `YELP_LIVE_IMAGE_OK`,
   `YELP_LIVE_ROW_IMAGE_OK index=4`,
@@ -94,9 +96,11 @@ adapter/list slice. The app inflates `yelp_live_activity.xml` from compiled APK
 layout bytes, binds the expected guest View IDs plus a real `ListView`, and the
 launcher serializes the inflated tree into a DLST frame with
 `YELP_GENERIC_VIEW_DRAW_OK views=57 texts=30 buttons=13 images=5 lists=1
-height=1013`. The polished visible Yelp surface remains the controlled direct
-`DLST` renderer, so the remaining rendering gap is full-fidelity generic View
-drawing replacing the Yelp-specific frame writer.
+height=1013`. The direct renderer now also paints an explicit XML
+ListView/BaseAdapter adapter-feed ribbon, and the visual gate rejects screenshots
+without that teal region. The polished visible Yelp surface remains the
+controlled direct `DLST` renderer, so the remaining rendering gap is
+full-fidelity generic View drawing replacing the Yelp-specific frame writer.
 
 PF-456 implementation status: the Android host bridge now exposes and accepts a
 v2 request shape for method, headers JSON, request body, max-byte cap, timeout,

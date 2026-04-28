@@ -479,7 +479,7 @@ Accepted PF-451 evidence from `cfb7c9e3`:
   - reject network failure markers and fatal runtime log markers
 - Done When:
   - Android phone: done with
-    `aosp-shim.dex=6e85a7e1a30686526c41e612e899ca14c7afbe4a0749ae7dd4b41b6262b90a5d`
+    `aosp-shim.dex=c3180ca02a3d7b6b0a79597746e4e7051b266d7228156819dc74dd23740e2ed0`
     and
     `westlake-yelp-live-debug.apk=0916735eb1c64713cf3d9395035c0c2b28679768e8d1e805aeb87aecd4211a5c`
   - the accepted host log includes `Surface buffer 1080x2280 for
@@ -585,7 +585,7 @@ Accepted PF-451 evidence from `cfb7c9e3`:
   - reject programmatic-only UI construction as the acceptance path
 - Done When:
   - Accepted slice: `scripts/run-yelp-live.sh` on `cfb7c9e3` passes with
-    `aosp-shim.dex=6e85a7e1a30686526c41e612e899ca14c7afbe4a0749ae7dd4b41b6262b90a5d`
+    `aosp-shim.dex=c3180ca02a3d7b6b0a79597746e4e7051b266d7228156819dc74dd23740e2ed0`
     and
     `westlake-yelp-live-debug.apk=0916735eb1c64713cf3d9395035c0c2b28679768e8d1e805aeb87aecd4211a5c`.
   - Accepted markers prove `YELP_XML_RESOURCE_WIRE_OK`,
@@ -603,9 +603,14 @@ Accepted PF-451 evidence from `cfb7c9e3`:
     `YELP_ADAPTER_IMAGE_BIND_OK position=4 bitmap=true imageView=true`,
     `YELP_GENERIC_ADAPTER_ITEM_CLICK_OK position=2`,
     `YELP_ADAPTER_ITEM_CLICK_OK position=2`,
+    `YELP_VISUAL_DELTA_V4_OK surface=adapter_feed adapterBadge=true
+    visibleImages=5`,
     `YELP_FULL_RES_FRAME_OK logical=480x1013 target=1080x2280 navTop=824`,
     live REST/image traffic,
     list scroll, details, save, saved navigation, and search.
+  - Visual gate records `adapter_teal_samples=697`, proving the phone
+    screenshot contains the visible XML ListView/BaseAdapter adapter-feed
+    ribbon.
   - Remaining open closure: the visible polished phone frame still uses the
     controlled direct `DLST` renderer; full-fidelity generic Android View-tree
     rendering over the inflated Yelp widgets and broad generic touch/scroll
@@ -739,7 +744,7 @@ Accepted PF-451 evidence from `cfb7c9e3`:
     `target=android.widget.Button`, `text=Search`, `text=Details`,
     `text=Saved`, and `source=inflated_xml`, plus `YELP_GENERIC_SCROLL_OK`
     with `container=android.widget.ScrollView`, using
-    `aosp-shim.dex=6e85a7e1a30686526c41e612e899ca14c7afbe4a0749ae7dd4b41b6262b90a5d`.
+    `aosp-shim.dex=c3180ca02a3d7b6b0a79597746e4e7051b266d7228156819dc74dd23740e2ed0`.
   - Remaining open closure: move category, filter, list row, details, save,
     and bottom-nav interactions from the app-specific direct router to generic
     View dispatch, and make generic scroll routing drive the visible list path.
@@ -765,7 +770,7 @@ Accepted PF-451 evidence from `cfb7c9e3`:
     row listener without using the direct coordinate router as the proof
 - Done When:
   - Accepted slice: `scripts/run-yelp-live.sh` on `cfb7c9e3` passes with
-    `aosp-shim.dex=6e85a7e1a30686526c41e612e899ca14c7afbe4a0749ae7dd4b41b6262b90a5d`
+    `aosp-shim.dex=c3180ca02a3d7b6b0a79597746e4e7051b266d7228156819dc74dd23740e2ed0`
     and
     `westlake-yelp-live-debug.apk=0916735eb1c64713cf3d9395035c0c2b28679768e8d1e805aeb87aecd4211a5c`.
   - Accepted markers include `YELP_ADAPTER_ATTACH_OK
@@ -776,6 +781,9 @@ Accepted PF-451 evidence from `cfb7c9e3`:
     `YELP_ADAPTER_IMAGE_BIND_OK position=4 bitmap=true imageView=true`,
     `YELP_GENERIC_ADAPTER_ITEM_CLICK_OK position=2`, and
     `YELP_ADAPTER_ITEM_CLICK_OK position=2`.
+  - Visible delta markers include `YELP_VISUAL_DELTA_V4_OK
+    surface=adapter_feed adapterBadge=true visibleImages=5`, and the screenshot
+    visual gate records `adapter_teal_samples=697`.
   - Remaining open closure: add RecyclerView-equivalent virtualization,
     visible generic list scrolling, data-set invalidation without the
     image-rich `notifyDataSetChanged` guard, and OHOS adapter parity.
