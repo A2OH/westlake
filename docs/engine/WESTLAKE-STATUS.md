@@ -54,11 +54,11 @@ PF-453 latest evidence:
 
 - `dalvikvm=58ea9cb7470e0f5990f3b90b353e46c0041ddc503c7173c8417a24e82a7d1a3e`
 - `aosp-shim.dex=eab847a8ef6108a6c24118ad9349a2aebb74e5e7f837edfc4cb5d0f92a30535d`
-- `westlake-yelp-live-debug.apk=f60f2d8b8b91592aec2e96329da9fbd44f332b535d506e624a5073e37a1122d9`
+- `westlake-yelp-live-debug.apk=a677a8f36e498a8f7c6834a9dc4d10bdc5fa03d7a48c91c8bdc00c8138b6866b`
 - Screenshot/log/markers/trace:
   `/mnt/c/Users/dspfa/TempWestlake/yelp_live_target.*`
 - Stable accepted copy:
-  `/mnt/c/Users/dspfa/TempWestlake/accepted/yelp_live/eab847a8ef6108a6c24118ad9349a2aebb74e5e7f837edfc4cb5d0f92a30535d_f60f2d8b8b91592aec2e96329da9fbd44f332b535d506e624a5073e37a1122d9/`
+  `/mnt/c/Users/dspfa/TempWestlake/accepted/yelp_live/eab847a8ef6108a6c24118ad9349a2aebb74e5e7f837edfc4cb5d0f92a30535d_a677a8f36e498a8f7c6834a9dc4d10bdc5fa03d7a48c91c8bdc00c8138b6866b/`
 - Visual gate:
   `/mnt/c/Users/dspfa/TempWestlake/yelp_live_target.visual`
   (`1080x2280`, `distinct_colors=1383`, `top_red_samples=3033`,
@@ -106,7 +106,11 @@ controlled direct `DLST` renderer, so the remaining rendering gap is
 full-fidelity generic View drawing replacing the Yelp-specific frame writer.
 The accepted generic list proof is still controlled: it overlays Yelp row state
 for the visible list proof, and raw Bitmap-backed `ImageView` decode remains a
-SIGBUS gap.
+SIGBUS gap. A follow-up `bitmap=true` probe on the same phone reached
+`YELP_ADAPTER_IMAGE_BIND_OK position=4 bitmap=true imageView=true`, then
+crashed during the later interaction sequence with `SIGBUS BUS_ADRALN`, so the
+accepted gate intentionally stays on byte-backed direct thumbnails and
+`bitmap=false`.
 
 PF-456 implementation status: the Android host bridge now exposes a v2 request
 shape for method, headers JSON, request body, max-byte cap, timeout,

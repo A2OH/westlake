@@ -186,9 +186,9 @@ Accepted PF-453 hashes:
 Accepted current PF-455/PF-456/PF-459/PF-460/PF-461 Yelp hashes:
 - `dalvikvm=58ea9cb7470e0f5990f3b90b353e46c0041ddc503c7173c8417a24e82a7d1a3e`
 - `aosp-shim.dex=eab847a8ef6108a6c24118ad9349a2aebb74e5e7f837edfc4cb5d0f92a30535d`
-- `westlake-yelp-live-debug.apk=f60f2d8b8b91592aec2e96329da9fbd44f332b535d506e624a5073e37a1122d9`
+- `westlake-yelp-live-debug.apk=a677a8f36e498a8f7c6834a9dc4d10bdc5fa03d7a48c91c8bdc00c8138b6866b`
 - Stable accepted copy:
-  `/mnt/c/Users/dspfa/TempWestlake/accepted/yelp_live/eab847a8ef6108a6c24118ad9349a2aebb74e5e7f837edfc4cb5d0f92a30535d_f60f2d8b8b91592aec2e96329da9fbd44f332b535d506e624a5073e37a1122d9/`
+  `/mnt/c/Users/dspfa/TempWestlake/accepted/yelp_live/eab847a8ef6108a6c24118ad9349a2aebb74e5e7f837edfc4cb5d0f92a30535d_a677a8f36e498a8f7c6834a9dc4d10bdc5fa03d7a48c91c8bdc00c8138b6866b/`
 - Added PF-460 evidence: `YELP_XML_INFLATE_OK root=android.widget.ScrollView`,
   `YELP_GENERIC_HIT_OK` with `text=Search`, `text=Details`, and `text=Saved`,
   and `YELP_GENERIC_SCROLL_OK container=android.widget.ScrollView

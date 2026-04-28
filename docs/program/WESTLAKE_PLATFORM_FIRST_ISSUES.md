@@ -485,7 +485,7 @@ Accepted PF-451 evidence from `cfb7c9e3`:
   - Android phone: done with
     `aosp-shim.dex=eab847a8ef6108a6c24118ad9349a2aebb74e5e7f837edfc4cb5d0f92a30535d`
     and
-    `westlake-yelp-live-debug.apk=f60f2d8b8b91592aec2e96329da9fbd44f332b535d506e624a5073e37a1122d9`
+    `westlake-yelp-live-debug.apk=a677a8f36e498a8f7c6834a9dc4d10bdc5fa03d7a48c91c8bdc00c8138b6866b`
   - the accepted host log includes `Surface buffer 1080x2280 for
     com.westlake.yelplive`, proving the 1K-class Yelp buffer path
   - the accepted marker file includes `YELP_XML_RESOURCE_WIRE_OK`,
@@ -591,7 +591,7 @@ Accepted PF-451 evidence from `cfb7c9e3`:
   - Accepted slice: `scripts/run-yelp-live.sh` on `cfb7c9e3` passes with
     `aosp-shim.dex=eab847a8ef6108a6c24118ad9349a2aebb74e5e7f837edfc4cb5d0f92a30535d`
     and
-    `westlake-yelp-live-debug.apk=f60f2d8b8b91592aec2e96329da9fbd44f332b535d506e624a5073e37a1122d9`.
+    `westlake-yelp-live-debug.apk=a677a8f36e498a8f7c6834a9dc4d10bdc5fa03d7a48c91c8bdc00c8138b6866b`.
   - Accepted markers prove `YELP_XML_RESOURCE_WIRE_OK`,
     `YELP_XML_INFLATE_OK root=android.widget.ScrollView views=30 texts=21`,
     `YELP_XML_BIND_OK buttons=5`,
@@ -784,7 +784,7 @@ Accepted PF-451 evidence from `cfb7c9e3`:
   - Accepted slice: `scripts/run-yelp-live.sh` on `cfb7c9e3` passes with
     `aosp-shim.dex=eab847a8ef6108a6c24118ad9349a2aebb74e5e7f837edfc4cb5d0f92a30535d`
     and
-    `westlake-yelp-live-debug.apk=f60f2d8b8b91592aec2e96329da9fbd44f332b535d506e624a5073e37a1122d9`.
+    `westlake-yelp-live-debug.apk=a677a8f36e498a8f7c6834a9dc4d10bdc5fa03d7a48c91c8bdc00c8138b6866b`.
   - Accepted markers include `YELP_ADAPTER_ATTACH_OK
     class=android.widget.ListView`, `YELP_ADAPTER_LAYOUT_PROBE_OK`,
     `YELP_ADAPTER_BIND_PROBE_OK rows=5`, `YELP_ADAPTER_GET_VIEW_OK

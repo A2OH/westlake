@@ -22,14 +22,14 @@ Accepted Android phone proof:
 - runtime dir: `/data/local/tmp/westlake`
 - artifacts: `/mnt/c/Users/dspfa/TempWestlake/yelp_live_target.*`
 - accepted copy:
-  `/mnt/c/Users/dspfa/TempWestlake/accepted/yelp_live/eab847a8ef6108a6c24118ad9349a2aebb74e5e7f837edfc4cb5d0f92a30535d_f60f2d8b8b91592aec2e96329da9fbd44f332b535d506e624a5073e37a1122d9/`
+  `/mnt/c/Users/dspfa/TempWestlake/accepted/yelp_live/eab847a8ef6108a6c24118ad9349a2aebb74e5e7f837edfc4cb5d0f92a30535d_a677a8f36e498a8f7c6834a9dc4d10bdc5fa03d7a48c91c8bdc00c8138b6866b/`
 
 Accepted hashes:
 
 ```text
 dalvikvm=58ea9cb7470e0f5990f3b90b353e46c0041ddc503c7173c8417a24e82a7d1a3e
 aosp-shim.dex=eab847a8ef6108a6c24118ad9349a2aebb74e5e7f837edfc4cb5d0f92a30535d
-westlake-yelp-live-debug.apk=f60f2d8b8b91592aec2e96329da9fbd44f332b535d506e624a5073e37a1122d9
+westlake-yelp-live-debug.apk=a677a8f36e498a8f7c6834a9dc4d10bdc5fa03d7a48c91c8bdc00c8138b6866b
 ```
 
 Required acceptance markers:
@@ -404,3 +404,9 @@ Not ready for final OHOS delivery claim:
 - RecyclerView-class list virtualization is not complete
 - full Material Components are not complete
 - stock McDonald's APK still needs the southbound shim ladder above
+
+Latest raw-bitmap probe result: a follow-up Android phone run with
+`YELP_ADAPTER_IMAGE_BIND_OK position=4 bitmap=true imageView=true` reached all
+five row binds, then crashed during later interaction with `SIGBUS BUS_ADRALN`.
+Keep the accepted gate on `bitmap=false` until BitmapDrawable/ImageView drawing
+is isolated and fixed.
