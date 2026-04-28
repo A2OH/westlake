@@ -104,7 +104,11 @@ Supervisor update, 2026-04-27:
   source=inflated_xml`, `YELP_ADAPTER_ATTACH_OK class=android.widget.ListView`,
   `YELP_ADAPTER_NOTIFY_OK images=5`, `YELP_ADAPTER_IMAGE_BIND_OK position=4`,
   `YELP_GENERIC_ADAPTER_ITEM_CLICK_OK position=2`, and
-  `YELP_ADAPTER_ITEM_CLICK_OK position=2`. Remaining PF-455/PF-459/PF-460/
+  `YELP_ADAPTER_ITEM_CLICK_OK position=2`. A follow-up phone-visible gate also
+  records `YELP_VISUAL_DELTA_V4_OK surface=adapter_feed` and
+  `adapter_teal_samples=697`, so this slice is visible on the screenshot as an
+  XML ListView/BaseAdapter adapter-feed ribbon instead of only hidden markers.
+  Remaining PF-455/PF-459/PF-460/
   PF-461 gap: the visible Yelp frame is still the controlled direct `DLST`
   renderer, not a full-fidelity generic Android `draw()` pass over every
   inflated widget, and broad coordinate hit dispatch / full visible scroll
@@ -172,10 +176,10 @@ Accepted PF-453 hashes:
 
 Accepted current PF-455/PF-456/PF-459/PF-460/PF-461 Yelp hashes:
 - `dalvikvm=58ea9cb7470e0f5990f3b90b353e46c0041ddc503c7173c8417a24e82a7d1a3e`
-- `aosp-shim.dex=6e85a7e1a30686526c41e612e899ca14c7afbe4a0749ae7dd4b41b6262b90a5d`
+- `aosp-shim.dex=c3180ca02a3d7b6b0a79597746e4e7051b266d7228156819dc74dd23740e2ed0`
 - `westlake-yelp-live-debug.apk=0916735eb1c64713cf3d9395035c0c2b28679768e8d1e805aeb87aecd4211a5c`
 - Stable accepted copy:
-  `/mnt/c/Users/dspfa/TempWestlake/accepted/yelp_live/6e85a7e1a30686526c41e612e899ca14c7afbe4a0749ae7dd4b41b6262b90a5d_0916735eb1c64713cf3d9395035c0c2b28679768e8d1e805aeb87aecd4211a5c/`
+  `/mnt/c/Users/dspfa/TempWestlake/accepted/yelp_live/c3180ca02a3d7b6b0a79597746e4e7051b266d7228156819dc74dd23740e2ed0_0916735eb1c64713cf3d9395035c0c2b28679768e8d1e805aeb87aecd4211a5c/`
 - Added PF-460 evidence: `YELP_XML_INFLATE_OK root=android.widget.ScrollView`,
   `YELP_GENERIC_HIT_OK` with `text=Search`, `text=Details`, and `text=Saved`,
   and `YELP_GENERIC_SCROLL_OK container=android.widget.ScrollView
@@ -189,6 +193,10 @@ Accepted current PF-455/PF-456/PF-459/PF-460/PF-461 Yelp hashes:
   `YELP_REST_MATRIX_OK`, `YELP_LIVE_ROW_IMAGE_OK index=4`,
   `YELP_LIST_SCROLL_OK`, `YELP_DETAILS_OPEN_OK`, `YELP_SAVE_PLACE_OK`, and
   `YELP_NAV_SEARCH_OK`.
+- Added visible PF-461 delta evidence: `YELP_VISUAL_DELTA_V4_OK
+  surface=adapter_feed adapterBadge=true visibleImages=5 rows=5
+  materialRibbon=true`, with `adapter_teal_samples=697` in
+  `yelp_live_target.visual`.
 
 Accepted PF-454 hashes:
 - `dalvikvm=58ea9cb7470e0f5990f3b90b353e46c0041ddc503c7173c8417a24e82a7d1a3e`

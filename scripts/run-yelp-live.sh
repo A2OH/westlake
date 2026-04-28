@@ -475,6 +475,7 @@ require_marker "^YELP_UI_BUILD_OK " "YELP_UI_BUILD_OK"
 require_marker "^YELP_DIRECT_FRAME_OK " "YELP_DIRECT_FRAME_OK"
 require_marker "^YELP_FULL_RES_FRAME_OK .* target=1080x2280" "YELP_FULL_RES_FRAME_OK target=1080x2280"
 require_marker "^YELP_GENERIC_VIEW_DRAW_OK .*height=1013 .*source=inflated_xml" "YELP_GENERIC_VIEW_DRAW_OK"
+require_marker "^YELP_VISUAL_DELTA_V4_OK .*surface=adapter_feed .*adapterBadge=true .*visibleImages=[5-9]" "YELP_VISUAL_DELTA_V4_OK adapter feed"
 require_log_marker "Surface buffer 1080x2280 for $YELP_PKG" "full phone Yelp surface buffer"
 if grep -qE "^YELP_XML_BIND_GAP " "$MARKERS_PATH"; then
     echo "ERROR: forbidden Yelp marker present: YELP_XML_BIND_GAP" >&2
@@ -597,6 +598,7 @@ for y in range(y0, y1, step):
 
 bottom_nav_light = 0
 bottom_nav_red = 0
+adapter_teal = 0
 y0, y1 = int(h * 0.82), int(h * 0.96)
 for y in range(y0, y1, step):
     for x in range(x0, x1, step):
@@ -605,6 +607,12 @@ for y in range(y0, y1, step):
             bottom_nav_light += 1
         if r > 170 and g < 80 and b < 80:
             bottom_nav_red += 1
+ay0, ay1 = int(h * 0.18), int(h * 0.225)
+for y in range(ay0, ay1, step):
+    for x in range(x0, x1, step):
+        r, g, b = img.getpixel((x, y))
+        if r < 60 and g > 80 and b > 70:
+            adapter_teal += 1
 
 photo_step = max(1, min(w, h) // 360)
 photo_colors = []
@@ -630,6 +638,7 @@ with open(visual_path, "w", encoding="utf-8") as out:
     out.write(f"top_red_samples={top_red}\n")
     out.write(f"bottom_nav_light_samples={bottom_nav_light}\n")
     out.write(f"bottom_nav_red_samples={bottom_nav_red}\n")
+    out.write(f"adapter_teal_samples={adapter_teal}\n")
     out.write(f"photo_step={photo_step}\n")
     out.write(f"photo_distinct_colors={photo_distinct}\n")
     out.write(f"photo_colored_samples={photo_colored}\n")
@@ -643,6 +652,8 @@ if top_red < 20:
     raise SystemExit("Yelp red header not visible")
 if bottom_nav_light < 80 or bottom_nav_red < 10:
     raise SystemExit("bottom navigation not visible")
+if adapter_teal < 80:
+    raise SystemExit("adapter feed visual delta not visible")
 if photo_distinct < 300 or photo_colored < 500 or photo_natural < 80:
     raise SystemExit("live photo region not visible")
 PY

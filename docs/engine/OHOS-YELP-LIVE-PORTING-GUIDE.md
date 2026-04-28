@@ -22,13 +22,13 @@ Accepted Android phone proof:
 - runtime dir: `/data/local/tmp/westlake`
 - artifacts: `/mnt/c/Users/dspfa/TempWestlake/yelp_live_target.*`
 - accepted copy:
-  `/mnt/c/Users/dspfa/TempWestlake/accepted/yelp_live/6e85a7e1a30686526c41e612e899ca14c7afbe4a0749ae7dd4b41b6262b90a5d_0916735eb1c64713cf3d9395035c0c2b28679768e8d1e805aeb87aecd4211a5c/`
+  `/mnt/c/Users/dspfa/TempWestlake/accepted/yelp_live/c3180ca02a3d7b6b0a79597746e4e7051b266d7228156819dc74dd23740e2ed0_0916735eb1c64713cf3d9395035c0c2b28679768e8d1e805aeb87aecd4211a5c/`
 
 Accepted hashes:
 
 ```text
 dalvikvm=58ea9cb7470e0f5990f3b90b353e46c0041ddc503c7173c8417a24e82a7d1a3e
-aosp-shim.dex=6e85a7e1a30686526c41e612e899ca14c7afbe4a0749ae7dd4b41b6262b90a5d
+aosp-shim.dex=c3180ca02a3d7b6b0a79597746e4e7051b266d7228156819dc74dd23740e2ed0
 westlake-yelp-live-debug.apk=0916735eb1c64713cf3d9395035c0c2b28679768e8d1e805aeb87aecd4211a5c
 ```
 
@@ -53,6 +53,7 @@ YELP_ADAPTER_IMAGE_REBIND_OK index=4
 YELP_ADAPTER_IMAGE_BIND_OK position=4 bitmap=true imageView=true
 YELP_GENERIC_ADAPTER_ITEM_CLICK_OK clicked=true position=2 source=inflated_xml
 YELP_ADAPTER_ITEM_CLICK_OK position=2
+YELP_VISUAL_DELTA_V4_OK surface=adapter_feed adapterBadge=true visibleImages=5
 YELP_NETWORK_BRIDGE_OK
 YELP_LIVE_JSON_OK
 YELP_LIVE_IMAGE_OK
@@ -247,6 +248,8 @@ Accepted:
 - XML `ListView` backed by a guest `BaseAdapter`
 - five live row-image rebinds into `ImageView` bitmaps
 - generic `ListView.performItemClick()` into the APK row listener
+- phone-visible adapter-feed ribbon with screenshot gate
+  `adapter_teal_samples=697`
 - full phone-height DLST rendering
 - touch-driven app state
 - live host-bridge JSON and images
@@ -308,7 +311,8 @@ marker before moving to the next.
    - Required markers: `YELP_ADAPTER_ATTACH_OK`,
      `YELP_ADAPTER_BIND_PROBE_OK`, `YELP_ADAPTER_NOTIFY_OK images=5`,
      `YELP_ADAPTER_IMAGE_BIND_OK position=4`,
-     `YELP_GENERIC_ADAPTER_ITEM_CLICK_OK`, and `YELP_ADAPTER_ITEM_CLICK_OK`.
+     `YELP_GENERIC_ADAPTER_ITEM_CLICK_OK`, `YELP_ADAPTER_ITEM_CLICK_OK`, and
+     `YELP_VISUAL_DELTA_V4_OK`.
    - Remaining work: RecyclerView-equivalent virtualization, robust visible
      generic list scrolling, and OHOS adapter parity.
    - McDonald's relevance: menu grids, offers lists, order history.

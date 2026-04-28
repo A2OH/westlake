@@ -7361,10 +7361,19 @@ public class WestlakeLauncher {
             yelpCategory(ops, "Dessert", 352, 150, 464, 0xff7b4b2a,
                     category.indexOf("Dessert") >= 0);
 
+            int visibleImageCount = 0;
+            if (row1ImageBytes > 0) visibleImageCount++;
+            if (row2ImageBytes > 0) visibleImageCount++;
+            if (row3ImageBytes > 0) visibleImageCount++;
+            if (row4ImageBytes > 0) visibleImageCount++;
+            if (row5ImageBytes > 0) visibleImageCount++;
+            yelpAdapterRibbon(ops, placeCount, visibleImageCount, loading);
+            int sectionTop = 224;
+
             if (tab == 2) {
-                yelpSectionTitle(ops, "Business details", "Live listing from the bridge", 208);
+                yelpSectionTitle(ops, "Business details", "Live listing from the bridge", sectionTop);
                 yelpBusinessCard(ops, name, cuisine + " - " + mealType,
-                        difficulty, rating, reviews, imageBytes, imageHash, imageData, 16, 234, true);
+                        difficulty, rating, reviews, imageBytes, imageHash, imageData, 16, 250, true);
                 showcaseText(ops, "Good to know", 18, 492, 14, 0xff1f1f1f);
                 yelpMiniFact(ops, "Open now", "Popular for " + mealType, 16, 510);
                 yelpMiniFact(ops, "Live source", "internet bridge", 248, 510);
@@ -7374,11 +7383,11 @@ public class WestlakeLauncher {
                 yelpButton(ops, saved ? "Saved" : "Save", 248, 596, 354, 638, saved);
                 yelpButton(ops, "Review", 364, 596, 464, 638, false);
             } else if (tab == 3) {
-                yelpSectionTitle(ops, "Saved restaurants", "Local app state, real touch path", 208);
+                yelpSectionTitle(ops, "Saved restaurants", "Local app state, real touch path", sectionTop);
                 yelpBusinessCard(ops, savedCount > 0 ? name : "No saved restaurants yet",
                         savedCount > 0 ? cuisine + " - " + mealType : "Tap Save on a business",
                         savedCount > 0 ? "Saved for later" : "Empty list",
-                        rating, reviews, imageBytes, imageHash, imageData, 16, 238, savedCount > 0);
+                        rating, reviews, imageBytes, imageHash, imageData, 16, 254, savedCount > 0);
                 yelpListRow(ops, 1, row1Name, row1Meta, 504);
                 yelpListRow(ops, 2, row2Name, row2Meta, 552);
                 yelpButton(ops, "Discover", 16, 620, 150, 666, false);
@@ -7386,7 +7395,7 @@ public class WestlakeLauncher {
                 yelpButton(ops, "Refresh", 328, 620, 464, 666, loading);
             } else if (tab == 1) {
                 yelpSectionTitle(ops, "Search results for " + query,
-                        "Tap a row for details. Use the heart edge to save.", 208);
+                        "Tap a row for details. Use the heart edge to save.", sectionTop);
                 int rowTop = YELP_ROW_TOP;
                 int rowStep = YELP_ROW_HEIGHT + YELP_ROW_GAP;
                 yelpResultCard(ops, listOffset + 1, row1Name, row1Meta,
@@ -7411,7 +7420,7 @@ public class WestlakeLauncher {
                 yelpScrollIndicator(ops, listOffset, placeCount, 810);
             } else {
                 yelpSectionTitle(ops, "Top restaurants near Westlake",
-                        trimShowcaseText(status, 48), 208);
+                        trimShowcaseText(status, 48), sectionTop);
                 int rowTop = YELP_ROW_TOP;
                 int rowStep = YELP_ROW_HEIGHT + YELP_ROW_GAP;
                 yelpResultCard(ops, listOffset + 1, row1Name, row1Meta,
@@ -7453,6 +7462,11 @@ public class WestlakeLauncher {
                     + " tab=" + yelpTabName(tab)
                     + " rows=5"
                     + " livePhotos=" + boolToken(row1ImageBytes > 0 && row5ImageBytes > 0));
+            appendCutoffCanaryMarker("YELP_VISUAL_DELTA_V4_OK surface=adapter_feed"
+                    + " adapterBadge=true"
+                    + " visibleImages=" + intAscii(visibleImageCount)
+                    + " rows=5"
+                    + " materialRibbon=true");
             appendCutoffCanaryMarker("YELP_FULL_RES_FRAME_OK logical=480x1013"
                     + " target=1080x2280"
                     + " navTop=" + intAscii(YELP_BOTTOM_NAV_TOP));
@@ -7488,6 +7502,20 @@ public class WestlakeLauncher {
         showcaseRoundRect(out, 392, 74, 454, 90, 8, 8,
                 loading ? 0xfffff3df : 0xffffebee);
         showcaseText(out, state, 402, 86, 7, loading ? 0xff8a4a00 : 0xffa82020);
+    }
+
+    private static void yelpAdapterRibbon(java.io.OutputStream out, int placeCount,
+            int visibleImageCount, boolean loading) throws java.io.IOException {
+        showcaseRoundRect(out, 16, 194, 464, 220, 8, 8, 0x16000000);
+        showcaseRoundRect(out, 16, 192, 464, 218, 8, 8, 0xff00695c);
+        showcaseRoundRect(out, 24, 197, 130, 213, 8, 8, 0x2fffffff);
+        showcaseText(out, "XML ListView", 36, 209, 8, 0xffffffff);
+        showcaseText(out, "BaseAdapter rows + live ImageView rebinds",
+                142, 209, 8, 0xffffffff);
+        String status = loading ? "syncing" : intAscii(placeCount) + " rows";
+        showcaseRoundRect(out, 392, 197, 456, 213, 8, 8, 0xffffffff);
+        showcaseText(out, status, 402, 209, 7, 0xff00695c);
+        showcaseCircle(out, 374, 205, 5, visibleImageCount >= 5 ? 0xffa5d6a7 : 0xffffcc80);
     }
 
     private static void yelpSectionTitle(java.io.OutputStream out, String title,
