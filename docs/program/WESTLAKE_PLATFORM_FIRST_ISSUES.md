@@ -30,8 +30,9 @@ Primary issue families:
   Yelp APK layout-byte registration, XML inflation, ID binding, layout probe,
   live data, and touch flows on a full-phone `1080x2280` host surface with
   logical `480x1013` guest coordinates; PF-459 now accepts a first generic
-  inflated-View DLST draw slice, while full-fidelity replacement of the
-  controlled direct `DLST` frame writer remains open
+  inflated-View DLST draw slice, and PF-460 now accepts a first inflated XML
+  `Button.performClick()` listener slice; full-fidelity replacement of the
+  controlled direct `DLST` frame writer and touch router remains open
 - `PF-456` portable REST networking completeness: Android host bridge v2 is
   accepted on phone for methods, headers, bodies, status/error handling,
   redirects, timeouts, payload caps, and truncation through the Yelp REST
@@ -54,7 +55,10 @@ McDonald's-class stock APK are documented in
   body upload, redirects, timeouts, truncation, and non-2xx bodies
 - `PF-459` generic inflated View draw path for the Yelp XML tree: Android
   phone accepted for the first DLST serialization slice
-- `PF-460` generic View hit testing and scroll containers
+- `PF-460` generic View hit testing and scroll containers: Android phone
+  accepted for a first non-disruptive inflated XML `Button.performClick()` hit
+  into the Yelp app listener; broad coordinate hit dispatch and scroll
+  containers remain open
 - `PF-461` adapter/list virtualization and image rebinding
 - `PF-462` upstream-compatible Material shim expansion
 - `PF-463` lifecycle/recreate/back-stack/state stress
@@ -254,11 +258,13 @@ McDonald's-specific work is treated as forward progress:
   image tiles, and direct Material-styled DLST rendering, but it is still a
   controlled component shim plus app-specific hit routing, not a generic
   upstream MDC renderer or generic Android View hit-test claim.
-- `PF-455` / `PF-456` / `PF-457` / `PF-459`: the next frontier is now narrower
-  and more specific. PF-455 has phone evidence for XML-backed Yelp layout
-  inflation and binding, and PF-459 now proves a generic inflated-View DLST
-  serialization slice, but visible polished rendering still uses the controlled
-  direct `DLST` path.
+- `PF-455` / `PF-456` / `PF-457` / `PF-459` / `PF-460`: the next frontier is
+  now narrower and more specific. PF-455 has phone evidence for XML-backed Yelp
+  layout inflation and binding, PF-459 proves a generic inflated-View DLST
+  serialization slice, and PF-460 proves a first inflated XML
+  `Button.performClick()` listener path, but visible polished rendering still
+  uses the controlled direct `DLST` path and most touch/scroll behavior still
+  uses the controlled router.
   PF-456 now has Android phone evidence for the bridge v2 REST matrix, but
   still needs the OHOS adapter. PF-457 has a Material XML probe with generic
   `findViewAt/performClick` into the APK listener, but not upstream MDC
@@ -530,14 +536,17 @@ Accepted PF-451 evidence from `cfb7c9e3`:
 - Layer: XML-backed Yelp app path
 - Depends On: PF-302, PF-453, PF-454, PF-801
 - Status: Android phone XML inflation/binding slice accepted on 2026-04-27;
-  PF-459 first generic draw slice is accepted; full-fidelity generic View-tree
-  rendering remains open
+  PF-459 first generic draw slice is accepted; PF-460 first generic XML
+  `Button.performClick()` slice is accepted; full-fidelity generic View-tree
+  rendering and broad touch/scroll dispatch remain open
 - Problem:
-  - The accepted Yelp path now proves compiled XML inflation and a first
-    generic draw serialization slice, but the polished visible UI still depends
-    on an app-specific direct `DLST` writer. That validates guest logic,
-    networking, direct drawing, and touch routing, but full-fidelity generic
-    Android View drawing remains open.
+  - The accepted Yelp path now proves compiled XML inflation, a first generic
+    draw serialization slice, and a first inflated XML button listener hit, but
+    the polished visible UI still depends on an app-specific direct `DLST`
+    writer and most interactions still depend on the controlled touch router.
+    That validates guest logic, networking, direct drawing, and a narrow
+    View-tree listener path, but full-fidelity generic Android View drawing and
+    broad touch dispatch remain open.
 - Scope:
   - create or refactor the Yelp-like app so its primary screen is declared in
     compiled XML layout resources
@@ -558,27 +567,31 @@ Accepted PF-451 evidence from `cfb7c9e3`:
   - build the XML-backed Yelp APK from source and run it on phone `cfb7c9e3`
   - require app-owned markers equivalent to `YELP_XML_INFLATE_OK`,
     `YELP_XML_BIND_OK`, `YELP_XML_LAYOUT_PROBE_OK`,
-    `YELP_XML_TREE_RENDER_OK`, `YELP_XML_TOUCH_ROUTE_OK`, and the existing
-    live-data/action markers
+    `YELP_XML_TREE_RENDER_OK`, `YELP_GENERIC_HIT_OK`,
+    `YELP_XML_TOUCH_ROUTE_OK`, and the existing live-data/action markers
   - screenshot gate must show a scrollable multi-row Yelp-like list with remote
     images, search/filter surface, save affordance, details path, and bottom nav
     from the 1K-class buffer
   - reject programmatic-only UI construction as the acceptance path
 - Done When:
   - Accepted slice: `scripts/run-yelp-live.sh` on `cfb7c9e3` passes with
-    `aosp-shim.dex=7f52c37ac29502b57f36a692d9c835e535ec8cfd7f64cb45e2f31f9c659828d1`
+    `aosp-shim.dex=bfe8275cebd2f98685601e1681525e2a64ee862bb37d34da874580f556f0abfe`
     and
     `westlake-yelp-live-debug.apk=24d1444b5ebf2319722c7168b4a849b7f022cc869b1708734695e381c44abfda`.
   - Accepted markers prove `YELP_XML_RESOURCE_WIRE_OK`,
     `YELP_XML_INFLATE_OK views=29 texts=21`, `YELP_XML_BIND_OK buttons=5`,
     `YELP_XML_LAYOUT_PROBE_OK target=480x1013 measured=480x1013`,
     `YELP_GENERIC_VIEW_DRAW_OK views=30 texts=21 buttons=17 height=1013`,
+    `YELP_GENERIC_HIT_OK` with `clicked=true`,
+    `target=android.widget.Button`, `text=Search`, and
+    `source=inflated_xml`,
     `YELP_FULL_RES_FRAME_OK logical=480x1013 target=1080x2280 navTop=824`,
     live REST/image traffic,
     list scroll, details, save, saved navigation, and search.
   - Remaining open closure: the visible polished phone frame still uses the
     controlled direct `DLST` renderer; full-fidelity generic Android View-tree
-    rendering over the inflated Yelp widgets is not yet accepted.
+    rendering over the inflated Yelp widgets and broad generic touch/scroll
+    dispatch are not yet accepted.
   - the same app remains a viable OHOS target because the host-facing seams are
     DLST/display, input, storage/logging, and PF-456 networking.
 
@@ -681,3 +694,31 @@ Accepted PF-451 evidence from `cfb7c9e3`:
     without an app-specific touch router
   - unsupported upstream Material components are explicitly listed outside the
     accepted controlled-app surface instead of being implied as supported
+
+### PF-460
+- Priority: P0
+- Layer: generic View hit testing and scroll containers
+- Depends On: PF-455, PF-459, PF-801
+- Status: first inflated XML `Button.performClick()` slice accepted on Android
+  phone; broad coordinate hit dispatch and scroll containers remain open
+- Problem:
+  - The current Yelp run proves Westlake can invoke an app-owned listener on an
+    inflated XML `Button`, but most visible interactions still use
+    `routeYelpLiveDirectTouch(...)`. Stock app progress requires generic View
+    hit testing, event dispatch, pressed/selected state, and scroll-container
+    routing without per-app coordinate maps.
+- Scope:
+  - route logical touch coordinates through the inflated View tree
+  - dispatch click/touch events through `View.performClick()` and listener APIs
+  - preserve scroll gestures through `ScrollView`/list-like containers
+  - keep accepted direct-router markers only as diagnostics while generic
+    routing becomes the acceptance path
+- Done When:
+  - Accepted first slice: `scripts/run-yelp-live.sh` on `cfb7c9e3` records
+    `YELP_GENERIC_HIT_OK` with `clicked=true`,
+    `target=android.widget.Button`, `text=Search`, and
+    `source=inflated_xml`, plus
+    `aosp-shim.dex=bfe8275cebd2f98685601e1681525e2a64ee862bb37d34da874580f556f0abfe`.
+  - Remaining open closure: add `YELP_GENERIC_SCROLL_OK` and move category,
+    filter, list row, details, save, and bottom-nav interactions from the
+    app-specific direct router to generic View dispatch.

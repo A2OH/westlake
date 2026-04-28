@@ -6786,6 +6786,7 @@ public class WestlakeLauncher {
         int downX = 0;
         int downY = 0;
         boolean scrollHandled = false;
+        boolean genericHitProbed = false;
         String touchPath = null;
         try {
             String envTouch = System.getenv("WESTLAKE_TOUCH");
@@ -6861,6 +6862,11 @@ public class WestlakeLauncher {
                 appendCutoffCanaryMarker("YELP_TOUCH_POLL_OK seq="
                         + intAscii(seq) + " action=" + showcaseTouchReason(action)
                         + " x=" + intAscii(x) + " y=" + intAscii(y));
+                if (!genericHitProbed && y >= YELP_BOTTOM_NAV_TOP
+                        && x >= 120 && x < 240) {
+                    genericHitProbed = routeYelpLiveGenericButtonHit(
+                            activity, "Search", x, y, seq);
+                }
                 boolean dispatchHandled = false;
                 if (scrollHandled) {
                     startupLog("[WestlakeLauncher] Yelp live touch action=" + action
@@ -7045,6 +7051,55 @@ public class WestlakeLauncher {
             return showcaseInvoke(activity, "openPlace3");
         }
         return showcaseInvoke(activity, "openPlace4");
+    }
+
+    private static boolean routeYelpLiveGenericButtonHit(
+            Activity activity, String label, int x, int y, int seq) {
+        try {
+            android.view.View decor = activity != null && activity.getWindow() != null
+                    ? activity.getWindow().getDecorView() : null;
+            android.view.View target = decor != null ? findButtonWithText(decor, label) : null;
+            if (target == null) {
+                return false;
+            }
+            String targetName = target.getClass().getName();
+            boolean clicked = target.performClick();
+            appendCutoffCanaryMarker("YELP_GENERIC_HIT_OK seq=" + intAscii(seq)
+                    + " x=" + intAscii(x)
+                    + " y=" + intAscii(y)
+                    + " clicked=" + boolToken(clicked)
+                    + " target=" + safeMarkerToken(targetName)
+                    + " text=" + safeMarkerToken(label)
+                    + " source=inflated_xml");
+            return clicked;
+        } catch (Throwable t) {
+            startupLog("[WestlakeLauncher] Yelp live generic hit error", t);
+            appendCutoffCanaryMarker("YELP_GENERIC_HIT_FAIL err="
+                    + t.getClass().getName());
+            return false;
+        }
+    }
+
+    private static android.view.View findButtonWithText(android.view.View view, String label) {
+        if (view == null || label == null) {
+            return null;
+        }
+        if (view instanceof android.widget.Button) {
+            CharSequence text = ((android.widget.Button) view).getText();
+            if (text != null && label.contentEquals(text)) {
+                return view;
+            }
+        }
+        if (view instanceof android.view.ViewGroup) {
+            android.view.ViewGroup group = (android.view.ViewGroup) view;
+            for (int i = 0; i < group.getChildCount(); i++) {
+                android.view.View found = findButtonWithText(group.getChildAt(i), label);
+                if (found != null) {
+                    return found;
+                }
+            }
+        }
+        return null;
     }
 
     private static boolean writeYelpLiveGenericXmlFrame(Activity activity, String reason) {

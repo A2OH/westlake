@@ -22,13 +22,13 @@ Accepted Android phone proof:
 - runtime dir: `/data/local/tmp/westlake`
 - artifacts: `/mnt/c/Users/dspfa/TempWestlake/yelp_live_target.*`
 - accepted copy:
-  `/mnt/c/Users/dspfa/TempWestlake/accepted/yelp_live/7f52c37ac29502b57f36a692d9c835e535ec8cfd7f64cb45e2f31f9c659828d1_24d1444b5ebf2319722c7168b4a849b7f022cc869b1708734695e381c44abfda/`
+  `/mnt/c/Users/dspfa/TempWestlake/accepted/yelp_live/bfe8275cebd2f98685601e1681525e2a64ee862bb37d34da874580f556f0abfe_24d1444b5ebf2319722c7168b4a849b7f022cc869b1708734695e381c44abfda/`
 
 Accepted hashes:
 
 ```text
 dalvikvm=58ea9cb7470e0f5990f3b90b353e46c0041ddc503c7173c8417a24e82a7d1a3e
-aosp-shim.dex=7f52c37ac29502b57f36a692d9c835e535ec8cfd7f64cb45e2f31f9c659828d1
+aosp-shim.dex=bfe8275cebd2f98685601e1681525e2a64ee862bb37d34da874580f556f0abfe
 westlake-yelp-live-debug.apk=24d1444b5ebf2319722c7168b4a849b7f022cc869b1708734695e381c44abfda
 ```
 
@@ -42,6 +42,7 @@ YELP_XML_LAYOUT_PROBE_OK target=480x1013 measured=480x1013 bounds=0,0,480,1013
 YELP_UI_BUILD_OK surface=xml tabs=4 network=host_bridge views=29 texts=21
 YELP_FULL_RES_FRAME_OK logical=480x1013 target=1080x2280 navTop=824
 YELP_GENERIC_VIEW_DRAW_OK reason=initial bytes=1173 views=30 texts=21 buttons=17 height=1013 source=inflated_xml
+YELP_GENERIC_HIT_OK clicked=true target=android.widget.Button text=Search source=inflated_xml
 YELP_NETWORK_BRIDGE_OK
 YELP_LIVE_JSON_OK
 YELP_LIVE_IMAGE_OK
@@ -139,6 +140,22 @@ host pointer input
   -> app methods: category, filters, list scroll, details, save, nav
 ```
 
+PF-460 adds a narrow generic XML listener proof inside that same run:
+
+```text
+direct-frame Search tap at logical x=175 y=972
+  -> guest loop recognizes the tap is already targeting Search
+  -> traverses the inflated XML decor tree for Button text "Search"
+  -> invokes Button.performClick()
+  -> YelpLiveActivity yelp_search listener calls navigateSearch()
+  -> records YELP_GENERIC_HIT_OK ... target=android.widget.Button
+     text=Search source=inflated_xml
+```
+
+This is intentionally non-disruptive: it proves the inflated XML listener path
+without stealing category/network/list interactions from the existing accepted
+Yelp flow.
+
 Network is host-bridge backed:
 
 ```text
@@ -203,6 +220,7 @@ Accepted:
 - XML inflation into shim views
 - ID binding and layout probing
 - generic inflated-View DLST serialization slice over the Yelp XML tree
+- generic inflated XML `Button.performClick()` listener slice
 - full phone-height DLST rendering
 - touch-driven app state
 - live host-bridge JSON and images
@@ -211,6 +229,7 @@ Not accepted yet:
 
 - full-fidelity generic `View.draw(Canvas)` replacement for the visible Yelp
   frame
+- broad generic coordinate hit dispatch and scroll-container routing
 - upstream Material Components AAR compatibility
 - Material theming and shape/ripple/animation fidelity
 - `CoordinatorLayout` / AppBar / nested scroll behavior
@@ -246,6 +265,9 @@ marker before moving to the next.
    - McDonald's relevance: stock layouts must paint without per-app renderers.
 
 3. Generic hit testing and scroll containers
+   - Android phone status: first non-disruptive inflated XML
+     `Button.performClick()` listener slice accepted through
+     `YELP_GENERIC_HIT_OK`; broad routing remains open.
    - Replace route-specific touch handling with View tree hit testing,
      `performClick()`, scroll gestures, and pressed state.
    - Required markers: `YELP_GENERIC_HIT_OK`, `YELP_GENERIC_SCROLL_OK`.
@@ -316,5 +338,6 @@ Not ready for final OHOS delivery claim:
 
 - OHOS surface/input/network adapters are not implemented in-tree
 - generic widget drawing is not complete
+- generic touch/scroll routing is only accepted for a first XML button listener
 - full Material Components are not complete
 - stock McDonald's APK still needs the southbound shim ladder above
