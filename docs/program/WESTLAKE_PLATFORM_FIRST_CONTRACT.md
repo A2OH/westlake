@@ -89,15 +89,16 @@ Supervisor update, 2026-04-27:
   `YELP_NETWORK_BRIDGE_OK`, `YELP_LIVE_JSON_OK`, `YELP_LIVE_ROW_IMAGE_OK`,
   `YELP_LIST_SCROLL_OK`, `YELP_DETAILS_OPEN_OK`, `YELP_SAVE_PLACE_OK`, and
   `YELP_NAV_SEARCH_OK`. PF-459 is accepted for a first generic inflated-View
-  DLST draw slice. PF-460 is accepted for a first non-disruptive generic XML
-  hit slice: the same phone run records `YELP_GENERIC_HIT_OK` with `seq=8`,
-  `x=175`, `y=972`, `clicked=true`, `target=android.widget.Button`,
-  `text=Search`, and `source=inflated_xml`, proving an inflated `Button`
-  listener can be invoked through the Westlake guest View tree while the
-  direct-frame Search tap remains consistent. Remaining PF-455/PF-459/PF-460
-  gap: the visible Yelp frame is still the controlled direct `DLST` renderer,
-  not a full-fidelity generic Android `draw()` pass over every inflated widget,
-  and broad coordinate hit dispatch / scroll-container routing is still open.
+  DLST draw slice. PF-460 now accepts a wider non-disruptive generic XML slice:
+  `<ScrollView>` inflates as `android.widget.ScrollView`, `Search`, `Details`,
+  and `Saved` XML `Button.performClick()` listeners fire, and the inflated
+  `ScrollView` records a moved scroll probe. Evidence includes
+  `YELP_GENERIC_HIT_OK` for `text=Search`, `text=Details`, and `text=Saved`,
+  plus `YELP_GENERIC_SCROLL_OK moved=true container=android.widget.ScrollView
+  source=inflated_xml`. Remaining PF-455/PF-459/PF-460 gap: the visible Yelp
+  frame is still the controlled direct `DLST` renderer, not a full-fidelity
+  generic Android `draw()` pass over every inflated widget, and broad coordinate
+  hit dispatch / full scroll-container routing is still open.
 - PF-456 is now accepted on the Android phone for the bridge v2 REST matrix:
   the guest calls a v2 HTTP bridge shape with method, headers JSON, request
   body, max-byte cap, timeout, redirect policy, response headers, non-2xx
@@ -161,14 +162,14 @@ Accepted PF-453 hashes:
 
 Accepted current PF-455/PF-456/PF-459/PF-460 Yelp hashes:
 - `dalvikvm=58ea9cb7470e0f5990f3b90b353e46c0041ddc503c7173c8417a24e82a7d1a3e`
-- `aosp-shim.dex=bfe8275cebd2f98685601e1681525e2a64ee862bb37d34da874580f556f0abfe`
+- `aosp-shim.dex=1679e7a5c43a7294ec3fbdf256d0873599fb5f7d449c914bffb35afb587f196a`
 - `westlake-yelp-live-debug.apk=24d1444b5ebf2319722c7168b4a849b7f022cc869b1708734695e381c44abfda`
 - Stable accepted copy:
-  `/mnt/c/Users/dspfa/TempWestlake/accepted/yelp_live/bfe8275cebd2f98685601e1681525e2a64ee862bb37d34da874580f556f0abfe_24d1444b5ebf2319722c7168b4a849b7f022cc869b1708734695e381c44abfda/`
-- Added PF-460 evidence: `YELP_GENERIC_HIT_OK` with `seq=8`, `x=175`,
-  `y=972`, `clicked=true`, `target=android.widget.Button`, `text=Search`, and
-  `source=inflated_xml`,
-  while the same run retains `YELP_REST_MATRIX_OK`,
+  `/mnt/c/Users/dspfa/TempWestlake/accepted/yelp_live/1679e7a5c43a7294ec3fbdf256d0873599fb5f7d449c914bffb35afb587f196a_24d1444b5ebf2319722c7168b4a849b7f022cc869b1708734695e381c44abfda/`
+- Added PF-460 evidence: `YELP_XML_INFLATE_OK root=android.widget.ScrollView`,
+  `YELP_GENERIC_HIT_OK` with `text=Search`, `text=Details`, and `text=Saved`,
+  and `YELP_GENERIC_SCROLL_OK moved=true container=android.widget.ScrollView
+  source=inflated_xml`, while the same run retains `YELP_REST_MATRIX_OK`,
   `YELP_LIVE_ROW_IMAGE_OK index=4`, `YELP_LIST_SCROLL_OK`,
   `YELP_DETAILS_OPEN_OK`, `YELP_SAVE_PLACE_OK`, and `YELP_NAV_SEARCH_OK`.
 
@@ -270,9 +271,10 @@ New contract workstreams added on 2026-04-27:
   a 1K-class render surface. Programmatic fallback may stay as a diagnostic, but
   it cannot satisfy this workstream. Status: XML inflation/binding and live
   flows are now phone-accepted; PF-459 accepts a first generic inflated-View
-  DLST draw slice; PF-460 accepts a first inflated XML `Button.performClick()`
-  listener slice. Full-fidelity generic View-tree rendering and broad generic
-  touch/scroll dispatch remain open.
+  DLST draw slice; PF-460 accepts multiple inflated XML `Button.performClick()`
+  listener slices plus actual `ScrollView` inflation and a moved scroll probe.
+  Full-fidelity generic View-tree rendering and broad generic touch/scroll
+  dispatch remain open.
 - `PF-456` portable REST networking completeness. The Westlake app-facing
   network surface must support the controlled app's real API demands through a
   stable guest-to-host contract on Android and OHOS: HTTPS, headers, methods,
@@ -466,7 +468,7 @@ Current active blockers:
 - carry the accepted controlled showcase and Yelp live apps to OHOS host
   adapters with the same DLST, input, file, marker, and network contracts.
 - move beyond the accepted PF-459 generic draw slice and PF-460 generic
-  `Button.performClick()` slice so the visible Yelp proof can be rendered and
+  listener/ScrollView slices so the visible Yelp proof can be rendered and
   driven by the generic inflated View path, not the app-specific direct frame
   writer and touch router, while preserving the 1K-class phone render buffer.
 - carry PF-456 portable REST networking to OHOS adapter parity. Android phone

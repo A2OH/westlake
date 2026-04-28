@@ -89,8 +89,8 @@ public class LayoutInflater {
         sTagClassMap.put("LinearLayout", "android.widget.LinearLayout");
         sTagClassMap.put("RelativeLayout", "android.widget.RelativeLayout");
         sTagClassMap.put("FrameLayout", "android.widget.FrameLayout");
-        sTagClassMap.put("ScrollView", "android.widget.FrameLayout");
-        sTagClassMap.put("HorizontalScrollView", "android.widget.FrameLayout");
+        sTagClassMap.put("ScrollView", "android.widget.ScrollView");
+        sTagClassMap.put("HorizontalScrollView", "android.widget.HorizontalScrollView");
         sTagClassMap.put("TextView", "android.widget.TextView");
         sTagClassMap.put("Button", "android.widget.Button");
         sTagClassMap.put("EditText", "android.widget.EditText");

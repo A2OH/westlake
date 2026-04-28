@@ -480,6 +480,9 @@ if [ "$INTERACT" = "1" ]; then
     require_marker "^YELP_TOUCH_POLL_READY " "YELP_TOUCH_POLL_READY"
     require_marker "^YELP_TOUCH_POLL_OK " "YELP_TOUCH_POLL_OK"
     require_marker "^YELP_GENERIC_HIT_OK .*clicked=true .*target=android.widget.Button .*source=inflated_xml" "YELP_GENERIC_HIT_OK"
+    require_marker "^YELP_GENERIC_HIT_OK .*clicked=true .*text=Details .*source=inflated_xml" "YELP_GENERIC_HIT_OK Details"
+    require_marker "^YELP_GENERIC_HIT_OK .*clicked=true .*text=Saved .*source=inflated_xml" "YELP_GENERIC_HIT_OK Saved"
+    require_marker "^YELP_GENERIC_SCROLL_OK .*container=android.widget.ScrollView .*source=inflated_xml" "YELP_GENERIC_SCROLL_OK"
     require_marker "^YELP_NETWORK_FETCH_BEGIN " "YELP_NETWORK_FETCH_BEGIN"
     require_marker "^YELP_NETWORK_BRIDGE_OK " "YELP_NETWORK_BRIDGE_OK"
     require_marker "^YELP_LIVE_JSON_OK " "YELP_LIVE_JSON_OK"
@@ -524,6 +527,11 @@ fi
 if grep -qE "^YELP_GENERIC_HIT_FAIL " "$MARKERS_PATH"; then
     echo "ERROR: Yelp generic hit marker failed" >&2
     grep -E "^YELP_GENERIC_HIT_FAIL " "$MARKERS_PATH" >&2 || true
+    missing=1
+fi
+if grep -qE "^YELP_GENERIC_SCROLL_FAIL " "$MARKERS_PATH"; then
+    echo "ERROR: Yelp generic scroll marker failed" >&2
+    grep -E "^YELP_GENERIC_SCROLL_FAIL " "$MARKERS_PATH" >&2 || true
     missing=1
 fi
 if grep -qE "^YELP_DIRECT_FRAME_FAIL " "$MARKERS_PATH"; then

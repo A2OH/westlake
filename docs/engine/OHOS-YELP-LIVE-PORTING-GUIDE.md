@@ -22,13 +22,13 @@ Accepted Android phone proof:
 - runtime dir: `/data/local/tmp/westlake`
 - artifacts: `/mnt/c/Users/dspfa/TempWestlake/yelp_live_target.*`
 - accepted copy:
-  `/mnt/c/Users/dspfa/TempWestlake/accepted/yelp_live/bfe8275cebd2f98685601e1681525e2a64ee862bb37d34da874580f556f0abfe_24d1444b5ebf2319722c7168b4a849b7f022cc869b1708734695e381c44abfda/`
+  `/mnt/c/Users/dspfa/TempWestlake/accepted/yelp_live/1679e7a5c43a7294ec3fbdf256d0873599fb5f7d449c914bffb35afb587f196a_24d1444b5ebf2319722c7168b4a849b7f022cc869b1708734695e381c44abfda/`
 
 Accepted hashes:
 
 ```text
 dalvikvm=58ea9cb7470e0f5990f3b90b353e46c0041ddc503c7173c8417a24e82a7d1a3e
-aosp-shim.dex=bfe8275cebd2f98685601e1681525e2a64ee862bb37d34da874580f556f0abfe
+aosp-shim.dex=1679e7a5c43a7294ec3fbdf256d0873599fb5f7d449c914bffb35afb587f196a
 westlake-yelp-live-debug.apk=24d1444b5ebf2319722c7168b4a849b7f022cc869b1708734695e381c44abfda
 ```
 
@@ -36,13 +36,16 @@ Required acceptance markers:
 
 ```text
 YELP_XML_RESOURCE_WIRE_OK
-YELP_XML_INFLATE_OK root=android.widget.FrameLayout views=29 texts=21
+YELP_XML_INFLATE_OK root=android.widget.ScrollView views=29 texts=21
 YELP_XML_BIND_OK title=true status=true card=true list=true buttons=5
 YELP_XML_LAYOUT_PROBE_OK target=480x1013 measured=480x1013 bounds=0,0,480,1013
 YELP_UI_BUILD_OK surface=xml tabs=4 network=host_bridge views=29 texts=21
 YELP_FULL_RES_FRAME_OK logical=480x1013 target=1080x2280 navTop=824
 YELP_GENERIC_VIEW_DRAW_OK reason=initial bytes=1173 views=30 texts=21 buttons=17 height=1013 source=inflated_xml
 YELP_GENERIC_HIT_OK clicked=true target=android.widget.Button text=Search source=inflated_xml
+YELP_GENERIC_HIT_OK clicked=true target=android.widget.Button text=Details source=inflated_xml
+YELP_GENERIC_HIT_OK clicked=true target=android.widget.Button text=Saved source=inflated_xml
+YELP_GENERIC_SCROLL_OK moved=true container=android.widget.ScrollView source=inflated_xml
 YELP_NETWORK_BRIDGE_OK
 YELP_LIVE_JSON_OK
 YELP_LIVE_IMAGE_OK
@@ -140,7 +143,8 @@ host pointer input
   -> app methods: category, filters, list scroll, details, save, nav
 ```
 
-PF-460 adds a narrow generic XML listener proof inside that same run:
+PF-460 adds narrow generic XML listener and scroll-container proof inside that
+same run:
 
 ```text
 direct-frame Search tap at logical x=175 y=972
@@ -150,6 +154,15 @@ direct-frame Search tap at logical x=175 y=972
   -> YelpLiveActivity yelp_search listener calls navigateSearch()
   -> records YELP_GENERIC_HIT_OK ... target=android.widget.Button
      text=Search source=inflated_xml
+
+direct-frame row/details/save-equivalent taps
+  -> invoke inflated XML Button.performClick() for "Details" and "Saved"
+  -> records matching YELP_GENERIC_HIT_OK markers
+
+direct-frame swipe
+  -> finds the inflated android.widget.ScrollView
+  -> calls scrollBy(...)
+  -> records YELP_GENERIC_SCROLL_OK moved=true
 ```
 
 This is intentionally non-disruptive: it proves the inflated XML listener path
@@ -220,7 +233,10 @@ Accepted:
 - XML inflation into shim views
 - ID binding and layout probing
 - generic inflated-View DLST serialization slice over the Yelp XML tree
-- generic inflated XML `Button.performClick()` listener slice
+- actual `ScrollView` tag inflation
+- generic inflated XML `Button.performClick()` listener slices for Search,
+  Details, and Saved
+- generic `ScrollView` moved scroll probe
 - full phone-height DLST rendering
 - touch-driven app state
 - live host-bridge JSON and images
@@ -229,7 +245,7 @@ Not accepted yet:
 
 - full-fidelity generic `View.draw(Canvas)` replacement for the visible Yelp
   frame
-- broad generic coordinate hit dispatch and scroll-container routing
+- broad generic coordinate hit dispatch and visible scroll-container routing
 - upstream Material Components AAR compatibility
 - Material theming and shape/ripple/animation fidelity
 - `CoordinatorLayout` / AppBar / nested scroll behavior
@@ -265,9 +281,10 @@ marker before moving to the next.
    - McDonald's relevance: stock layouts must paint without per-app renderers.
 
 3. Generic hit testing and scroll containers
-   - Android phone status: first non-disruptive inflated XML
-     `Button.performClick()` listener slice accepted through
-     `YELP_GENERIC_HIT_OK`; broad routing remains open.
+   - Android phone status: non-disruptive inflated XML
+     `Button.performClick()` listener slices accepted for Search, Details, and
+     Saved, plus real `ScrollView` inflation and `YELP_GENERIC_SCROLL_OK
+     moved=true`; broad routing remains open.
    - Replace route-specific touch handling with View tree hit testing,
      `performClick()`, scroll gestures, and pressed state.
    - Required markers: `YELP_GENERIC_HIT_OK`, `YELP_GENERIC_SCROLL_OK`.
@@ -338,6 +355,7 @@ Not ready for final OHOS delivery claim:
 
 - OHOS surface/input/network adapters are not implemented in-tree
 - generic widget drawing is not complete
-- generic touch/scroll routing is only accepted for a first XML button listener
+- generic touch/scroll routing is only accepted for limited XML button listeners
+  and a controlled `ScrollView` scroll probe
 - full Material Components are not complete
 - stock McDonald's APK still needs the southbound shim ladder above

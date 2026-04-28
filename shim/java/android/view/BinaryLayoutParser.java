@@ -85,8 +85,8 @@ public class BinaryLayoutParser {
         VIEW_CLASS_MAP.put("ImageButton", "android.widget.ImageView"); // approximate
         VIEW_CLASS_MAP.put("CheckBox", "android.widget.CheckBox");
         VIEW_CLASS_MAP.put("ProgressBar", "android.widget.ProgressBar");
-        VIEW_CLASS_MAP.put("ScrollView", "android.widget.FrameLayout");
-        VIEW_CLASS_MAP.put("HorizontalScrollView", "android.widget.FrameLayout");
+        VIEW_CLASS_MAP.put("ScrollView", "android.widget.ScrollView");
+        VIEW_CLASS_MAP.put("HorizontalScrollView", "android.widget.HorizontalScrollView");
         VIEW_CLASS_MAP.put("ListView", "android.widget.ListView");
         VIEW_CLASS_MAP.put("RecyclerView", "android.widget.FrameLayout");
         VIEW_CLASS_MAP.put("WebView", "android.webkit.WebView");

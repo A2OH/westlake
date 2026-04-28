@@ -6786,7 +6786,10 @@ public class WestlakeLauncher {
         int downX = 0;
         int downY = 0;
         boolean scrollHandled = false;
-        boolean genericHitProbed = false;
+        boolean genericSearchProbed = false;
+        boolean genericDetailsProbed = false;
+        boolean genericSavedProbed = false;
+        boolean genericScrollProbed = false;
         String touchPath = null;
         try {
             String envTouch = System.getenv("WESTLAKE_TOUCH");
@@ -6849,6 +6852,10 @@ public class WestlakeLauncher {
                                 + " downX=" + downX + " downY=" + downY
                                 + " dispatch=false direct=" + directHandled);
                         if (directHandled) {
+                            if (!genericScrollProbed) {
+                                genericScrollProbed = probeYelpLiveGenericScrollContainer(
+                                        activity, downY, y, seq);
+                            }
                             showcaseInvoke(activity, "consumeRenderDirty");
                             writeYelpLiveDirectFrame(activity, showcaseTouchReason(action));
                             scrollHandled = true;
@@ -6862,9 +6869,9 @@ public class WestlakeLauncher {
                 appendCutoffCanaryMarker("YELP_TOUCH_POLL_OK seq="
                         + intAscii(seq) + " action=" + showcaseTouchReason(action)
                         + " x=" + intAscii(x) + " y=" + intAscii(y));
-                if (!genericHitProbed && y >= YELP_BOTTOM_NAV_TOP
+                if (!genericSearchProbed && y >= YELP_BOTTOM_NAV_TOP
                         && x >= 120 && x < 240) {
-                    genericHitProbed = routeYelpLiveGenericButtonHit(
+                    genericSearchProbed = routeYelpLiveGenericButtonHit(
                             activity, "Search", x, y, seq);
                 }
                 boolean dispatchHandled = false;
@@ -6877,10 +6884,22 @@ public class WestlakeLauncher {
                     scrollHandled = false;
                     continue;
                 }
+                int tabBeforeDirect = showcaseInt(activity, "activeTab", 0);
                 boolean directHandled = scrollHandled
                         || (isYelpLiveListScrollGesture(downY, y)
                                 ? routeYelpLiveScroll(activity, downY, y)
                                 : routeYelpLiveDirectTouch(activity, action, x, y));
+                if (!genericDetailsProbed && directHandled
+                        && tabBeforeDirect != 2 && isYelpLiveRowOpenTap(x, y)) {
+                    genericDetailsProbed = routeYelpLiveGenericButtonHit(
+                            activity, "Details", x, y, seq);
+                }
+                if (!genericSavedProbed && directHandled
+                        && tabBeforeDirect == 2
+                        && y >= 548 && y < 638 && x >= 240 && x < 360) {
+                    genericSavedProbed = routeYelpLiveGenericButtonHit(
+                            activity, "Saved", x, y, seq);
+                }
                 startupLog("[WestlakeLauncher] Yelp live touch action=" + action
                         + " x=" + x + " y=" + y
                         + " downX=" + downX + " downY=" + downY
@@ -6904,6 +6923,22 @@ public class WestlakeLauncher {
             delta = -delta;
         }
         return downY >= 214 && downY < YELP_BOTTOM_NAV_TOP && delta >= 42;
+    }
+
+    private static boolean isYelpLiveRowOpenTap(int x, int y) {
+        if (x >= 300) {
+            return false;
+        }
+        int row0Top = YELP_ROW_TOP;
+        int row1Top = row0Top + YELP_ROW_HEIGHT + YELP_ROW_GAP;
+        int row2Top = row1Top + YELP_ROW_HEIGHT + YELP_ROW_GAP;
+        int row3Top = row2Top + YELP_ROW_HEIGHT + YELP_ROW_GAP;
+        int row4Top = row3Top + YELP_ROW_HEIGHT + YELP_ROW_GAP;
+        return (y >= row0Top && y < row0Top + YELP_ROW_HEIGHT)
+                || (y >= row1Top && y < row1Top + YELP_ROW_HEIGHT)
+                || (y >= row2Top && y < row2Top + YELP_ROW_HEIGHT)
+                || (y >= row3Top && y < row3Top + YELP_ROW_HEIGHT)
+                || (y >= row4Top && y < row4Top + YELP_ROW_HEIGHT);
     }
 
     private static boolean routeYelpLiveScroll(Activity activity, int downY, int y) {
@@ -7051,6 +7086,54 @@ public class WestlakeLauncher {
             return showcaseInvoke(activity, "openPlace3");
         }
         return showcaseInvoke(activity, "openPlace4");
+    }
+
+    private static boolean probeYelpLiveGenericScrollContainer(
+            Activity activity, int downY, int y, int seq) {
+        try {
+            android.view.View decor = activity != null && activity.getWindow() != null
+                    ? activity.getWindow().getDecorView() : null;
+            android.view.View target = decor != null ? findFirstScrollView(decor) : null;
+            if (target == null) {
+                return false;
+            }
+            int before = target.getScrollY();
+            int delta = downY > y ? 32 : -32;
+            target.scrollBy(0, delta);
+            int after = target.getScrollY();
+            appendCutoffCanaryMarker("YELP_GENERIC_SCROLL_OK seq=" + intAscii(seq)
+                    + " delta=" + intAscii(delta)
+                    + " before=" + intAscii(before)
+                    + " after=" + intAscii(after)
+                    + " moved=" + boolToken(after != before)
+                    + " container=" + safeMarkerToken(target.getClass().getName())
+                    + " source=inflated_xml");
+            return true;
+        } catch (Throwable t) {
+            startupLog("[WestlakeLauncher] Yelp live generic scroll error", t);
+            appendCutoffCanaryMarker("YELP_GENERIC_SCROLL_FAIL err="
+                    + t.getClass().getName());
+            return false;
+        }
+    }
+
+    private static android.view.View findFirstScrollView(android.view.View view) {
+        if (view == null) {
+            return null;
+        }
+        if (view instanceof android.widget.ScrollView) {
+            return view;
+        }
+        if (view instanceof android.view.ViewGroup) {
+            android.view.ViewGroup group = (android.view.ViewGroup) view;
+            for (int i = 0; i < group.getChildCount(); i++) {
+                android.view.View found = findFirstScrollView(group.getChildAt(i));
+                if (found != null) {
+                    return found;
+                }
+            }
+        }
+        return null;
     }
 
     private static boolean routeYelpLiveGenericButtonHit(
