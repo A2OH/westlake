@@ -1,7 +1,7 @@
 # Westlake Engine — Status Report
 
 **Date:** 2026-04-28
-**Status:** Platform-first cutoff canary through target `L4WATAPPREFLECT` on phone; PF-451 controlled showcase, PF-452 host/OHBridge network proof, PF-453 separate Yelp live app, PF-454 Material Components canary, PF-455 XML-backed Yelp slice, PF-456 live GET plus REST marker contract, PF-457 Material XML/generic-hit slice, PF-459 generic inflated-View draw slice, PF-460 generic XML hit/scroll probes, PF-461 adapter/list slice, and PF-466/PF-474/PF-475 controlled mock McD profile accepted on phone with `resources.arsc` table parsing, app `String.getBytes("UTF-8")`, repeated-cart/post-checkout direct frames, and a controlled generic XML input/ListView item-click sidecar; OHOS adapters, broader libcore/networking parity, generic UI expansion, and generic stock-McDonald's launch remain open
+**Status:** Platform-first cutoff canary through target `L4WATAPPREFLECT` on phone; PF-451 controlled showcase, PF-452 host/OHBridge network proof, PF-453 separate Yelp live app, PF-454 Material Components canary, PF-455 XML-backed Yelp slice, PF-456 live GET plus REST marker contract, PF-457 Material XML/generic-hit slice, PF-459 generic inflated-View draw slice, PF-460 generic XML hit/scroll probes, PF-461 adapter/list slice, and PF-466/PF-474/PF-475 controlled mock McD profile accepted on phone with `resources.arsc` table parsing, app `String.getBytes("UTF-8")`, repeated-cart/post-checkout direct frames, and a controlled generic XML input/ListView real-coordinate item-click sidecar; OHOS adapters, broader libcore/networking parity, generic UI expansion, and generic stock-McDonald's launch remain open
 
 ## Current Supervisor Status (2026-04-28)
 
@@ -35,20 +35,22 @@ redundant immediate dirty frame after every handled touch.
 PF-475 is accepted as a sidecar proof that touch-file packets can also be
 converted to `MotionEvent`s and dispatched into the inflated XML View tree:
 the app records generic checkout `MaterialButton` click and XML `ListView`
-`AdapterView.performItemClick()` markers. This does not yet replace the direct
-renderer/router because the accepted list hit still uses a controlled
-`fallback=true` adapter probe.
+`AdapterView.performItemClick()` markers. The latest phone run removes the
+former adapter fallback by tapping inside the real laid-out `ListView` bounds
+and accepting `MCD_PROFILE_GENERIC_LIST_HIT_OK ... fallback=false`. This does
+not yet replace the direct renderer/router or prove pure `AbsListView`
+touch-dispatch selection.
 
 PF-466 evidence:
 
 - `dalvikvm=2dd479e0c7f98e8fd3c4c09b539bfe30fe1c39b119d36e034af68c6bcaada6cf`
-- `aosp-shim.dex=4f031943201092d281740a87aef41d0083f91304cae2e98685bacabb686336f1`
-- `westlake-host.apk=f10b74df091f7c327614361ccb0b298f39be16f08f2aa9d9f835e6a7d0749b34`
+- `aosp-shim.dex=d548351815ba5d8a700b7dd48089d652ec43623b032383738d036ae30740949d`
+- `westlake-host.apk=d6d8e81a801bb799a815039abc0b296416c723a11f2c31547077ddb87cad7c68`
 - `westlake-mcd-profile-debug.apk=50477eccecc86fa5ecd8144d26b3930ec60d68c3b952708d66aba934ea448933`
 - Screenshot/log/markers/trace:
   `/mnt/c/Users/dspfa/TempWestlake/mcd_profile_target.*`
 - Stable accepted copy:
-  `/mnt/c/Users/dspfa/TempWestlake/accepted/mcd_profile/4f031943201092d281740a87aef41d0083f91304cae2e98685bacabb686336f1_50477eccecc86fa5ecd8144d26b3930ec60d68c3b952708d66aba934ea448933/`
+  `/mnt/c/Users/dspfa/TempWestlake/accepted/mcd_profile/d548351815ba5d8a700b7dd48089d652ec43623b032383738d036ae30740949d_50477eccecc86fa5ecd8144d26b3930ec60d68c3b952708d66aba934ea448933/`
 - Key launch/XML markers:
   `MCD_PROFILE_GENERIC_ACTIVITY_FACTORY_OK ... factory=default`,
   `MCD_PROFILE_WAT_ACTIVITY_LAUNCH_OK`,
@@ -57,8 +59,9 @@ PF-466 evidence:
   `MCD_PROFILE_XML_RESOURCE_WIRE_OK ... table=true ... layoutBytes=4112`,
   `MCD_PROFILE_XML_BIND_OK list=true ... materialViews=10`,
   `MCD_PROFILE_ADAPTER_GET_VIEW_OK position=4`, and
+  `MCD_PROFILE_GENERIC_LIST_BOUNDS_OK ... top=568 ... bottom=709 ... children=1 first=4 count=5`,
   `MCD_PROFILE_GENERIC_TOUCH_OK ... action=touch_up ... adapter=true adapterClick=true position=4`,
-  `MCD_PROFILE_GENERIC_LIST_HIT_OK ... position=4 ... clicked=true fallback=true adapter=android.widget.ListView`,
+  `MCD_PROFILE_GENERIC_LIST_HIT_OK ... position=4 ... clicked=true fallback=false adapter=android.widget.ListView`,
   `MCD_PROFILE_ADAPTER_ITEM_CLICK_OK position=4 id=4 count=5`,
   `MCD_PROFILE_GENERIC_CLICK_OK ... target=com.google.android.material.button.MaterialButton`,
   `MCD_PROFILE_XML_LAYOUT_PROBE_OK target=480x1013 measured=480x1013`,
@@ -87,9 +90,9 @@ arbitrary stock McDonald's activities, runtime object-array correctness beyond
 the fixed resource-table parser case, broader libcore charset/provider/default
 encoding correctness beyond the accepted UTF-8 payload slice, upstream Material
 XML/theming, replacing the direct McD renderer/router with generic View
-draw/hit/scroll/adapter rendering without the PF-475 fallback, streamed
-multi-image networking/direct libcore networking parity, and OHOS host parity
-for the same PF-466 contract.
+draw/hit/scroll/adapter rendering and pure `AdapterView` touch dispatch,
+streamed multi-image networking/direct libcore networking parity, and OHOS host
+parity for the same PF-466 contract.
 
 ## Previous Supervisor Status (2026-04-27)
 

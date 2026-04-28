@@ -19,9 +19,10 @@ frame proof.
 The latest PF-475 sidecar additionally proves touch-file packets can be
 dispatched as `MotionEvent`s into that inflated XML tree and can trigger
 generic checkout `MaterialButton` click plus XML `ListView`
-`AdapterView.performItemClick()` markers. It does not yet replace the
-McD-profile direct renderer/router, and the accepted list hit still records
-`fallback=true`.
+`AdapterView.performItemClick()` markers from a real laid-out coordinate with
+`fallback=false`. It does not yet replace the McD-profile direct
+renderer/router, and ListView item selection is still launcher-assisted rather
+than pure `AbsListView` touch dispatch.
 
 This is not the real McDonald's APK. It supersedes older MockDonalds-only
 status as the current practical OHOS port target because it is a richer

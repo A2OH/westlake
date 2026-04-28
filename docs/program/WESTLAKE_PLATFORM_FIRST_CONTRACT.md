@@ -46,7 +46,7 @@ PF-466 is accepted on the connected phone `cfb7c9e3`. The delivered APK is
   to `MotionEvent`s and dispatched into the inflated View tree, checkout can
   be reached through the generic `MaterialButton` click path, and the XML
   `ListView` can invoke the app `AdapterView.performItemClick()` listener
-  through the current controlled adapter-probe fallback;
+  from a real laid-out ListView coordinate with `fallback=false`;
 - XML layout measurement/layout probe at `480x1013` before direct-frame
   rendering;
 - SharedPreferences-backed cart state;
@@ -64,14 +64,14 @@ PF-466 is accepted on the connected phone `cfb7c9e3`. The delivered APK is
 Accepted PF-466 hashes:
 
 - `dalvikvm=2dd479e0c7f98e8fd3c4c09b539bfe30fe1c39b119d36e034af68c6bcaada6cf`
-- `aosp-shim.dex=4f031943201092d281740a87aef41d0083f91304cae2e98685bacabb686336f1`
-- `westlake-host.apk=f10b74df091f7c327614361ccb0b298f39be16f08f2aa9d9f835e6a7d0749b34`
+- `aosp-shim.dex=d548351815ba5d8a700b7dd48089d652ec43623b032383738d036ae30740949d`
+- `westlake-host.apk=d6d8e81a801bb799a815039abc0b296416c723a11f2c31547077ddb87cad7c68`
 - `westlake-mcd-profile-debug.apk=50477eccecc86fa5ecd8144d26b3930ec60d68c3b952708d66aba934ea448933`
 
 Accepted PF-466 artifacts:
 
 - `/mnt/c/Users/dspfa/TempWestlake/mcd_profile_target.*`
-- `/mnt/c/Users/dspfa/TempWestlake/accepted/mcd_profile/4f031943201092d281740a87aef41d0083f91304cae2e98685bacabb686336f1_50477eccecc86fa5ecd8144d26b3930ec60d68c3b952708d66aba934ea448933/`
+- `/mnt/c/Users/dspfa/TempWestlake/accepted/mcd_profile/d548351815ba5d8a700b7dd48089d652ec43623b032383738d036ae30740949d_50477eccecc86fa5ecd8144d26b3930ec60d68c3b952708d66aba934ea448933/`
 
 Key accepted PF-466 markers:
 
@@ -82,8 +82,9 @@ Key accepted PF-466 markers:
 - `MCD_PROFILE_XML_RESOURCE_WIRE_OK engine=true table=true apk=true resDir=true arsc=2528 layouts=1 layoutBytes=4112`
 - `MCD_PROFILE_XML_BIND_OK list=true ... materialViews=10`
 - `MCD_PROFILE_ADAPTER_GET_VIEW_OK position=4`
+- `MCD_PROFILE_GENERIC_LIST_BOUNDS_OK ... top=568 ... bottom=709 ... children=1 first=4 count=5 adapter=android.widget.ListView`
 - `MCD_PROFILE_GENERIC_TOUCH_OK ... action=touch_up ... adapter=true adapterClick=true position=4`
-- `MCD_PROFILE_GENERIC_LIST_HIT_OK ... position=4 ... clicked=true fallback=true adapter=android.widget.ListView`
+- `MCD_PROFILE_GENERIC_LIST_HIT_OK ... position=4 ... clicked=true fallback=false adapter=android.widget.ListView`
 - `MCD_PROFILE_ADAPTER_ITEM_CLICK_OK position=4 id=4 count=5`
 - `MCD_PROFILE_GENERIC_CLICK_OK ... target=com.google.android.material.button.MaterialButton`
 - `MCD_PROFILE_XML_LAYOUT_PROBE_OK target=480x1013 measured=480x1013`
@@ -118,9 +119,9 @@ mock app boundary test. The gap list that must be closed next is:
 - replace the McD-specific direct `DLST` frame writer and coordinate router
   with generic View draw, hit testing, scrolling, and adapter rendering.
   PF-475 proves a controlled sidecar for generic `MotionEvent` dispatch,
-  `MaterialButton` click, and `ListView` item-click invocation, but broad
-  coordinate hit testing and visible generic rendering remain open because the
-  accepted list hit still uses `fallback=true`;
+  `MaterialButton` click, and real-coordinate `ListView` item-click invocation
+  without the former adapter fallback; broad visible generic rendering and pure
+  `AdapterView` touch-dispatch item click remain open;
 - keep the PF-474 controlled direct-frame fix under stress: repeated-cart and
   post-checkout frames are now accepted by coalescing touch-driven dirty
   invalidation into the touch frame instead of emitting a redundant immediate

@@ -8917,6 +8917,10 @@ public class WestlakeLauncher {
         android.widget.AdapterView adapterView;
         int localX;
         int localY;
+        int absLeft;
+        int absTop;
+        int absRight;
+        int absBottom;
     }
 
     private static McdGenericTouchResult routeMcdProfileGenericTouch(Activity activity,
@@ -8948,12 +8952,9 @@ public class WestlakeLauncher {
             if (action == 1 && Math.abs(x - downX) < 24 && Math.abs(y - downY) < 24) {
                 android.view.View target = findViewAt(decor, x, y);
                 result.targetName = target != null ? target.getClass().getName() : "null";
+                appendMcdProfileAdapterBoundsMarker(decor, seq);
                 AdapterHit adapterHit = findAdapterHitAt(decor, x, y);
                 boolean adapterFallback = false;
-                if (adapterHit == null && isMcdGenericAdapterProbeTap(x, y, downX, downY)) {
-                    adapterHit = firstAdapterHit(decor);
-                    adapterFallback = adapterHit != null;
-                }
                 if (adapterHit != null && adapterHit.adapterView != null) {
                     result.adapterTarget = true;
                     result.adapterPosition = adapterPositionAt(adapterHit);
@@ -9002,13 +9003,6 @@ public class WestlakeLauncher {
         return result;
     }
 
-    private static boolean isMcdGenericAdapterProbeTap(int x, int y, int downX, int downY) {
-        return Math.abs(x - downX) < 24
-                && Math.abs(y - downY) < 24
-                && x >= 72 && x <= 188
-                && y >= 336 && y <= 376;
-    }
-
     private static AdapterHit findAdapterHitAt(android.view.View view, int x, int y) {
         if (view == null || x < 0 || y < 0 || x >= view.getWidth() || y >= view.getHeight()) {
             return null;
@@ -9018,6 +9012,7 @@ public class WestlakeLauncher {
             hit.adapterView = (android.widget.AdapterView) view;
             hit.localX = x;
             hit.localY = y;
+            fillAdapterHitBounds(hit);
             return hit;
         }
         if (view instanceof android.view.ViewGroup) {
@@ -9035,18 +9030,57 @@ public class WestlakeLauncher {
         return null;
     }
 
-    private static AdapterHit firstAdapterHit(android.view.View view) {
-        android.widget.AdapterView adapterView = findFirstAdapterView(view, 0);
+    private static void appendMcdProfileAdapterBoundsMarker(android.view.View decor, int seq) {
+        android.widget.AdapterView adapterView = findFirstAdapterView(decor, 0);
         if (adapterView == null) {
-            return null;
+            appendCutoffCanaryMarker("MCD_PROFILE_GENERIC_LIST_BOUNDS_FAIL seq="
+                    + intAscii(seq) + " err=no_adapter");
+            return;
         }
         AdapterHit hit = new AdapterHit();
         hit.adapterView = adapterView;
-        int width = adapterView.getWidth();
-        int height = adapterView.getHeight();
-        hit.localX = width > 0 ? width / 2 : 1;
-        hit.localY = height > 0 ? Math.max(1, Math.min(height - 1, height / 10)) : 1;
-        return hit;
+        fillAdapterHitBounds(hit);
+        int childCount = 0;
+        int firstVisible = -1;
+        int count = -1;
+        try {
+            childCount = adapterView.getChildCount();
+            firstVisible = adapterView.getFirstVisiblePosition();
+            android.widget.Adapter adapter = adapterView.getAdapter();
+            count = adapter != null ? adapter.getCount() : -1;
+        } catch (Throwable ignored) {
+        }
+        appendCutoffCanaryMarker("MCD_PROFILE_GENERIC_LIST_BOUNDS_OK seq="
+                + intAscii(seq)
+                + " left=" + intAscii(hit.absLeft)
+                + " top=" + intAscii(hit.absTop)
+                + " right=" + intAscii(hit.absRight)
+                + " bottom=" + intAscii(hit.absBottom)
+                + " width=" + intAscii(adapterView.getWidth())
+                + " height=" + intAscii(adapterView.getHeight())
+                + " children=" + intAscii(childCount)
+                + " first=" + intAscii(firstVisible)
+                + " count=" + intAscii(count)
+                + " adapter=" + safeMarkerToken(adapterView.getClass().getName()));
+    }
+
+    private static void fillAdapterHitBounds(AdapterHit hit) {
+        if (hit == null || hit.adapterView == null) {
+            return;
+        }
+        int left = 0;
+        int top = 0;
+        android.view.View view = hit.adapterView;
+        while (view != null) {
+            left += view.getLeft() - view.getScrollX();
+            top += view.getTop() - view.getScrollY();
+            android.view.ViewParent parent = view.getParent();
+            view = parent instanceof android.view.View ? (android.view.View) parent : null;
+        }
+        hit.absLeft = left;
+        hit.absTop = top;
+        hit.absRight = left + hit.adapterView.getWidth();
+        hit.absBottom = top + hit.adapterView.getHeight();
     }
 
     private static android.widget.AdapterView findFirstAdapterView(android.view.View view, int depth) {

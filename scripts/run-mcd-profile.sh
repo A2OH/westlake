@@ -346,7 +346,7 @@ PY
 )"
         "${ADB[@]}" shell input tap $coords >/dev/null 2>&1 || true
     }
-    frame_tap 120 360
+    frame_tap 240 620
     sleep 1
     frame_tap 286 322
     sleep 1
@@ -447,8 +447,9 @@ require_log_marker "Surface buffer 1080x2280 for $MCD_PKG" "1K/full-phone McD-pr
 if [ "$INTERACT" = "1" ]; then
     require_marker "^MCD_PROFILE_TOUCH_POLL_READY " "TOUCH_POLL_READY"
     require_marker "^MCD_PROFILE_TOUCH_POLL_OK " "TOUCH_POLL_OK"
+    require_marker "^MCD_PROFILE_GENERIC_LIST_BOUNDS_OK .*children=[1-9][0-9]* .*adapter=android.widget.ListView" "GENERIC_LIST_BOUNDS real ListView"
     require_marker "^MCD_PROFILE_GENERIC_TOUCH_OK .*action=touch_up .*adapter=true" "GENERIC_TOUCH adapter target"
-    require_marker "^MCD_PROFILE_GENERIC_LIST_HIT_OK .*position=[0-9]+ .*clicked=true" "GENERIC_LIST_HIT clicked"
+    require_marker "^MCD_PROFILE_GENERIC_LIST_HIT_OK .*position=[0-9]+ .*clicked=true .*fallback=false" "GENERIC_LIST_HIT clicked no fallback"
     require_marker "^MCD_PROFILE_ADAPTER_ITEM_CLICK_OK " "ADAPTER_ITEM_CLICK generic"
     require_marker "^MCD_PROFILE_CATEGORY_OK " "CATEGORY_OK"
     require_marker "^MCD_PROFILE_SELECT_ITEM_OK " "SELECT_ITEM_OK"
@@ -467,6 +468,11 @@ fi
 if grep -qE "^MCD_PROFILE_XML_TAG_WARN " "$MARKERS_PATH"; then
     echo "ERROR: McD-profile XML warning marker present" >&2
     grep -E "^MCD_PROFILE_XML_TAG_WARN " "$MARKERS_PATH" >&2 || true
+    missing=1
+fi
+if grep -qE "^MCD_PROFILE_GENERIC_LIST_HIT_OK .*fallback=true" "$MARKERS_PATH"; then
+    echo "ERROR: McD-profile generic ListView hit used fallback" >&2
+    grep -E "^MCD_PROFILE_GENERIC_LIST_HIT_OK .*fallback=true" "$MARKERS_PATH" >&2 || true
     missing=1
 fi
 if grep -qE "^MCD_PROFILE_CONTROLLED_" "$MARKERS_PATH"; then

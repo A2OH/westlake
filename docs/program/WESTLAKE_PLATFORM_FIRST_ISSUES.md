@@ -90,8 +90,8 @@ McDonald's-class stock APK are documented in
   through repeated-cart and post-checkout navigation frames, and strict touch
   navigation. Current accepted hashes:
   `dalvikvm=2dd479e0c7f98e8fd3c4c09b539bfe30fe1c39b119d36e034af68c6bcaada6cf`,
-  `aosp-shim.dex=4f031943201092d281740a87aef41d0083f91304cae2e98685bacabb686336f1`,
-  `westlake-host.apk=f10b74df091f7c327614361ccb0b298f39be16f08f2aa9d9f835e6a7d0749b34`,
+  `aosp-shim.dex=d548351815ba5d8a700b7dd48089d652ec43623b032383738d036ae30740949d`,
+  `westlake-host.apk=d6d8e81a801bb799a815039abc0b296416c723a11f2c31547077ddb87cad7c68`,
   `westlake-mcd-profile-debug.apk=50477eccecc86fa5ecd8144d26b3930ec60d68c3b952708d66aba934ea448933`.
   It is the current OHOS controlled mock profile target, not the real
   McDonald's app and not a stock McDonald's APK compatibility claim.
@@ -112,8 +112,9 @@ McDonald's-class stock APK are documented in
   McD-specific direct `DLST` writer and coordinate router with generic View
   draw, hit testing, scrolling, adapter/list rendering, and invalidation.
   PF-475 adds a controlled sidecar proof for generic `MotionEvent` dispatch,
-  checkout `MaterialButton` click, and XML `ListView` item-click invocation,
-  but full coordinate hit testing and generic visible rendering remain open
+  checkout `MaterialButton` click, and XML `ListView` real-coordinate
+  item-click invocation with `fallback=false`, but generic visible rendering
+  and pure `AdapterView` touch-dispatch item click remain open
 - `PF-471` production-grade portable networking/images: replace synthetic REST
   matrix coverage and one capped image proof with real multi-method execution,
   large-body streaming, redirects, timeout/error parity, direct libcore
@@ -141,14 +142,16 @@ McDonald's-class stock APK are documented in
   accepted for dispatching touch-file packets as `MotionEvent`s into the
   inflated XML View tree. The runner now requires
   `MCD_PROFILE_GENERIC_TOUCH_OK ... adapter=true`,
-  `MCD_PROFILE_GENERIC_LIST_HIT_OK ... position=[0-9]+ ... clicked=true`, and
+  `MCD_PROFILE_GENERIC_LIST_BOUNDS_OK ... children=[1-9]`,
+  `MCD_PROFILE_GENERIC_LIST_HIT_OK ... position=[0-9]+ ... clicked=true ... fallback=false`,
+  and
   `MCD_PROFILE_ADAPTER_ITEM_CLICK_OK`. The accepted list proof invokes
-  `AdapterView.performItemClick()` on the XML `ListView` and reaches the app
-  `OnItemClickListener`; the checkout button also records
-  `MCD_PROFILE_GENERIC_CLICK_OK` for the `MaterialButton`. This is a sidecar
-  proof, not full PF-470 closure, because the visible frame still uses the
-  McD-specific direct renderer and the accepted list hit records
-  `fallback=true`.
+  `AdapterView.performItemClick()` on the XML `ListView` from a real laid-out
+  coordinate and reaches the app `OnItemClickListener`; the checkout button
+  also records `MCD_PROFILE_GENERIC_CLICK_OK` for the `MaterialButton`. This is
+  a sidecar proof, not full PF-470 closure, because the visible frame still
+  uses the McD-specific direct renderer and ListView item selection is still
+  launcher-assisted rather than pure `AbsListView` touch-dispatch behavior.
 
 ## 2026-04-25 Roadmap Corrections
 
