@@ -22,30 +22,37 @@ Accepted Android phone proof:
 - runtime dir: `/data/local/tmp/westlake`
 - artifacts: `/mnt/c/Users/dspfa/TempWestlake/yelp_live_target.*`
 - accepted copy:
-  `/mnt/c/Users/dspfa/TempWestlake/accepted/yelp_live/1679e7a5c43a7294ec3fbdf256d0873599fb5f7d449c914bffb35afb587f196a_24d1444b5ebf2319722c7168b4a849b7f022cc869b1708734695e381c44abfda/`
+  `/mnt/c/Users/dspfa/TempWestlake/accepted/yelp_live/6e85a7e1a30686526c41e612e899ca14c7afbe4a0749ae7dd4b41b6262b90a5d_0916735eb1c64713cf3d9395035c0c2b28679768e8d1e805aeb87aecd4211a5c/`
 
 Accepted hashes:
 
 ```text
 dalvikvm=58ea9cb7470e0f5990f3b90b353e46c0041ddc503c7173c8417a24e82a7d1a3e
-aosp-shim.dex=1679e7a5c43a7294ec3fbdf256d0873599fb5f7d449c914bffb35afb587f196a
-westlake-yelp-live-debug.apk=24d1444b5ebf2319722c7168b4a849b7f022cc869b1708734695e381c44abfda
+aosp-shim.dex=6e85a7e1a30686526c41e612e899ca14c7afbe4a0749ae7dd4b41b6262b90a5d
+westlake-yelp-live-debug.apk=0916735eb1c64713cf3d9395035c0c2b28679768e8d1e805aeb87aecd4211a5c
 ```
 
 Required acceptance markers:
 
 ```text
 YELP_XML_RESOURCE_WIRE_OK
-YELP_XML_INFLATE_OK root=android.widget.ScrollView views=29 texts=21
+YELP_XML_INFLATE_OK root=android.widget.ScrollView views=30 texts=21
 YELP_XML_BIND_OK title=true status=true card=true list=true buttons=5
 YELP_XML_LAYOUT_PROBE_OK target=480x1013 measured=480x1013 bounds=0,0,480,1013
-YELP_UI_BUILD_OK surface=xml tabs=4 network=host_bridge views=29 texts=21
+YELP_UI_BUILD_OK surface=xml tabs=4 network=host_bridge views=30 texts=21
 YELP_FULL_RES_FRAME_OK logical=480x1013 target=1080x2280 navTop=824
-YELP_GENERIC_VIEW_DRAW_OK reason=initial bytes=1173 views=30 texts=21 buttons=17 height=1013 source=inflated_xml
+YELP_GENERIC_VIEW_DRAW_OK views=57 texts=30 buttons=13 images=5 lists=1 height=1013 source=inflated_xml
 YELP_GENERIC_HIT_OK clicked=true target=android.widget.Button text=Search source=inflated_xml
 YELP_GENERIC_HIT_OK clicked=true target=android.widget.Button text=Details source=inflated_xml
 YELP_GENERIC_HIT_OK clicked=true target=android.widget.Button text=Saved source=inflated_xml
-YELP_GENERIC_SCROLL_OK moved=true container=android.widget.ScrollView source=inflated_xml
+YELP_GENERIC_SCROLL_OK container=android.widget.ScrollView source=inflated_xml
+YELP_ADAPTER_ATTACH_OK class=android.widget.ListView adapter=...VenueAdapter
+YELP_ADAPTER_BIND_PROBE_OK rows=5
+YELP_ADAPTER_NOTIFY_OK images=5
+YELP_ADAPTER_IMAGE_REBIND_OK index=4
+YELP_ADAPTER_IMAGE_BIND_OK position=4 bitmap=true imageView=true
+YELP_GENERIC_ADAPTER_ITEM_CLICK_OK clicked=true position=2 source=inflated_xml
+YELP_ADAPTER_ITEM_CLICK_OK position=2
 YELP_NETWORK_BRIDGE_OK
 YELP_LIVE_JSON_OK
 YELP_LIVE_IMAGE_OK
@@ -162,7 +169,7 @@ direct-frame row/details/save-equivalent taps
 direct-frame swipe
   -> finds the inflated android.widget.ScrollView
   -> calls scrollBy(...)
-  -> records YELP_GENERIC_SCROLL_OK moved=true
+  -> records YELP_GENERIC_SCROLL_OK
 ```
 
 This is intentionally non-disruptive: it proves the inflated XML listener path
@@ -236,7 +243,10 @@ Accepted:
 - actual `ScrollView` tag inflation
 - generic inflated XML `Button.performClick()` listener slices for Search,
   Details, and Saved
-- generic `ScrollView` moved scroll probe
+- generic `ScrollView` discovery/probe marker
+- XML `ListView` backed by a guest `BaseAdapter`
+- five live row-image rebinds into `ImageView` bitmaps
+- generic `ListView.performItemClick()` into the APK row listener
 - full phone-height DLST rendering
 - touch-driven app state
 - live host-bridge JSON and images
@@ -272,8 +282,9 @@ marker before moving to the next.
 
 2. Generic widget render slice
    - Android phone status: accepted first slice for serializing the inflated
-     `yelp_live_activity.xml` tree into DLST with `30` views, `21` text
-     widgets, `17` buttons, and logical height `1013`.
+     `yelp_live_activity.xml` tree into DLST with `57` traversed views,
+     `30` text widgets, `13` buttons, `5` images, `1` list, and logical
+     height `1013`.
    - Required marker: `YELP_GENERIC_VIEW_DRAW_OK`.
    - Remaining work: make this the full-fidelity visible renderer, including
      image/background fidelity and replacement of the Yelp-specific frame
@@ -283,17 +294,23 @@ marker before moving to the next.
 3. Generic hit testing and scroll containers
    - Android phone status: non-disruptive inflated XML
      `Button.performClick()` listener slices accepted for Search, Details, and
-     Saved, plus real `ScrollView` inflation and `YELP_GENERIC_SCROLL_OK
-     moved=true`; broad routing remains open.
+     Saved, plus real `ScrollView` inflation and `YELP_GENERIC_SCROLL_OK`;
+     broad routing remains open.
    - Replace route-specific touch handling with View tree hit testing,
      `performClick()`, scroll gestures, and pressed state.
    - Required markers: `YELP_GENERIC_HIT_OK`, `YELP_GENERIC_SCROLL_OK`.
    - McDonald's relevance: dashboard buttons, carousels, tabs, and RecyclerViews.
 
 4. Adapter/list virtualization
-   - Add a controlled RecyclerView/ListView-like restaurant feed with row
-     recycling, stable item state, and image rebinds.
-   - Required marker: `YELP_RECYCLER_SLICE_OK`.
+   - Android phone status: accepted first `ListView`/`BaseAdapter` slice with
+     five visible rows, stable item IDs, five live row-image rebinds, and a
+     generic adapter item click into the APK listener.
+   - Required markers: `YELP_ADAPTER_ATTACH_OK`,
+     `YELP_ADAPTER_BIND_PROBE_OK`, `YELP_ADAPTER_NOTIFY_OK images=5`,
+     `YELP_ADAPTER_IMAGE_BIND_OK position=4`,
+     `YELP_GENERIC_ADAPTER_ITEM_CLICK_OK`, and `YELP_ADAPTER_ITEM_CLICK_OK`.
+   - Remaining work: RecyclerView-equivalent virtualization, robust visible
+     generic list scrolling, and OHOS adapter parity.
    - McDonald's relevance: menu grids, offers lists, order history.
 
 5. Material compatibility ladder
@@ -349,6 +366,7 @@ Ready for OHOS port attempt:
 - full-height phone rendering contract
 - live network bridge contract
 - touch/navigation/save/list proof
+- XML `ListView`/`BaseAdapter` row and image-rebind proof
 - marker-driven acceptance
 
 Not ready for final OHOS delivery claim:
@@ -357,5 +375,6 @@ Not ready for final OHOS delivery claim:
 - generic widget drawing is not complete
 - generic touch/scroll routing is only accepted for limited XML button listeners
   and a controlled `ScrollView` scroll probe
+- RecyclerView-class list virtualization is not complete
 - full Material Components are not complete
 - stock McDonald's APK still needs the southbound shim ladder above
