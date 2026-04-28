@@ -393,9 +393,14 @@ reject_log_marker() {
 
 require_marker "^MCD_PROFILE_APP_ON_CREATE_OK " "APP_ON_CREATE"
 require_marker "^MCD_PROFILE_ACTIVITY_ON_CREATE_OK " "ACTIVITY_ON_CREATE"
-require_marker "^MCD_PROFILE_XML_INFLATE_OK .*source=compiled_apk_xml" "XML_INFLATE_OK"
-require_marker "^MCD_PROFILE_XML_BIND_OK " "XML_BIND_OK"
+require_marker "^MCD_PROFILE_XML_RESOURCE_WIRE_OK .*layoutBytes=[1-9][0-9]*" "XML_RESOURCE_WIRE_OK"
+require_marker "^MCD_PROFILE_XML_TAG_OK tag=TextInputLayout " "XML TextInputLayout"
+require_marker "^MCD_PROFILE_XML_TAG_OK tag=MaterialCardView " "XML MaterialCardView"
+require_marker "^MCD_PROFILE_XML_TAG_OK tag=ListView " "XML ListView"
+require_marker "^MCD_PROFILE_XML_INFLATE_OK .*views=[1-9][0-9]+ .*materialViews=[1-9][0-9]* .*source=compiled_apk_xml" "XML_INFLATE_OK"
+require_marker "^MCD_PROFILE_XML_BIND_OK .*list=true .*materialViews=[1-9][0-9]*" "XML_BIND_OK"
 require_marker "^MCD_PROFILE_XML_LAYOUT_PROBE_OK " "XML_LAYOUT_PROBE_OK"
+require_marker "^MCD_PROFILE_ADAPTER_GET_VIEW_OK .*position=4" "ADAPTER_GET_VIEW position=4"
 require_marker "^MCD_PROFILE_STORAGE_PREFS_OK " "STORAGE_PREFS_OK"
 require_marker "^MCD_PROFILE_LIVE_JSON_OK .*transport=host_bridge" "LIVE_JSON_OK"
 require_marker "^MCD_PROFILE_ROW_IMAGE_OK .*index=0 .*transport=host_bridge" "ROW_IMAGE_OK index=0"
@@ -403,7 +408,7 @@ require_marker "^MCD_PROFILE_IMAGE_BRIDGE_OK .*transport=host_bridge" "IMAGE_BRI
 require_marker "^MCD_PROFILE_REST_POST_OK .*protocol=2" "REST_POST_OK"
 require_marker "^MCD_PROFILE_REST_HEAD_OK " "REST_HEAD_OK"
 require_marker "^MCD_PROFILE_REST_MATRIX_OK " "REST_MATRIX_OK"
-require_marker "^MCD_PROFILE_DIRECT_FRAME_OK .*xml=true .*rows=5" "DIRECT_FRAME_OK"
+require_marker "^MCD_PROFILE_DIRECT_FRAME_OK .*xml=true .*materialViews=[1-9][0-9]* .*rows=5" "DIRECT_FRAME_OK"
 require_marker "^MCD_PROFILE_FULL_RES_FRAME_OK .*target=1080x2280" "FULL_RES_FRAME_OK"
 require_marker "^MCD_PROFILE_READY_FOR_OHOS_PORT_OK " "READY_FOR_OHOS_PORT_OK"
 require_log_marker "Surface buffer 1080x2280 for $MCD_PKG" "1K/full-phone McD-profile surface buffer"
@@ -422,6 +427,11 @@ fi
 if grep -qE "^MCD_PROFILE_.*_FAIL " "$MARKERS_PATH"; then
     echo "ERROR: McD-profile failure marker present" >&2
     grep -E "^MCD_PROFILE_.*_FAIL " "$MARKERS_PATH" >&2 || true
+    missing=1
+fi
+if grep -qE "^MCD_PROFILE_XML_TAG_WARN " "$MARKERS_PATH"; then
+    echo "ERROR: McD-profile XML warning marker present" >&2
+    grep -E "^MCD_PROFILE_XML_TAG_WARN " "$MARKERS_PATH" >&2 || true
     missing=1
 fi
 reject_log_marker "APK load error|FATAL EXCEPTION|SIGBUS|SIGILL" "fatal runtime/log error"

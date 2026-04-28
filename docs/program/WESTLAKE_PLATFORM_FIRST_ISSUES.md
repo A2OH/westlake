@@ -80,23 +80,21 @@ McDonald's-class stock APK are documented in
   `com.westlake.mcdprofile`, built from `test-apps/10-mcd-profile/` and run
   with `scripts/run-mcd-profile.sh`. The accepted proof covers app-owned
   Application, controlled Activity allocation/attach/lifecycle, compiled XML
-  resource loading and shallow `LinearLayout` inflation, SharedPreferences cart
-  state, host/OHBridge live JSON and one bounded image, REST bridge v2
-  POST/HEAD/non-2xx status probes, full-phone `1080x2280` `DLST`, and strict
-  touch navigation. It also records the current negative XML boundary:
-  McD-profile Material/ListView tags still warn out with `materialViews=0` and
-  `list=false`. It is the current OHOS controlled profile target, not a stock
-  McDonald's APK compatibility claim.
+  resource loading before `onCreate`, Material-shaped tag traversal and ID
+  binding, guest `ListView` adapter row binding through position `4`,
+  SharedPreferences cart state, host/OHBridge live JSON and one bounded image,
+  REST bridge v2 POST/HEAD/non-2xx status probes, full-phone `1080x2280`
+  `DLST`, and strict touch navigation. It is the current OHOS controlled
+  profile target, not a stock McDonald's APK compatibility claim.
 - `PF-467` generic real-APK Activity construction: replace the McD-profile
   no-constructor allocation workaround with a stable constructor/factory path
   usable by arbitrary real APK activities
 - `PF-468` standalone runtime object-array correctness: close the DEX
   object-array/new-array boundary exposed by profile-item `String[]` models
-- `PF-469` McD-class generic Material XML and theming: first close
-  McD-profile Material/ListView XML traversal and ID binding, then move from
-  profile-specific tag/bind fallback to upstream-compatible Material tag
-  inflation, ID assignment, themes/styles, Coordinator/AppBar behavior,
-  ripple, and animation
+- `PF-469` McD-class generic Material XML and theming: move from the accepted
+  McD-profile tag/bind slice to upstream-compatible Material tag inflation,
+  ID assignment, themes/styles, Coordinator/AppBar behavior, ripple, and
+  animation
 - `PF-470` generic visible rendering/input replacement: replace the
   McD-specific direct `DLST` writer and coordinate router with generic View
   draw, hit testing, scrolling, adapter/list rendering, and invalidation

@@ -2323,6 +2323,16 @@ public class WestlakeLauncher {
                     + " layouts=" + intAscii(registeredLayoutCount)
                     + " layoutBytes=" + intAscii(registeredLayoutBytes));
         }
+        if ("com.westlake.mcdprofile".equals(packageName)
+                || (className != null && className.startsWith("com.westlake.mcdprofile."))) {
+            appendCutoffCanaryMarker("MCD_PROFILE_XML_RESOURCE_WIRE_OK engine=true"
+                    + " table=" + (tableLoaded ? "true" : "false")
+                    + " apk=" + (apkPath != null && apkPath.length() > 0 ? "true" : "false")
+                    + " resDir=" + (resDir != null && resDir.length() > 0 ? "true" : "false")
+                    + " arsc=" + intAscii(arscBytes)
+                    + " layouts=" + intAscii(registeredLayoutCount)
+                    + " layoutBytes=" + intAscii(registeredLayoutBytes));
+        }
     }
 
     private static int[] registerStandaloneLayouts(
@@ -6904,6 +6914,7 @@ public class WestlakeLauncher {
                 appendCutoffCanaryMarker("MCD_PROFILE_CONTROLLED_ATTACH_OK mode=fields");
             }
 
+            wireStandaloneActivityResources(activity, packageName, activityName);
             activity.westlakePerformCreate(null);
             appendCutoffCanaryMarker("MCD_PROFILE_CONTROLLED_ACTIVITY_ONCREATE_OK");
             try {

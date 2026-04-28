@@ -12,26 +12,31 @@ through `scripts/run-mcd-profile.sh`.
 
 The accepted run proves app-owned `Application.onCreate()`, controlled
 Activity allocation/attach/create/start/resume inside Westlake, compiled APK
-XML resource loading and shallow `LinearLayout` inflation from
-`activity_mcd_profile.xml`, SharedPreferences cart state, host/OHBridge live
-JSON, one bounded host/OHBridge image, REST bridge v2 POST/HEAD/non-2xx status
-coverage, full-phone `1080x2280` `DLST`, and strict touch actions for category,
-row select, cart add, checkout, Deals navigation, and Menu navigation. It also
-proves the current negative boundary: McD-profile Material/ListView XML tags
-are present in the APK, but the accepted run still records `XML_TAG_WARN`,
-`materialViews=0`, and `list=false`; the visible five-row menu is still the
-controlled direct renderer over app state.
+XML resource loading before `onCreate`, inflation from
+`activity_mcd_profile.xml` into a 25-view guest tree with 10 Material-shaped
+views, `ListView` adapter binding through position `4`, SharedPreferences cart
+state, host/OHBridge live JSON, one bounded host/OHBridge image, REST bridge v2
+POST/HEAD/non-2xx status coverage, full-phone `1080x2280` `DLST`, and strict
+touch actions for category, row select, cart add, checkout, Deals navigation,
+and Menu navigation. The latest accepted run has no `XML_TAG_WARN` markers for
+the McD-profile XML slice; the visible five-row menu is still the controlled
+direct renderer over app state.
 
 PF-466 evidence:
 
 - `dalvikvm=58ea9cb7470e0f5990f3b90b353e46c0041ddc503c7173c8417a24e82a7d1a3e`
-- `aosp-shim.dex=920113ecb2a0633e9fd47e776db119f09c4588a6c6ba0c18703eaba02976a0f1`
-- `westlake-host.apk=d323e9b5e180ab2c480cb73c03a53fffcb0322aa194e71e914737aa526df8464`
+- `aosp-shim.dex=9712b9ecc771e569064c778bf9d92a4738fa6fd33ba13585ed22dfa6647bedfa`
+- `westlake-host.apk=23176e814fd2f384cf5fdc9d8f4a82b9748310f3e58363cbad94684586e979f1`
 - `westlake-mcd-profile-debug.apk=f41fd4d2fd06a9d486b8f78f19e161b7a7b1b3f21acde12547574864b279ba8e`
 - Screenshot/log/markers/trace:
   `/mnt/c/Users/dspfa/TempWestlake/mcd_profile_target.*`
 - Stable accepted copy:
-  `/mnt/c/Users/dspfa/TempWestlake/accepted/mcd_profile/920113ecb2a0633e9fd47e776db119f09c4588a6c6ba0c18703eaba02976a0f1_f41fd4d2fd06a9d486b8f78f19e161b7a7b1b3f21acde12547574864b279ba8e/`
+  `/mnt/c/Users/dspfa/TempWestlake/accepted/mcd_profile/9712b9ecc771e569064c778bf9d92a4738fa6fd33ba13585ed22dfa6647bedfa_f41fd4d2fd06a9d486b8f78f19e161b7a7b1b3f21acde12547574864b279ba8e/`
+- Key XML markers:
+  `MCD_PROFILE_XML_RESOURCE_WIRE_OK ... table=false ... layoutBytes=4112`,
+  `MCD_PROFILE_XML_BIND_OK list=true ... materialViews=10`,
+  `MCD_PROFILE_ADAPTER_GET_VIEW_OK position=4`, and
+  `MCD_PROFILE_XML_INFLATE_OK ... views=25 materialViews=10 source=compiled_apk_xml`
 
 This is the right next OHOS port target because it is self-contained and the
 southbound contracts are explicit: Ability/XComponent surface, `DLST` replay,
@@ -42,7 +47,7 @@ portable HTTP bridge. The integration guide is
 Supervisor judgement: we are on the right architecture track for the Westlake
 goal, but not yet close enough to claim stock McDonald's readiness. The next
 hard gaps are generic real-APK Activity construction, runtime object-array
-correctness, McD-profile Material/ListView XML traversal, upstream Material
+correctness, standalone `resources.arsc` table parsing, upstream Material
 XML/theming, generic View draw/hit/scroll, streamed multi-image networking, and
 OHOS host parity for the same PF-466 contract.
 

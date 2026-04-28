@@ -7,15 +7,17 @@ now PF-466, `com.westlake.mcdprofile`, documented in
 `docs/engine/OHOS-MCD-PROFILE-INTEGRATION.md`. It is accepted on a real Android
 phone through Westlake `dalvikvm` with compiled XML inflation, Material-shaped
 tags present in the APK, host/OHBridge JSON/image/REST, SharedPreferences,
-full-phone `DLST`, and strict touch interaction. Current caveat:
-McD-profile Material/ListView tags are not yet inflated as real guest Views
-(`materialViews=0`, `list=false`), so that remains a stock-APK blocker.
+full-phone `DLST`, and strict touch interaction. The latest accepted phone run
+also wires the McD-profile XML resource bytes before `onCreate`, inflates a
+25-view guest tree with 10 Material-shaped views, binds the XML `ListView`, and
+drives its adapter through position `4`.
 
 This supersedes older MockDonalds-only status as the current practical OHOS
 port target. It still does not mean arbitrary real APKs are ready: generic
 real-APK Activity construction, runtime object-array correctness, upstream
-Material compatibility, generic View rendering/input, production networking,
-and OHOS host adapter parity remain open.
+Material compatibility, generic View rendering/input, standalone
+`resources.arsc` table parsing, production networking, and OHOS host adapter
+parity remain open.
 
 ## Latest Milestone: Compressed APK on OHOS ARM32 QEMU
 

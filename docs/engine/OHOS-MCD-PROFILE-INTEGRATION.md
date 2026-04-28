@@ -12,9 +12,9 @@ The app is intentionally self-contained:
 
 - compiled APK XML: `activity_mcd_profile.xml`;
 - app-owned `Application` and `Activity` classes;
-- Material-style XML tags in the APK source, currently accepted as a negative
-  boundary because they still warn out during McD-profile inflation;
-- direct-rendered five-row menu state, with XML `ListView` binding still open;
+- Material-style XML tags in the APK source, accepted through the current
+  McD-profile XML traversal and ID-binding slice;
+- direct-rendered five-row menu state plus guest `ListView` adapter binding;
 - SharedPreferences cart state;
 - host/OHBridge live JSON, image, POST, HEAD, and non-2xx REST traffic;
 - full-phone `DLST` rendering and strict touch input.
@@ -36,8 +36,8 @@ Accepted device: `cfb7c9e3`.
 Accepted hashes:
 
 - `dalvikvm=58ea9cb7470e0f5990f3b90b353e46c0041ddc503c7173c8417a24e82a7d1a3e`
-- `aosp-shim.dex=920113ecb2a0633e9fd47e776db119f09c4588a6c6ba0c18703eaba02976a0f1`
-- `westlake-host.apk=d323e9b5e180ab2c480cb73c03a53fffcb0322aa194e71e914737aa526df8464`
+- `aosp-shim.dex=9712b9ecc771e569064c778bf9d92a4738fa6fd33ba13585ed22dfa6647bedfa`
+- `westlake-host.apk=23176e814fd2f384cf5fdc9d8f4a82b9748310f3e58363cbad94684586e979f1`
 - `westlake-mcd-profile-debug.apk=f41fd4d2fd06a9d486b8f78f19e161b7a7b1b3f21acde12547574864b279ba8e`
 
 Accepted artifacts:
@@ -47,7 +47,17 @@ Accepted artifacts:
 - `/mnt/c/Users/dspfa/TempWestlake/mcd_profile_target.trace`
 - `/mnt/c/Users/dspfa/TempWestlake/mcd_profile_target.png`
 - `/mnt/c/Users/dspfa/TempWestlake/mcd_profile_target.visual`
-- `/mnt/c/Users/dspfa/TempWestlake/accepted/mcd_profile/920113ecb2a0633e9fd47e776db119f09c4588a6c6ba0c18703eaba02976a0f1_f41fd4d2fd06a9d486b8f78f19e161b7a7b1b3f21acde12547574864b279ba8e/`
+- `/mnt/c/Users/dspfa/TempWestlake/accepted/mcd_profile/9712b9ecc771e569064c778bf9d92a4738fa6fd33ba13585ed22dfa6647bedfa_f41fd4d2fd06a9d486b8f78f19e161b7a7b1b3f21acde12547574864b279ba8e/`
+
+Key accepted XML markers:
+
+- `MCD_PROFILE_XML_RESOURCE_WIRE_OK engine=true table=false apk=true resDir=true arsc=2528 layouts=1 layoutBytes=4112`
+- `MCD_PROFILE_XML_TAG_OK` for `TextInputLayout`, `TextInputEditText`,
+  `ChipGroup`, `Chip`, `MaterialCardView`, `ImageView`, `MaterialButton`,
+  `BottomNavigationView`, and `ListView`
+- `MCD_PROFILE_XML_BIND_OK list=true ... materialViews=10`
+- `MCD_PROFILE_ADAPTER_GET_VIEW_OK position=4`
+- `MCD_PROFILE_XML_INFLATE_OK ... views=25 materialViews=10 source=compiled_apk_xml`
 
 ## Call Path
 
@@ -63,8 +73,9 @@ WestlakeActivity
   -> WestlakeVM starts /data/local/tmp/westlake/dalvikvm as a subprocess
   -> dalvikvm loads aosp-shim.dex + target APK classes
   -> WestlakeLauncher creates McdProfileApp and controlled McdProfileActivity
+  -> WestlakeLauncher wires extracted res/layout XML bytes before onCreate
   -> Activity.westlakeAttach / westlakePerformCreate / Start / Resume
-  -> McdProfileActivity inflates compiled APK XML and records current XML gaps
+  -> McdProfileActivity inflates compiled APK XML and binds Material-shaped/ListView tags
   -> WestlakeLauncher writes DLST display-list frames to stdout
   -> WestlakeVM replays DLST into the host SurfaceView buffer
 ```
@@ -118,9 +129,14 @@ PF-466 parity proof:
 
 - `MCD_PROFILE_APP_ON_CREATE_OK`
 - `MCD_PROFILE_ACTIVITY_ON_CREATE_OK`
-- `MCD_PROFILE_XML_INFLATE_OK source=compiled_apk_xml`
-- `MCD_PROFILE_XML_BIND_OK`
+- `MCD_PROFILE_XML_RESOURCE_WIRE_OK layoutBytes=[nonzero]`
+- `MCD_PROFILE_XML_TAG_OK tag=TextInputLayout`
+- `MCD_PROFILE_XML_TAG_OK tag=MaterialCardView`
+- `MCD_PROFILE_XML_TAG_OK tag=ListView`
+- `MCD_PROFILE_XML_INFLATE_OK views=[nonzero] materialViews=[nonzero] source=compiled_apk_xml`
+- `MCD_PROFILE_XML_BIND_OK list=true materialViews=[nonzero]`
 - `MCD_PROFILE_XML_LAYOUT_PROBE_OK`
+- `MCD_PROFILE_ADAPTER_GET_VIEW_OK position=4`
 - `MCD_PROFILE_STORAGE_PREFS_OK`
 - `MCD_PROFILE_LIVE_JSON_OK transport=host_bridge`
 - `MCD_PROFILE_ROW_IMAGE_OK index=0 transport=host_bridge`
@@ -128,7 +144,7 @@ PF-466 parity proof:
 - `MCD_PROFILE_REST_POST_OK protocol=2`
 - `MCD_PROFILE_REST_HEAD_OK`
 - `MCD_PROFILE_REST_MATRIX_OK`
-- `MCD_PROFILE_DIRECT_FRAME_OK xml=true rows=5`
+- `MCD_PROFILE_DIRECT_FRAME_OK xml=true materialViews=[nonzero] rows=5`
 - `MCD_PROFILE_FULL_RES_FRAME_OK target=1080x2280`
 - `MCD_PROFILE_TOUCH_POLL_READY`
 - `MCD_PROFILE_TOUCH_POLL_OK`
@@ -144,13 +160,11 @@ The visual gate should remain strict: nonblank full-phone output, red McD
 header, yellow accents, menu rows, cart bar, and bottom navigation must be
 visible in the screenshot.
 
-Current accepted Android-phone PF-466 markers also include `XML_TAG_WARN`
-entries for the McD-profile Material tags, `ImageView`, `ListView`, cart
-`TextView`, checkout `MaterialButton`, and `BottomNavigationView`. They also
-record `MCD_PROFILE_XML_BIND_OK list=false ... materialViews=0` and
-`MCD_PROFILE_XML_INFLATE_OK ... views=4 materialViews=0`. An OHOS parity run
-may initially match that boundary, but this must not be interpreted as complete
-Material/ListView XML support.
+The Android-phone runner now rejects any `MCD_PROFILE_XML_TAG_WARN` marker for
+this controlled McD-profile XML slice. OHOS parity should keep that stricter
+gate. This does not claim full upstream Google Material Components XML support;
+it proves the controlled McD-profile tags are wired through Westlake's XML
+inflation path.
 
 ## Known Gaps Before Stock McDonald's
 
@@ -160,12 +174,11 @@ PF-466 is useful because it exposes the next real gaps:
   `McdProfileActivity` without relying on the generic real-APK constructor and
   then calls shim lifecycle methods. Stock McDonald's needs a generic
   factory/constructor/lifecycle path.
+- `resources.arsc` parsing is still incomplete for this APK. The accepted run
+  registers layout XML bytes from extracted `res/layout` entries, while the
+  table load marker remains false.
 - The runtime still has an object-array/new-array correctness boundary. The
   profile app avoids `String[]` item arrays and uses scalar row fields.
-- McD-profile XML traversal/binding is shallow. The APK contains Material tags,
-  `ImageView`, `ListView`, cart `TextView`, checkout `MaterialButton`, and
-  `BottomNavigationView`, but the accepted phone run still records
-  `materialViews=0` and `list=false`.
 - Material XML is not upstream-complete. Full Material Components AAR
   compatibility, themes, Coordinator/AppBar behaviors, ripple, animation, and
   generic Material rendering remain open.
@@ -182,10 +195,9 @@ PF-466 is useful because it exposes the next real gaps:
 1. Port PF-466 unchanged to OHOS and require the same marker/visual gates.
 2. Replace the McD-profile Activity allocation workaround with generic
    real-APK Activity construction.
-3. Fix the object-array/new-array runtime boundary and restore array-backed
+3. Fix standalone `resources.arsc` table parsing for the McD-profile APK.
+4. Fix the object-array/new-array runtime boundary and restore array-backed
    menu models.
-4. Fix McD-profile XML traversal/binding so the Material tags and `ListView`
-   inflate as real guest Views.
 5. Move McD-profile rendering from the direct frame writer to generic inflated
    View draw/hit/scroll/adapter paths.
 6. Expand networking/images to streamed multi-image transport and real REST
