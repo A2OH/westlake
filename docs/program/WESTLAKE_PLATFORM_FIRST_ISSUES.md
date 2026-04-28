@@ -1,6 +1,6 @@
 # Westlake Platform-First Issue Map
 
-Last updated: 2026-04-27
+Last updated: 2026-04-28
 
 This file mirrors the active platform-first issue structure used for execution.
 
@@ -76,7 +76,37 @@ McDonald's-class stock APK are documented in
 - `PF-465` service probes for text input, connectivity, locale/time, and
   accessibility-shaped metadata
 - `PF-466` McDonald's preflight controlled app profile before returning to the
-  stock APK path
+  stock APK path: Android phone accepted on `cfb7c9e3` for
+  `com.westlake.mcdprofile`, built from `test-apps/10-mcd-profile/` and run
+  with `scripts/run-mcd-profile.sh`. The accepted proof covers app-owned
+  Application, controlled Activity allocation/attach/lifecycle, compiled XML
+  resource loading and shallow `LinearLayout` inflation, SharedPreferences cart
+  state, host/OHBridge live JSON and one bounded image, REST bridge v2
+  POST/HEAD/non-2xx status probes, full-phone `1080x2280` `DLST`, and strict
+  touch navigation. It also records the current negative XML boundary:
+  McD-profile Material/ListView tags still warn out with `materialViews=0` and
+  `list=false`. It is the current OHOS controlled profile target, not a stock
+  McDonald's APK compatibility claim.
+- `PF-467` generic real-APK Activity construction: replace the McD-profile
+  no-constructor allocation workaround with a stable constructor/factory path
+  usable by arbitrary real APK activities
+- `PF-468` standalone runtime object-array correctness: close the DEX
+  object-array/new-array boundary exposed by profile-item `String[]` models
+- `PF-469` McD-class generic Material XML and theming: first close
+  McD-profile Material/ListView XML traversal and ID binding, then move from
+  profile-specific tag/bind fallback to upstream-compatible Material tag
+  inflation, ID assignment, themes/styles, Coordinator/AppBar behavior,
+  ripple, and animation
+- `PF-470` generic visible rendering/input replacement: replace the
+  McD-specific direct `DLST` writer and coordinate router with generic View
+  draw, hit testing, scrolling, adapter/list rendering, and invalidation
+- `PF-471` production-grade portable networking/images: replace synthetic REST
+  matrix coverage and one capped image proof with real multi-method execution,
+  large-body streaming, redirects, timeout/error parity, and multi-image
+  transport
+- `PF-472` OHOS McD-profile adapter parity: implement the same guest-facing
+  surface/input/storage/network contracts in an OHOS Ability/XComponent host
+  and rerun PF-466 there
 
 ## 2026-04-25 Roadmap Corrections
 

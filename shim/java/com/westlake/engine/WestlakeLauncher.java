@@ -3465,6 +3465,11 @@ public class WestlakeLauncher {
                         startupLog("PF463 material appClass fallback " + appClass);
                     }
                     if ((appClass == null || appClass.length() == 0)
+                            && "com.westlake.mcdprofile".equals(targetPackageName)) {
+                        appClass = "com.westlake.mcdprofile.McdProfileApp";
+                        startupLog("PF465 mcd profile appClass fallback " + appClass);
+                    }
+                    if ((appClass == null || appClass.length() == 0)
                             && "com.westlake.materialxmlprobe".equals(targetPackageName)) {
                         appClass = "com.westlake.materialxmlprobe.MaterialXmlProbeApp";
                         startupLog("PF457 material XML appClass fallback " + appClass);
@@ -3477,22 +3482,31 @@ public class WestlakeLauncher {
                     }
 
                     if (!isRealFrameworkFallbackAllowed()
-                            && "com.westlake.materialyelp".equals(targetPackageName)
+                            && ("com.westlake.materialyelp".equals(targetPackageName)
+                                    || "com.westlake.mcdprofile".equals(targetPackageName))
                             && appClass != null && appClass.length() > 0) {
                         try {
-                            startupLog("PF463 material Application create begin");
+                            startupLog("PF463 controlled Application create begin");
                             Class<?> appCls = Class.forName(appClass, true, activityClassLoader);
                             android.app.Application customApp = instantiateApplicationInstance(
                                     appCls, appClass, false);
                             android.app.MiniServer.currentSetPackageName(targetPackageName);
                             android.app.MiniServer.currentSetApplication(customApp);
                             customApp.onCreate();
-                            startupLog("PF463 material Application.onCreate returned");
+                            startupLog("PF463 controlled Application.onCreate returned");
                         } catch (Throwable appError) {
-                            startupLog("PF463 material Application.onCreate failed", appError);
+                            startupLog("PF463 controlled Application.onCreate failed", appError);
                         }
                     }
 
+                    if (!isRealFrameworkFallbackAllowed()
+                            && "com.westlake.mcdprofile".equals(targetPackageName)) {
+                        launchedActivity = launchMcdProfileControlledActivity(
+                                targetPackageName, targetActivity,
+                                resolvedActivityClass, activityClassLoader);
+                    }
+
+                    if (launchedActivity == null) {
                         boolean preferWat = isHiltActivity
                             || "com.mcdonalds.app".equals(targetPackageName)
                             || "com.westlake.showcase".equals(targetPackageName)
@@ -3556,6 +3570,12 @@ public class WestlakeLauncher {
                             startupLog("PF461 yelp WAT force makeApplication begin");
                             wat.forceMakeApplicationForNextLaunch(appClass);
                             startupLog("PF461 yelp WAT force makeApplication returned");
+                        }
+                        if ("com.westlake.mcdprofile".equals(launchPkg2)
+                                && appClass != null && appClass.length() > 0) {
+                            startupLog("PF465 mcd profile WAT force makeApplication begin");
+                            wat.forceMakeApplicationForNextLaunch(appClass);
+                            startupLog("PF465 mcd profile WAT force makeApplication returned");
                         }
                         if ("com.westlake.materialxmlprobe".equals(launchPkg2)
                                 && appClass != null && appClass.length() > 0) {
@@ -3630,6 +3650,11 @@ public class WestlakeLauncher {
                             startupLog("PF462 yelp WAT resume call");
                             wat.performResumeActivity(result2[0]);
                             startupLog("PF462 yelp WAT resume returned");
+                        }
+                        if ("com.westlake.mcdprofile".equals(launchPkg2) && result2[0] != null) {
+                            startupLog("PF465 mcd profile WAT resume call");
+                            wat.performResumeActivity(result2[0]);
+                            startupLog("PF465 mcd profile WAT resume returned");
                         }
                         if ("com.westlake.materialxmlprobe".equals(launchPkg2) && result2[0] != null) {
                             startupLog("PF457 material XML WAT resume call");
@@ -3719,6 +3744,7 @@ public class WestlakeLauncher {
                                         + (top != null ? top.getClass().getName() : "null"));
                             }
 			                }
+                    }
 			        } catch (Exception e) {
             startupLog("[WestlakeLauncher] APK load error marker="
                     + String.valueOf(lastLaunchMarker()));
@@ -4076,6 +4102,11 @@ public class WestlakeLauncher {
         if (strictStandalone && isMaterialYelpActivity(launchedActivity)) {
             startupLog("PF464 material yelp direct frame loop begin");
             runMaterialYelpDirectFrameLoop(launchedActivity);
+            return;
+        }
+        if (strictStandalone && isMcdProfileActivity(launchedActivity)) {
+            startupLog("PF465 mcd profile direct frame loop begin");
+            runMcdProfileDirectFrameLoop(launchedActivity);
             return;
         }
         if (strictStandalone && isMaterialXmlProbeActivity(launchedActivity)) {
@@ -6784,6 +6815,179 @@ public class WestlakeLauncher {
         startupLog("[WestlakeLauncher] Text-only dashboard menu drawn via OHBridge");
     }
 
+    private static Activity launchMcdProfileControlledActivity(String packageName,
+            String activityName, Class<?> resolvedActivityClass, ClassLoader activityClassLoader) {
+        startupLog("PF466 mcd profile controlled launch begin");
+        appendCutoffCanaryMarker("MCD_PROFILE_CONTROLLED_LAUNCH_BEGIN pkg="
+                + safeMarkerToken(packageName));
+        if (activityName == null || activityName.length() == 0) {
+            appendCutoffCanaryMarker("MCD_PROFILE_CONTROLLED_LAUNCH_FAIL err=no_activity");
+            return null;
+        }
+        ClassLoader previousLoader = Thread.currentThread().getContextClassLoader();
+        try {
+            Class<?> activityClass = resolvedActivityClass;
+            if (activityClass == null) {
+                activityClass = resolveAppClassChildFirstOrNull(activityName);
+            }
+            if (activityClass == null && activityClassLoader != null) {
+                activityClass = Class.forName(activityName, false, activityClassLoader);
+            }
+            if (activityClass == null) {
+                appendCutoffCanaryMarker("MCD_PROFILE_CONTROLLED_LAUNCH_FAIL err=class_null");
+                return null;
+            }
+            ClassLoader appLoader = activityClass.getClassLoader();
+            if (!isBootClassLoader(appLoader)) {
+                Thread.currentThread().setContextClassLoader(appLoader);
+            }
+
+            startupLog("PF466 mcd profile activity alloc begin");
+            Object raw = tryAllocInstance(activityClass);
+            if (!(raw instanceof Activity)) {
+                raw = tryUnsafeAllocInstance(activityClass);
+            }
+            if (raw instanceof Activity) {
+                appendCutoffCanaryMarker("MCD_PROFILE_CONTROLLED_ACTIVITY_ALLOC_OK class="
+                        + safeMarkerToken(activityClass.getName()));
+            } else {
+                startupLog("PF466 mcd profile activity ctor begin");
+                raw = activityClass.getDeclaredConstructor().newInstance();
+                appendCutoffCanaryMarker("MCD_PROFILE_CONTROLLED_ACTIVITY_CTOR_OK class="
+                        + safeMarkerToken(activityClass.getName()));
+            }
+            if (!(raw instanceof Activity)) {
+                appendCutoffCanaryMarker("MCD_PROFILE_CONTROLLED_LAUNCH_FAIL err=not_activity"
+                        + " class=" + safeMarkerToken(activityClass.getName()));
+                return null;
+            }
+            Activity activity = (Activity) raw;
+
+            android.app.MiniServer server = android.app.MiniServer.peek();
+            android.app.Application app = server != null ? server.getApplication() : null;
+            if (app == null) {
+                app = new android.app.Application();
+                android.app.MiniServer.currentSetApplication(app);
+            }
+            android.content.ComponentName component =
+                    new android.content.ComponentName(packageName, activityName);
+            Intent intent = new Intent(Intent.ACTION_MAIN);
+            intent.setComponent(component);
+            intent.setPackage(packageName);
+            intent.addCategory(Intent.CATEGORY_LAUNCHER);
+            intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+
+            android.view.Window window = new android.view.Window(activity);
+            boolean attached = false;
+            try {
+                activity.westlakeAttach(app, app, intent, component, window,
+                        new android.app.Instrumentation());
+                attached = true;
+                appendCutoffCanaryMarker("MCD_PROFILE_CONTROLLED_ATTACH_OK mode=shim");
+            } catch (Throwable attachError) {
+                startupLog("PF466 mcd profile attach fallback", attachError);
+                appendCutoffCanaryMarker("MCD_PROFILE_CONTROLLED_ATTACH_WARN err="
+                        + safeMarkerToken(throwableTag(attachError)));
+            }
+            if (!attached) {
+                setActivityFieldReflective(activity, "mApplication", app);
+                setActivityFieldReflective(activity, "mIntent", intent);
+                setActivityFieldReflective(activity, "mComponent", component);
+                setActivityFieldReflective(activity, "mWindow", window);
+                setActivityFieldReflective(activity, "mFinished", Boolean.FALSE);
+                setActivityFieldReflective(activity, "mDestroyed", Boolean.FALSE);
+                try {
+                    window.adoptContext(activity);
+                    window.setCallback(activity);
+                } catch (Throwable ignored) {
+                }
+                appendCutoffCanaryMarker("MCD_PROFILE_CONTROLLED_ATTACH_OK mode=fields");
+            }
+
+            activity.westlakePerformCreate(null);
+            appendCutoffCanaryMarker("MCD_PROFILE_CONTROLLED_ACTIVITY_ONCREATE_OK");
+            try {
+                activity.westlakePerformStart();
+                activity.westlakePerformResume();
+                appendCutoffCanaryMarker("MCD_PROFILE_CONTROLLED_ACTIVITY_RESUME_OK");
+            } catch (Throwable lifecycleWarn) {
+                startupLog("PF466 mcd profile start/resume warning", lifecycleWarn);
+                appendCutoffCanaryMarker("MCD_PROFILE_CONTROLLED_ACTIVITY_RESUME_WARN err="
+                        + safeMarkerToken(throwableTag(lifecycleWarn)));
+            }
+            startupLog("PF466 mcd profile controlled launch returned");
+            return activity;
+        } catch (Throwable t) {
+            startupLog("PF466 mcd profile controlled launch failed", t);
+            logThrowableFrames("PF466 mcd profile controlled launch", t, 12);
+            appendCutoffCanaryMarker("MCD_PROFILE_CONTROLLED_LAUNCH_FAIL err="
+                    + safeMarkerToken(t.getClass().getName()));
+            return null;
+        } finally {
+            try {
+                Thread.currentThread().setContextClassLoader(previousLoader);
+            } catch (Throwable ignored) {
+            }
+        }
+    }
+
+    private static void setActivityFieldReflective(Activity activity, String name, Object value) {
+        if (activity == null || name == null) {
+            return;
+        }
+        Class<?> cls = activity.getClass();
+        while (cls != null && cls != Object.class) {
+            try {
+                java.lang.reflect.Field field = cls.getDeclaredField(name);
+                field.setAccessible(true);
+                field.set(activity, value);
+                return;
+            } catch (NoSuchFieldException ignored) {
+                cls = cls.getSuperclass();
+            } catch (Throwable ignored) {
+                return;
+            }
+        }
+    }
+
+    private static java.lang.reflect.Method findLifecycleMethod(
+            Class<?> start, String name, Class<?>... parameterTypes) throws NoSuchMethodException {
+        Class<?> cls = start;
+        while (cls != null && cls != Object.class) {
+            try {
+                java.lang.reflect.Method method = cls.getDeclaredMethod(name, parameterTypes);
+                method.setAccessible(true);
+                return method;
+            } catch (NoSuchMethodException ignored) {
+                cls = cls.getSuperclass();
+            }
+        }
+        throw new NoSuchMethodException(name);
+    }
+
+    private static void invokeActivityBundleLifecycle(Activity activity, String name,
+            android.os.Bundle state) throws Throwable {
+        java.lang.reflect.Method method = findLifecycleMethod(activity.getClass(),
+                name, android.os.Bundle.class);
+        try {
+            method.invoke(activity, state);
+        } catch (java.lang.reflect.InvocationTargetException e) {
+            Throwable cause = e.getCause();
+            throw cause != null ? cause : e;
+        }
+    }
+
+    private static void invokeActivityNoArgLifecycle(Activity activity, String name)
+            throws Throwable {
+        java.lang.reflect.Method method = findLifecycleMethod(activity.getClass(), name);
+        try {
+            method.invoke(activity);
+        } catch (java.lang.reflect.InvocationTargetException e) {
+            Throwable cause = e.getCause();
+            throw cause != null ? cause : e;
+        }
+    }
+
     private static boolean isShowcaseActivity(Activity activity) {
         if (activity == null) {
             return false;
@@ -6815,6 +7019,18 @@ public class WestlakeLauncher {
         try {
             String name = activity.getClass().getName();
             return name != null && name.startsWith("com.westlake.materialyelp.");
+        } catch (Throwable ignored) {
+            return false;
+        }
+    }
+
+    private static boolean isMcdProfileActivity(Activity activity) {
+        if (activity == null) {
+            return false;
+        }
+        try {
+            String name = activity.getClass().getName();
+            return name != null && name.startsWith("com.westlake.mcdprofile.");
         } catch (Throwable ignored) {
             return false;
         }
@@ -8156,6 +8372,74 @@ public class WestlakeLauncher {
         }
     }
 
+    private static void runMcdProfileDirectFrameLoop(Activity activity) {
+        writeMcdProfileDirectFrame(activity, "initial");
+        startupLog("[WestlakeLauncher] McD profile initial frame rendered");
+
+        int lastTouchSeq = -1;
+        int downX = 0;
+        int downY = 0;
+        String touchPath = null;
+        try {
+            String envTouch = System.getenv("WESTLAKE_TOUCH");
+            touchPath = envTouch != null && envTouch.length() > 0
+                    ? envTouch : defaultTouchPath();
+            startupLog("[WestlakeLauncher] McD profile touch file: " + touchPath);
+        } catch (Throwable ignored) {
+            touchPath = defaultTouchPath();
+        }
+
+        if (FRAMEWORK_POLICY_WESTLAKE_ONLY.equals(frameworkPolicyValue())) {
+            startupLog("[WestlakeLauncher] McD profile strict touch polling enabled");
+            appendCutoffCanaryMarker("MCD_PROFILE_TOUCH_POLL_READY strict=true");
+        }
+
+        while (true) {
+            try {
+                Thread.sleep(20);
+            } catch (InterruptedException e) {
+                break;
+            }
+            if (showcaseBool(activity, "renderDirty", false)) {
+                showcaseInvoke(activity, "consumeRenderDirty");
+                writeMcdProfileDirectFrame(activity, "state_dirty");
+                continue;
+            }
+            byte[] touch = tryReadFileBytes(touchPath);
+            if (touch == null || touch.length < 16) {
+                continue;
+            }
+            java.nio.ByteBuffer bb = java.nio.ByteBuffer.wrap(touch, 0, 16);
+            bb.order(java.nio.ByteOrder.LITTLE_ENDIAN);
+            int action = bb.getInt();
+            int x = bb.getInt();
+            int y = bb.getInt();
+            int seq = bb.getInt();
+            if (seq == lastTouchSeq) {
+                continue;
+            }
+            lastTouchSeq = seq;
+            appendCutoffCanaryMarker("MCD_PROFILE_TOUCH_POLL_OK seq="
+                    + intAscii(seq) + " action=" + showcaseTouchReason(action)
+                    + " x=" + intAscii(x) + " y=" + intAscii(y));
+            if (action == 0) {
+                downX = x;
+                downY = y;
+                continue;
+            }
+            if (action != 1) {
+                continue;
+            }
+            boolean handled = routeMcdProfileDirectTouch(activity, x, y, downX, downY);
+            startupLog("[WestlakeLauncher] McD profile touch action=" + action
+                    + " x=" + x + " y=" + y + " downX=" + downX + " downY=" + downY
+                    + " direct=" + handled);
+            if (handled) {
+                writeMcdProfileDirectFrame(activity, "touch_up");
+            }
+        }
+    }
+
     private static void runMaterialXmlProbeDirectFrameLoop(Activity activity) {
         writeMaterialXmlProbeDirectFrame(activity, "initial");
         startupLog("[WestlakeLauncher] Material XML probe initial tree frame rendered");
@@ -8394,6 +8678,325 @@ public class WestlakeLauncher {
             return showcaseInvoke(activity, "savePlace");
         }
         return false;
+    }
+
+    private static boolean routeMcdProfileDirectTouch(Activity activity, int x, int y,
+            int downX, int downY) {
+        if (activity == null) {
+            return false;
+        }
+        if (y >= 920) {
+            if (x < 120) {
+                return showcaseInvoke(activity, "navigateHome");
+            }
+            if (x < 240) {
+                return showcaseInvoke(activity, "navigateMenu");
+            }
+            if (x < 360) {
+                return showcaseInvoke(activity, "navigateCart");
+            }
+            return showcaseInvoke(activity, "navigateDeals");
+        }
+        if (y < 116) {
+            return showcaseInvoke(activity, "refreshMenu");
+        }
+        if (y >= 300 && y < 356) {
+            if (x < 120) {
+                return showcaseInvoke(activity, "selectBreakfast");
+            }
+            if (x < 240) {
+                return showcaseInvoke(activity, "selectBurgers");
+            }
+            if (x < 360) {
+                return showcaseInvoke(activity, "selectChicken");
+            }
+            return showcaseInvoke(activity, "selectDrinks");
+        }
+        if (y >= 378 && y < 450) {
+            return x >= 390 ? mcdSelectAndAdd(activity, "selectMenu0")
+                    : showcaseInvoke(activity, "selectMenu0");
+        }
+        if (y >= 462 && y < 534) {
+            return x >= 390 ? mcdSelectAndAdd(activity, "selectMenu1")
+                    : showcaseInvoke(activity, "selectMenu1");
+        }
+        if (y >= 546 && y < 618) {
+            return x >= 390 ? mcdSelectAndAdd(activity, "selectMenu2")
+                    : showcaseInvoke(activity, "selectMenu2");
+        }
+        if (y >= 630 && y < 702) {
+            return x >= 390 ? mcdSelectAndAdd(activity, "selectMenu3")
+                    : showcaseInvoke(activity, "selectMenu3");
+        }
+        if (y >= 714 && y < 786) {
+            return x >= 390 ? mcdSelectAndAdd(activity, "selectMenu4")
+                    : showcaseInvoke(activity, "selectMenu4");
+        }
+        if (y >= 810 && y < 895) {
+            if (x >= 300) {
+                return showcaseInvoke(activity, "checkout");
+            }
+            return showcaseInvoke(activity, "addSelectedToCart");
+        }
+        if (Math.abs(y - downY) > 110 && Math.abs(y - downY) > Math.abs(x - downX)) {
+            return y < downY
+                    ? showcaseInvoke(activity, "scrollMenuDown")
+                    : showcaseInvoke(activity, "scrollMenuUp");
+        }
+        return false;
+    }
+
+    private static boolean mcdSelectAndAdd(Activity activity, String selectMethod) {
+        boolean selected = showcaseInvoke(activity, selectMethod);
+        boolean added = showcaseInvoke(activity, "addSelectedToCart");
+        return selected || added;
+    }
+
+    private static void writeMcdProfileDirectFrame(Activity activity, String reason) {
+        try {
+            java.io.ByteArrayOutputStream ops = new java.io.ByteArrayOutputStream(12288);
+            boolean xml = showcaseBool(activity, "xmlInflated", false);
+            boolean loading = showcaseBool(activity, "networkLoading", false);
+            boolean rest = showcaseBool(activity, "restMatrixPassed", false);
+            boolean storage = showcaseBool(activity, "storageRoundTrip", false);
+            boolean checkedOut = showcaseBool(activity, "checkedOut", false);
+            int activeTab = showcaseInt(activity, "activeTab", 1);
+            int selectedIndex = showcaseInt(activity, "selectedIndex", 0);
+            int cartCount = showcaseInt(activity, "cartCount", 0);
+            int cartTotal = showcaseInt(activity, "cartTotalCents", 0);
+            int menuCount = showcaseInt(activity, "menuCount", 0);
+            int menuOffset = showcaseInt(activity, "menuOffset", 0);
+            int materialViews = showcaseInt(activity, "materialViewCount", 0);
+            int images = showcaseInt(activity, "imageFetchCount", 0);
+            int getViewCount = showcaseInt(activity, "adapterGetViewCount", 0);
+            String category = showcaseString(activity, "category", "Burgers");
+            String selectedName = showcaseString(activity, "selectedName", "Westlake Burger");
+            String selectedMeta = showcaseString(activity, "selectedMeta", "combo");
+            String selectedPrice = showcaseString(activity, "selectedPrice", "$5.99");
+            String heroTitle = showcaseString(activity, "heroTitle", "Today only");
+            String heroSubtitle = showcaseString(activity, "heroSubtitle", "Live menu");
+            String action = showcaseString(activity, "lastAction", "Ready");
+            String feed = showcaseString(activity, "feedStatus", "Waiting for live menu");
+            String restStatus = showcaseString(activity, "restStatus", "REST pending");
+            String row1Name = showcaseString(activity, "row1Name", "Westlake Burger");
+            String row1Meta = showcaseString(activity, "row1Meta", "combo - image 0 bytes");
+            String row1Price = showcaseString(activity, "row1Price", "$5.99");
+            String row2Name = showcaseString(activity, "row2Name", "Classic Fries");
+            String row2Meta = showcaseString(activity, "row2Meta", "side - image 0 bytes");
+            String row2Price = showcaseString(activity, "row2Price", "$2.49");
+            String row3Name = showcaseString(activity, "row3Name", "Chicken Stack");
+            String row3Meta = showcaseString(activity, "row3Meta", "sandwich - image 0 bytes");
+            String row3Price = showcaseString(activity, "row3Price", "$6.49");
+            String row4Name = showcaseString(activity, "row4Name", "Iced Coffee");
+            String row4Meta = showcaseString(activity, "row4Meta", "drink - image 0 bytes");
+            String row4Price = showcaseString(activity, "row4Price", "$3.19");
+            String row5Name = showcaseString(activity, "row5Name", "Breakfast Muffin");
+            String row5Meta = showcaseString(activity, "row5Meta", "breakfast - image 0 bytes");
+            String row5Price = showcaseString(activity, "row5Price", "$4.29");
+            int row1Hash = showcaseInt(activity, "row1ImageHash", 0);
+            int row2Hash = showcaseInt(activity, "row2ImageHash", 0);
+            int row3Hash = showcaseInt(activity, "row3ImageHash", 0);
+            int row4Hash = showcaseInt(activity, "row4ImageHash", 0);
+            int row5Hash = showcaseInt(activity, "row5ImageHash", 0);
+            int row1Bytes = showcaseInt(activity, "row1ImageBytes", 0);
+            int row2Bytes = showcaseInt(activity, "row2ImageBytes", 0);
+            int row3Bytes = showcaseInt(activity, "row3ImageBytes", 0);
+            int row4Bytes = showcaseInt(activity, "row4ImageBytes", 0);
+            int row5Bytes = showcaseInt(activity, "row5ImageBytes", 0);
+
+            showcaseRect(ops, 0, 0, SURFACE_WIDTH, YELP_SURFACE_HEIGHT, 0xfffff8ef);
+            mcdHeader(ops, category, loading, xml, rest);
+            mcdHero(ops, heroTitle, heroSubtitle, feed, selectedName, selectedPrice,
+                    row1Hash, row1Bytes, 132);
+            mcdCategoryChip(ops, "Breakfast", 16, 304, 116, "Breakfast".equals(category));
+            mcdCategoryChip(ops, "Burgers", 126, 304, 226, "Burgers".equals(category));
+            mcdCategoryChip(ops, "Chicken", 236, 304, 336, "Chicken".equals(category));
+            mcdCategoryChip(ops, "Drinks", 346, 304, 464, "Drinks".equals(category));
+
+            showcaseText(ops, "Menu", 18, 372, 17, 0xff27251f);
+            showcaseText(ops, "XML ListView adapter rows " + intAscii(getViewCount)
+                    + "  items " + intAscii(menuCount), 86, 372, 9, 0xff6f665f);
+            mcdMenuRow(ops, 0, row1Name, row1Meta, row1Price, row1Hash, row1Bytes,
+                    378, selectedIndex == menuOffset);
+            mcdMenuRow(ops, 1, row2Name, row2Meta, row2Price, row2Hash, row2Bytes,
+                    462, selectedIndex == menuOffset + 1);
+            mcdMenuRow(ops, 2, row3Name, row3Meta, row3Price, row3Hash, row3Bytes,
+                    546, selectedIndex == menuOffset + 2);
+            mcdMenuRow(ops, 3, row4Name, row4Meta, row4Price, row4Hash, row4Bytes,
+                    630, selectedIndex == menuOffset + 3);
+            mcdMenuRow(ops, 4, row5Name, row5Meta, row5Price, row5Hash, row5Bytes,
+                    714, selectedIndex == menuOffset + 4);
+            mcdCartBar(ops, selectedName, selectedMeta, selectedPrice, cartCount,
+                    cartTotal, checkedOut, storage, restStatus, action, 810);
+            mcdBottomNav(ops, activeTab);
+
+            byte[] data = ops.toByteArray();
+            java.io.OutputStream out = System.out;
+            writeIntLe(out, 0x444C5354);
+            writeIntLe(out, data.length);
+            out.write(data);
+            out.flush();
+            appendCutoffCanaryMarker("MCD_PROFILE_DIRECT_FRAME_OK reason=" + reason
+                    + " bytes=" + intAscii(data.length)
+                    + " xml=" + boolToken(xml)
+                    + " materialViews=" + intAscii(materialViews)
+                    + " images=" + intAscii(images)
+                    + " rest=" + boolToken(rest)
+                    + " storage=" + boolToken(storage)
+                    + " rows=5");
+            appendCutoffCanaryMarker("MCD_PROFILE_FULL_RES_FRAME_OK logical=480x1013"
+                    + " target=1080x2280 navTop=920");
+        } catch (Throwable t) {
+            startupLog("[WestlakeLauncher] McD profile direct frame error", t);
+            logThrowableFrames("[WestlakeLauncher] McD profile direct frame", t, 12);
+            appendCutoffCanaryMarker("MCD_PROFILE_DIRECT_FRAME_FAIL err="
+                    + t.getClass().getName());
+        }
+    }
+
+    private static void mcdHeader(java.io.OutputStream out, String category,
+            boolean loading, boolean xml, boolean rest) throws java.io.IOException {
+        showcaseRect(out, 0, 0, SURFACE_WIDTH, 118, 0xffda291c);
+        showcaseRect(out, 0, 0, SURFACE_WIDTH, 20, 0xffb71c1c);
+        showcaseRect(out, 0, 118, SURFACE_WIDTH, 120, 0x33000000);
+        showcaseText(out, "McD Profile", 18, 42, 23, 0xffffffff);
+        showcaseText(out, "controlled stock-app boundary", 20, 62, 8, 0xffffe0de);
+        showcaseRoundRect(out, 386, 18, 448, 82, 30, 30, 0xffffbc0d);
+        showcaseRoundRect(out, 402, 30, 432, 74, 18, 18, 0xffda291c);
+        showcaseRoundRect(out, 18, 76, 462, 110, 9, 9, 0xffffffff);
+        showcaseText(out, "Search " + trimShowcaseText(category, 18) + " menu",
+                42, 98, 12, 0xff27251f);
+        yelpIcon(out, "search", 30, 94, 0xff6f665f);
+        mcdStatusPill(out, xml ? "XML" : "no XML", 288, 84, xml);
+        mcdStatusPill(out, rest ? "REST" : (loading ? "SYNC" : "REST"), 350, 84,
+                rest || loading);
+        mcdStatusPill(out, "OHOS", 410, 84, true);
+    }
+
+    private static void mcdStatusPill(java.io.OutputStream out, String label,
+            int left, int top, boolean active) throws java.io.IOException {
+        showcaseRoundRect(out, left, top, left + 50, top + 18, 9, 9,
+                active ? 0xffffbc0d : 0xfff3d4d1);
+        showcaseText(out, label, left + 8, top + 13, 7,
+                active ? 0xff27251f : 0xff7a4d00);
+    }
+
+    private static void mcdHero(java.io.OutputStream out, String title, String subtitle,
+            String feed, String selected, String price, int imageHash, int imageBytes, int top)
+            throws java.io.IOException {
+        showcaseRoundRect(out, 16, top + 3, 464, top + 145, 10, 10, 0x18000000);
+        showcaseRoundRect(out, 16, top, 464, top + 142, 10, 10, 0xffffffff);
+        showcaseRoundRect(out, 30, top + 18, 148, top + 124, 10, 10, 0xffffbc0d);
+        if (imageBytes > 0) {
+            drawByteHashThumbnail(out, imageHash, 34, top + 22, 110, 98);
+        } else {
+            showcaseText(out, "live", 70, top + 72, 18, 0xff27251f);
+        }
+        showcaseText(out, trimShowcaseText(title, 26), 164, top + 35, 18, 0xff27251f);
+        showcaseText(out, trimShowcaseText(subtitle, 38), 164, top + 58, 10, 0xff6f665f);
+        showcaseText(out, trimShowcaseText(selected, 30), 164, top + 86, 13, 0xff27251f);
+        showcaseRoundRect(out, 164, top + 100, 234, top + 126, 8, 8, 0xffda291c);
+        showcaseText(out, price, 184, top + 118, 10, 0xffffffff);
+        showcaseText(out, trimShowcaseText(feed, 28), 246, top + 117, 8, 0xff00695c);
+    }
+
+    private static void mcdCategoryChip(java.io.OutputStream out, String label,
+            int left, int top, int right, boolean active) throws java.io.IOException {
+        showcaseRoundRect(out, left, top + 2, right, top + 36, 17, 17, 0x14000000);
+        showcaseRoundRect(out, left, top, right, top + 34, 17, 17,
+                active ? 0xffffbc0d : 0xffffffff);
+        if (!active) {
+            showcaseRoundRect(out, left + 1, top + 1, right - 1, top + 33, 16, 16,
+                    0xfffffbf6);
+        }
+        showcaseText(out, label, left + 14, top + 22, 9,
+                active ? 0xff27251f : 0xff6f665f);
+    }
+
+    private static void mcdMenuRow(java.io.OutputStream out, int row, String name,
+            String meta, String price, int imageHash, int imageBytes, int top,
+            boolean selected) throws java.io.IOException {
+        int left = 16;
+        int right = 464;
+        int bottom = top + 72;
+        showcaseRoundRect(out, left, top + 2, right, bottom + 2, 9, 9, 0x12000000);
+        showcaseRoundRect(out, left, top, right, bottom, 9, 9,
+                selected ? 0xfffff4d2 : 0xffffffff);
+        if (selected) {
+            showcaseRect(out, left, top, left + 4, bottom, 0xffffbc0d);
+        }
+        if (imageBytes > 0) {
+            drawByteHashThumbnail(out, imageHash, left + 12, top + 10, 52, 52);
+        } else {
+            showcaseRoundRect(out, left + 12, top + 10, left + 64, top + 62, 8, 8,
+                    0xffffe08a);
+            showcaseText(out, "img", left + 28, top + 42, 8, 0xff7a4d00);
+        }
+        showcaseText(out, trimShowcaseText(name, 25), left + 78, top + 22, 12,
+                0xff27251f);
+        showcaseText(out, trimShowcaseText(meta, 34), left + 78, top + 42, 8,
+                imageBytes > 0 ? 0xff00695c : 0xff6f665f);
+        showcaseText(out, price, left + 78, top + 60, 9, 0xffa82020);
+        showcaseRoundRect(out, right - 64, top + 18, right - 18, top + 54, 18, 18,
+                0xffffbc0d);
+        showcaseText(out, "+", right - 44, top + 43, 20, 0xff27251f);
+    }
+
+    private static void mcdCartBar(java.io.OutputStream out, String selected,
+            String selectedMeta, String price, int cartCount, int cartTotal,
+            boolean checkedOut, boolean storage, String restStatus, String action, int top)
+            throws java.io.IOException {
+        showcaseRoundRect(out, 16, top + 2, 464, top + 88, 10, 10, 0x16000000);
+        showcaseRoundRect(out, 16, top, 464, top + 86, 10, 10, 0xff27251f);
+        showcaseText(out, checkedOut ? "Checkout ready" : "Cart", 30, top + 25, 15,
+                0xffffbc0d);
+        showcaseText(out, intAscii(cartCount) + " items  " + mcdMoney(cartTotal),
+                30, top + 48, 12, 0xffffffff);
+        showcaseText(out, trimShowcaseText(selected + "  " + price, 28),
+                30, top + 68, 8, 0xffffe0de);
+        showcaseRoundRect(out, 300, top + 18, 448, top + 62, 8, 8, 0xffffbc0d);
+        showcaseText(out, checkedOut ? "Placed" : "Checkout", 338, top + 46, 12,
+                0xff27251f);
+        showcaseText(out, (storage ? "prefs " : "prefs? ")
+                + trimShowcaseText(restStatus, 28), 300, top + 78, 7,
+                storage ? 0xfffff0c2 : 0xffffd1cc);
+        showcaseText(out, trimShowcaseText(action, 30), 170, top + 25, 8,
+                0xfffff0c2);
+    }
+
+    private static void mcdBottomNav(java.io.OutputStream out, int activeTab)
+            throws java.io.IOException {
+        int top = 920;
+        showcaseRect(out, 0, top, SURFACE_WIDTH, YELP_SURFACE_HEIGHT, 0xffffffff);
+        showcaseRect(out, 0, top, SURFACE_WIDTH, top + 1, 0xffe6e0e2);
+        mcdNavItem(out, "Home", 0, top, activeTab == 0);
+        mcdNavItem(out, "Menu", 120, top, activeTab == 1);
+        mcdNavItem(out, "Cart", 240, top, activeTab == 2);
+        mcdNavItem(out, "Deals", 360, top, activeTab == 3);
+    }
+
+    private static void mcdNavItem(java.io.OutputStream out, String label,
+            int left, int top, boolean active) throws java.io.IOException {
+        int center = left + 60;
+        showcaseCircle(out, center, top + 28, active ? 16 : 13,
+                active ? 0xffffbc0d : 0xfff1eeea);
+        if ("Home".equals(label)) {
+            yelpIcon(out, "pin", center, top + 30, active ? 0xff27251f : 0xff6f665f);
+        } else if ("Menu".equals(label)) {
+            yelpIcon(out, "search", center, top + 30, active ? 0xff27251f : 0xff6f665f);
+        } else if ("Cart".equals(label)) {
+            yelpIcon(out, "heart", center, top + 30, active ? 0xff27251f : 0xff6f665f);
+        } else {
+            yelpIcon(out, "check", center, top + 30, active ? 0xff27251f : 0xff6f665f);
+        }
+        showcaseText(out, label, left + 44, top + 64, 9,
+                active ? 0xff27251f : 0xff6f665f);
+    }
+
+    private static String mcdMoney(int cents) {
+        int dollars = cents / 100;
+        int rem = cents < 0 ? -cents % 100 : cents % 100;
+        return "$" + intAscii(dollars) + "." + (rem < 10 ? "0" : "") + intAscii(rem);
     }
 
     private static void writeMaterialYelpDirectFrame(Activity activity, String reason) {

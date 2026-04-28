@@ -1,5 +1,22 @@
 # Real Android APK on Dalvik/OHOS — Status
 
+## Supervisor Update: 2026-04-28
+
+The active bridge between controlled apps and a real McDonald's-class APK is
+now PF-466, `com.westlake.mcdprofile`, documented in
+`docs/engine/OHOS-MCD-PROFILE-INTEGRATION.md`. It is accepted on a real Android
+phone through Westlake `dalvikvm` with compiled XML inflation, Material-shaped
+tags present in the APK, host/OHBridge JSON/image/REST, SharedPreferences,
+full-phone `DLST`, and strict touch interaction. Current caveat:
+McD-profile Material/ListView tags are not yet inflated as real guest Views
+(`materialViews=0`, `list=false`), so that remains a stock-APK blocker.
+
+This supersedes older MockDonalds-only status as the current practical OHOS
+port target. It still does not mean arbitrary real APKs are ready: generic
+real-APK Activity construction, runtime object-array correctness, upstream
+Material compatibility, generic View rendering/input, production networking,
+and OHOS host adapter parity remain open.
+
 ## Latest Milestone: Compressed APK on OHOS ARM32 QEMU
 
 A real Android APK (with compressed DEFLATED entries) loads and launches on Dalvik VM

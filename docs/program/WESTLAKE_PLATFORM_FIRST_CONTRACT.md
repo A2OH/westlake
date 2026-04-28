@@ -1,6 +1,6 @@
 # Westlake Platform-First Contract
 
-Last updated: 2026-04-27
+Last updated: 2026-04-28
 
 This document is the repo-pushed version of the active Westlake delivery
 contract.
@@ -16,6 +16,72 @@ Required outcome:
 - coherent generic activity/window/looper/input/surface host contract
 - app-owned AndroidX/AppCompat running on that substrate
 - only then real McDonald's UI
+
+## Today Delivery Goal: Controlled McD Profile Boundary
+
+For 2026-04-28, the active delivery target is now PF-466: a controlled
+McDonald's-shaped profile APK that exercises the next set of stock-app
+boundaries before returning to the real McDonald's APK. This is the current
+best OHOS port target because it is self-contained, has a known app/API
+surface, and runs through the same Westlake guest runtime path that the stock
+APK must eventually use.
+
+PF-466 is accepted on the connected phone `cfb7c9e3`. The delivered APK is
+`com.westlake.mcdprofile`, built from `test-apps/10-mcd-profile/` and run with
+`scripts/run-mcd-profile.sh`. The accepted run proves:
+
+- app-owned `Application.onCreate()`;
+- controlled no-constructor Activity allocation, shim `Activity.attach(...)`,
+  and `onCreate`/`onStart`/`onResume` dispatch inside Westlake;
+- compiled APK XML resource loading and inflation from
+  `activity_mcd_profile.xml` into a guest `LinearLayout` root;
+- a live negative boundary for McD-profile XML: the current accepted run still
+  records Material/ListView `XML_TAG_WARN` markers with `materialViews=0` and
+  `list=false`, so full Material/ListView XML inflation is not closed;
+- SharedPreferences-backed cart state;
+- live JSON fetch through the portable host/OHBridge HTTP bridge;
+- one bounded live image fetch through the same bridge;
+- REST bridge v2 POST, HEAD, and non-2xx status coverage through the
+  supervisor proxy;
+- full-phone `1080x2280` `DLST` frames and strict touch-file input for
+  category, row select, cart add, checkout, Deals navigation, and Menu
+  navigation.
+
+Accepted PF-466 hashes:
+
+- `dalvikvm=58ea9cb7470e0f5990f3b90b353e46c0041ddc503c7173c8417a24e82a7d1a3e`
+- `aosp-shim.dex=920113ecb2a0633e9fd47e776db119f09c4588a6c6ba0c18703eaba02976a0f1`
+- `westlake-host.apk=d323e9b5e180ab2c480cb73c03a53fffcb0322aa194e71e914737aa526df8464`
+- `westlake-mcd-profile-debug.apk=f41fd4d2fd06a9d486b8f78f19e161b7a7b1b3f21acde12547574864b279ba8e`
+
+Accepted PF-466 artifacts:
+
+- `/mnt/c/Users/dspfa/TempWestlake/mcd_profile_target.*`
+- `/mnt/c/Users/dspfa/TempWestlake/accepted/mcd_profile/920113ecb2a0633e9fd47e776db119f09c4588a6c6ba0c18703eaba02976a0f1_f41fd4d2fd06a9d486b8f78f19e161b7a7b1b3f21acde12547574864b279ba8e/`
+
+PF-466 does not close stock McDonald's APK readiness. The gap list that must
+be closed next is:
+
+- replace the controlled McD-profile Activity allocation path with generic
+  safe real-APK Activity construction;
+- fix the standalone runtime object-array/new-array boundary that forced the
+  profile app away from `String[]` item models;
+- fix McD-profile compiled XML traversal/binding so its Material tags,
+  `ImageView`, `ListView`, cart `TextView`, checkout `MaterialButton`, and
+  `BottomNavigationView` inflate as real guest Views instead of warning out;
+- make Material XML inflation generic enough for upstream Google Material
+  Components tags, IDs, theming, Coordinator/AppBar behaviors, ripple, and
+  animation;
+- replace the McD-specific direct `DLST` frame writer and coordinate router
+  with generic View draw, hit testing, scrolling, and adapter rendering;
+- expand image/network transport from one capped image proof to multi-image,
+  large-body, streamed responses and real multi-method REST matrix execution;
+- implement the same host/OHBridge southbound contracts in the OHOS host:
+  Ability/XComponent surface, input file or callback bridge, app data
+  directory, HTTP bridge, and `DLST` replay.
+
+OHOS integration guide:
+`docs/engine/OHOS-MCD-PROFILE-INTEGRATION.md`.
 
 ## Today Delivery Goal: Controlled Android Showcase
 

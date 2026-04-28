@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Westlake McD Profile</string>
+    <string name="mcd_title">McD Profile</string>
+    <string name="mcd_search_hint">Search menu</string>
+    <string name="mcd_search_text">burgers, fries, coffee</string>
+    <string name="mcd_chip_breakfast">Breakfast</string>
+    <string name="mcd_chip_burgers">Burgers</string>
+    <string name="mcd_chip_chicken">Chicken</string>
+    <string name="mcd_chip_drinks">Drinks</string>
+    <string name="mcd_hero">Live menu, deals, cart, rewards</string>
+    <string name="mcd_checkout">Checkout</string>
+    <string name="mcd_bottom_nav">Home     Menu     Cart     Deals</string>
+</resources>

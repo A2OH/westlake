@@ -961,7 +961,10 @@ object WestlakeVM {
             val apkName = apkConfig.packageName.replace(".", "_") + ".apk"
             val apkDevicePath = "${guestStageDir.absolutePath}/$apkName"
             val apkDst = File(apkDevicePath)
-            if (!apkDst.exists() || apkDst.length() != File(apkSrc).length()) {
+            if (!apkDst.exists()
+                || apkDst.length() != File(apkSrc).length()
+                || backendMode == BackendMode.TARGET_OHOS_BACKEND
+            ) {
                 if (backendMode == BackendMode.TARGET_OHOS_BACKEND && apkDst.exists()) {
                     apkDst.delete()
                 }
@@ -981,7 +984,10 @@ object WestlakeVM {
                         val dexName = apkConfig.packageName.replace(".", "_") + "_" + entry.name
                         val dexPath = "${guestStageDir.absolutePath}/$dexName"
                         val dexFile = File(dexPath)
-                        if (!dexFile.exists() || dexFile.length() != entry.size) {
+                        if (!dexFile.exists()
+                            || dexFile.length() != entry.size
+                            || backendMode == BackendMode.TARGET_OHOS_BACKEND
+                        ) {
                             if (backendMode == BackendMode.TARGET_OHOS_BACKEND && dexFile.exists()) {
                                 dexFile.delete()
                             }
@@ -1682,32 +1688,33 @@ fun WestlakeVMScreen() {
 @Composable
 fun WestlakeVMApkScreen(config: ApkVmConfig) {
 	    val activity = WestlakeActivity.instance ?: return
-	    val fullPhoneYelp = config.packageName == "com.westlake.yelplive"
-	    val immersiveYelp = fullPhoneYelp ||
+	    val fullPhoneApp = config.packageName == "com.westlake.yelplive" ||
+	        config.packageName == "com.westlake.mcdprofile"
+	    val immersiveApp = fullPhoneApp ||
 	        config.packageName == "com.westlake.materialyelp"
-	    val guestFrameWidth = if (fullPhoneYelp) {
+	    val guestFrameWidth = if (fullPhoneApp) {
 	        YELP_GUEST_FRAME_WIDTH
 	    } else {
 	        GUEST_FRAME_WIDTH
 	    }
-	    val guestFrameHeight = if (fullPhoneYelp) {
+	    val guestFrameHeight = if (fullPhoneApp) {
 	        YELP_GUEST_FRAME_HEIGHT
 	    } else {
 	        GUEST_FRAME_HEIGHT
 	    }
-	    val surfaceBufferWidth = if (immersiveYelp) {
+	    val surfaceBufferWidth = if (immersiveApp) {
 	        YELP_SURFACE_BUFFER_WIDTH
 	    } else {
 	        LEGACY_SURFACE_BUFFER_WIDTH
 	    }
-	    val surfaceBufferHeight = if (fullPhoneYelp) {
+	    val surfaceBufferHeight = if (fullPhoneApp) {
 	        YELP_SURFACE_BUFFER_HEIGHT
-	    } else if (immersiveYelp) {
+	    } else if (immersiveApp) {
 	        MATERIAL_YELP_SURFACE_BUFFER_HEIGHT
 	    } else {
 	        LEGACY_SURFACE_BUFFER_HEIGHT
 	    }
-	    val surfaceModifier = if (fullPhoneYelp) {
+	    val surfaceModifier = if (fullPhoneApp) {
 	        Modifier.fillMaxSize()
 	    } else {
 	        Modifier.fillMaxWidth()
@@ -1744,7 +1751,7 @@ fun WestlakeVMApkScreen(config: ApkVmConfig) {
     MaterialTheme(colorScheme = darkColorScheme()) {
         Column(modifier = Modifier.fillMaxSize().background(Color.Black)) {
             // Header
-            if (!immersiveYelp) {
+            if (!immersiveApp) {
                 Row(
                     modifier = Modifier.fillMaxWidth().background(Color(0xFF4A148C)).padding(8.dp),
                     verticalAlignment = Alignment.CenterVertically
@@ -1807,7 +1814,7 @@ fun WestlakeVMApkScreen(config: ApkVmConfig) {
                                     WestlakeVM.sendTouch(1, vx, vy)
                                     // Long press (>500ms) = show text input. Keep immersive
                                     // app proofs fully touch-routed through Westlake.
-                                    if (!immersiveYelp && System.currentTimeMillis() - downTime > 500) {
+                                    if (!immersiveApp && System.currentTimeMillis() - downTime > 500) {
                                         (activity as? android.app.Activity)?.runOnUiThread {
                                             val builder = android.app.AlertDialog.Builder(activity)
                                             builder.setTitle("Enter text")
@@ -1877,7 +1884,7 @@ fun WestlakeVMApkScreen(config: ApkVmConfig) {
             }
 
             // Status bar
-            if (!immersiveYelp) {
+            if (!immersiveApp) {
                 Text(
                     "dalvikvm ARM64 | ${config.packageName} | Pipe \u2192 SurfaceView",
                     fontSize = 10.sp, color = Color(0xFF9C27B0),

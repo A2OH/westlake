@@ -1,0 +1,146 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/mcd_root"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="vertical"
+    android:padding="12dp"
+    android:background="#fff8ef">
+
+    <TextView
+        android:id="@+id/mcd_header_title"
+        android:layout_width="match_parent"
+        android:layout_height="36dp"
+        android:text="@string/mcd_title"
+        android:textColor="#da291c"
+        android:textSize="24sp" />
+
+    <com.google.android.material.textfield.TextInputLayout
+        android:id="@+id/mcd_search_layout"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="8dp">
+
+        <com.google.android.material.textfield.TextInputEditText
+            android:id="@+id/mcd_search_input"
+            android:layout_width="match_parent"
+            android:layout_height="48dp"
+            android:singleLine="true"
+            android:hint="@string/mcd_search_hint"
+            android:text="@string/mcd_search_text" />
+    </com.google.android.material.textfield.TextInputLayout>
+
+    <com.google.android.material.chip.ChipGroup
+        android:id="@+id/mcd_category_group"
+        android:layout_width="match_parent"
+        android:layout_height="48dp"
+        android:layout_marginTop="8dp"
+        android:orientation="horizontal">
+
+        <com.google.android.material.chip.Chip
+            android:id="@+id/mcd_chip_breakfast"
+            android:layout_width="wrap_content"
+            android:layout_height="40dp"
+            android:text="@string/mcd_chip_breakfast" />
+
+        <com.google.android.material.chip.Chip
+            android:id="@+id/mcd_chip_burgers"
+            android:layout_width="wrap_content"
+            android:layout_height="40dp"
+            android:layout_marginLeft="6dp"
+            android:text="@string/mcd_chip_burgers" />
+
+        <com.google.android.material.chip.Chip
+            android:id="@+id/mcd_chip_chicken"
+            android:layout_width="wrap_content"
+            android:layout_height="40dp"
+            android:layout_marginLeft="6dp"
+            android:text="@string/mcd_chip_chicken" />
+
+        <com.google.android.material.chip.Chip
+            android:id="@+id/mcd_chip_drinks"
+            android:layout_width="wrap_content"
+            android:layout_height="40dp"
+            android:layout_marginLeft="6dp"
+            android:text="@string/mcd_chip_drinks" />
+    </com.google.android.material.chip.ChipGroup>
+
+    <com.google.android.material.card.MaterialCardView
+        android:id="@+id/mcd_hero_card"
+        android:layout_width="match_parent"
+        android:layout_height="112dp"
+        android:layout_marginTop="8dp">
+
+        <LinearLayout
+            android:id="@+id/mcd_hero_body"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:orientation="horizontal"
+            android:padding="12dp">
+
+            <ImageView
+                android:id="@+id/mcd_hero_image"
+                android:layout_width="96dp"
+                android:layout_height="88dp"
+                android:background="#ffe9b3" />
+
+            <TextView
+                android:id="@+id/mcd_hero_text"
+                android:layout_width="0dp"
+                android:layout_height="match_parent"
+                android:layout_weight="1"
+                android:layout_marginLeft="12dp"
+                android:gravity="center_vertical"
+                android:text="@string/mcd_hero"
+                android:textColor="#27251f"
+                android:textSize="16sp" />
+        </LinearLayout>
+    </com.google.android.material.card.MaterialCardView>
+
+    <ListView
+        android:id="@+id/mcd_menu_list"
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1"
+        android:layout_marginTop="8dp" />
+
+    <LinearLayout
+        android:id="@+id/mcd_cart_bar"
+        android:layout_width="match_parent"
+        android:layout_height="64dp"
+        android:layout_marginTop="8dp"
+        android:orientation="horizontal">
+
+        <TextView
+            android:id="@+id/mcd_cart_summary"
+            android:layout_width="0dp"
+            android:layout_height="match_parent"
+            android:layout_weight="1"
+            android:gravity="center_vertical"
+            android:text="Cart empty"
+            android:textColor="#27251f"
+            android:textSize="16sp" />
+
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/mcd_checkout_button"
+            android:layout_width="132dp"
+            android:layout_height="match_parent"
+            android:text="@string/mcd_checkout" />
+    </LinearLayout>
+
+    <com.google.android.material.bottomnavigation.BottomNavigationView
+        android:id="@+id/mcd_bottom_nav"
+        android:layout_width="match_parent"
+        android:layout_height="72dp"
+        android:layout_marginTop="8dp">
+
+        <TextView
+            android:id="@+id/mcd_bottom_nav_text"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:gravity="center"
+            android:text="@string/mcd_bottom_nav"
+            android:textColor="#5f6368"
+            android:textSize="14sp" />
+    </com.google.android.material.bottomnavigation.BottomNavigationView>
+</LinearLayout>

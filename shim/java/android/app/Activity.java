@@ -54,6 +54,24 @@ public class Activity extends Context implements android.view.Window.Callback {
         mWindow = attachedWindow;
     }
 
+    public final void westlakeAttach(Context baseContext, Application application,
+            Intent intent, ComponentName component, android.view.Window window,
+            Instrumentation instrumentation) {
+        attach(baseContext, application, intent, component, window, instrumentation);
+    }
+
+    public final void westlakePerformCreate(Bundle savedInstanceState) {
+        onCreate(savedInstanceState);
+    }
+
+    public final void westlakePerformStart() {
+        onStart();
+    }
+
+    public final void westlakePerformResume() {
+        onResume();
+    }
+
     public void registerActivityLifecycleCallbacks(Application.ActivityLifecycleCallbacks callback) {
         Application app = getApplication();
         if (app != null) app.registerActivityLifecycleCallbacks(callback);

@@ -604,6 +604,7 @@ fun WestlakeHome() {
             AppInfo("Canary L2 (Target)", "Adds XML resource/layout inflation on target backend", Color(0xFFF57F17), "VM_APK_TARGET:com.westlake.cutoffcanary:com.westlake.cutoffcanary.StageActivity:Cutoff Canary L2 (Target):L2", null, ""),
             AppInfo("Yelp Live (VM)", "Separate live-data APK via host network bridge", Color(0xFFD32323), "VM_APK:com.westlake.yelplive:com.westlake.yelplive.YelpLiveActivity:Westlake Yelp Live", null, ""),
             AppInfo("Material Yelp (VM)", "Material component API canary via Westlake", Color(0xFFD32323), "VM_APK:com.westlake.materialyelp:com.westlake.materialyelp.MaterialYelpActivity:Westlake Material Yelp", null, ""),
+            AppInfo("McD Profile (VM)", "Controlled stock-app boundary proof for McD/OHOS", Color(0xFFFFBC0D), "VM_APK:com.westlake.mcdprofile:com.westlake.mcdprofile.McdProfileActivity:Westlake McD Profile", null, ""),
             AppInfo("McDonald's (REAL)", "Real SplashActivity via DexClassLoader", Color(0xFFDA291C), "WESTLAKE_MCD_REAL", null, ""),
             AppInfo("McDonald's (ART)", "In-process Westlake ART v114 engine", Color(0xFFDA291C), "WESTLAKE_ART_MCD", null, ""),
             AppInfo("McDonald's (VM)", "Subprocess ART11 pipe+SurfaceView", Color(0xFFDA291C), "WESTLAKE_VM_MCD", null, ""),

@@ -322,6 +322,10 @@ public class LayoutInflater {
      */
     private View tryInstantiate(String className) {
         try {
+            View knownShim = tryInstantiateKnownShimView(className);
+            if (knownShim != null) {
+                return knownShim;
+            }
             if ("com.mcdonalds.mcduikit.widget.McDToolBarView".equals(className)) {
                 return new com.mcdonalds.mcduikit.widget.McDToolBarView(mContext);
             }
@@ -368,6 +372,46 @@ public class LayoutInflater {
             }
             return null;
         }
+    }
+
+    private View tryInstantiateKnownShimView(String className) {
+        if (className == null) {
+            return null;
+        }
+        if ("com.google.android.material.textfield.TextInputLayout".equals(className)) {
+            return new com.google.android.material.textfield.TextInputLayout(mContext);
+        }
+        if ("com.google.android.material.textfield.TextInputEditText".equals(className)) {
+            return new com.google.android.material.textfield.TextInputEditText(mContext);
+        }
+        if ("com.google.android.material.button.MaterialButton".equals(className)) {
+            return new com.google.android.material.button.MaterialButton(mContext);
+        }
+        if ("com.google.android.material.card.MaterialCardView".equals(className)) {
+            return new com.google.android.material.card.MaterialCardView(mContext);
+        }
+        if ("com.google.android.material.chip.ChipGroup".equals(className)) {
+            return new com.google.android.material.chip.ChipGroup(mContext);
+        }
+        if ("com.google.android.material.chip.Chip".equals(className)) {
+            return new com.google.android.material.chip.Chip(mContext);
+        }
+        if ("com.google.android.material.slider.Slider".equals(className)) {
+            return new com.google.android.material.slider.Slider(mContext);
+        }
+        if ("com.google.android.material.bottomnavigation.BottomNavigationView".equals(className)) {
+            return new com.google.android.material.bottomnavigation.BottomNavigationView(mContext);
+        }
+        if ("com.google.android.material.floatingactionbutton.FloatingActionButton".equals(className)) {
+            return new com.google.android.material.floatingactionbutton.FloatingActionButton(mContext);
+        }
+        if ("com.google.android.material.appbar.AppBarLayout".equals(className)) {
+            return new com.google.android.material.appbar.AppBarLayout(mContext);
+        }
+        if ("com.google.android.material.appbar.CollapsingToolbarLayout".equals(className)) {
+            return new com.google.android.material.appbar.CollapsingToolbarLayout(mContext);
+        }
+        return null;
     }
 
     // ── Constructor and factory ───────────────────────────────────────────

@@ -1,5 +1,26 @@
 # MockDonalds: End-to-End Android-on-OHOS Integration Test
 
+## 2026-04-28 Supervisor Update
+
+MockDonalds is no longer the only McDonald's-shaped integration proof. The
+current delivery target is PF-466, `com.westlake.mcdprofile`, documented in
+`docs/engine/OHOS-MCD-PROFILE-INTEGRATION.md`.
+
+PF-466 has passed on the connected Android phone through Westlake `dalvikvm`
+with compiled XML resource loading and McD-profile Material tags present,
+SharedPreferences cart state, live host/OHBridge JSON/image/REST, full-phone
+`DLST`, and strict touch navigation. The accepted run still does not inflate
+the McD-profile Material/ListView tags as real guest Views
+(`materialViews=0`, `list=false`), so treat that as an immediate runtime gap.
+Treat PF-466 as the immediate OHOS port target and the older MockDonalds plan
+below as historical background plus a headless/API regression ladder.
+
+Remaining gaps before a stock McDonald's APK are generic real-APK Activity
+construction, object-array runtime correctness, upstream Material XML/theming,
+McD-profile Material/ListView XML traversal, generic View draw/hit/scroll,
+streamed multi-image networking, and OHOS adapter parity for the PF-466
+contracts.
+
 ## Goal
 
 Validate the entire Android-on-OpenHarmony stack by running a mock McDonald's-like app through:
