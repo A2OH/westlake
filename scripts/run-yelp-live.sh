@@ -77,38 +77,119 @@ start_supervisor_http_proxy() {
 import http.server
 import socketserver
 import sys
+import time
 import urllib.parse
 import urllib.request
 
 port = int(sys.argv[1])
 
 class Handler(http.server.BaseHTTPRequestHandler):
+    def do_HEAD(self):
+        self.handle_request(send_body=False)
+
     def do_GET(self):
+        self.handle_request(send_body=True)
+
+    def do_POST(self):
+        self.handle_request(send_body=True)
+
+    def do_PUT(self):
+        self.handle_request(send_body=True)
+
+    def do_PATCH(self):
+        self.handle_request(send_body=True)
+
+    def do_DELETE(self):
+        self.handle_request(send_body=True)
+
+    def do_OPTIONS(self):
+        self.handle_request(send_body=True)
+
+    def handle_request(self, send_body):
         parsed = urllib.parse.urlparse(self.path)
-        if parsed.path != "/proxy":
-            self.send_error(404)
+        if parsed.path == "/proxy":
+            self.handle_proxy(parsed, send_body)
+            return
+        if parsed.path.startswith("/rest/"):
+            self.handle_rest(parsed, send_body)
+            return
+        self.send_error(404)
+
+    def read_body(self):
+        length = int(self.headers.get("Content-Length", "0") or "0")
+        if length <= 0:
+            return b""
+        return self.rfile.read(length)
+
+    def send_bytes(self, status, body, content_type="application/octet-stream", headers=None, send_body=True):
+        self.send_response(status)
+        self.send_header("Content-Type", content_type)
+        self.send_header("Content-Length", str(len(body)))
+        self.send_header("X-Westlake-Reply", "pf458")
+        if headers:
+            for key, value in headers.items():
+                self.send_header(key, value)
+        self.end_headers()
+        if send_body and body:
+            self.wfile.write(body)
+
+    def handle_proxy(self, parsed, send_body):
+        if self.command != "GET":
+            self.send_error(405)
             return
         query = urllib.parse.parse_qs(parsed.query)
         url = query.get("url", [""])[0]
         if not (url.startswith("https://dummyjson.com/") or url.startswith("https://picsum.photos/")):
-            self.send_error(403)
+            self.send_error(404)
             return
         try:
             req = urllib.request.Request(url, headers={"User-Agent": "Westlake-supervisor-proxy/1.0"})
             with urllib.request.urlopen(req, timeout=20) as resp:
                 body = resp.read(512 * 1024)
-                self.send_response(resp.status)
-                self.send_header("Content-Type", resp.headers.get("Content-Type", "application/octet-stream"))
-                self.send_header("Content-Length", str(len(body)))
-                self.end_headers()
-                self.wfile.write(body)
+                self.send_bytes(resp.status, body, resp.headers.get("Content-Type", "application/octet-stream"), send_body=send_body)
         except Exception as exc:
             body = str(exc).encode("utf-8", "replace")
-            self.send_response(599)
-            self.send_header("Content-Type", "text/plain")
-            self.send_header("Content-Length", str(len(body)))
+            self.send_bytes(599, body, "text/plain", send_body=send_body)
+
+    def handle_rest(self, parsed, send_body):
+        body = self.read_body()
+        path = parsed.path
+        if path == "/rest/slow":
+            time.sleep(2.0)
+            payload = b'{"slow":true}'
+            self.send_bytes(200, payload, "application/json", send_body=send_body)
+            return
+        if path == "/rest/large":
+            payload = (b"westlake-rest-large-" * 256)[:4096]
+            self.send_bytes(200, payload, "application/octet-stream", send_body=send_body)
+            return
+        if path == "/rest/redirect":
+            self.send_response(302)
+            self.send_header("Location", "/rest/final")
+            self.send_header("Content-Length", "0")
             self.end_headers()
-            self.wfile.write(body)
+            return
+        if path == "/rest/status/418":
+            self.send_bytes(418, b'{"error":"teapot","status":418}', "application/json", send_body=send_body)
+            return
+        if path == "/rest/final":
+            self.send_bytes(200, b'{"redirected":true,"method":"GET"}', "application/json", send_body=send_body)
+            return
+        if path == "/rest/echo":
+            probe = self.headers.get("X-Westlake-Probe", "")
+            escaped = body.decode("utf-8", "replace").replace("\\", "\\\\").replace('"', '\\"')
+            payload = (
+                '{"method":"' + self.command + '",'
+                '"xWestlakeProbe":"' + probe + '",'
+                '"body":"' + escaped + '",'
+                '"length":' + str(len(body)) + '}'
+            ).encode("utf-8")
+            self.send_bytes(200, payload, "application/json", send_body=send_body)
+            return
+        if path == "/rest/ping":
+            self.send_bytes(200, b'{"ok":true}', "application/json", send_body=send_body)
+            return
+        self.send_error(404)
 
     def log_message(self, fmt, *args):
         sys.stderr.write("proxy: " + fmt % args + "\n")
@@ -402,6 +483,16 @@ if [ "$INTERACT" = "1" ]; then
     require_marker "^YELP_LIVE_JSON_OK " "YELP_LIVE_JSON_OK"
     require_marker "^YELP_LIVE_IMAGE_OK " "YELP_LIVE_IMAGE_OK"
     require_marker "^YELP_LIVE_ROW_IMAGE_OK index=4 " "YELP_LIVE_ROW_IMAGE_OK index=4"
+    require_marker "^YELP_REST_MATRIX_BEGIN " "YELP_REST_MATRIX_BEGIN"
+    require_marker "^YELP_REST_POST_OK " "YELP_REST_POST_OK"
+    require_marker "^YELP_REST_HEADERS_OK " "YELP_REST_HEADERS_OK"
+    require_marker "^YELP_REST_METHODS_OK " "YELP_REST_METHODS_OK"
+    require_marker "^YELP_REST_HEAD_OK " "YELP_REST_HEAD_OK"
+    require_marker "^YELP_REST_STATUS_OK status=418 " "YELP_REST_STATUS_OK status=418"
+    require_marker "^YELP_REST_REDIRECT_OK status=200 " "YELP_REST_REDIRECT_OK"
+    require_marker "^YELP_REST_TRUNCATE_OK .* truncated=true" "YELP_REST_TRUNCATE_OK"
+    require_marker "^YELP_REST_TIMEOUT_OK " "YELP_REST_TIMEOUT_OK"
+    require_marker "^YELP_REST_MATRIX_OK " "YELP_REST_MATRIX_OK"
     require_marker "^YELP_CARD_OK " "YELP_CARD_OK"
     require_marker "^YELP_CATEGORY_SELECT_OK " "YELP_CATEGORY_SELECT_OK"
     require_marker "^YELP_FILTER_TOGGLE_OK " "YELP_FILTER_TOGGLE_OK"
@@ -416,6 +507,11 @@ fi
 if grep -qE "^YELP_NETWORK_(FETCH|BRIDGE)_FAIL " "$MARKERS_PATH"; then
     echo "ERROR: Yelp network marker failed" >&2
     grep -E "^YELP_NETWORK_(FETCH|BRIDGE)_FAIL " "$MARKERS_PATH" >&2 || true
+    missing=1
+fi
+if grep -qE "^YELP_REST_MATRIX_FAIL " "$MARKERS_PATH"; then
+    echo "ERROR: Yelp REST matrix marker failed" >&2
+    grep -E "^YELP_REST_MATRIX_FAIL " "$MARKERS_PATH" >&2 || true
     missing=1
 fi
 if grep -qE "^YELP_DIRECT_FRAME_FAIL " "$MARKERS_PATH"; then

@@ -79,6 +79,27 @@ public final class WestlakeLauncher {
     public static byte[] bridgeHttpGetBytes(String url, int maxBytes, int timeoutMs) {
         return null;
     }
+    public static final class BridgeHttpResponse {
+        public final int status;
+        public final String headersJson;
+        public final byte[] body;
+        public final String error;
+        public final boolean truncated;
+        public final String finalUrl;
+        public BridgeHttpResponse(int status, String headersJson, byte[] body,
+                String error, boolean truncated, String finalUrl) {
+            this.status = status;
+            this.headersJson = headersJson;
+            this.body = body;
+            this.error = error;
+            this.truncated = truncated;
+            this.finalUrl = finalUrl;
+        }
+    }
+    public static BridgeHttpResponse bridgeHttpRequest(String url, String method,
+            String headersJson, byte[] body, int maxBytes, int timeoutMs, boolean followRedirects) {
+        return null;
+    }
 }
 JAVA
 

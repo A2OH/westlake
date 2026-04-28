@@ -1,7 +1,7 @@
 # Westlake Engine — Status Report
 
 **Date:** 2026-04-27
-**Status:** Platform-first cutoff canary through target `L4WATAPPREFLECT` on phone; PF-451 controlled showcase, PF-452 host/OHBridge network proof, PF-453 separate Yelp live app, PF-454 Material Components canary, PF-455 XML-backed Yelp slice, and PF-457 Material XML/generic-hit slice accepted on phone; PF-456 REST matrix and OHOS adapters remain open
+**Status:** Platform-first cutoff canary through target `L4WATAPPREFLECT` on phone; PF-451 controlled showcase, PF-452 host/OHBridge network proof, PF-453 separate Yelp live app, PF-454 Material Components canary, PF-455 XML-backed Yelp slice, PF-456 REST matrix, and PF-457 Material XML/generic-hit slice accepted on phone; OHOS adapters and generic UI expansion remain open
 
 ## Current Supervisor Status (2026-04-27)
 
@@ -54,11 +54,11 @@ PF-453 latest evidence:
 
 - `dalvikvm=58ea9cb7470e0f5990f3b90b353e46c0041ddc503c7173c8417a24e82a7d1a3e`
 - `aosp-shim.dex=0a30612bb9aaf7f644309950e280905839cdd7c94cf4fd16050b8826237c9164`
-- `westlake-yelp-live-debug.apk=ad17d0a0adab5edacd017fc845a42b79629c9731a9ed5866fe03d30bcc08fcf1`
+- `westlake-yelp-live-debug.apk=24d1444b5ebf2319722c7168b4a849b7f022cc869b1708734695e381c44abfda`
 - Screenshot/log/markers/trace:
   `/mnt/c/Users/dspfa/TempWestlake/yelp_live_target.*`
 - Stable accepted copy:
-  `/mnt/c/Users/dspfa/TempWestlake/accepted/yelp_live/0a30612bb9aaf7f644309950e280905839cdd7c94cf4fd16050b8826237c9164_ad17d0a0adab5edacd017fc845a42b79629c9731a9ed5866fe03d30bcc08fcf1/`
+  `/mnt/c/Users/dspfa/TempWestlake/accepted/yelp_live/0a30612bb9aaf7f644309950e280905839cdd7c94cf4fd16050b8826237c9164_24d1444b5ebf2319722c7168b4a849b7f022cc869b1708734695e381c44abfda/`
 - Visual gate:
   `/mnt/c/Users/dspfa/TempWestlake/yelp_live_target.visual`
   (`1080x2280`, `distinct_colors=5593`, `top_red_samples=3033`,
@@ -89,11 +89,13 @@ flows run. The visible Yelp surface remains the controlled direct `DLST`
 renderer, so PF-455 does not yet prove a generic Android `draw()` renderer over
 the whole inflated tree.
 
-PF-456 implementation status: the Android host bridge now exposes a v2 request
-shape for method, headers JSON, request body, max-byte cap, timeout,
+PF-456 implementation status: the Android host bridge now exposes and accepts a
+v2 request shape for method, headers JSON, request body, max-byte cap, timeout,
 redirect-follow flag, response headers, non-2xx bodies, truncation, and
-structured errors. The accepted apps still exercise GET JSON/images. A REST
-matrix probe and the OHOS adapter are required before PF-456 can close.
+structured errors. The latest Yelp run records `YELP_REST_MATRIX_OK` plus
+POST, headers, PUT/PATCH/DELETE, HEAD, non-2xx status, redirect, truncation,
+and timeout markers. Remaining PF-456 closure is the OHOS adapter repeating
+the same guest-facing bridge contract, not more Android phone GET proof.
 
 PF-457 now has a separate accepted Material XML probe,
 `com.westlake.materialxmlprobe`, built from
@@ -181,8 +183,8 @@ Current contract workstreams after the PF-455/PF-457 phone runs:
 - `PF-455`: accepted for XML inflation/binding/layout proof plus live Yelp
   flows on a full-phone `1080x2280` host surface; open for fully generic
   View-tree rendering.
-- `PF-456`: bridge v2 implemented; open for REST matrix acceptance and OHOS
-  adapter.
+- `PF-456`: Android phone REST matrix accepted through the bridge v2 contract;
+  open for OHOS adapter parity.
 - `PF-457`: accepted for Material XML inflation and probe hit routing; open for
   upstream MDC compatibility, theming/behaviors, ripple/animation, and broad
   generic rendering/hit testing.

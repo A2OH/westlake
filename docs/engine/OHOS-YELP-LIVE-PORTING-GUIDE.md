@@ -22,14 +22,14 @@ Accepted Android phone proof:
 - runtime dir: `/data/local/tmp/westlake`
 - artifacts: `/mnt/c/Users/dspfa/TempWestlake/yelp_live_target.*`
 - accepted copy:
-  `/mnt/c/Users/dspfa/TempWestlake/accepted/yelp_live/0a30612bb9aaf7f644309950e280905839cdd7c94cf4fd16050b8826237c9164_ad17d0a0adab5edacd017fc845a42b79629c9731a9ed5866fe03d30bcc08fcf1/`
+  `/mnt/c/Users/dspfa/TempWestlake/accepted/yelp_live/0a30612bb9aaf7f644309950e280905839cdd7c94cf4fd16050b8826237c9164_24d1444b5ebf2319722c7168b4a849b7f022cc869b1708734695e381c44abfda/`
 
 Accepted hashes:
 
 ```text
 dalvikvm=58ea9cb7470e0f5990f3b90b353e46c0041ddc503c7173c8417a24e82a7d1a3e
 aosp-shim.dex=0a30612bb9aaf7f644309950e280905839cdd7c94cf4fd16050b8826237c9164
-westlake-yelp-live-debug.apk=ad17d0a0adab5edacd017fc845a42b79629c9731a9ed5866fe03d30bcc08fcf1
+westlake-yelp-live-debug.apk=24d1444b5ebf2319722c7168b4a849b7f022cc869b1708734695e381c44abfda
 ```
 
 Required acceptance markers:
@@ -49,6 +49,15 @@ YELP_LIST_SCROLL_OK
 YELP_DETAILS_OPEN_OK
 YELP_SAVE_PLACE_OK
 YELP_NAV_SEARCH_OK
+YELP_REST_MATRIX_OK
+YELP_REST_POST_OK
+YELP_REST_HEADERS_OK
+YELP_REST_METHODS_OK
+YELP_REST_HEAD_OK
+YELP_REST_STATUS_OK status=418
+YELP_REST_REDIRECT_OK
+YELP_REST_TRUNCATE_OK
+YELP_REST_TIMEOUT_OK
 ```
 
 The host log must include:
@@ -138,6 +147,14 @@ YelpLiveActivity fetch
   -> Android host URLConnection or supervisor proxy
   -> response body/meta files
   -> guest parses JSON and image bytes
+
+YelpLiveActivity REST matrix
+  -> WestlakeLauncher.bridgeHttpRequest(...)
+  -> POST/PUT/PATCH/DELETE/HEAD/GET requests with headers/body/caps/timeouts
+  -> host bridge spool request
+  -> Android host URLConnection or supervisor proxy
+  -> response status/body/headers/final URL/truncation/error metadata
+  -> guest records YELP_REST_* acceptance markers
 ```
 
 ## OHOS Porting Contract
@@ -203,10 +220,16 @@ Each step adds one stock-app-shaped capability and a phone/OHOS acceptance
 marker before moving to the next.
 
 1. REST matrix probe
-   - Add GET/POST/PUT/PATCH/DELETE, headers, body upload, non-2xx body,
-     redirect, timeout, truncation, and TLS failure tests.
+   - Android phone status: accepted through the Yelp bridge v2 matrix.
+   - Proven surface: GET/POST/PUT/PATCH/DELETE/HEAD, headers, body upload,
+     non-2xx body, redirect, timeout, truncation, response headers, and
+     structured error metadata.
    - Required markers: `YELP_REST_POST_OK`, `YELP_REST_HEADERS_OK`,
-     `YELP_REST_TIMEOUT_OK`, `YELP_REST_TRUNCATE_OK`.
+     `YELP_REST_METHODS_OK`, `YELP_REST_HEAD_OK`, `YELP_REST_STATUS_OK`,
+     `YELP_REST_REDIRECT_OK`, `YELP_REST_TIMEOUT_OK`,
+     `YELP_REST_TRUNCATE_OK`, and `YELP_REST_MATRIX_OK`.
+   - OHOS remaining work: implement the same host adapter contract and repeat
+     this marker set with `transport=ohos_bridge` or equivalent host evidence.
    - McDonald's relevance: menu/config/auth bootstrap APIs.
 
 2. Generic widget render slice

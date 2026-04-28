@@ -22,6 +22,8 @@ public final class YelpLiveActivity extends Activity {
 
     private volatile boolean renderDirty;
     private volatile boolean networkLoading;
+    private volatile boolean restMatrixStarted;
+    private volatile boolean restMatrixPassed;
     private volatile boolean saved;
     private volatile boolean openNowFilter = true;
     private volatile boolean deliveryFilter;
@@ -358,6 +360,7 @@ public final class YelpLiveActivity extends Activity {
                                 + " hash=" + intHex(placeImageHashes[i])
                                 + " transport=host_bridge");
             }
+            maybeRunRestMatrixProbe();
             networkLoading = false;
             status = "Live " + source + " results loaded";
             lastAction = "Live loaded";
@@ -400,6 +403,175 @@ public final class YelpLiveActivity extends Activity {
                         + " bytes=" + bytes.length
                         + " url=" + YelpLiveLog.token(url));
         return new FetchResult(statusCode, url, bytes);
+    }
+
+    private void maybeRunRestMatrixProbe() {
+        if (restMatrixStarted) {
+            YelpLiveLog.mark("REST_MATRIX_SKIP_OK",
+                    "reason=already_started passed=" + restMatrixPassed);
+            return;
+        }
+        restMatrixStarted = true;
+        String localBase = "http://127.0.0.1:8765/rest";
+        YelpLiveLog.mark("REST_MATRIX_BEGIN", "base=" + YelpLiveLog.token(localBase));
+        try {
+            runRestMatrixAt(localBase);
+            restMatrixPassed = true;
+            YelpLiveLog.mark("REST_MATRIX_OK", "base=" + YelpLiveLog.token(localBase));
+        } catch (Throwable local) {
+            String remoteBase = "https://httpbin.org";
+            YelpLiveLog.mark("REST_MATRIX_LOCAL_FAIL",
+                    "err=" + YelpLiveLog.token(shortMessage(local))
+                            + " fallback=" + YelpLiveLog.token(remoteBase));
+            try {
+                runRestMatrixAt(remoteBase);
+                restMatrixPassed = true;
+                YelpLiveLog.mark("REST_MATRIX_OK", "base=" + YelpLiveLog.token(remoteBase));
+            } catch (Throwable remote) {
+                restMatrixPassed = false;
+                YelpLiveLog.mark("REST_MATRIX_FAIL",
+                        "local=" + YelpLiveLog.token(shortMessage(local))
+                                + " remote=" + YelpLiveLog.token(shortMessage(remote)));
+            }
+        }
+    }
+
+    private void runRestMatrixAt(String base) throws java.io.IOException {
+        boolean local = base.indexOf("127.0.0.1") >= 0;
+        String echo = local ? base + "/echo" : base + "/anything";
+        String headers = "{\"X-Westlake-Probe\":\"pf458\",\"Content-Type\":\"application/json\"}";
+        byte[] postBody = utf8("{\"order\":\"noodles\",\"count\":2}");
+        WestlakeLauncher.BridgeHttpResponse post =
+                bridgeRequest(echo, "POST", headers, postBody, 4096, 6000, true);
+        requireStatus(post, 200, "post");
+        String postText = asciiString(post.body);
+        requireContains(postText, "POST", "post_method");
+        requireContains(postText, "noodles", "post_body");
+        requireContains(postText, "pf458", "post_header");
+        YelpLiveLog.mark("REST_POST_OK",
+                "status=" + post.status + " bytes=" + post.body.length
+                        + " transport=host_bridge protocol=2");
+        YelpLiveLog.mark("REST_HEADERS_OK",
+                "status=" + post.status
+                        + " echoed=true responseHeaders=" + (post.headersJson.length() > 2));
+
+        WestlakeLauncher.BridgeHttpResponse put =
+                bridgeRequest(echo, "PUT", headers, utf8("put-body"), 4096, 6000, true);
+        WestlakeLauncher.BridgeHttpResponse patch =
+                bridgeRequest(echo, "PATCH", headers, utf8("patch-body"), 4096, 6000, true);
+        WestlakeLauncher.BridgeHttpResponse delete =
+                bridgeRequest(echo, "DELETE", headers, new byte[0], 4096, 6000, true);
+        requireStatus(put, 200, "put");
+        requireStatus(patch, 200, "patch");
+        requireStatus(delete, 200, "delete");
+        requireContains(asciiString(put.body), "PUT", "put_method");
+        requireContains(asciiString(patch.body), "PATCH", "patch_method");
+        requireContains(asciiString(delete.body), "DELETE", "delete_method");
+        YelpLiveLog.mark("REST_METHODS_OK",
+                "put=" + put.status + " patch=" + patch.status + " delete=" + delete.status);
+
+        WestlakeLauncher.BridgeHttpResponse head =
+                bridgeRequest(echo, "HEAD", "{}", new byte[0], 1024, 6000, true);
+        requireStatus(head, 200, "head");
+        YelpLiveLog.mark("REST_HEAD_OK",
+                "status=" + head.status + " bytes=" + head.body.length);
+
+        WestlakeLauncher.BridgeHttpResponse status =
+                bridgeRequest(local ? base + "/status/418" : base + "/status/418",
+                        "GET", "{}", new byte[0], 4096, 6000, true);
+        if (status.status != 418) {
+            throw new java.io.IOException("status expected 418 got " + status.status);
+        }
+        YelpLiveLog.mark("REST_STATUS_OK",
+                "status=" + status.status + " bytes=" + status.body.length);
+
+        WestlakeLauncher.BridgeHttpResponse redirect =
+                bridgeRequest(local ? base + "/redirect" : base + "/redirect-to?url=/anything&status_code=302",
+                        "GET", "{}", new byte[0], 4096, 6000, true);
+        requireStatus(redirect, 200, "redirect");
+        if (redirect.finalUrl == null || redirect.finalUrl.length() == 0) {
+            throw new java.io.IOException("redirect final url missing");
+        }
+        YelpLiveLog.mark("REST_REDIRECT_OK",
+                "status=" + redirect.status
+                        + " final=" + YelpLiveLog.token(redirect.finalUrl));
+
+        WestlakeLauncher.BridgeHttpResponse trunc =
+                bridgeRequest(local ? base + "/large" : base + "/bytes/4096",
+                        "GET", "{}", new byte[0], 64, 6000, true);
+        requireStatus(trunc, 200, "truncate");
+        if (!trunc.truncated || trunc.body.length != 64) {
+            throw new java.io.IOException("truncate expected 64/truncated got "
+                    + trunc.body.length + "/" + trunc.truncated);
+        }
+        YelpLiveLog.mark("REST_TRUNCATE_OK",
+                "status=" + trunc.status + " bytes=" + trunc.body.length
+                        + " truncated=" + trunc.truncated);
+
+        WestlakeLauncher.BridgeHttpResponse timeout =
+                bridgeRequest(local ? base + "/slow" : base + "/delay/3",
+                        "GET", "{}", new byte[0], 1024, 500, true);
+        if (timeout.status == 200 && (timeout.error == null || timeout.error.length() == 0)) {
+            throw new java.io.IOException("timeout endpoint returned success");
+        }
+        YelpLiveLog.mark("REST_TIMEOUT_OK",
+                "status=" + timeout.status
+                        + " err=" + YelpLiveLog.token(timeout.error == null ? "timeout" : timeout.error));
+    }
+
+    private WestlakeLauncher.BridgeHttpResponse bridgeRequest(String url, String method,
+            String headersJson, byte[] body, int maxBytes, int timeoutMs, boolean followRedirects)
+            throws java.io.IOException {
+        WestlakeLauncher.BridgeHttpResponse response = WestlakeLauncher.bridgeHttpRequest(
+                url, method, headersJson, body, maxBytes, timeoutMs, followRedirects);
+        if (response == null) {
+            throw new java.io.IOException("bridge response null");
+        }
+        YelpLiveLog.mark("REST_BRIDGE_OK",
+                "method=" + YelpLiveLog.token(method)
+                        + " status=" + response.status
+                        + " bytes=" + response.body.length
+                        + " truncated=" + response.truncated
+                        + " final=" + YelpLiveLog.token(response.finalUrl == null ? "" : response.finalUrl)
+                        + " err=" + YelpLiveLog.token(response.error == null ? "" : response.error));
+        return response;
+    }
+
+    private void requireStatus(WestlakeLauncher.BridgeHttpResponse response, int expected,
+            String label) throws java.io.IOException {
+        if (response.status != expected) {
+            throw new java.io.IOException(label + " expected " + expected + " got "
+                    + response.status + " err=" + response.error);
+        }
+    }
+
+    private void requireContains(String value, String needle, String label)
+            throws java.io.IOException {
+        if (value == null || value.indexOf(needle) < 0) {
+            throw new java.io.IOException(label + " missing " + needle);
+        }
+    }
+
+    private byte[] utf8(String value) {
+        if (value == null) return new byte[0];
+        byte[] out = new byte[value.length() * 3];
+        int outLen = 0;
+        for (int i = 0; i < value.length(); i++) {
+            int ch = value.charAt(i);
+            if (ch < 0x80) {
+                out[outLen++] = (byte) ch;
+            } else if (ch < 0x800) {
+                out[outLen++] = (byte) (0xc0 | (ch >> 6));
+                out[outLen++] = (byte) (0x80 | (ch & 0x3f));
+            } else {
+                out[outLen++] = (byte) (0xe0 | (ch >> 12));
+                out[outLen++] = (byte) (0x80 | ((ch >> 6) & 0x3f));
+                out[outLen++] = (byte) (0x80 | (ch & 0x3f));
+            }
+        }
+        byte[] exact = new byte[outLen];
+        System.arraycopy(out, 0, exact, 0, outLen);
+        return exact;
     }
 
     private int parseRecipes(String json) {

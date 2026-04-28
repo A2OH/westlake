@@ -500,14 +500,21 @@ object WestlakeVM {
         input.use { stream ->
             val out = java.io.ByteArrayOutputStream(minOf(8192, maxBytes))
             val buf = ByteArray(8192)
+            var truncated = false
             while (out.size() < maxBytes) {
                 val read = stream.read(buf)
                 if (read < 0) break
                 if (read == 0) continue
                 val remaining = maxBytes - out.size()
                 out.write(buf, 0, minOf(read, remaining))
+                if (read > remaining) {
+                    truncated = true
+                    break
+                }
             }
-            val truncated = out.size() >= maxBytes && stream.read() >= 0
+            if (!truncated && out.size() >= maxBytes) {
+                truncated = stream.read() >= 0
+            }
             return HttpBridgeBody(out.toByteArray(), truncated)
         }
     }

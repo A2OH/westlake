@@ -14,10 +14,11 @@ class instantiation, visible Material-style DLST rendering, and strict phone
 touch markers. PF-455 now passes for XML-backed Yelp inflation/binding plus the
 live Yelp flows on a 1K-class host surface. PF-457 now passes for compiled
 Material XML inflation, direct DLST tree rendering, and generic
-`findViewAt/performClick` into a `MaterialButton` listener. The next active
-phone gate is PF-456 REST matrix coverage plus OHOS adapter parity, while
-PF-455/PF-457 remain open for fully generic rendering and broader Material
-compatibility.
+`findViewAt/performClick` into a `MaterialButton` listener. PF-456 REST matrix
+coverage now passes on the Android phone through the portable bridge v2
+contract. The next active phone gates are PF-459 generic inflated View drawing
+and PF-460 generic hit/scroll routing, while PF-456 remains open for OHOS
+adapter parity and PF-457 remains open for broader Material compatibility.
 
 ---
 
@@ -76,14 +77,14 @@ Current accepted phone evidence:
 - runtime hashes for the accepted Yelp live run:
   `dalvikvm=58ea9cb7470e0f5990f3b90b353e46c0041ddc503c7173c8417a24e82a7d1a3e`,
   `aosp-shim.dex=0a30612bb9aaf7f644309950e280905839cdd7c94cf4fd16050b8826237c9164`,
-  `westlake-yelp-live-debug.apk=ad17d0a0adab5edacd017fc845a42b79629c9731a9ed5866fe03d30bcc08fcf1`
+  `westlake-yelp-live-debug.apk=24d1444b5ebf2319722c7168b4a849b7f022cc869b1708734695e381c44abfda`
 - Yelp live artifacts:
   `/mnt/c/Users/dspfa/TempWestlake/yelp_live_target.log`,
   `/mnt/c/Users/dspfa/TempWestlake/yelp_live_target.markers`,
   `/mnt/c/Users/dspfa/TempWestlake/yelp_live_target.trace`, and
   `/mnt/c/Users/dspfa/TempWestlake/yelp_live_target.png`
 - Yelp live stable accepted copy:
-  `/mnt/c/Users/dspfa/TempWestlake/accepted/yelp_live/0a30612bb9aaf7f644309950e280905839cdd7c94cf4fd16050b8826237c9164_ad17d0a0adab5edacd017fc845a42b79629c9731a9ed5866fe03d30bcc08fcf1/`
+  `/mnt/c/Users/dspfa/TempWestlake/accepted/yelp_live/0a30612bb9aaf7f644309950e280905839cdd7c94cf4fd16050b8826237c9164_24d1444b5ebf2319722c7168b4a849b7f022cc869b1708734695e381c44abfda/`
 - Yelp live visual gate:
   `/mnt/c/Users/dspfa/TempWestlake/yelp_live_target.visual`
   (`1080x2280`, `distinct_colors=5593`, `top_red_samples=3033`,
@@ -104,6 +105,11 @@ Current accepted phone evidence:
   `YELP_LIST_SCROLL_OK`, `YELP_NEXT_PLACE_OK`, `YELP_DETAILS_OPEN_OK`,
   `YELP_SAVE_PLACE_OK`,
   `YELP_NAV_SAVED_OK`, and `YELP_NAV_SEARCH_OK`.
+- Yelp REST matrix accepted app markers include `YELP_REST_MATRIX_BEGIN`,
+  `YELP_REST_POST_OK`, `YELP_REST_HEADERS_OK`, `YELP_REST_METHODS_OK`,
+  `YELP_REST_HEAD_OK`, `YELP_REST_STATUS_OK status=418`,
+  `YELP_REST_REDIRECT_OK`, `YELP_REST_TRUNCATE_OK truncated=true`,
+  `YELP_REST_TIMEOUT_OK`, and `YELP_REST_MATRIX_OK`.
 - `scripts/run-yelp-live.sh` now has a phone default-network preflight,
   configurable post-scroll/action waits, explicit `SUPERVISOR_HTTP_PROXY=1`
   ADB-reverse fallback for supervisor-host live data when the device is
@@ -174,9 +180,11 @@ Current accepted phone evidence:
   `MATERIAL_NAV_SAVED_OK`, and `MATERIAL_NAV_SEARCH_OK`.
 - PF-455 remaining gate: replace the controlled direct Yelp `DLST` frame writer
   with a generic View-tree render path over the inflated Yelp widgets.
-- PF-456 remaining gate: run a REST matrix for the v2 bridge
-  (methods/headers/body/status/redirect/timeout/truncation/error bodies) and
-  repeat the same contract on OHOS after the adapter exists.
+- PF-456 Android phone REST matrix gate: accepted for
+  methods/headers/body/status/redirect/timeout/truncation/error bodies through
+  the bridge v2 contract.
+- PF-456 remaining gate: repeat the same contract on OHOS after the adapter
+  exists.
 - PF-457 remaining gate: expand beyond the accepted Material XML probe into
   upstream Material Components compatibility for the controlled surface, full
   Material theming, `CoordinatorLayout`/`AppBarLayout` behavior,

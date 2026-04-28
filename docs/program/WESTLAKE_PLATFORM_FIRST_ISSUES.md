@@ -33,9 +33,9 @@ Primary issue families:
   fully generic View-tree rendering rather than the controlled direct `DLST`
   frame writer
 - `PF-456` portable REST networking completeness: Android host bridge v2 is
-  implemented for methods/headers/body/status/headers/redirect/timeouts/caps,
-  while app acceptance still proves only GET JSON/image traffic; REST matrix
-  probe and OHOS adapter remain open
+  accepted on phone for methods, headers, bodies, status/error handling,
+  redirects, timeouts, payload caps, and truncation through the Yelp REST
+  matrix; OHOS adapter parity remains open
 - `PF-457` Material/generic UI compatibility expansion: Android phone proof
   accepted for compiled Material XML tag inflation, direct DLST tree rendering,
   MaterialButton bounds discovery, and generic `findViewAt/performClick` hit
@@ -50,8 +50,8 @@ Detailed OHOS handoff and the southbound shim ladder from controlled Yelp to a
 McDonald's-class stock APK are documented in
 `docs/engine/OHOS-YELP-LIVE-PORTING-GUIDE.md`. The new ladder workstreams are:
 
-- `PF-458` REST matrix probe: methods, headers, body upload, redirects,
-  timeouts, truncation, and non-2xx bodies
+- `PF-458` REST matrix probe: Android phone accepted for methods, headers,
+  body upload, redirects, timeouts, truncation, and non-2xx bodies
 - `PF-459` generic inflated View draw path for the Yelp XML tree
 - `PF-460` generic View hit testing and scroll containers
 - `PF-461` adapter/list virtualization and image rebinding
@@ -256,8 +256,8 @@ McDonald's-specific work is treated as forward progress:
 - `PF-455` / `PF-456` / `PF-457`: the next frontier is now narrower and more
   specific. PF-455 has phone evidence for XML-backed Yelp layout inflation and
   binding, but visible rendering still uses the controlled direct `DLST` path.
-  PF-456 has a richer host bridge implementation, but needs a REST matrix probe
-  and the OHOS adapter. PF-457 has a Material XML probe with generic
+  PF-456 now has Android phone evidence for the bridge v2 REST matrix, but
+  still needs the OHOS adapter. PF-457 has a Material XML probe with generic
   `findViewAt/performClick` into the APK listener, but not upstream MDC
   compatibility, Material theming/behaviors, or generic Android rendering.
 - `CV-105` / `A2OH/westlake#573`: self-contained runtime packaging. The current
@@ -466,7 +466,7 @@ Accepted PF-451 evidence from `cfb7c9e3`:
   - Android phone: done with
     `aosp-shim.dex=0a30612bb9aaf7f644309950e280905839cdd7c94cf4fd16050b8826237c9164`
     and
-    `westlake-yelp-live-debug.apk=ad17d0a0adab5edacd017fc845a42b79629c9731a9ed5866fe03d30bcc08fcf1`
+    `westlake-yelp-live-debug.apk=24d1444b5ebf2319722c7168b4a849b7f022cc869b1708734695e381c44abfda`
   - the accepted host log includes `Surface buffer 1080x2280 for
     com.westlake.yelplive`, proving the 1K-class Yelp buffer path
   - the accepted marker file includes `YELP_XML_RESOURCE_WIRE_OK`,
@@ -564,7 +564,7 @@ Accepted PF-451 evidence from `cfb7c9e3`:
   - Accepted slice: `scripts/run-yelp-live.sh` on `cfb7c9e3` passes with
     `aosp-shim.dex=0a30612bb9aaf7f644309950e280905839cdd7c94cf4fd16050b8826237c9164`
     and
-    `westlake-yelp-live-debug.apk=ad17d0a0adab5edacd017fc845a42b79629c9731a9ed5866fe03d30bcc08fcf1`.
+    `westlake-yelp-live-debug.apk=24d1444b5ebf2319722c7168b4a849b7f022cc869b1708734695e381c44abfda`.
   - Accepted markers prove `YELP_XML_RESOURCE_WIRE_OK`,
     `YELP_XML_INFLATE_OK views=29 texts=21`, `YELP_XML_BIND_OK buttons=5`,
     `YELP_XML_LAYOUT_PROBE_OK target=480x1013 measured=480x1013`,
@@ -581,8 +581,8 @@ Accepted PF-451 evidence from `cfb7c9e3`:
 - Priority: P0
 - Layer: portable REST networking completeness
 - Depends On: PF-452, PF-453, PF-455, PF-801
-- Status: bridge v2 implemented on Android host; GET JSON/image app proof
-  accepted; REST matrix probe and OHOS adapter remain open
+- Status: bridge v2 and Yelp REST matrix accepted on Android phone; OHOS
+  adapter remains open
 - Problem:
   - PF-452/PF-453/PF-454 prove bounded HTTP GET for JSON/images through the
     host/OHBridge bridge. A real controlled app needs a fuller REST surface and
@@ -613,7 +613,12 @@ Accepted PF-451 evidence from `cfb7c9e3`:
   - Implemented slice: the Android host bridge supports method, headers JSON,
     request body, max-byte cap, timeout, redirect-follow flag, response
     headers, non-2xx response bodies, truncation, and structured errors.
-  - Remaining open closure: run a dedicated REST matrix probe for
+  - Android phone accepted closure: the Yelp REST matrix records
+    `YELP_REST_MATRIX_OK`, `YELP_REST_POST_OK`, `YELP_REST_HEADERS_OK`,
+    `YELP_REST_METHODS_OK`, `YELP_REST_HEAD_OK`,
+    `YELP_REST_STATUS_OK status=418`, `YELP_REST_REDIRECT_OK`,
+    `YELP_REST_TRUNCATE_OK truncated=true`, and `YELP_REST_TIMEOUT_OK`.
+  - Remaining open closure: repeat the same bridge contract on OHOS, with
     POST/PUT/PATCH/DELETE/HEAD/OPTIONS as needed, redirects, timeouts,
     truncation, non-2xx bodies, headers, and JSON/binary bodies.
   - the controlled app's REST/API demands are satisfied by the portable Westlake

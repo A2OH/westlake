@@ -90,13 +90,13 @@ Supervisor update, 2026-04-27:
   `YELP_NAV_SEARCH_OK`. Remaining PF-455 gap: the visible Yelp frame is still
   the controlled direct `DLST` renderer, not a fully generic Android `draw()`
   pass over every inflated widget.
-- PF-456 is implemented further in the Android host bridge: the guest can now
-  call a v2 HTTP bridge shape with method, headers JSON, request body,
-  max-byte cap, timeout, redirect policy, response headers, non-2xx bodies, and
-  truncation/error metadata. The accepted app proof still exercises GET
-  JSON/image traffic; a dedicated REST matrix probe for POST/PUT/PATCH/DELETE,
-  redirects, timeout, truncation, and error bodies remains required before this
-  workstream is closed.
+- PF-456 is now accepted on the Android phone for the bridge v2 REST matrix:
+  the guest calls a v2 HTTP bridge shape with method, headers JSON, request
+  body, max-byte cap, timeout, redirect policy, response headers, non-2xx
+  bodies, and truncation/error metadata. The accepted Yelp run proves POST,
+  headers, PUT/PATCH/DELETE, HEAD, non-2xx status, redirect, truncation, and
+  timeout behavior through app-owned `YELP_REST_*` markers. The remaining
+  PF-456 closure is OHOS adapter parity under the same guest-facing contract.
 - PF-457 now has a phone-accepted Material XML probe slice. The delivered app
   `com.westlake.materialxmlprobe`, built from
   `test-apps/09-material-xml-probe/` and run with
@@ -136,10 +136,10 @@ Accepted PF-451 hashes:
 Accepted PF-453 hashes:
 - `dalvikvm=58ea9cb7470e0f5990f3b90b353e46c0041ddc503c7173c8417a24e82a7d1a3e`
 - `aosp-shim.dex=0a30612bb9aaf7f644309950e280905839cdd7c94cf4fd16050b8826237c9164`
-- `westlake-yelp-live-debug.apk=ad17d0a0adab5edacd017fc845a42b79629c9731a9ed5866fe03d30bcc08fcf1`
+- `westlake-yelp-live-debug.apk=24d1444b5ebf2319722c7168b4a849b7f022cc869b1708734695e381c44abfda`
 - Artifacts: `/mnt/c/Users/dspfa/TempWestlake/yelp_live_target.*`
 - Stable accepted copy:
-  `/mnt/c/Users/dspfa/TempWestlake/accepted/yelp_live/0a30612bb9aaf7f644309950e280905839cdd7c94cf4fd16050b8826237c9164_ad17d0a0adab5edacd017fc845a42b79629c9731a9ed5866fe03d30bcc08fcf1/`
+  `/mnt/c/Users/dspfa/TempWestlake/accepted/yelp_live/0a30612bb9aaf7f644309950e280905839cdd7c94cf4fd16050b8826237c9164_24d1444b5ebf2319722c7168b4a849b7f022cc869b1708734695e381c44abfda/`
 - Screenshot acceptance: `yelp_live_target.png` shows the Yelp-like live app
   after accepted network and navigation actions, with a red Yelp-style header,
   loaded live list data, five host-rendered remote thumbnails after scroll,
@@ -253,8 +253,10 @@ New contract workstreams added on 2026-04-27:
   network surface must support the controlled app's real API demands through a
   stable guest-to-host contract on Android and OHOS: HTTPS, headers, methods,
   status/error handling, JSON, binary image bodies, timeouts, bounded payloads,
-  redirects, and repeatable failure markers. Phone ART networking, host-only
-  fetches, or local generated data cannot count as acceptance evidence.
+  redirects, and repeatable failure markers. Android phone acceptance now
+  includes the Yelp REST matrix through the portable bridge v2 contract. Phone
+  ART networking, host-only fetches, or local generated data cannot count as
+  acceptance evidence.
 - `PF-457` Material and generic UI compatibility expansion. The accepted
   PF-454 canary and PF-457 Material XML probe are still controlled slices. The
   open workstream covers full upstream Google Material Components AAR
@@ -445,9 +447,10 @@ Current active blockers:
   construction plus an app-specific direct frame writer, and keep the visible
   proof at a 1K-class phone render buffer instead of the old low-resolution
   guest buffer.
-- complete PF-456 portable REST networking so app API calls use the same
-  guest-facing contract on Android phone and OHOS, including HTTP verbs,
-  headers, status/errors, JSON, images, timeout, redirect, and failure handling.
+- carry PF-456 portable REST networking to OHOS adapter parity. Android phone
+  now accepts HTTP verbs, headers, status/errors, JSON bodies, images, timeout,
+  redirect, truncation, and failure handling through the guest-facing bridge
+  contract.
 - expand PF-457 beyond the first Material shim slice before claiming upstream
   Google Material Components compatibility, full theming, Coordinator/AppBar
   behavior, ripples/animations, generic Material XML rendering, or generic hit
