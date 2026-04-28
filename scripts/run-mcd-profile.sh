@@ -28,6 +28,7 @@ MCD_AUTO_INSTALL_APP="${MCD_AUTO_INSTALL_APP:-1}"
 MCD_AUTO_SYNC_RUNTIME="${MCD_AUTO_SYNC_RUNTIME:-1}"
 WAIT_SECS="${WAIT_SECS:-7}"
 INTERACT="${INTERACT:-1}"
+MCD_TOUCH_MODE="${MCD_TOUCH_MODE:-file}"
 SUPERVISOR_HTTP_PROXY_PORT="${SUPERVISOR_HTTP_PROXY_PORT:-8767}"
 
 HOST_PKG="com.westlake.host"
@@ -300,6 +301,22 @@ sleep "$WAIT_SECS"
 
 if [ "$INTERACT" = "1" ]; then
     echo "[4b/6] Sending McD-profile interactions..."
+    touch_seq=0
+    packet_path="$(mktemp)"
+    send_touch_file() {
+        local action="$1"
+        local fx="$2"
+        local fy="$3"
+        touch_seq=$((touch_seq + 1))
+        python3 - "$packet_path" "$action" "$fx" "$fy" "$touch_seq" <<'PY'
+import struct
+import sys
+path, action, x, y, seq = sys.argv[1:]
+with open(path, "wb") as f:
+    f.write(struct.pack("<iiii", int(action), int(float(x)), int(float(y)), int(seq)))
+PY
+        "${ADB[@]}" push "$packet_path" "$HOST_TOUCH_PATH_A" >/dev/null 2>&1
+    }
     wm_size="$("${ADB[@]}" shell wm size 2>/dev/null | tr -d '\r' \
         | sed -n 's/^Physical size: //p' | tail -n 1)"
     device_w="${wm_size%x*}"
@@ -311,6 +328,12 @@ if [ "$INTERACT" = "1" ]; then
     frame_tap() {
         local fx="$1"
         local fy="$2"
+        if [ "$MCD_TOUCH_MODE" = "file" ]; then
+            send_touch_file 0 "$fx" "$fy"
+            sleep 0.15
+            send_touch_file 1 "$fx" "$fy"
+            return
+        fi
         local coords
         coords="$(python3 - "$device_w" "$device_h" "$fx" "$fy" <<'PY'
 import sys
@@ -329,12 +352,15 @@ PY
     sleep 1
     frame_tap 120 404
     sleep 1
+    frame_tap 120 846
+    sleep 1
     frame_tap 374 846
     sleep 1
     frame_tap 420 960
     sleep 1
     frame_tap 180 960
     sleep 1
+    rm -f "$packet_path"
 fi
 
 echo "[5/6] Capturing artifacts..."
@@ -421,10 +447,11 @@ if [ "$INTERACT" = "1" ]; then
     require_marker "^MCD_PROFILE_TOUCH_POLL_OK " "TOUCH_POLL_OK"
     require_marker "^MCD_PROFILE_CATEGORY_OK " "CATEGORY_OK"
     require_marker "^MCD_PROFILE_SELECT_ITEM_OK " "SELECT_ITEM_OK"
-    require_marker "^MCD_PROFILE_CART_ADD_OK " "CART_ADD_OK"
-    require_marker "^MCD_PROFILE_CHECKOUT_OK " "CHECKOUT_OK"
+    require_marker "^MCD_PROFILE_CART_ADD_OK count=2 " "CART_ADD_OK repeated-cart"
+    require_marker "^MCD_PROFILE_CHECKOUT_OK count=2 " "CHECKOUT_OK repeated-cart"
     require_marker "^MCD_PROFILE_NAV_DEALS_OK " "NAV_DEALS_OK"
     require_marker "^MCD_PROFILE_NAV_MENU_OK " "NAV_MENU_OK"
+    require_marker "^MCD_PROFILE_DIRECT_FRAME_OK reason=checkout_touch_up .*checkedOut=true" "DIRECT_FRAME_OK post-checkout touch"
 fi
 
 if grep -qE "^MCD_PROFILE_.*_FAIL " "$MARKERS_PATH"; then

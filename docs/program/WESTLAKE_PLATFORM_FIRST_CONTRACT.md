@@ -51,21 +51,22 @@ PF-466 is accepted on the connected phone `cfb7c9e3`. The delivered APK is
   a REST payload;
 - REST bridge v2 POST with a real payload, HEAD, and non-2xx status coverage
   through the supervisor proxy;
-- full-phone `1080x2280` `DLST` frames for launch/network/menu/cart states and
-  strict touch-file input through category, row select, cart add, checkout,
-  Deals navigation, and Menu navigation markers.
+- full-phone `1080x2280` `DLST` frames for launch/network/menu/cart,
+  repeated-cart, and post-checkout navigation states, with strict touch-file
+  input through category, row select, second cart add, checkout, Deals
+  navigation, and Menu navigation markers.
 
 Accepted PF-466 hashes:
 
 - `dalvikvm=2dd479e0c7f98e8fd3c4c09b539bfe30fe1c39b119d36e034af68c6bcaada6cf`
-- `aosp-shim.dex=5f14bf74ba30adecc73c99f7a1ac06ca992b1dc86b49616632702313d152f896`
-- `westlake-host.apk=e3b497bb5df1d71a519c61a6ef177afb25f7198009353bf975a2c4d92a85a3eb`
+- `aosp-shim.dex=c3f06213348aa9d6c547fa7951f5821f36c6bb971639cf4161ea423cb557bd01`
+- `westlake-host.apk=caee1fedf88e357585136f026a19600247f1c33ddfeaa3fff518ff1a49d7942a`
 - `westlake-mcd-profile-debug.apk=50477eccecc86fa5ecd8144d26b3930ec60d68c3b952708d66aba934ea448933`
 
 Accepted PF-466 artifacts:
 
 - `/mnt/c/Users/dspfa/TempWestlake/mcd_profile_target.*`
-- `/mnt/c/Users/dspfa/TempWestlake/accepted/mcd_profile/5f14bf74ba30adecc73c99f7a1ac06ca992b1dc86b49616632702313d152f896_50477eccecc86fa5ecd8144d26b3930ec60d68c3b952708d66aba934ea448933/`
+- `/mnt/c/Users/dspfa/TempWestlake/accepted/mcd_profile/c3f06213348aa9d6c547fa7951f5821f36c6bb971639cf4161ea423cb557bd01_50477eccecc86fa5ecd8144d26b3930ec60d68c3b952708d66aba934ea448933/`
 
 Key accepted PF-466 markers:
 
@@ -82,7 +83,9 @@ Key accepted PF-466 markers:
 - `MCD_PROFILE_REST_POST_OK status=200 bytes=100 protocol=2 transport=host_bridge`
 - `MCD_PROFILE_REST_HEAD_OK status=200 bytes=0`
 - `MCD_PROFILE_REST_MATRIX_OK post=200 head=200 status=418 transport=host_bridge`
-- `MCD_PROFILE_CHECKOUT_OK count=1 totalCents=529 storage=true`
+- `MCD_PROFILE_CART_ADD_OK count=2 totalCents=1178 ...`
+- `MCD_PROFILE_CHECKOUT_OK count=2 totalCents=1178 storage=true`
+- `MCD_PROFILE_DIRECT_FRAME_OK reason=checkout_touch_up ... checkedOut=true`
 - `MCD_PROFILE_NAV_DEALS_OK network=1`
 - `MCD_PROFILE_NAV_MENU_OK tab=menu`
 
@@ -105,11 +108,10 @@ mock app boundary test. The gap list that must be closed next is:
   animation;
 - replace the McD-specific direct `DLST` frame writer and coordinate router
   with generic View draw, hit testing, scrolling, and adapter rendering;
-- root-cause PF-474, the post-checkout/repeated-cart direct-frame SIGBUS
-  (`BUS_ADRALN`, observed fault address `0xfffffffffffffb17`). The accepted
-  PF-466 run proves the app-owned checkout/nav markers but suppresses
-  post-checkout direct-frame emission instead of claiming that renderer/runtime
-  stress path is fixed;
+- keep the PF-474 controlled direct-frame fix under stress: repeated-cart and
+  post-checkout frames are now accepted by coalescing touch-driven dirty
+  invalidation into the touch frame instead of emitting a redundant immediate
+  dirty frame;
 - expand image/network transport from one capped image proof and proxy-backed
   POST/HEAD/status probes to multi-image, large-body, streamed responses,
   redirects, timeouts, and direct libcore networking parity;

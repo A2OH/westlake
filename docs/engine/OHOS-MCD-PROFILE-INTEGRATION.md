@@ -20,8 +20,9 @@ The app is intentionally self-contained:
 - SharedPreferences cart state;
 - host/OHBridge live JSON, image, POST, HEAD, and non-2xx REST traffic;
 - guest `String.getBytes("UTF-8")` for the REST payload;
-- full-phone `DLST` rendering before checkout and strict touch input through
-  checkout/navigation markers.
+- full-phone `DLST` rendering through repeated-cart and post-checkout
+  navigation frames, with strict touch-file input through checkout/navigation
+  markers.
 
 It is not a stock APK compatibility claim. It is the first controlled
 McD-class mock app that should be ported to OHOS because every southbound
@@ -40,8 +41,8 @@ Accepted device: `cfb7c9e3`.
 Accepted hashes:
 
 - `dalvikvm=2dd479e0c7f98e8fd3c4c09b539bfe30fe1c39b119d36e034af68c6bcaada6cf`
-- `aosp-shim.dex=5f14bf74ba30adecc73c99f7a1ac06ca992b1dc86b49616632702313d152f896`
-- `westlake-host.apk=e3b497bb5df1d71a519c61a6ef177afb25f7198009353bf975a2c4d92a85a3eb`
+- `aosp-shim.dex=c3f06213348aa9d6c547fa7951f5821f36c6bb971639cf4161ea423cb557bd01`
+- `westlake-host.apk=caee1fedf88e357585136f026a19600247f1c33ddfeaa3fff518ff1a49d7942a`
 - `westlake-mcd-profile-debug.apk=50477eccecc86fa5ecd8144d26b3930ec60d68c3b952708d66aba934ea448933`
 
 Accepted artifacts:
@@ -51,7 +52,7 @@ Accepted artifacts:
 - `/mnt/c/Users/dspfa/TempWestlake/mcd_profile_target.trace`
 - `/mnt/c/Users/dspfa/TempWestlake/mcd_profile_target.png`
 - `/mnt/c/Users/dspfa/TempWestlake/mcd_profile_target.visual`
-- `/mnt/c/Users/dspfa/TempWestlake/accepted/mcd_profile/5f14bf74ba30adecc73c99f7a1ac06ca992b1dc86b49616632702313d152f896_50477eccecc86fa5ecd8144d26b3930ec60d68c3b952708d66aba934ea448933/`
+- `/mnt/c/Users/dspfa/TempWestlake/accepted/mcd_profile/c3f06213348aa9d6c547fa7951f5821f36c6bb971639cf4161ea423cb557bd01_50477eccecc86fa5ecd8144d26b3930ec60d68c3b952708d66aba934ea448933/`
 
 Key accepted launch and XML markers:
 
@@ -71,7 +72,9 @@ Key accepted launch and XML markers:
 - `MCD_PROFILE_REST_POST_OK status=200 bytes=100 protocol=2 transport=host_bridge`
 - `MCD_PROFILE_REST_HEAD_OK status=200 bytes=0`
 - `MCD_PROFILE_REST_MATRIX_OK post=200 head=200 status=418 transport=host_bridge`
-- `MCD_PROFILE_CHECKOUT_OK count=1 totalCents=529 storage=true`
+- `MCD_PROFILE_CART_ADD_OK count=2 totalCents=1178 ...`
+- `MCD_PROFILE_CHECKOUT_OK count=2 totalCents=1178 storage=true`
+- `MCD_PROFILE_DIRECT_FRAME_OK reason=checkout_touch_up ... checkedOut=true`
 - `MCD_PROFILE_NAV_DEALS_OK network=1`
 - `MCD_PROFILE_NAV_MENU_OK tab=menu`
 
@@ -140,6 +143,12 @@ the host-side plumbing.
 | Android host HTTP bridge / ADB reverse proxy | OHOS host HTTP bridge with the same request/response schema |
 | logcat plus copied marker files | OHOS hilog/filesystem marker collection with the same marker gates |
 
+Input runner note: `scripts/run-mcd-profile.sh` now defaults to writing the
+same 16-byte little-endian touch packet file that the guest polls, instead of
+using host screen taps. This is the southbound input contract the OHOS port
+should preserve; `MCD_TOUCH_MODE=adb` remains available for Android host tap
+debugging.
+
 Runtime rebuild note: the accepted `dalvikvm` includes the
 `NativeConverter.charsetForName` alias-array fix from the ARM64 bionic runtime
 source. If the runtime is rebuilt for OHOS, keep the same behavior: do not pass
@@ -181,8 +190,9 @@ PF-466 parity proof for the controlled mock app:
 - `MCD_PROFILE_TOUCH_POLL_OK`
 - `MCD_PROFILE_CATEGORY_OK`
 - `MCD_PROFILE_SELECT_ITEM_OK`
-- `MCD_PROFILE_CART_ADD_OK`
-- `MCD_PROFILE_CHECKOUT_OK`
+- `MCD_PROFILE_CART_ADD_OK count=2`
+- `MCD_PROFILE_CHECKOUT_OK count=2`
+- `MCD_PROFILE_DIRECT_FRAME_OK reason=checkout_touch_up ... checkedOut=true`
 - `MCD_PROFILE_NAV_DEALS_OK`
 - `MCD_PROFILE_NAV_MENU_OK`
 - `MCD_PROFILE_READY_FOR_OHOS_PORT_OK`
@@ -224,11 +234,10 @@ PF-466 is useful because it exposes the next real gaps:
   from a McD-specific `DLST` writer and coordinate router in
   `WestlakeLauncher`, not a full generic Android `View.draw()` and hit-test
   pipeline.
-- PF-474 remains open: an earlier repeated-cart/post-checkout direct-frame path
-  hit `SIGBUS BUS_ADRALN` at fault address `0xfffffffffffffb17`. The accepted
-  run proves checkout and navigation markers, but suppresses post-checkout
-  direct-frame emission rather than claiming this renderer/runtime stress path
-  is fixed.
+- PF-474 is accepted for the controlled direct renderer: repeated-cart and
+  post-checkout frames are emitted and verified, with touch-driven dirty
+  invalidation coalesced into the touch frame to avoid the previous redundant
+  immediate dirty frame. This does not close generic Android View rendering.
 - Networking proves the portable bridge shape, not full libcore networking.
   Real multi-method matrix execution, large streamed images, redirects,
   timeout parity, and many concurrent image requests remain open.
@@ -246,9 +255,7 @@ PF-466 is useful because it exposes the next real gaps:
    accepted PF-466 `String.getBytes("UTF-8")` payload slice.
 6. Move McD-profile rendering from the direct frame writer to generic inflated
    View draw/hit/scroll/adapter paths.
-7. Root-cause PF-474 so post-checkout and repeated-cart frame emission can stay
-   enabled under stress.
-8. Expand networking/images to streamed multi-image transport and real REST
+7. Expand networking/images to streamed multi-image transport and real REST
    matrix execution.
-9. Swap controlled McD-profile API calls for real stock McDonald's API-surface
+8. Swap controlled McD-profile API calls for real stock McDonald's API-surface
    shims until the stock APK can run without app code changes.

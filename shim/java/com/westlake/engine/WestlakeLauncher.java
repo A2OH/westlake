@@ -8542,9 +8542,6 @@ public class WestlakeLauncher {
             }
             if (showcaseBool(activity, "renderDirty", false)) {
                 showcaseInvoke(activity, "consumeRenderDirty");
-                if (showcaseBool(activity, "checkedOut", false)) {
-                    continue;
-                }
                 writeMcdProfileDirectFrame(activity, "state_dirty");
                 continue;
             }
@@ -8578,11 +8575,10 @@ public class WestlakeLauncher {
                     + " x=" + x + " y=" + y + " downX=" + downX + " downY=" + downY
                     + " direct=" + handled);
             if (handled) {
-                if (showcaseBool(activity, "checkedOut", false)) {
-                    showcaseInvoke(activity, "consumeRenderDirty");
-                    continue;
-                }
-                writeMcdProfileDirectFrame(activity, "touch_up");
+                boolean checkoutFrame = showcaseBool(activity, "checkedOut", false);
+                showcaseInvoke(activity, "consumeRenderDirty");
+                writeMcdProfileDirectFrame(activity,
+                        checkoutFrame ? "checkout_touch_up" : "touch_up");
             }
         }
     }
@@ -8974,7 +8970,7 @@ public class WestlakeLauncher {
             mcdMenuRow(ops, 4, row5Name, row5Meta, row5Price, row5Hash, row5Bytes,
                     714, selectedIndex == menuOffset + 4);
             mcdCartBar(ops, selectedName, selectedMeta, selectedPrice, cartCount,
-                    cartTotal, false, storage, restStatus, action, 810);
+                    cartTotal, checkedOut, storage, restStatus, action, 810);
             mcdBottomNav(ops, activeTab);
 
             byte[] data = ops.toByteArray();
@@ -8990,6 +8986,7 @@ public class WestlakeLauncher {
                     + " images=" + intAscii(images)
                     + " rest=" + boolToken(rest)
                     + " storage=" + boolToken(storage)
+                    + " checkedOut=" + boolToken(checkedOut)
                     + " rows=5");
             appendCutoffCanaryMarker("MCD_PROFILE_FULL_RES_FRAME_OK logical=480x1013"
                     + " target=1080x2280 navTop=920");

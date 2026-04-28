@@ -87,10 +87,11 @@ McDonald's-class stock APK are documented in
   SharedPreferences cart state, host/OHBridge live JSON and one bounded image,
   guest `String.getBytes("UTF-8")` for a REST payload, REST bridge v2 POST
   with payload, HEAD, and non-2xx status probes, full-phone `1080x2280` `DLST`
-  before checkout, and strict touch navigation. Current accepted hashes:
+  through repeated-cart and post-checkout navigation frames, and strict touch
+  navigation. Current accepted hashes:
   `dalvikvm=2dd479e0c7f98e8fd3c4c09b539bfe30fe1c39b119d36e034af68c6bcaada6cf`,
-  `aosp-shim.dex=5f14bf74ba30adecc73c99f7a1ac06ca992b1dc86b49616632702313d152f896`,
-  `westlake-host.apk=e3b497bb5df1d71a519c61a6ef177afb25f7198009353bf975a2c4d92a85a3eb`,
+  `aosp-shim.dex=c3f06213348aa9d6c547fa7951f5821f36c6bb971639cf4161ea423cb557bd01`,
+  `westlake-host.apk=caee1fedf88e357585136f026a19600247f1c33ddfeaa3fff518ff1a49d7942a`,
   `westlake-mcd-profile-debug.apk=50477eccecc86fa5ecd8144d26b3930ec60d68c3b952708d66aba934ea448933`.
   It is the current OHOS controlled mock profile target, not the real
   McDonald's app and not a stock McDonald's APK compatibility claim.
@@ -124,12 +125,15 @@ McDonald's-class stock APK are documented in
   charset alias `String[]` `ArrayStoreException`; startup stdio remains on the
   ASCII-safe wrapper and broader charset/provider/default-encoding coverage is
   still required for stock APKs.
-- `PF-474` post-checkout direct-frame renderer/runtime stress: the PF-466
-  app-owned checkout, Deals, and Menu navigation markers are accepted, but an
-  earlier repeated-cart/post-checkout direct render hit `SIGBUS BUS_ADRALN`
-  with fault address `0xfffffffffffffb17`. The accepted run suppresses
-  post-checkout direct-frame emission instead of claiming that generic renderer
-  or runtime stress path is fixed.
+- `PF-474` post-checkout direct-frame renderer/runtime stress: Android phone
+  proof accepted for the controlled McD-profile direct renderer. The runner now
+  drives deterministic touch-file packets, requires `MCD_PROFILE_CART_ADD_OK
+  count=2`, `MCD_PROFILE_CHECKOUT_OK count=2`, and
+  `MCD_PROFILE_DIRECT_FRAME_OK reason=checkout_touch_up ... checkedOut=true`,
+  and still fails closed on `SIGBUS|SIGILL`. The fix coalesces touch-driven
+  dirty invalidation into the touch frame instead of emitting a redundant
+  immediate dirty frame after every handled touch. This closes the controlled
+  PF-466/PF-474 path, not generic View rendering.
 
 ## 2026-04-25 Roadmap Corrections
 

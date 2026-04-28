@@ -1,7 +1,7 @@
 # Westlake Engine — Status Report
 
 **Date:** 2026-04-28
-**Status:** Platform-first cutoff canary through target `L4WATAPPREFLECT` on phone; PF-451 controlled showcase, PF-452 host/OHBridge network proof, PF-453 separate Yelp live app, PF-454 Material Components canary, PF-455 XML-backed Yelp slice, PF-456 live GET plus REST marker contract, PF-457 Material XML/generic-hit slice, PF-459 generic inflated-View draw slice, PF-460 generic XML hit/scroll probes, PF-461 adapter/list slice, and PF-466 controlled mock McD profile accepted on phone with `resources.arsc` table parsing and app `String.getBytes("UTF-8")`; OHOS adapters, broader libcore/networking parity, generic UI expansion, post-checkout renderer stress, and generic stock-McDonald's launch remain open
+**Status:** Platform-first cutoff canary through target `L4WATAPPREFLECT` on phone; PF-451 controlled showcase, PF-452 host/OHBridge network proof, PF-453 separate Yelp live app, PF-454 Material Components canary, PF-455 XML-backed Yelp slice, PF-456 live GET plus REST marker contract, PF-457 Material XML/generic-hit slice, PF-459 generic inflated-View draw slice, PF-460 generic XML hit/scroll probes, PF-461 adapter/list slice, and PF-466/PF-474 controlled mock McD profile accepted on phone with `resources.arsc` table parsing, app `String.getBytes("UTF-8")`, repeated-cart, and post-checkout direct frames; OHOS adapters, broader libcore/networking parity, generic UI expansion, and generic stock-McDonald's launch remain open
 
 ## Current Supervisor Status (2026-04-28)
 
@@ -22,26 +22,27 @@ views, XML measure/layout at `480x1013`, `ListView` adapter binding through
 position `4`, SharedPreferences cart state, host/OHBridge live JSON, one
 bounded host/OHBridge image, app `String.getBytes("UTF-8")` for the REST
 payload, REST bridge v2 POST with payload, HEAD, and non-2xx status coverage,
-full-phone `1080x2280` `DLST` before checkout, and strict touch actions for
-category, row select, cart add, checkout, Deals navigation, and Menu
-navigation. The latest accepted run has no `XML_TAG_WARN`, no
+full-phone `1080x2280` `DLST` through repeated-cart and post-checkout
+navigation frames, and strict touch-file actions for category, row select,
+second cart add, checkout, Deals navigation, and Menu navigation. The latest
+accepted run has no `XML_TAG_WARN`, no
 `MCD_PROFILE_CONTROLLED_*`, no `NPE-SYNC`, and no charset alias
 `ArrayStoreException` markers for the McD-profile XML slice; the visible
 five-row menu is still the controlled direct renderer over app state.
-Post-checkout direct-frame emission is intentionally suppressed after the
-accepted checkout/nav markers because PF-474, the repeated-cart/post-checkout
-`SIGBUS BUS_ADRALN` stress gap, is not root-fixed yet.
+PF-474 is accepted for this controlled direct renderer by coalescing
+touch-driven dirty invalidation into the touch frame instead of writing a
+redundant immediate dirty frame after every handled touch.
 
 PF-466 evidence:
 
 - `dalvikvm=2dd479e0c7f98e8fd3c4c09b539bfe30fe1c39b119d36e034af68c6bcaada6cf`
-- `aosp-shim.dex=5f14bf74ba30adecc73c99f7a1ac06ca992b1dc86b49616632702313d152f896`
-- `westlake-host.apk=e3b497bb5df1d71a519c61a6ef177afb25f7198009353bf975a2c4d92a85a3eb`
+- `aosp-shim.dex=c3f06213348aa9d6c547fa7951f5821f36c6bb971639cf4161ea423cb557bd01`
+- `westlake-host.apk=caee1fedf88e357585136f026a19600247f1c33ddfeaa3fff518ff1a49d7942a`
 - `westlake-mcd-profile-debug.apk=50477eccecc86fa5ecd8144d26b3930ec60d68c3b952708d66aba934ea448933`
 - Screenshot/log/markers/trace:
   `/mnt/c/Users/dspfa/TempWestlake/mcd_profile_target.*`
 - Stable accepted copy:
-  `/mnt/c/Users/dspfa/TempWestlake/accepted/mcd_profile/5f14bf74ba30adecc73c99f7a1ac06ca992b1dc86b49616632702313d152f896_50477eccecc86fa5ecd8144d26b3930ec60d68c3b952708d66aba934ea448933/`
+  `/mnt/c/Users/dspfa/TempWestlake/accepted/mcd_profile/c3f06213348aa9d6c547fa7951f5821f36c6bb971639cf4161ea423cb557bd01_50477eccecc86fa5ecd8144d26b3930ec60d68c3b952708d66aba934ea448933/`
 - Key launch/XML markers:
   `MCD_PROFILE_GENERIC_ACTIVITY_FACTORY_OK ... factory=default`,
   `MCD_PROFILE_WAT_ACTIVITY_LAUNCH_OK`,
@@ -56,7 +57,9 @@ PF-466 evidence:
   `MCD_PROFILE_REST_POST_OK status=200 bytes=100 protocol=2 transport=host_bridge`,
   `MCD_PROFILE_REST_HEAD_OK status=200 bytes=0`,
   `MCD_PROFILE_REST_MATRIX_OK post=200 head=200 status=418 transport=host_bridge`,
-  `MCD_PROFILE_CHECKOUT_OK count=1 totalCents=529 storage=true`,
+  `MCD_PROFILE_CART_ADD_OK count=2 totalCents=1178 ...`,
+  `MCD_PROFILE_CHECKOUT_OK count=2 totalCents=1178 storage=true`,
+  `MCD_PROFILE_DIRECT_FRAME_OK reason=checkout_touch_up ... checkedOut=true`,
   `MCD_PROFILE_NAV_DEALS_OK network=1`, and
   `MCD_PROFILE_NAV_MENU_OK tab=menu`
 
@@ -73,9 +76,9 @@ hard gaps are generalizing the accepted WAT/AppComponentFactory launch slice to
 arbitrary stock McDonald's activities, runtime object-array correctness beyond
 the fixed resource-table parser case, broader libcore charset/provider/default
 encoding correctness beyond the accepted UTF-8 payload slice, upstream Material
-XML/theming, generic View draw/hit/scroll, PF-474 post-checkout direct-frame
-SIGBUS root-cause, streamed multi-image networking/direct libcore networking
-parity, and OHOS host parity for the same PF-466 contract.
+XML/theming, generic View draw/hit/scroll, streamed multi-image
+networking/direct libcore networking parity, and OHOS host parity for the same
+PF-466 contract.
 
 ## Previous Supervisor Status (2026-04-27)
 
