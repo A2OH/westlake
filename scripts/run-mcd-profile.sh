@@ -346,6 +346,8 @@ PY
 )"
         "${ADB[@]}" shell input tap $coords >/dev/null 2>&1 || true
     }
+    frame_tap 120 360
+    sleep 1
     frame_tap 286 322
     sleep 1
     frame_tap 420 482
@@ -445,6 +447,9 @@ require_log_marker "Surface buffer 1080x2280 for $MCD_PKG" "1K/full-phone McD-pr
 if [ "$INTERACT" = "1" ]; then
     require_marker "^MCD_PROFILE_TOUCH_POLL_READY " "TOUCH_POLL_READY"
     require_marker "^MCD_PROFILE_TOUCH_POLL_OK " "TOUCH_POLL_OK"
+    require_marker "^MCD_PROFILE_GENERIC_TOUCH_OK .*action=touch_up .*adapter=true" "GENERIC_TOUCH adapter target"
+    require_marker "^MCD_PROFILE_GENERIC_LIST_HIT_OK .*position=[0-9]+ .*clicked=true" "GENERIC_LIST_HIT clicked"
+    require_marker "^MCD_PROFILE_ADAPTER_ITEM_CLICK_OK " "ADAPTER_ITEM_CLICK generic"
     require_marker "^MCD_PROFILE_CATEGORY_OK " "CATEGORY_OK"
     require_marker "^MCD_PROFILE_SELECT_ITEM_OK " "SELECT_ITEM_OK"
     require_marker "^MCD_PROFILE_CART_ADD_OK count=2 " "CART_ADD_OK repeated-cart"

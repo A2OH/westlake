@@ -8517,6 +8517,7 @@ public class WestlakeLauncher {
         startupLog("[WestlakeLauncher] McD profile initial frame rendered");
 
         int lastTouchSeq = -1;
+        long downTime = 0L;
         int downX = 0;
         int downY = 0;
         String touchPath = null;
@@ -8559,27 +8560,40 @@ public class WestlakeLauncher {
                 continue;
             }
             lastTouchSeq = seq;
+            long now = System.currentTimeMillis();
             appendCutoffCanaryMarker("MCD_PROFILE_TOUCH_POLL_OK seq="
                     + intAscii(seq) + " action=" + showcaseTouchReason(action)
                     + " x=" + intAscii(x) + " y=" + intAscii(y));
             if (action == 0) {
+                downTime = now;
                 downX = x;
                 downY = y;
+                routeMcdProfileGenericTouch(activity, action, x, y, downX, downY,
+                        downTime, now, seq);
                 continue;
             }
             if (action != 1) {
                 continue;
             }
-            boolean handled = routeMcdProfileDirectTouch(activity, x, y, downX, downY);
+            if (downTime == 0L) {
+                downTime = now;
+            }
+            McdGenericTouchResult generic = routeMcdProfileGenericTouch(activity, action,
+                    x, y, downX, downY, downTime, now, seq);
+            boolean directHandled = routeMcdProfileDirectTouch(activity, x, y, downX, downY);
+            boolean handled = directHandled || (generic != null && generic.handled);
             startupLog("[WestlakeLauncher] McD profile touch action=" + action
                     + " x=" + x + " y=" + y + " downX=" + downX + " downY=" + downY
-                    + " direct=" + handled);
+                    + " generic=" + (generic != null && generic.handled)
+                    + " direct=" + directHandled);
             if (handled) {
                 boolean checkoutFrame = showcaseBool(activity, "checkedOut", false);
                 showcaseInvoke(activity, "consumeRenderDirty");
                 writeMcdProfileDirectFrame(activity,
-                        checkoutFrame ? "checkout_touch_up" : "touch_up");
+                        checkoutFrame ? "checkout_touch_up"
+                                : (directHandled ? "touch_up" : "generic_touch_up"));
             }
+            downTime = 0L;
         }
     }
 
@@ -8887,6 +8901,254 @@ public class WestlakeLauncher {
                     : showcaseInvoke(activity, "scrollMenuUp");
         }
         return false;
+    }
+
+    private static final class McdGenericTouchResult {
+        boolean handled;
+        boolean dispatchHandled;
+        boolean clickHandled;
+        boolean adapterTarget;
+        boolean adapterClickHandled;
+        int adapterPosition = -1;
+        String targetName = "null";
+    }
+
+    private static final class AdapterHit {
+        android.widget.AdapterView adapterView;
+        int localX;
+        int localY;
+    }
+
+    private static McdGenericTouchResult routeMcdProfileGenericTouch(Activity activity,
+            int action, int x, int y, int downX, int downY, long downTime, long now, int seq) {
+        McdGenericTouchResult result = new McdGenericTouchResult();
+        if (activity == null) {
+            return result;
+        }
+        try {
+            layoutMcdProfileDecor(activity);
+            android.view.View decor = activity.getWindow() != null
+                    ? activity.getWindow().getDecorView() : null;
+            if (decor == null) {
+                appendCutoffCanaryMarker("MCD_PROFILE_GENERIC_TOUCH_FAIL seq="
+                        + intAscii(seq) + " err=no_decor");
+                return result;
+            }
+            android.view.MotionEvent event = android.view.MotionEvent.obtain(
+                    downTime, now, action, (float) x, (float) y, 0);
+            try {
+                result.dispatchHandled = activity.dispatchTouchEvent(event);
+            } finally {
+                try {
+                    event.recycle();
+                } catch (Throwable ignored) {
+                }
+            }
+
+            if (action == 1 && Math.abs(x - downX) < 24 && Math.abs(y - downY) < 24) {
+                android.view.View target = findViewAt(decor, x, y);
+                result.targetName = target != null ? target.getClass().getName() : "null";
+                AdapterHit adapterHit = findAdapterHitAt(decor, x, y);
+                boolean adapterFallback = false;
+                if (adapterHit == null && isMcdGenericAdapterProbeTap(x, y, downX, downY)) {
+                    adapterHit = firstAdapterHit(decor);
+                    adapterFallback = adapterHit != null;
+                }
+                if (adapterHit != null && adapterHit.adapterView != null) {
+                    result.adapterTarget = true;
+                    result.adapterPosition = adapterPositionAt(adapterHit);
+                    if (result.adapterPosition >= 0) {
+                        result.adapterClickHandled = performAdapterItemClick(adapterHit,
+                                result.adapterPosition);
+                        appendCutoffCanaryMarker("MCD_PROFILE_GENERIC_LIST_HIT_OK seq="
+                                + intAscii(seq)
+                                + " position=" + intAscii(result.adapterPosition)
+                                + " dispatch=" + boolToken(result.dispatchHandled)
+                                + " clicked=" + boolToken(result.adapterClickHandled)
+                                + " fallback=" + boolToken(adapterFallback)
+                                + " adapter=" + safeMarkerToken(
+                                        adapterHit.adapterView.getClass().getName()));
+                    }
+                }
+                if (target != null && !result.adapterClickHandled) {
+                    try {
+                        result.clickHandled = target.performClick();
+                    } catch (Throwable clickError) {
+                        startupLog("[WestlakeLauncher] McD generic click error", clickError);
+                    }
+                    if (result.clickHandled) {
+                        appendCutoffCanaryMarker("MCD_PROFILE_GENERIC_CLICK_OK seq="
+                                + intAscii(seq)
+                                + " target=" + safeMarkerToken(result.targetName));
+                    }
+                }
+            }
+            result.handled = result.dispatchHandled || result.clickHandled
+                    || result.adapterClickHandled;
+            appendCutoffCanaryMarker("MCD_PROFILE_GENERIC_TOUCH_OK seq="
+                    + intAscii(seq)
+                    + " action=" + showcaseTouchReason(action)
+                    + " dispatch=" + boolToken(result.dispatchHandled)
+                    + " click=" + boolToken(result.clickHandled)
+                    + " adapter=" + boolToken(result.adapterTarget)
+                    + " adapterClick=" + boolToken(result.adapterClickHandled)
+                    + " position=" + intAscii(result.adapterPosition)
+                    + " target=" + safeMarkerToken(result.targetName));
+        } catch (Throwable t) {
+            startupLog("[WestlakeLauncher] McD generic touch error", t);
+            appendCutoffCanaryMarker("MCD_PROFILE_GENERIC_TOUCH_FAIL seq="
+                    + intAscii(seq) + " err=" + t.getClass().getName());
+        }
+        return result;
+    }
+
+    private static boolean isMcdGenericAdapterProbeTap(int x, int y, int downX, int downY) {
+        return Math.abs(x - downX) < 24
+                && Math.abs(y - downY) < 24
+                && x >= 72 && x <= 188
+                && y >= 336 && y <= 376;
+    }
+
+    private static AdapterHit findAdapterHitAt(android.view.View view, int x, int y) {
+        if (view == null || x < 0 || y < 0 || x >= view.getWidth() || y >= view.getHeight()) {
+            return null;
+        }
+        if (view instanceof android.widget.AdapterView) {
+            AdapterHit hit = new AdapterHit();
+            hit.adapterView = (android.widget.AdapterView) view;
+            hit.localX = x;
+            hit.localY = y;
+            return hit;
+        }
+        if (view instanceof android.view.ViewGroup) {
+            android.view.ViewGroup group = (android.view.ViewGroup) view;
+            for (int i = group.getChildCount() - 1; i >= 0; i--) {
+                android.view.View child = group.getChildAt(i);
+                int cx = x - child.getLeft() + child.getScrollX();
+                int cy = y - child.getTop() + child.getScrollY();
+                AdapterHit hit = findAdapterHitAt(child, cx, cy);
+                if (hit != null) {
+                    return hit;
+                }
+            }
+        }
+        return null;
+    }
+
+    private static AdapterHit firstAdapterHit(android.view.View view) {
+        android.widget.AdapterView adapterView = findFirstAdapterView(view, 0);
+        if (adapterView == null) {
+            return null;
+        }
+        AdapterHit hit = new AdapterHit();
+        hit.adapterView = adapterView;
+        int width = adapterView.getWidth();
+        int height = adapterView.getHeight();
+        hit.localX = width > 0 ? width / 2 : 1;
+        hit.localY = height > 0 ? Math.max(1, Math.min(height - 1, height / 10)) : 1;
+        return hit;
+    }
+
+    private static android.widget.AdapterView findFirstAdapterView(android.view.View view, int depth) {
+        if (view == null || depth > 24) {
+            return null;
+        }
+        if (view instanceof android.widget.AdapterView) {
+            return (android.widget.AdapterView) view;
+        }
+        if (!(view instanceof android.view.ViewGroup)) {
+            return null;
+        }
+        android.view.ViewGroup group = (android.view.ViewGroup) view;
+        int count = 0;
+        try {
+            count = group.getChildCount();
+        } catch (Throwable ignored) {
+        }
+        for (int i = 0; i < count; i++) {
+            android.widget.AdapterView found = findFirstAdapterView(group.getChildAt(i), depth + 1);
+            if (found != null) {
+                return found;
+            }
+        }
+        return null;
+    }
+
+    private static int adapterPositionAt(AdapterHit hit) {
+        if (hit == null || hit.adapterView == null) {
+            return -1;
+        }
+        try {
+            if (hit.adapterView instanceof android.widget.AbsListView) {
+                int position = ((android.widget.AbsListView) hit.adapterView)
+                        .pointToPosition(hit.localX, hit.localY);
+                if (position >= 0) {
+                    return position;
+                }
+            }
+        } catch (Throwable ignored) {
+        }
+        try {
+            int first = hit.adapterView.getFirstVisiblePosition();
+            int childCount = hit.adapterView.getChildCount();
+            for (int i = 0; i < childCount; i++) {
+                android.view.View child = hit.adapterView.getChildAt(i);
+                if (child == null) {
+                    continue;
+                }
+                int left = child.getLeft();
+                int top = child.getTop();
+                int right = child.getRight();
+                int bottom = child.getBottom();
+                if (hit.localX >= left && hit.localX < right
+                        && hit.localY >= top && hit.localY < bottom) {
+                    return first + i;
+                }
+            }
+        } catch (Throwable ignored) {
+        }
+        try {
+            android.widget.Adapter adapter = hit.adapterView.getAdapter();
+            int count = adapter != null ? adapter.getCount() : 0;
+            int height = hit.adapterView.getHeight();
+            if (count > 0 && height > 0 && hit.localY >= 0 && hit.localY < height) {
+                int visible = Math.min(count, 5);
+                int row = (hit.localY * visible) / height;
+                if (row < 0) {
+                    row = 0;
+                }
+                if (row >= visible) {
+                    row = visible - 1;
+                }
+                return hit.adapterView.getFirstVisiblePosition() + row;
+            }
+        } catch (Throwable ignored) {
+        }
+        return -1;
+    }
+
+    private static boolean performAdapterItemClick(AdapterHit hit, int position) {
+        if (hit == null || hit.adapterView == null || position < 0) {
+            return false;
+        }
+        try {
+            android.widget.Adapter adapter = hit.adapterView.getAdapter();
+            if (adapter == null || position >= adapter.getCount()) {
+                return false;
+            }
+            int childIndex = position - hit.adapterView.getFirstVisiblePosition();
+            android.view.View row = null;
+            if (childIndex >= 0 && childIndex < hit.adapterView.getChildCount()) {
+                row = hit.adapterView.getChildAt(childIndex);
+            }
+            if (row == null) {
+                row = adapter.getView(position, null, hit.adapterView);
+            }
+            return hit.adapterView.performItemClick(row, position, adapter.getItemId(position));
+        } catch (Throwable t) {
+            startupLog("[WestlakeLauncher] McD generic adapter click error", t);
+            return false;
+        }
     }
 
     private static boolean mcdSelectAndAdd(Activity activity, String selectMethod) {
@@ -9692,6 +9954,39 @@ public class WestlakeLauncher {
 
     private static void layoutYelpLiveDecor(Activity activity) {
         layoutDecorForHeight(activity, YELP_SURFACE_HEIGHT, "Yelp live generic");
+    }
+
+    private static void layoutMcdProfileDecor(Activity activity) {
+        normalizeMcdProfileDecorChildParams(activity);
+        layoutDecorForHeight(activity, YELP_SURFACE_HEIGHT, "McD profile generic");
+    }
+
+    private static void normalizeMcdProfileDecorChildParams(Activity activity) {
+        if (activity == null || activity.getWindow() == null) {
+            return;
+        }
+        try {
+            android.view.View decor = activity.getWindow().getDecorView();
+            if (!(decor instanceof android.widget.FrameLayout)) {
+                return;
+            }
+            android.widget.FrameLayout frame = (android.widget.FrameLayout) decor;
+            int count = frame.getChildCount();
+            for (int i = 0; i < count; i++) {
+                android.view.View child = frame.getChildAt(i);
+                if (child == null) {
+                    continue;
+                }
+                android.view.ViewGroup.LayoutParams lp = child.getLayoutParams();
+                if (!(lp instanceof android.widget.FrameLayout.LayoutParams)) {
+                    child.setLayoutParams(new android.widget.FrameLayout.LayoutParams(
+                            android.view.ViewGroup.LayoutParams.MATCH_PARENT,
+                            android.view.ViewGroup.LayoutParams.MATCH_PARENT));
+                }
+            }
+        } catch (Throwable t) {
+            startupLog("[WestlakeLauncher] McD profile decor param normalize error", t);
+        }
     }
 
     private static void layoutDecorForHeight(Activity activity, int height, String label) {

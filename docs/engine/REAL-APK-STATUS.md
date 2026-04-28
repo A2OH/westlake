@@ -16,6 +16,12 @@ The latest accepted phone run also launches the McD-profile Activity through
 the XML `ListView`, drives its adapter through position `4`, and accepts cart
 count `2`, checkout, and Deals/Menu navigation markers with `checkedOut=true`
 frame proof.
+The latest PF-475 sidecar additionally proves touch-file packets can be
+dispatched as `MotionEvent`s into that inflated XML tree and can trigger
+generic checkout `MaterialButton` click plus XML `ListView`
+`AdapterView.performItemClick()` markers. It does not yet replace the
+McD-profile direct renderer/router, and the accepted list hit still records
+`fallback=true`.
 
 This is not the real McDonald's APK. It supersedes older MockDonalds-only
 status as the current practical OHOS port target because it is a richer

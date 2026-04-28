@@ -23,6 +23,11 @@ The app is intentionally self-contained:
 - full-phone `DLST` rendering through repeated-cart and post-checkout
   navigation frames, with strict touch-file input through checkout/navigation
   markers.
+- controlled generic XML input/list sidecar: touch packets are dispatched as
+  `MotionEvent`s into the inflated View tree, the checkout `MaterialButton`
+  records a generic click, and the XML `ListView` invokes the app
+  `AdapterView.performItemClick()` listener through the current controlled
+  adapter-probe fallback.
 
 It is not a stock APK compatibility claim. It is the first controlled
 McD-class mock app that should be ported to OHOS because every southbound
@@ -41,8 +46,8 @@ Accepted device: `cfb7c9e3`.
 Accepted hashes:
 
 - `dalvikvm=2dd479e0c7f98e8fd3c4c09b539bfe30fe1c39b119d36e034af68c6bcaada6cf`
-- `aosp-shim.dex=c3f06213348aa9d6c547fa7951f5821f36c6bb971639cf4161ea423cb557bd01`
-- `westlake-host.apk=caee1fedf88e357585136f026a19600247f1c33ddfeaa3fff518ff1a49d7942a`
+- `aosp-shim.dex=4f031943201092d281740a87aef41d0083f91304cae2e98685bacabb686336f1`
+- `westlake-host.apk=f10b74df091f7c327614361ccb0b298f39be16f08f2aa9d9f835e6a7d0749b34`
 - `westlake-mcd-profile-debug.apk=50477eccecc86fa5ecd8144d26b3930ec60d68c3b952708d66aba934ea448933`
 
 Accepted artifacts:
@@ -52,7 +57,7 @@ Accepted artifacts:
 - `/mnt/c/Users/dspfa/TempWestlake/mcd_profile_target.trace`
 - `/mnt/c/Users/dspfa/TempWestlake/mcd_profile_target.png`
 - `/mnt/c/Users/dspfa/TempWestlake/mcd_profile_target.visual`
-- `/mnt/c/Users/dspfa/TempWestlake/accepted/mcd_profile/c3f06213348aa9d6c547fa7951f5821f36c6bb971639cf4161ea423cb557bd01_50477eccecc86fa5ecd8144d26b3930ec60d68c3b952708d66aba934ea448933/`
+- `/mnt/c/Users/dspfa/TempWestlake/accepted/mcd_profile/4f031943201092d281740a87aef41d0083f91304cae2e98685bacabb686336f1_50477eccecc86fa5ecd8144d26b3930ec60d68c3b952708d66aba934ea448933/`
 
 Key accepted launch and XML markers:
 
@@ -66,6 +71,10 @@ Key accepted launch and XML markers:
   `BottomNavigationView`, and `ListView`
 - `MCD_PROFILE_XML_BIND_OK list=true ... materialViews=10`
 - `MCD_PROFILE_ADAPTER_GET_VIEW_OK position=4`
+- `MCD_PROFILE_GENERIC_TOUCH_OK ... action=touch_up ... adapter=true adapterClick=true position=4`
+- `MCD_PROFILE_GENERIC_LIST_HIT_OK ... position=4 ... clicked=true fallback=true adapter=android.widget.ListView`
+- `MCD_PROFILE_ADAPTER_ITEM_CLICK_OK position=4 id=4 count=5`
+- `MCD_PROFILE_GENERIC_CLICK_OK ... target=com.google.android.material.button.MaterialButton`
 - `MCD_PROFILE_XML_LAYOUT_PROBE_OK target=480x1013 measured=480x1013`
 - `MCD_PROFILE_XML_INFLATE_OK ... views=25 materialViews=10 source=compiled_apk_xml`
 - `MCD_PROFILE_CHARSET_UTF8_OK bytes=24`
@@ -113,7 +122,10 @@ phone touch
   -> Westlake host SurfaceView touch listener
   -> westlake_touch.dat
   -> WestlakeLauncher strict touch poll loop
-  -> McD-profile action methods
+  -> generic sidecar dispatch as MotionEvent into the inflated View tree
+     plus findViewAt / AdapterView.performItemClick probes where available
+  -> McD-profile direct coordinate router for the still-direct frame path
+  -> guest app action methods
   -> new DLST frame
 ```
 
@@ -230,10 +242,13 @@ PF-466 is useful because it exposes the next real gaps:
 - Material XML is not upstream-complete. Full Material Components AAR
   compatibility, themes, Coordinator/AppBar behaviors, ripple, animation, and
   generic Material rendering remain open.
-- Rendering and touch are still McD-profile controlled. The visible frame comes
+- Rendering and touch are still McD-profile controlled. PF-475 accepts a
+  sidecar for generic `MotionEvent` dispatch, checkout `MaterialButton` click,
+  and XML `ListView` item-click invocation, but the visible frame still comes
   from a McD-specific `DLST` writer and coordinate router in
   `WestlakeLauncher`, not a full generic Android `View.draw()` and hit-test
-  pipeline.
+  pipeline. The accepted list hit records `fallback=true`, so broad coordinate
+  hit testing remains open.
 - PF-474 is accepted for the controlled direct renderer: repeated-cart and
   post-checkout frames are emitted and verified, with touch-driven dirty
   invalidation coalesced into the touch frame to avoid the previous redundant
@@ -253,9 +268,12 @@ PF-466 is useful because it exposes the next real gaps:
    menu models.
 5. Broaden libcore charset/provider/default-encoding behavior beyond the
    accepted PF-466 `String.getBytes("UTF-8")` payload slice.
-6. Move McD-profile rendering from the direct frame writer to generic inflated
-   View draw/hit/scroll/adapter paths.
-7. Expand networking/images to streamed multi-image transport and real REST
+6. Remove the PF-475 generic adapter fallback by making coordinates hit the
+   actual laid-out `ListView` rows.
+7. Align the visible frame with the generic inflated View tree, then replace
+   the McD-profile direct frame writer/router with generic View
+   draw/hit/scroll/adapter paths.
+8. Expand networking/images to streamed multi-image transport and real REST
    matrix execution.
-8. Swap controlled McD-profile API calls for real stock McDonald's API-surface
+9. Swap controlled McD-profile API calls for real stock McDonald's API-surface
    shims until the stock APK can run without app code changes.

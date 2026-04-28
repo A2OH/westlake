@@ -20,6 +20,12 @@ latest accepted run launches through
 the XML `ListView`, probes layout measurement, exercises adapter row binding
 through position `4`, and accepts cart count `2`, checkout, and Deals/Menu
 navigation markers with `checkedOut=true` frame proof.
+The newest PF-475 sidecar also dispatches touch-file packets as `MotionEvent`s
+into that inflated XML tree and proves generic checkout `MaterialButton` click
+plus XML `ListView` `AdapterView.performItemClick()` markers. This is still a
+controlled probe: visible McD-profile frames use the direct `DLST` renderer,
+and the accepted list hit uses a `fallback=true` adapter probe rather than
+broad generic coordinate hit testing.
 Treat PF-466 as the immediate OHOS port target for the controlled mock app and
 the older MockDonalds plan below as historical background plus a headless/API
 regression ladder.
@@ -28,9 +34,9 @@ Remaining gaps before a stock McDonald's APK are generalizing the accepted
 WAT/AppComponentFactory launch slice beyond this controlled app, object-array
 runtime correctness beyond the fixed resource-table parser case, broader
 libcore charset/provider/default encoding beyond the accepted UTF-8 payload
-slice, upstream Material XML/theming, generic View draw/hit/scroll, streamed
-multi-image networking/direct libcore networking parity, and OHOS adapter
-parity for the PF-466 contracts.
+slice, upstream Material XML/theming, generic View draw/hit/scroll without the
+PF-475 fallback, streamed multi-image networking/direct libcore networking
+parity, and OHOS adapter parity for the PF-466 contracts.
 
 ## Goal
 
