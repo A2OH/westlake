@@ -43,24 +43,26 @@ Latest verified real McDonald's progress on 2026-04-29:
   `Programmatic HomeDashboardFragment attached`.
 
 The current blocker is still before first real dashboard paint. The
-`c90d15a...` runtime plus `a9b115...` shim phone proof no longer emits the
+`d7bb5761...` runtime plus `a9b115...` shim phone proof no longer emits the
 earlier `ApplicationNotificationBinding` missing-tag marker and no longer logs
-a fatal signal in the captured window. It still throws the Material
-`BottomNavigationView` self-cast `ClassCastException`, proving a duplicate
-class identity problem between Westlake-owned Material shim classes and
-app-loader upstream Material classes. The visible screenshot is a valid
-`1080x2280` mostly blank Westlake frame, not the real McDonald's dashboard.
+a fatal signal in the captured window. It also moves past the Material
+`BottomNavigationView` self-cast `ClassCastException` by making Material
+boot/shim-owned on this path. The next `HomeDashboardActivity.onCreate`
+blocker is `NullPointerException` on `RestaurantModuleInteractor.s()`, so the
+frontier has moved to app dependency/Hilt state. The visible screenshot is a
+valid `1080x2280` mostly blank Westlake frame, not the real McDonald's
+dashboard.
 
 Latest accepted real-McD proof:
 
-- `dalvikvm=c90d15a2e73be1bf6908ff713a5af18cf30736bfd396c609cffb3f0eec78f19f`
+- `dalvikvm=d7bb5761ea16d56ff41ce49a6499627748054d3af8413bb44e1615ec9dd2f8d2`
 - `aosp-shim.dex=a9b115a81dba519991d20aa3e48e52f701abec43b71dd652cf07c933856bf40e`
 - `westlake-host.apk=f080e20e9e96a6965be74a7ed38ea4369de38200b71054ffdeca6949b5b5d3a3`
 - log:
-  `/mnt/c/Users/dspfa/TempWestlake/real_mcd/real_mcd_20260429_125936.log`
-  (`cd591d060b5617d969e18e3bdb75624473ca93eeea06aafaeec63e7d4633a077`)
+  `/mnt/c/Users/dspfa/TempWestlake/real_mcd/real_mcd_material_policy_20260429_130813.log`
+  (`57eb43e76d70f277dad79527e496a27699fba537a6a7f25753e108d8ba90ebbf`)
 - screenshot:
-  `/mnt/c/Users/dspfa/TempWestlake/real_mcd/real_mcd_20260429_125936.png`
+  `/mnt/c/Users/dspfa/TempWestlake/real_mcd/real_mcd_material_policy_20260429_130813.png`
   (`a4ae352c727c2c8f182275b68beb48543c258ffa4eb6652ed006ea7d103d3bd3`)
 
 Rejected runtime candidate:
@@ -68,21 +70,25 @@ Rejected runtime candidate:
 - `dalvikvm=7523774ecfdabeec733718326a3f74e87ce51aa080b28237a741f253be0efadb`
   regressed before Splash/Dashboard and must not replace the accepted
   `c90d15a...` runtime.
+- `dalvikvm=d7bb5761ea16d56ff41ce49a6499627748054d3af8413bb44e1615ec9dd2f8d2`
+  is accepted as a phone-proven one-byte Material policy derivative of
+  baseline `c90d15a...`; clean source rebuild/reproducibility remains open.
 
 Current supervisor order:
 
-1. close Material class identity at ART/classloader resolution so app bytecode
-   and Westlake XML inflation see one `com.google.android.material.*` class
-   definition;
-2. replace the strict-mode McD fragment lifecycle skips with a generic
+1. close the `RestaurantModuleInteractor.s()` null dependency/state gap in
+   `HomeDashboardActivity.onCreate`;
+2. source-reproduce the accepted boot-owned Material class policy instead of
+   relying on the current one-byte runtime derivative;
+3. replace the strict-mode McD fragment lifecycle skips with a generic
    app-AndroidX compatible attach/transaction path;
-3. make the attached `HomeDashboardFragment` produce visible real dashboard
+4. make the attached `HomeDashboardFragment` produce visible real dashboard
    content through generic View rendering/layout;
-4. isolate and fix the next `SIGBUS` if the next real dashboard step exposes a
+5. isolate and fix the next `SIGBUS` if the next real dashboard step exposes a
    runtime dispatch fault;
-5. rerun the real McDonald's APK after each runtime/shim change and accept only
+6. rerun the real McDonald's APK after each runtime/shim change and accept only
    evidence that advances the real dashboard path;
-6. keep the southbound contracts portable for OHOS.
+7. keep the southbound contracts portable for OHOS.
 
 Primary live docs:
 

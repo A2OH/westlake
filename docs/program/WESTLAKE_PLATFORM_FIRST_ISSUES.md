@@ -160,41 +160,49 @@ McDonald's-class stock APK are documented in
   `HomeDashboardActivity.onCreate`. The previous Gson annotation proxy,
   `sun.misc.Unsafe.allocateInstance()`, `TimeZone.getDefault()`, ICU regex, and
   `DataSourceModuleProvider.v()` interface-dispatch blockers are no longer the
-  latest frontier in the current phone proof. The `c90d15a...` runtime plus
+  latest frontier in the current phone proof. The `d7bb5761...` runtime plus
   `a9b115...` shim proof no longer emits `DATABINDING_TAG_NULL` or
   `ApplicationNotificationBinding`, and the current accepted log has no fatal
-  signal marker. The proof now bypasses app FragmentManager `commitNow()` and
-  `HomeDashboardFragment.performAttach()` in strict mode, reaches
+  signal marker. The proof also moves past the Material
+  `BottomNavigationView` self-cast `ClassCastException`. It now bypasses app
+  FragmentManager `commitNow()` and `HomeDashboardFragment.performAttach()` in
+  strict mode, reaches
   `HomeDashboardFragment.performCreate()`, `performCreateView()`, attaches a
   `ScrollView`, invokes `performActivityCreated()`, and logs
   `Programmatic HomeDashboardFragment attached`. The latest blocker before
-  first real dashboard UI is still Material class identity:
-  `BottomNavigationView` cannot be cast to itself because app-loader upstream
-  Material and Westlake-owned shim Material resolve as different classes.
+  first real dashboard UI is now an app dependency/state NPE:
+  `RestaurantModuleInteractor.s()` is invoked on a null receiver.
   Current verified proof:
-  `/mnt/c/Users/dspfa/TempWestlake/real_mcd/real_mcd_20260429_125936.log`
-  (`cd591d060b5617d969e18e3bdb75624473ca93eeea06aafaeec63e7d4633a077`),
+  `/mnt/c/Users/dspfa/TempWestlake/real_mcd/real_mcd_material_policy_20260429_130813.log`
+  (`57eb43e76d70f277dad79527e496a27699fba537a6a7f25753e108d8ba90ebbf`),
   screenshot
-  `/mnt/c/Users/dspfa/TempWestlake/real_mcd/real_mcd_20260429_125936.png`
+  `/mnt/c/Users/dspfa/TempWestlake/real_mcd/real_mcd_material_policy_20260429_130813.png`
   (`a4ae352c727c2c8f182275b68beb48543c258ffa4eb6652ed006ea7d103d3bd3`,
   valid `1080x2280` PNG),
   deployed runtime
-  `c90d15a2e73be1bf6908ff713a5af18cf30736bfd396c609cffb3f0eec78f19f`,
+  `d7bb5761ea16d56ff41ce49a6499627748054d3af8413bb44e1615ec9dd2f8d2`,
   and deployed `aosp-shim.dex`
   `a9b115a81dba519991d20aa3e48e52f701abec43b71dd652cf07c933856bf40e`.
-  The next implementation task is to close Material class ownership and
-  then remove the McD-specific strict-mode lifecycle skips by making
-  app-owned AndroidX fragment attach/transaction work generically.
-- `PF-477` Material class ownership for stock APKs: open. The current
-  dashboard `ClassCastException` proves duplicate definitions for
-  `com.google.android.material.*`. The intended fix is ART/classloader policy:
+  The next implementation task is to close the `RestaurantModuleInteractor`
+  state gap, source-reproduce Material class ownership, and then remove the
+  McD-specific strict-mode lifecycle skips by making app-owned AndroidX
+  fragment attach/transaction work generically.
+- `PF-477` Material class ownership for stock APKs: Android phone boundary
+  accepted with a source-repro gap. The previous dashboard
+  `BottomNavigationView` self-cast proved duplicate definitions for
+  `com.google.android.material.*`. Runtime
+  `d7bb5761ea16d56ff41ce49a6499627748054d3af8413bb44e1615ec9dd2f8d2`
+  is a one-byte derivative of accepted baseline `c90d15a...` that disables
+  Material from the runtime loader-first package list; with that binary, the
+  real McDonald's proof moves past the Material self-cast and reaches the next
+  app-state NPE. The source-level target remains ART/classloader policy:
   Material must be Westlake shim-owned for this path, with app bytecode and XML
   inflation resolving to the same boot/shim class. A local ART source attempt
   to prefer boot/shim Material produced runtime candidate
   `7523774ecfdabeec733718326a3f74e87ce51aa080b28237a741f253be0efadb`, but
   that binary regressed before Splash/Dashboard and is rejected. Keep phone
-  proofs on accepted runtime `c90d15a...` until a new runtime candidate passes
-  bootstrap and dashboard markers.
+  proofs on accepted runtime `d7bb5761...` until a clean source-built runtime
+  passes bootstrap and dashboard markers.
 - `PF-478` real McDonald's fragment lifecycle/rendering: open. The current
   proof reaches `HomeDashboardFragment` creation/view attachment only by
   strict-mode bypasses for app FragmentManager `commitNow()` and
@@ -202,6 +210,13 @@ McDonald's-class stock APK are documented in
   architecture. The contract gap is a generic app-AndroidX compatible
   FragmentManager/Fragment attach path plus visible rendering of the attached
   dashboard view tree.
+- `PF-479` real McDonald's dashboard dependency/state wiring: open. The latest
+  `d7bb5761...` proof now fails inside `HomeDashboardActivity.onCreate` on
+  `RestaurantModuleInteractor.s()` because the receiver is null. This is the
+  next stock-app boundary after Material class ownership: determine whether the
+  missing dependency should be seeded through Hilt/app component state,
+  activity fields, Application singletons, or a broader service/bootstrap
+  contract, without adding a McDonald's-only runtime shortcut.
 
 ## 2026-04-25 Roadmap Corrections
 

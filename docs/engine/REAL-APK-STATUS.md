@@ -23,29 +23,30 @@ Current verified stock McDonald's status:
 
 Current blocker:
 
-- the latest `c90d15a...` runtime plus `a9b115...` shim phone proof no longer
+- the latest `d7bb5761...` runtime plus `a9b115...` shim phone proof no longer
   reports `DATABINDING_TAG_NULL`, `ApplicationNotificationBinding`, or a fatal
   signal in the captured log;
+- the Material `BottomNavigationView` self-cast `ClassCastException` is moved
+  past by a boot-owned Material runtime policy proof;
 - the former FragmentManager `commitNow()` SIGBUS and
   `HomeDashboardFragment.performAttach()` SIGBUS are bypassed in strict mode
   for this proof, exposing the next boundary;
 - `HomeDashboardActivity.onCreate` still throws
-  `ClassCastException: com.google.android.material.bottomnavigation.BottomNavigationView
-  cannot be cast to com.google.android.material.bottomnavigation.BottomNavigationView`.
-  This is a duplicate class identity problem between Westlake-owned Material
-  shim classes and app-loader upstream Material classes.
+  `NullPointerException` on `RestaurantModuleInteractor.s()`. This is now an
+  app dependency/Hilt state gap, not the former Material duplicate-class
+  boundary.
 
 Latest verified phone proof:
 
 - log:
-  `/mnt/c/Users/dspfa/TempWestlake/real_mcd/real_mcd_20260429_125936.log`
-  (`cd591d060b5617d969e18e3bdb75624473ca93eeea06aafaeec63e7d4633a077`)
+  `/mnt/c/Users/dspfa/TempWestlake/real_mcd/real_mcd_material_policy_20260429_130813.log`
+  (`57eb43e76d70f277dad79527e496a27699fba537a6a7f25753e108d8ba90ebbf`)
 - screenshot:
-  `/mnt/c/Users/dspfa/TempWestlake/real_mcd/real_mcd_20260429_125936.png`
+  `/mnt/c/Users/dspfa/TempWestlake/real_mcd/real_mcd_material_policy_20260429_130813.png`
   (`a4ae352c727c2c8f182275b68beb48543c258ffa4eb6652ed006ea7d103d3bd3`,
   valid `1080x2280` PNG)
 - deployed runtime:
-  `c90d15a2e73be1bf6908ff713a5af18cf30736bfd396c609cffb3f0eec78f19f`
+  `d7bb5761ea16d56ff41ce49a6499627748054d3af8413bb44e1615ec9dd2f8d2`
 - deployed shim:
   `a9b115a81dba519991d20aa3e48e52f701abec43b71dd652cf07c933856bf40e`
 - deployed host APK:
@@ -58,11 +59,14 @@ Important runtime note:
   is rejected. It regressed before Splash/Dashboard with an
   `AtomicIntegerFieldUpdater` bootstrap NPE and is not the accepted phone
   runtime.
+- `d7bb5761...` is accepted as a phone-proven one-byte derivative of baseline
+  runtime `c90d15a...`; clean source rebuild/reproducibility remains open.
 
-Next work is to close Material class identity at ART/classloader resolution,
-then replace the McD-specific strict-mode fragment lifecycle skips with a
-generic app-AndroidX compatible attach/transaction path. Mock McD/Yelp visuals
-are not accepted as replacement evidence for this frontier.
+Next work is to close the `RestaurantModuleInteractor.s()` null state gap,
+source-reproduce the accepted Material class-ownership policy, and replace the
+McD-specific strict-mode fragment lifecycle skips with a generic app-AndroidX
+compatible attach/transaction path. Mock McD/Yelp visuals are not accepted as
+replacement evidence for this frontier.
 
 ## Supervisor Update: 2026-04-28
 

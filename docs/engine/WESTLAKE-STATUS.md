@@ -1,7 +1,7 @@
 # Westlake Engine — Status Report
 
 **Date:** 2026-04-29
-**Status:** Platform-first cutoff canary through target `L4WATAPPREFLECT` on phone; PF-451 controlled showcase, PF-452 host/OHBridge network proof, PF-453 separate Yelp live app, PF-454 Material Components canary, PF-455 XML-backed Yelp slice, PF-456 live GET plus REST marker contract, PF-457 Material XML/generic-hit slice, PF-459 generic inflated-View draw slice, PF-460 generic XML hit/scroll probes, PF-461 adapter/list slice, and PF-466/PF-474/PF-475 controlled mock McD profile accepted on phone. The real McDonald's APK now starts under Westlake, reaches `SplashActivity.onCreate`, enters `HomeDashboardActivity.onCreate`, and the latest accepted phone proof programmatically attaches `HomeDashboardFragment` through `performCreate`, `performCreateView`, and `performActivityCreated`. Real visible dashboard paint is still blocked by Material class identity (`BottomNavigationView` self-cast `ClassCastException`) and generic app-AndroidX lifecycle/rendering gaps. OHOS adapters, broader libcore/networking parity, generic UI expansion, and generic stock-McDonald's activity/rendering remain open.
+**Status:** Platform-first cutoff canary through target `L4WATAPPREFLECT` on phone; PF-451 controlled showcase, PF-452 host/OHBridge network proof, PF-453 separate Yelp live app, PF-454 Material Components canary, PF-455 XML-backed Yelp slice, PF-456 live GET plus REST marker contract, PF-457 Material XML/generic-hit slice, PF-459 generic inflated-View draw slice, PF-460 generic XML hit/scroll probes, PF-461 adapter/list slice, and PF-466/PF-474/PF-475 controlled mock McD profile accepted on phone. The real McDonald's APK now starts under Westlake, reaches `SplashActivity.onCreate`, enters `HomeDashboardActivity.onCreate`, clears the Material `BottomNavigationView` self-cast blocker with a boot-owned Material runtime policy proof, and programmatically attaches `HomeDashboardFragment` through `performCreate`, `performCreateView`, and `performActivityCreated`. Real visible dashboard paint is now blocked by app state/Hilt wiring (`RestaurantModuleInteractor.s()` null receiver) plus generic app-AndroidX lifecycle/rendering gaps. OHOS adapters, broader libcore/networking parity, generic UI expansion, and generic stock-McDonald's activity/rendering remain open.
 
 ## Current Supervisor Status (2026-04-29)
 
@@ -43,9 +43,13 @@ Latest accepted stock McDonald's progress:
 - the previous libcore ICU `NumberingSystem` / `CacheBase.getInstance(...)`
   null-receiver and `DataSourceModuleProvider.v()` interface-dispatch blockers
   are no longer the latest frontier in the current phone proof;
-- the `c90d15a...` runtime plus `a9b115...` shim phone proof reaches the real
+- the `d7bb5761...` runtime plus `a9b115...` shim phone proof reaches the real
   dashboard path and no longer emits `DATABINDING_TAG_NULL` or
   `ApplicationNotificationBinding` in the accepted log;
+- the Material `BottomNavigationView` self-cast `ClassCastException` is moved
+  past by disabling Material from the accepted runtime's loader-first package
+  list so `com.google.android.material.*` resolves to the Westlake boot/shim
+  class on this path;
 - the former hard crash in app FragmentManager `commitNow()` is bypassed in
   strict mode, and the former hard crash in reflective
   `HomeDashboardFragment.performAttach()` is bypassed for this probe;
@@ -53,28 +57,34 @@ Latest accepted stock McDonald's progress:
   `performCreateView()`, attaches a `ScrollView`, invokes
   `performActivityCreated()`, and logs
   `Programmatic HomeDashboardFragment attached`;
-- the latest captured log has no `Fatal signal`, `SIGBUS`, or `SIGSEGV`
-  marker, but the real dashboard is not visible yet;
+- the latest captured log has no `Fatal signal`, `SIGBUS`, `SIGSEGV`, or
+  `BottomNavigationView` self-cast marker, but the real dashboard is not
+  visible yet;
 - the visible screen is still a mostly blank Westlake frame, not the real
-  McDonald's dashboard UI, because `HomeDashboardActivity.onCreate` still
-  throws `ClassCastException: com.google.android.material.bottomnavigation.BottomNavigationView
-  cannot be cast to com.google.android.material.bottomnavigation.BottomNavigationView`.
+  McDonald's dashboard UI, because `HomeDashboardActivity.onCreate` now throws
+  `NullPointerException` on
+  `RestaurantModuleInteractor.s()`, indicating the next gap is app dependency
+  injection/state seeding rather than Material class identity.
 
 Latest proof artifacts:
 
 - latest verified runtime deployed on phone:
-  `c90d15a2e73be1bf6908ff713a5af18cf30736bfd396c609cffb3f0eec78f19f`
+  `d7bb5761ea16d56ff41ce49a6499627748054d3af8413bb44e1615ec9dd2f8d2`
 - latest verified `aosp-shim.dex` deployed on phone:
   `a9b115a81dba519991d20aa3e48e52f701abec43b71dd652cf07c933856bf40e`
 - latest verified host APK:
   `f080e20e9e96a6965be74a7ed38ea4369de38200b71054ffdeca6949b5b5d3a3`
 - latest verified log:
-  `/mnt/c/Users/dspfa/TempWestlake/real_mcd/real_mcd_20260429_125936.log`
-  (`cd591d060b5617d969e18e3bdb75624473ca93eeea06aafaeec63e7d4633a077`)
+  `/mnt/c/Users/dspfa/TempWestlake/real_mcd/real_mcd_material_policy_20260429_130813.log`
+  (`57eb43e76d70f277dad79527e496a27699fba537a6a7f25753e108d8ba90ebbf`)
 - latest verified screenshot:
-  `/mnt/c/Users/dspfa/TempWestlake/real_mcd/real_mcd_20260429_125936.png`
+  `/mnt/c/Users/dspfa/TempWestlake/real_mcd/real_mcd_material_policy_20260429_130813.png`
   (`a4ae352c727c2c8f182275b68beb48543c258ffa4eb6652ed006ea7d103d3bd3`,
   valid `1080x2280` PNG)
+- previous accepted baseline runtime:
+  `c90d15a2e73be1bf6908ff713a5af18cf30736bfd396c609cffb3f0eec78f19f`;
+  current `d7bb5761...` is a one-byte material-policy derivative of that
+  runtime. Clean source rebuild/reproducibility remains open.
 - rejected runtime candidate:
   `7523774ecfdabeec733718326a3f74e87ce51aa080b28237a741f253be0efadb`
   regressed before Splash/Dashboard at app bootstrap and is not accepted.
@@ -82,27 +92,28 @@ Latest proof artifacts:
 Supervisor judgement: this is meaningful runtime progress, but it is not close
 to stock McDonald's UI readiness. PF-476 has moved from Java proxy/Unsafe,
 ICU/timezone, Hilt entry startup, app-notification databinding, Material
-construction SIGBUS, FragmentManager `commitNow()` SIGBUS, and
-`performAttach()` SIGBUS into a dashboard-fragment-created-but-not-painted
-state. Until the `BottomNavigationView` class identity boundary is closed and
-generic fragment/view rendering paints real dashboard content, work on UI
-fidelity, Material behavior, network parity, and OHOS host parity cannot prove
-the real stock APK path.
+construction SIGBUS, Material class identity, FragmentManager `commitNow()`
+SIGBUS, and `performAttach()` SIGBUS into a dashboard-fragment-created-but-not-
+painted state with an app dependency NPE. Until the
+`RestaurantModuleInteractor` state gap and generic fragment/view rendering are
+closed, work on UI fidelity, Material behavior, network parity, and OHOS host
+parity cannot prove the real stock APK path.
 
 Current supervisor workstream order:
 
-1. close Material class identity so app bytecode and XML-inflated
-   `com.google.android.material.*` classes resolve to one Westlake-owned class
-   instead of duplicate boot/app definitions;
-2. replace the current strict-mode McD fragment lifecycle skips with a generic
+1. close the new `RestaurantModuleInteractor.s()` null dependency/state gap in
+   `HomeDashboardActivity.onCreate`;
+2. source-reproduce the accepted boot-owned Material policy instead of relying
+   on the current one-byte runtime derivative;
+3. replace the current strict-mode McD fragment lifecycle skips with a generic
    app-AndroidX compatible attach/transaction strategy;
-3. make the attached `HomeDashboardFragment` render visible real content
+4. make the attached `HomeDashboardFragment` render visible real content
    through generic inflated View draw/layout instead of a blank frame;
-4. repair any remaining runtime `SIGBUS` by finding the exact stale quick/JNI
+5. repair any remaining runtime `SIGBUS` by finding the exact stale quick/JNI
    or interpreter dispatch edge behind the next failing frame;
-5. rerun the real McDonald's APK after each runtime/shim change and keep the
+6. rerun the real McDonald's APK after each runtime/shim change and keep the
    dashboard-entry log markers plus screenshot hash as the acceptance signal;
-6. keep all runtime/libcore/databinding repairs portable enough for OHOS, not
+7. keep all runtime/libcore/databinding repairs portable enough for OHOS, not
    app-specific McDonald's stubs.
 
 PF-466 is now accepted on `cfb7c9e3` as the controlled mock McD-profile app
