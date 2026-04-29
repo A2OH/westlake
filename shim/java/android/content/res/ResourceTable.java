@@ -153,14 +153,27 @@ public class ResourceTable {
 
     /** Reverse lookup: find resource ID by "type/name" key */
     public int getIdentifier(String key) {
+        if (key == null) {
+            return 0;
+        }
         for (Map.Entry<Integer, String> entry : mNames.entrySet()) {
             if (key.equals(entry.getValue())) return entry.getKey();
         }
-        // Try partial match (just the name part)
+        int slash = key.indexOf('/');
+        String type = slash > 0 ? key.substring(0, slash) : null;
+        String name = slash >= 0 && slash + 1 < key.length()
+                ? key.substring(slash + 1)
+                : key;
         for (Map.Entry<Integer, String> entry : mNames.entrySet()) {
             String val = entry.getValue();
-            if (val != null && val.endsWith("/" + key)) return entry.getKey();
-            if (val != null && val.endsWith(key)) return entry.getKey();
+            if (val == null) {
+                continue;
+            }
+            if (type != null) {
+                if (val.equals(type + "/" + name)) return entry.getKey();
+            } else if (val.endsWith("/" + name)) {
+                return entry.getKey();
+            }
         }
         return 0;
     }

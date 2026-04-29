@@ -1,19 +1,46 @@
 package android.os;
 
 import com.ohos.shim.bridge.OHBridge;
+import com.ohos.shim.bridge.OHBridgeState;
 
 /**
  * Shim: android.os.Build → @ohos.deviceInfo
  * Tier 1 — direct mapping of device info fields.
  */
 public class Build {
+    private static boolean isStandaloneGuest() {
+        try {
+            return System.getProperty("westlake.apk.package") != null
+                    || System.getProperty("westlake.apk.path") != null
+                    || System.getenv("WESTLAKE_APK_PACKAGE") != null
+                    || System.getenv("WESTLAKE_APK_PATH") != null;
+        } catch (Throwable ignored) {
+            return true;
+        }
+    }
+    private static boolean shouldUseBridge() {
+        if (isStandaloneGuest()) {
+            return false;
+        }
+        try {
+            return OHBridgeState.nativeAvailableSnapshot || !OHBridgeState.subprocessSnapshot;
+        } catch (Throwable ignored) {
+            return false;
+        }
+    }
     private static String safeGetString(String method) {
+        if (!shouldUseBridge()) {
+            return "Westlake";
+        }
         try { return (String) OHBridge.class.getMethod(method).invoke(null); }
-        catch (Exception e) { return "Westlake"; }
+        catch (Throwable e) { return "Westlake"; }
     }
     private static int safeGetInt(String method) {
+        if (!shouldUseBridge()) {
+            return 30;
+        }
         try { return (int) OHBridge.class.getMethod(method).invoke(null); }
-        catch (Exception e) { return 29; } // default to API 29
+        catch (Throwable e) { return 30; }
     }
     public static final String BRAND = safeGetString("getDeviceBrand");
     public static final String MODEL = safeGetString("getDeviceModel");

@@ -23,6 +23,11 @@ import org.xmlpull.v1.XmlPullParser;
 public class LayoutInflater {
     private Context mContext;
     private static final int MCD_LAYOUT_ACTIVITY_HOME_DASHBOARD = 0x7f0e0058;
+    private static final int MCD_LAYOUT_APPLICATION_NOTIFICATION = 0x7f0e00c3;
+    private static final int MCD_LAYOUT_BASE = 0x7f0e00ee;
+    private static final int MCD_LAYOUT_BOTTOM_BAG_BAR = 0x7f0e00fd;
+    private static final int MCD_LAYOUT_BOTTOM_NAVIGATION_BAR = 0x7f0e0100;
+    private static final int MCD_LAYOUT_CAMPAIGN_APPLICATION_NOTIFICATION = 0x7f0e010a;
     private static final int MCD_LAYOUT_FRAGMENT_HOME_DASHBOARD = 0x7f0e027d;
     private static final int MCD_ID_INTERMEDIATE_LAYOUT_CONTAINER = 0x7f0b0b83;
     private static final int MCD_ID_HOME_DASHBOARD_CONTAINER = 0x7f0b0ae8;
@@ -33,10 +38,40 @@ public class LayoutInflater {
     private static final int MCD_ID_PARENT_CONTAINER = 0x7f0b11fa;
     private static final int MCD_ID_IMMERSIVE_CONTAINER = 0x7f0b0b68;
     private static final int MCD_ID_SECTIONS_CONTAINER = 0x7f0b16c5;
+    private static final int MCD_ID_ROOT = 0x7f0b15c9;
+    private static final int MCD_ID_TOAST_NOTIFICATION_ALERT_INFO = 0x7f0b1953;
+    private static final int MCD_ID_ICON_ALERT_TYPE_WARNING = 0x7f0b0b05;
+    private static final int MCD_ID_DISCLOSURE_ICON_ALERT_TYPE_WARNING = 0x7f0b065b;
+    private static final int MCD_ID_TEXT_ALERT_TYPE_WARNING = 0x7f0b18b4;
+    private static final int MCD_ID_VIEW_LINE = 0x7f0b1b26;
+    private static final int MCD_ID_ADD_TO_ORDER = 0x7f0b00ca;
+    private static final int MCD_ID_BAG_ANIMATION_VIEW = 0x7f0b01de;
+    private static final int MCD_ID_BAG_ERROR = 0x7f0b01df;
+    private static final int MCD_ID_BAG_QUANTITY_TEXT = 0x7f0b01e6;
+    private static final int MCD_ID_BOTTOM_BAG = 0x7f0b024d;
+    private static final int MCD_ID_BOTTOM_BAG_BAR_LAYOUT = 0x7f0b024e;
+    private static final int MCD_ID_BOTTOM_BAG_SHADOW = 0x7f0b024f;
+    private static final int MCD_ID_CHEVRON = 0x7f0b03a5;
+    private static final int MCD_ID_CHECKOUT_LAYOUT = 0x7f0b03a3;
+    private static final int MCD_ID_CHECKOUT_NOW_TEXT_VIEW = 0x7f0b03a4;
+    private static final int MCD_ID_CONTENT_VIEW = 0x7f0b04ba;
+    private static final int MCD_ID_DRAWER_LAYOUT = 0x7f0b06a4;
+    private static final int MCD_ID_NAVIGATION = 0x7f0b0efe;
+    private static final int MCD_ID_PAGE_CONTENT = 0x7f0b11e0;
+    private static final int MCD_ID_PAGE_CONTENT_HOLDER = 0x7f0b11e1;
+    private static final int MCD_ID_PAGE_ROOT = 0x7f0b11e3;
+    private static final int MCD_ID_BAG_BAR_V2 = 0x7f0b01d3;
+    private static final int MCD_ID_TOOLBAR = 0x7f0b1965;
+    private static final int MCD_ID_TRANSPARENT_VIEW = 0x7f0b19a6;
+    private static final int MCD_ID_VIEW_FULL_MENU_LAYOUT_TO_ANIMATE = 0x7f0b1b4e;
     private static final int MCD_COLOR_BG_WHITE = 0x7f060405;
     private static final int MCD_COLOR_GREY_BG = 0x7f060453;
     private static final int MCD_DIMEN_409 = 0x7f0704df;
     private static final int MCD_DIMEN_MINUS_139 = 0x7f07051c;
+    private static final int APPCOMPAT_LAYOUT_ABC_DIALOG_TITLE_MATERIAL = 0x7f0e0018;
+    private static final int APPCOMPAT_LAYOUT_ABC_SCREEN_CONTENT_INCLUDE = 0x7f0e0020;
+    private static final int APPCOMPAT_LAYOUT_ABC_SCREEN_SIMPLE = 0x7f0e0021;
+    private static final int APPCOMPAT_LAYOUT_ABC_SCREEN_SIMPLE_OVERLAY_ACTION_MODE = 0x7f0e0022;
 
     // ── Programmatic layout registry ──────────────────────────────────────
     /**
@@ -374,6 +409,79 @@ public class LayoutInflater {
         }
     }
 
+    private View tryInstantiateAppClassView(String className) {
+        if (className == null) {
+            return null;
+        }
+        try {
+            ClassLoader cl = mContext != null ? mContext.getClassLoader() : null;
+            if (cl == null) {
+                cl = Thread.currentThread().getContextClassLoader();
+            }
+            Class cls = cl != null ? Class.forName(className, true, cl) : Class.forName(className);
+            try {
+                return (View) cls.getConstructor(Context.class).newInstance(mContext);
+            } catch (Throwable e1) {
+                try {
+                    return (View) cls.getConstructor(Context.class, android.util.AttributeSet.class)
+                            .newInstance(mContext, null);
+                } catch (Throwable e2) {
+                    try {
+                        return (View) cls.getConstructor().newInstance();
+                    } catch (Throwable e3) {
+                        Throwable cause = e1.getCause() != null ? e1.getCause() : e1;
+                        diag("[LayoutInflater] app-class instantiate failed: " + className
+                                + " err=" + throwableName(cause) + ": " + cause.getMessage());
+                        return null;
+                    }
+                }
+            }
+        } catch (Throwable e) {
+            diag("[LayoutInflater] app-class load failed: " + className
+                    + " err=" + throwableName(e) + ": " + e.getMessage());
+            return null;
+        }
+    }
+
+    private View tryInstantiateMarkedAppShimView(String className, String markerField) {
+        if (className == null || markerField == null) {
+            return null;
+        }
+        try {
+            ClassLoader cl = mContext != null ? mContext.getClassLoader() : null;
+            if (cl == null) {
+                cl = Thread.currentThread().getContextClassLoader();
+            }
+            Class cls = cl != null
+                    ? Class.forName(className, false, cl)
+                    : Class.forName(className, false, null);
+            java.lang.reflect.Field marker = cls.getDeclaredField(markerField);
+            marker.setAccessible(true);
+            Object value = marker.get(null);
+            if (!(value instanceof Boolean) || !((Boolean) value).booleanValue()) {
+                diag("[LayoutInflater] app-class marker false: " + className + "." + markerField);
+                return null;
+            }
+            try {
+                return (View) cls.getConstructor(Context.class).newInstance(mContext);
+            } catch (Throwable e1) {
+                try {
+                    return (View) cls.getConstructor(Context.class, android.util.AttributeSet.class)
+                            .newInstance(mContext, null);
+                } catch (Throwable e2) {
+                    Throwable cause = e1.getCause() != null ? e1.getCause() : e1;
+                    diag("[LayoutInflater] marked app-shim instantiate failed: " + className
+                            + " err=" + throwableName(cause) + ": " + cause.getMessage());
+                    return null;
+                }
+            }
+        } catch (Throwable e) {
+            diag("[LayoutInflater] marked app-shim load failed: " + className
+                    + " err=" + throwableName(e) + ": " + e.getMessage());
+            return null;
+        }
+    }
+
     private View tryInstantiateKnownShimView(String className) {
         if (className == null) {
             return null;
@@ -470,13 +578,133 @@ public class LayoutInflater {
     }
 
     private View maybeBuildKnownMcdLayout(int resource) {
-        if (resource == MCD_LAYOUT_ACTIVITY_HOME_DASHBOARD) {
+        String layoutName = resolveLayoutResourceName(resource);
+        if (resource == MCD_LAYOUT_ACTIVITY_HOME_DASHBOARD
+                || "layout/activity_home_dashboard".equals(layoutName)) {
             return buildMcdActivityHomeDashboard();
         }
-        if (resource == MCD_LAYOUT_FRAGMENT_HOME_DASHBOARD) {
+        if (resource == MCD_LAYOUT_APPLICATION_NOTIFICATION
+                || "layout/application_notification".equals(layoutName)) {
+            return buildMcdApplicationNotification(false);
+        }
+        if (resource == MCD_LAYOUT_BASE
+                || "layout/base_layout".equals(layoutName)) {
+            return buildMcdBaseLayout();
+        }
+        if (resource == MCD_LAYOUT_BOTTOM_BAG_BAR
+                || "layout/bottom_bag_bar".equals(layoutName)) {
+            return buildMcdBottomBagBar();
+        }
+        if (resource == MCD_LAYOUT_BOTTOM_NAVIGATION_BAR
+                || "layout/bottom_navigation_bar".equals(layoutName)) {
+            return buildMcdBottomNavigationBar();
+        }
+        if (resource == MCD_LAYOUT_CAMPAIGN_APPLICATION_NOTIFICATION
+                || "layout/campaign_application_notification".equals(layoutName)) {
+            return buildMcdApplicationNotification(true);
+        }
+        if (resource == MCD_LAYOUT_FRAGMENT_HOME_DASHBOARD
+                || "layout/fragment_home_dashboard".equals(layoutName)) {
             return buildMcdFragmentHomeDashboard();
         }
         return null;
+    }
+
+    private View maybeBuildKnownAppCompatLayout(int resource) {
+        String name = null;
+        try {
+            Resources res = mContext != null ? mContext.getResources() : null;
+            if (res != null) {
+                name = res.getResourceName(resource);
+            }
+        } catch (Throwable ignored) {
+        }
+        boolean contentInclude = resource == APPCOMPAT_LAYOUT_ABC_SCREEN_CONTENT_INCLUDE;
+        boolean simple = resource == APPCOMPAT_LAYOUT_ABC_SCREEN_SIMPLE;
+        boolean simpleOverlay = resource == APPCOMPAT_LAYOUT_ABC_SCREEN_SIMPLE_OVERLAY_ACTION_MODE;
+        boolean dialogTitle = resource == APPCOMPAT_LAYOUT_ABC_DIALOG_TITLE_MATERIAL;
+        if (name != null) {
+            contentInclude |= name.endsWith(":layout/abc_screen_content_include")
+                    || name.endsWith("/abc_screen_content_include");
+            simple |= name.endsWith(":layout/abc_screen_simple")
+                    || name.endsWith("/abc_screen_simple");
+            simpleOverlay |= name.endsWith(":layout/abc_screen_simple_overlay_action_mode")
+                    || name.endsWith("/abc_screen_simple_overlay_action_mode");
+            dialogTitle |= name.endsWith(":layout/abc_dialog_title_material")
+                    || name.endsWith("/abc_dialog_title_material");
+        }
+        if (!contentInclude && !simple && !simpleOverlay && !dialogTitle) {
+            return null;
+        }
+
+        int contentId = resolveStaticResourceId(
+                "androidx.appcompat.R$id", "action_bar_activity_content", 0x7f0b0077);
+        int rootId = resolveStaticResourceId(
+                "androidx.appcompat.R$id", "action_bar_root", 0x7f0b0079);
+        View content = buildAppCompatContentFrame(contentId);
+        try {
+            android.util.Log.i("Westlake", "LayoutInflater AppCompat known layout "
+                    + (name != null ? name : ("0x" + Integer.toHexString(resource)))
+                    + " contentId=0x" + Integer.toHexString(contentId)
+                    + " rootId=0x" + Integer.toHexString(rootId)
+                    + " content=" + classNameOf(content));
+        } catch (Throwable ignored) {
+        }
+        diag("[LayoutInflater] AppCompat known layout " + name
+                + " contentId=0x" + Integer.toHexString(contentId)
+                + " rootId=0x" + Integer.toHexString(rootId)
+                + " content=" + classNameOf(content));
+        if (contentInclude) {
+            return content;
+        }
+
+        ViewGroup root = simpleOverlay
+                ? new android.widget.FrameLayout(mContext)
+                : new LinearLayout(mContext);
+        if (root instanceof LinearLayout) {
+            ((LinearLayout) root).setOrientation(LinearLayout.VERTICAL);
+        }
+        if (rootId != View.NO_ID) {
+            root.setId(rootId);
+        }
+        addCompatChild(root, content);
+        return root;
+    }
+
+    private View buildAppCompatContentFrame(int contentId) {
+        View content = tryInstantiate("androidx.appcompat.widget.ContentFrameLayout");
+        if (!(content instanceof ViewGroup)) {
+            content = new android.widget.FrameLayout(mContext);
+        }
+        if (contentId != 0) {
+            content.setId(contentId);
+        }
+        return content;
+    }
+
+    private int resolveStaticResourceId(String className, String fieldName, int fallback) {
+        ClassLoader[] loaders = new ClassLoader[] {
+                mContext != null ? mContext.getClass().getClassLoader() : null,
+                Thread.currentThread().getContextClassLoader(),
+                LayoutInflater.class.getClassLoader()
+        };
+        for (int i = 0; i < loaders.length; i++) {
+            try {
+                ClassLoader loader = loaders[i];
+                if (loader == null) {
+                    continue;
+                }
+                Class<?> cls = Class.forName(className, false, loader);
+                return cls.getField(fieldName).getInt(null);
+            } catch (Throwable ignored) {
+            }
+        }
+        try {
+            Class<?> cls = Class.forName(className);
+            return cls.getField(fieldName).getInt(null);
+        } catch (Throwable ignored) {
+            return fallback;
+        }
     }
 
     private void addCompatChild(ViewGroup parent, View child) {
@@ -545,6 +773,244 @@ public class LayoutInflater {
         return root;
     }
 
+    private View buildMcdBaseLayout() {
+        androidx.drawerlayout.widget.DrawerLayout drawer =
+                new androidx.drawerlayout.widget.DrawerLayout(mContext);
+        drawer.setId(MCD_ID_DRAWER_LAYOUT);
+        drawer.setBackgroundColor(getColorCompat(MCD_COLOR_BG_WHITE, 0xFFFFFFFF));
+
+        android.widget.FrameLayout content = new android.widget.FrameLayout(mContext);
+        content.setId(MCD_ID_CONTENT_VIEW);
+        content.setBackgroundColor(getColorCompat(MCD_COLOR_BG_WHITE, 0xFFFFFFFF));
+
+        LinearLayout column = new LinearLayout(mContext);
+        column.setOrientation(LinearLayout.VERTICAL);
+        column.setBackgroundColor(getColorCompat(MCD_COLOR_BG_WHITE, 0xFFFFFFFF));
+
+        com.mcdonalds.mcduikit.widget.McDToolBarView toolbar =
+                new com.mcdonalds.mcduikit.widget.McDToolBarView(mContext);
+        toolbar.setId(MCD_ID_TOOLBAR);
+        addCompatChild(column, toolbar);
+
+        LinearLayout pageRoot = new LinearLayout(mContext);
+        pageRoot.setId(MCD_ID_PAGE_ROOT);
+        pageRoot.setOrientation(LinearLayout.VERTICAL);
+
+        android.widget.FrameLayout pageContentHolder = new android.widget.FrameLayout(mContext);
+        pageContentHolder.setId(MCD_ID_PAGE_CONTENT_HOLDER);
+
+        LinearLayout pageContent = new LinearLayout(mContext);
+        pageContent.setId(MCD_ID_PAGE_CONTENT);
+        pageContent.setOrientation(LinearLayout.VERTICAL);
+
+        addCompatChild(pageContentHolder, pageContent);
+        addCompatChild(pageRoot, pageContentHolder);
+        addCompatChild(column, pageRoot);
+
+        com.mcdonalds.mcduikit.widget.McDTextView fullMenu =
+                new com.mcdonalds.mcduikit.widget.McDTextView(mContext);
+        fullMenu.setId(MCD_ID_VIEW_FULL_MENU_LAYOUT_TO_ANIMATE);
+        fullMenu.setVisibility(View.GONE);
+        addCompatChild(column, fullMenu);
+
+        LinearLayout bottomBag = new LinearLayout(mContext);
+        bottomBag.setId(MCD_ID_BOTTOM_BAG);
+        bottomBag.setOrientation(LinearLayout.VERTICAL);
+        bottomBag.setVisibility(View.GONE);
+        addCompatChild(column, bottomBag);
+
+        android.widget.FrameLayout bagBarV2 = new android.widget.FrameLayout(mContext);
+        bagBarV2.setId(MCD_ID_BAG_BAR_V2);
+        bagBarV2.setVisibility(View.GONE);
+        addCompatChild(column, bagBarV2);
+
+        View navigation = buildMcdBottomNavigationBar();
+        addCompatChild(column, navigation);
+
+        addCompatChild(content, column);
+
+        View transparent = new View(mContext);
+        transparent.setId(MCD_ID_TRANSPARENT_VIEW);
+        transparent.setVisibility(View.GONE);
+        addCompatChild(content, transparent);
+
+        addCompatChild(drawer, content);
+        return drawer;
+    }
+
+    private View buildMcdBottomNavigationBar() {
+        com.google.android.material.bottomnavigation.BottomNavigationView nav =
+                new com.google.android.material.bottomnavigation.BottomNavigationView(mContext);
+        nav.setId(MCD_ID_NAVIGATION);
+        nav.setBackgroundColor(getColorCompat(MCD_COLOR_BG_WHITE, 0xFFFFFFFF));
+        return nav;
+    }
+
+    private View buildMcdBottomBagBar() {
+        android.widget.RelativeLayout root = new android.widget.RelativeLayout(mContext);
+        root.setBackgroundColor(0x00000000);
+
+        View shadow = new View(mContext);
+        shadow.setId(MCD_ID_BOTTOM_BAG_SHADOW);
+        shadow.setBackgroundColor(0x33000000);
+        android.widget.RelativeLayout.LayoutParams shadowLp =
+                new android.widget.RelativeLayout.LayoutParams(
+                        ViewGroup.LayoutParams.MATCH_PARENT, 3);
+        root.addView(shadow, shadowLp);
+
+        android.widget.RelativeLayout bar = new android.widget.RelativeLayout(mContext);
+        bar.setId(MCD_ID_BOTTOM_BAG_BAR_LAYOUT);
+        bar.setFocusable(true);
+        bar.setBackgroundColor(0xFF27251F);
+
+        com.mcdonalds.mcduikit.widget.McDTextView added =
+                new com.mcdonalds.mcduikit.widget.McDTextView(mContext);
+        added.setId(MCD_ID_ADD_TO_ORDER);
+        added.setTextColor(0xFFFFFFFF);
+        added.setVisibility(View.GONE);
+        bar.addView(added, new android.widget.RelativeLayout.LayoutParams(
+                ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.MATCH_PARENT));
+
+        LinearLayout checkout = new LinearLayout(mContext);
+        checkout.setId(MCD_ID_CHECKOUT_LAYOUT);
+        checkout.setOrientation(LinearLayout.HORIZONTAL);
+        checkout.setVisibility(View.VISIBLE);
+
+        com.mcdonalds.mcduikit.widget.McDTextView checkoutText =
+                new com.mcdonalds.mcduikit.widget.McDTextView(mContext);
+        checkoutText.setId(MCD_ID_CHECKOUT_NOW_TEXT_VIEW);
+        checkoutText.setTextColor(0xFFFFFFFF);
+        checkout.addView(checkoutText, new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT));
+
+        android.widget.ImageView chevron = new android.widget.ImageView(mContext);
+        chevron.setId(MCD_ID_CHEVRON);
+        checkout.addView(chevron, new LinearLayout.LayoutParams(12, 12));
+
+        android.widget.RelativeLayout.LayoutParams checkoutLp =
+                new android.widget.RelativeLayout.LayoutParams(
+                        ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.MATCH_PARENT);
+        checkoutLp.addRule(android.widget.RelativeLayout.CENTER_VERTICAL);
+        bar.addView(checkout, checkoutLp);
+
+        android.widget.ImageView bagError = new android.widget.ImageView(mContext);
+        bagError.setId(MCD_ID_BAG_ERROR);
+        bagError.setVisibility(View.GONE);
+        android.widget.RelativeLayout.LayoutParams bagErrorLp =
+                new android.widget.RelativeLayout.LayoutParams(32, 32);
+        bagErrorLp.addRule(android.widget.RelativeLayout.ALIGN_PARENT_RIGHT);
+        bagErrorLp.addRule(android.widget.RelativeLayout.CENTER_VERTICAL);
+        bar.addView(bagError, bagErrorLp);
+
+        android.widget.RelativeLayout.LayoutParams barLp =
+                new android.widget.RelativeLayout.LayoutParams(
+                        ViewGroup.LayoutParams.MATCH_PARENT, 50);
+        barLp.addRule(android.widget.RelativeLayout.ALIGN_PARENT_BOTTOM);
+        root.addView(bar, barLp);
+
+        com.airbnb.lottie.LottieAnimationView animation =
+                new com.airbnb.lottie.LottieAnimationView(mContext);
+        animation.setId(MCD_ID_BAG_ANIMATION_VIEW);
+        animation.setVisibility(View.GONE);
+        android.widget.RelativeLayout.LayoutParams animationLp =
+                new android.widget.RelativeLayout.LayoutParams(90, 90);
+        animationLp.addRule(android.widget.RelativeLayout.ALIGN_PARENT_RIGHT);
+        root.addView(animation, animationLp);
+
+        com.mcdonalds.mcduikit.widget.McDTextView quantity =
+                new com.mcdonalds.mcduikit.widget.McDTextView(mContext);
+        quantity.setId(MCD_ID_BAG_QUANTITY_TEXT);
+        quantity.setTextColor(0xFFFFFFFF);
+        quantity.setBackgroundColor(0xFFDA291C);
+        android.widget.RelativeLayout.LayoutParams quantityLp =
+                new android.widget.RelativeLayout.LayoutParams(18, 18);
+        quantityLp.addRule(android.widget.RelativeLayout.ALIGN_PARENT_RIGHT);
+        root.addView(quantity, quantityLp);
+
+        return root;
+    }
+
+    private View buildMcdApplicationNotification(boolean campaign) {
+        androidx.constraintlayout.widget.ConstraintLayout root =
+                new androidx.constraintlayout.widget.ConstraintLayout(mContext);
+        root.setId(MCD_ID_ROOT);
+        root.setTag(campaign
+                ? "layout/campaign_application_notification_0"
+                : "layout/application_notification_0");
+        root.setBackgroundColor(getColorCompat(MCD_COLOR_BG_WHITE, 0xFFFFFFFF));
+
+        android.widget.RelativeLayout alert = new android.widget.RelativeLayout(mContext);
+        alert.setId(MCD_ID_TOAST_NOTIFICATION_ALERT_INFO);
+        alert.setFocusable(true);
+        alert.setPadding(24, 16, 12, 16);
+
+        android.widget.ImageView icon = new android.widget.ImageView(mContext);
+        icon.setId(MCD_ID_ICON_ALERT_TYPE_WARNING);
+        android.widget.RelativeLayout.LayoutParams iconLp =
+                new android.widget.RelativeLayout.LayoutParams(32, 32);
+        iconLp.addRule(android.widget.RelativeLayout.ALIGN_PARENT_LEFT);
+        iconLp.addRule(android.widget.RelativeLayout.CENTER_VERTICAL);
+        alert.addView(icon, iconLp);
+
+        android.widget.ImageView disclosure = new android.widget.ImageView(mContext);
+        disclosure.setId(MCD_ID_DISCLOSURE_ICON_ALERT_TYPE_WARNING);
+        disclosure.setVisibility(View.GONE);
+        android.widget.RelativeLayout.LayoutParams disclosureLp =
+                new android.widget.RelativeLayout.LayoutParams(
+                        ViewGroup.LayoutParams.WRAP_CONTENT,
+                        ViewGroup.LayoutParams.WRAP_CONTENT);
+        disclosureLp.addRule(android.widget.RelativeLayout.ALIGN_PARENT_RIGHT);
+        disclosureLp.addRule(android.widget.RelativeLayout.CENTER_VERTICAL);
+        alert.addView(disclosure, disclosureLp);
+
+        android.widget.TextView message = campaign
+                ? createCampaignNotificationTextView()
+                : new com.mcdonalds.mcduikit.widget.McDTextView(mContext);
+        message.setId(MCD_ID_TEXT_ALERT_TYPE_WARNING);
+        message.setTextColor(getColorCompat(0x7f06066c, 0xFF292929));
+        message.setTextSize(14);
+        message.setSingleLine(false);
+        android.widget.RelativeLayout.LayoutParams messageLp =
+                new android.widget.RelativeLayout.LayoutParams(
+                        ViewGroup.LayoutParams.MATCH_PARENT,
+                        ViewGroup.LayoutParams.WRAP_CONTENT);
+        messageLp.addRule(android.widget.RelativeLayout.RIGHT_OF, MCD_ID_ICON_ALERT_TYPE_WARNING);
+        messageLp.addRule(android.widget.RelativeLayout.LEFT_OF, MCD_ID_DISCLOSURE_ICON_ALERT_TYPE_WARNING);
+        messageLp.addRule(android.widget.RelativeLayout.CENTER_VERTICAL);
+        messageLp.leftMargin = 16;
+        alert.addView(message, messageLp);
+
+        androidx.constraintlayout.widget.ConstraintLayout.LayoutParams alertLp =
+                new androidx.constraintlayout.widget.ConstraintLayout.LayoutParams(
+                        ViewGroup.LayoutParams.MATCH_PARENT,
+                        ViewGroup.LayoutParams.WRAP_CONTENT);
+        root.addView(alert, alertLp);
+
+        View line = new View(mContext);
+        line.setId(MCD_ID_VIEW_LINE);
+        line.setBackgroundColor(getColorCompat(0x7f06015b, 0xFFDA291C));
+        androidx.constraintlayout.widget.ConstraintLayout.LayoutParams lineLp =
+                new androidx.constraintlayout.widget.ConstraintLayout.LayoutParams(4, 1);
+        root.addView(line, lineLp);
+
+        try {
+            com.westlake.engine.WestlakeLauncher.marker(
+                    "MCD_APPLICATION_NOTIFICATION_LAYOUT_OK tag=" + root.getTag()
+                            + " children=" + root.getChildCount());
+        } catch (Throwable ignored) {
+        }
+        return root;
+    }
+
+    private android.widget.TextView createCampaignNotificationTextView() {
+        View view = tryInstantiate(
+                "com.mcdonalds.campaignsframework.campaigns.ui.view.CampaignTextView");
+        if (view instanceof android.widget.TextView) {
+            return (android.widget.TextView) view;
+        }
+        return new android.widget.TextView(mContext);
+    }
+
     private View buildMcdFragmentHomeDashboard() {
         android.widget.ScrollView scroll = new android.widget.ScrollView(mContext);
         scroll.setId(MCD_ID_NESTED_SCROLL_VIEW);
@@ -606,11 +1072,15 @@ public class LayoutInflater {
                 if (realInflater != null && realInflater != this) {
                     java.lang.reflect.Method inflateMethod = realInflater.getClass().getMethod("inflate", int.class, ViewGroup.class, boolean.class);
                     view = (View) inflateMethod.invoke(realInflater, resource, null, false);
-                    if (view != null) {
-                        diag("[LayoutInflater] Real inflate OK: 0x" + Integer.toHexString(resource) + " -> " + classNameOf(view));
-                        if (attachToRoot && root != null) { root.addView(view); return root; }
-                        return view;
-                    }
+	                    if (view != null) {
+	                        diag("[LayoutInflater] Real inflate OK: 0x" + Integer.toHexString(resource) + " -> " + classNameOf(view));
+	                        if (attachToRoot && root != null) {
+	                            root.addView(view);
+	                            ensureDataBindingTag(root, resource);
+	                            return root;
+	                        }
+	                        return view;
+	                    }
                 }
             } catch (Throwable t) {
                 diag("[LayoutInflater] Real inflate failed: " + t.getMessage());
@@ -624,10 +1094,12 @@ public class LayoutInflater {
                 ViewFactory factory = (ViewFactory) factoryObj;
                 view = factory.createView(mContext, root);
                 if (view != null) {
-                    if (attachToRoot && root != null) {
-                        root.addView(view);
-                        return root;
-                    }
+	                    ensureDataBindingTag(view, resource);
+	                    if (attachToRoot && root != null) {
+	                        root.addView(view);
+	                        ensureDataBindingTag(root, resource);
+	                        return root;
+	                    }
                     return view;
                 }
             } catch (Throwable t) {
@@ -643,6 +1115,7 @@ public class LayoutInflater {
 
         View knownMcdLayout = maybeBuildKnownMcdLayout(resource);
         if (knownMcdLayout != null) {
+            ensureDataBindingTag(knownMcdLayout, resource);
             if (resource == MCD_LAYOUT_FRAGMENT_HOME_DASHBOARD) {
                 try {
                     diag("[LayoutInflater] fragment_home_dashboard build OK: "
@@ -650,11 +1123,23 @@ public class LayoutInflater {
                 } catch (Throwable ignored) {
                 }
             }
-            if (attachToRoot && root != null) {
-                addCompatChild(root, knownMcdLayout);
-                return root;
-            }
+	            if (attachToRoot && root != null) {
+	                addCompatChild(root, knownMcdLayout);
+	                ensureDataBindingTag(root, resource);
+	                return root;
+	            }
             return knownMcdLayout;
+        }
+
+        View knownAppCompatLayout = maybeBuildKnownAppCompatLayout(resource);
+        if (knownAppCompatLayout != null) {
+            ensureDataBindingTag(knownAppCompatLayout, resource);
+	            if (attachToRoot && root != null) {
+	                addCompatChild(root, knownAppCompatLayout);
+	                ensureDataBindingTag(root, resource);
+	                return root;
+	            }
+            return knownAppCompatLayout;
         }
 
         // Strategies 2-4: obtain binary AXML bytes, then inflate via XmlPullParser
@@ -786,6 +1271,9 @@ public class LayoutInflater {
         if (axmlData != null && axmlData.length > 0) {
             try {
                 BinaryXmlParser parser = new BinaryXmlParser(axmlData);
+                int rootChildCountBeforeInflate = root instanceof ViewGroup
+                        ? root.getChildCount()
+                        : -1;
                 try {
                     com.westlake.engine.WestlakeLauncher.marker(
                             "LAYOUT_INFLATER_AXML_PARSER_OK resource=0x"
@@ -795,7 +1283,17 @@ public class LayoutInflater {
                 } catch (Throwable ignored) {
                 }
                 view = inflate(parser, root, attachToRoot);
-                // inflate(XmlPullParser,...) already handles attachToRoot,
+                View tagTarget = view;
+                if (attachToRoot && root != null
+                        && rootChildCountBeforeInflate >= 0
+                        && root.getChildCount() > rootChildCountBeforeInflate) {
+                    tagTarget = root.getChildAt(rootChildCountBeforeInflate);
+	                }
+	                ensureDataBindingTag(tagTarget, resource);
+	                if (attachToRoot && root != null) {
+	                    ensureDataBindingTag(root, resource);
+	                }
+	                // inflate(XmlPullParser,...) already handles attachToRoot,
                 // so return the result directly
                 if (view != null) {
                     diag("[LayoutInflater] Inflated 0x"
@@ -855,12 +1353,14 @@ public class LayoutInflater {
 
             view = ll;
         }
+        ensureDataBindingTag(view, resource);
 
-        if (root != null && attachToRoot) {
-            try {
-                root.addView(view);
-                return root;
-            } catch (Throwable addRootError) {
+	        if (root != null && attachToRoot) {
+	            try {
+	                root.addView(view);
+	                ensureDataBindingTag(root, resource);
+	                return root;
+	            } catch (Throwable addRootError) {
                 String detail = "[LayoutInflater] final attach failed: root="
                         + simpleClassNameOf(root) + " child="
                         + simpleClassNameOf(view) + " err="
@@ -874,6 +1374,131 @@ public class LayoutInflater {
             }
         }
         return view;
+    }
+
+    private void ensureDataBindingTag(View view, int resource) {
+        if (view == null) {
+            return;
+        }
+        String tag = deriveDataBindingTag(resource);
+        if (tag == null) {
+            return;
+        }
+        Object current = view.getTag();
+        if (tag.equals(current)) {
+            return;
+        }
+        if (current != null && !shouldReplaceDataBindingTag(current, tag, resource)) {
+            return;
+        }
+	        try {
+	            view.setTag(tag);
+	            diag("[LayoutInflater] DATA BINDING TAG (repair): " + tag
+	                    + " on " + classNameOf(view));
+	            try {
+	                com.westlake.engine.WestlakeLauncher.marker(
+	                        "DATA_BINDING_TAG_REPAIR resource=0x"
+	                                + Integer.toHexString(resource)
+	                                + " tag=" + tag
+	                                + " view=" + classNameOf(view));
+	            } catch (Throwable ignored) {
+	            }
+	        } catch (Throwable ignored) {
+	        }
+    }
+
+    private boolean shouldReplaceDataBindingTag(Object current, String expected, int resource) {
+        if (current == null) {
+            return true;
+        }
+        if (resource == MCD_LAYOUT_APPLICATION_NOTIFICATION
+                || resource == MCD_LAYOUT_CAMPAIGN_APPLICATION_NOTIFICATION
+                || "layout/application_notification_0".equals(expected)
+                || "layout/campaign_application_notification_0".equals(expected)) {
+            return true;
+        }
+        if (!(current instanceof String)) {
+            return false;
+        }
+        return false;
+    }
+
+    private String deriveDataBindingTag(int resource) {
+        String layoutName = resolveLayoutResourceName(resource);
+        if (layoutName == null || layoutName.length() == 0) {
+            return null;
+        }
+        return layoutName + "_0";
+    }
+
+    private String resolveLayoutResourceName(int resource) {
+        String layoutName = null;
+        try {
+            Resources res = mContext != null ? mContext.getResources() : null;
+            if (res != null) {
+                layoutName = normalizeLayoutResourceName(res.getResourceName(resource));
+                if (layoutName == null) {
+                    ResourceTable table = res.getResourceTable();
+                    if (table != null) {
+                        layoutName = normalizeLayoutResourceName(table.getLayoutFileName(resource));
+                        if (layoutName == null) {
+                            layoutName = normalizeLayoutResourceName(table.getEntryFilePath(resource));
+                        }
+                    }
+                }
+            }
+        } catch (Throwable ignored) {
+        }
+        if (layoutName == null) {
+            layoutName = knownMcdLayoutName(resource);
+        }
+        return layoutName;
+    }
+
+    private String normalizeLayoutResourceName(String raw) {
+        if (raw == null || raw.length() == 0) {
+            return null;
+        }
+        String name = raw;
+        int colon = name.indexOf(':');
+        if (colon >= 0 && colon + 1 < name.length()) {
+            name = name.substring(colon + 1);
+        }
+        if (name.startsWith("res/")) {
+            name = name.substring(4);
+        }
+        if (name.endsWith(".xml")) {
+            name = name.substring(0, name.length() - 4);
+        }
+        if (name.startsWith("layout/") || name.startsWith("layout-land/")) {
+            return name;
+        }
+        return null;
+    }
+
+    private String knownMcdLayoutName(int resource) {
+        if (resource == MCD_LAYOUT_ACTIVITY_HOME_DASHBOARD) {
+            return "layout/activity_home_dashboard";
+        }
+        if (resource == MCD_LAYOUT_APPLICATION_NOTIFICATION) {
+            return "layout/application_notification";
+        }
+        if (resource == MCD_LAYOUT_BASE) {
+            return "layout/base_layout";
+        }
+        if (resource == MCD_LAYOUT_BOTTOM_BAG_BAR) {
+            return "layout/bottom_bag_bar";
+        }
+        if (resource == MCD_LAYOUT_BOTTOM_NAVIGATION_BAR) {
+            return "layout/bottom_navigation_bar";
+        }
+        if (resource == MCD_LAYOUT_CAMPAIGN_APPLICATION_NOTIFICATION) {
+            return "layout/campaign_application_notification";
+        }
+        if (resource == MCD_LAYOUT_FRAGMENT_HOME_DASHBOARD) {
+            return "layout/fragment_home_dashboard";
+        }
+        return null;
     }
 
     // ── AXML-based inflation via BinaryXmlParser ─────────────────────────

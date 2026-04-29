@@ -110,6 +110,22 @@ public class ShimCompat {
     }
 
     /**
+     * Call AssetManager.setApkPath(path) if available (shim), otherwise no-op.
+     */
+    public static void setAssetApkPath(android.content.res.AssetManager assets, String path) {
+        if (assets == null || path == null || path.length() == 0) {
+            return;
+        }
+        try {
+            Method m = assets.getClass().getMethod("setApkPath", String.class);
+            m.setAccessible(true);
+            m.invoke(assets, path);
+        } catch (Exception e) {
+            log("setAssetApkPath not available: " + e.getClass().getSimpleName());
+        }
+    }
+
+    /**
      * Set a field on an Activity by name via reflection. Falls back silently if the
      * field doesn't exist (real Android's Activity has different internals).
      */

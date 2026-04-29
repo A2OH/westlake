@@ -241,6 +241,25 @@ public class PackageManager {
     }
 
     /**
+     * Get ServiceInfo for a component. AppCompat and AndroidX startup paths use
+     * this to inspect metadata for services declared by the APK.
+     */
+    public ServiceInfo getServiceInfo(android.content.ComponentName component, int flags)
+            throws NameNotFoundException {
+        if (android.app.HostBridge.hasHost()) {
+            ServiceInfo result = android.app.HostBridge.pm_getServiceInfo(component, flags);
+            if (result != null && result.name != null) return result;
+        }
+        ServiceInfo fallback = new ServiceInfo();
+        if (component != null) {
+            fallback.packageName = component.getPackageName();
+            fallback.name = component.getClassName();
+            return fallback;
+        }
+        throw new NameNotFoundException("null");
+    }
+
+    /**
      * Get ApplicationInfo for a package. Real APKs call this for sourceDir,
      * targetSdkVersion, flags, etc. Delegates to host's real PM.
      */

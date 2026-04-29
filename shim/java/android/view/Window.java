@@ -62,8 +62,9 @@ public class Window {
 
     public Window(Context p0) {
         mContext = p0;
-        // Create a default FrameLayout as the decor view
+        // Standalone decor doubles as the initial android.R.id.content holder.
         mDecorView = new android.widget.FrameLayout(p0);
+        mDecorView.setId(ID_ANDROID_CONTENT);
     }
 
     public void adoptContext(Context context) {
@@ -102,6 +103,9 @@ public class Window {
                 if (mContext != null && mDecorView.mContext == null) {
                     mDecorView.mContext = mContext;
                     com.westlake.engine.WestlakeLauncher.marker("PF301 strict Window getDecorView context seeded");
+                }
+                if (mDecorView.getId() == View.NO_ID) {
+                    mDecorView.setId(ID_ANDROID_CONTENT);
                 }
                 com.westlake.engine.WestlakeLauncher.marker("PF301 strict Window getDecorView alloc usable");
             } else {
@@ -147,6 +151,7 @@ public class Window {
                 content.mContext = mContext;
                 com.westlake.engine.WestlakeLauncher.marker("PF301 strict Window installContent context seeded");
             }
+            content.setId(ID_ANDROID_CONTENT);
             com.westlake.engine.WestlakeLauncher.marker("PF301 strict Window installContent alloc usable");
         } else {
             com.westlake.engine.WestlakeLauncher.marker("PF301 strict Window installContent alloc unusable");
@@ -178,6 +183,40 @@ public class Window {
             T found = mDecorView.findViewById(id);
             if (found != null) {
                 return found;
+            }
+            found = deepFindViewById(mDecorView, id);
+            if (found != null) {
+                return found;
+            }
+            maybeInstallStructuredPageShellForLookup(id);
+            found = mDecorView.findViewById(id);
+            if (found != null) {
+                return found;
+            }
+            found = deepFindViewById(mDecorView, id);
+            if (found != null) {
+                return found;
+            }
+        }
+        return null;
+    }
+
+    @SuppressWarnings("unchecked")
+    private <T extends View> T deepFindViewById(View root, int id) {
+        if (root == null || id == 0 || id == View.NO_ID) {
+            return null;
+        }
+        if (root.getId() == id) {
+            return (T) root;
+        }
+        if (root instanceof ViewGroup) {
+            ViewGroup group = (ViewGroup) root;
+            int count = group.getChildCount();
+            for (int i = 0; i < count; i++) {
+                T found = deepFindViewById(group.getChildAt(i), id);
+                if (found != null) {
+                    return found;
+                }
             }
         }
         return null;
@@ -324,11 +363,12 @@ public class Window {
                 mDecorView = p0;
                 com.westlake.engine.WestlakeLauncher.marker("PF301 strict Window setContentView fallback direct");
             }
-            try {
-                if (mContext instanceof android.app.Activity) {
-                    mDecorView.setTag(mContext);
-                    ((android.app.Activity) mContext).invalidateLayout();
-                }
+	            try {
+	                if (mContext instanceof android.app.Activity) {
+	                    // AndroidX data binding uses the public unkeyed tag slot for
+	                    // layout identities. Keep Activity ownership out of that slot.
+	                    ((android.app.Activity) mContext).invalidateLayout();
+	                }
                 com.westlake.engine.WestlakeLauncher.marker(
                         "PF301 strict Window setContentView invalidate skipped");
                 int childCount = mDecorView instanceof ViewGroup
@@ -338,6 +378,7 @@ public class Window {
                 com.westlake.engine.WestlakeLauncher.marker(
                         "PF301 strict Window setContentView invalidate threw");
             }
+            ensureMcdToolbarShell();
             com.westlake.engine.WestlakeLauncher.marker("PF301 strict Window setContentView standalone end");
             return;
         }
@@ -355,12 +396,13 @@ public class Window {
             // the content root directly as the decor view.
             mDecorView = p0;
         }
-        // Tag decor with the owning Activity so View.invalidate() can trigger renderFrame()
-        if (mContext instanceof android.app.Activity) {
-            mDecorView.setTag(mContext);
-            try {
-                ((android.app.Activity) mContext).invalidateLayout();
-            } catch (Throwable ignored) {
+	        // Tag decor with the owning Activity so View.invalidate() can trigger renderFrame()
+	        if (mContext instanceof android.app.Activity) {
+	            // AndroidX data binding owns View.setTag(Object) for layout identities.
+	            // The Activity already gets an explicit invalidation below.
+	            try {
+	                ((android.app.Activity) mContext).invalidateLayout();
+	            } catch (Throwable ignored) {
             }
         }
         ensureMcdToolbarShell();

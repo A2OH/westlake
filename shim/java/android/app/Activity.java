@@ -32,7 +32,15 @@ public class Activity extends Context implements android.view.Window.Callback {
             ComponentName component, android.view.Window window,
             Instrumentation instrumentation) {
         if (baseContext != null) {
-            attachBaseContext(baseContext);
+            try {
+                attachBaseContext(baseContext);
+            } catch (Throwable t) {
+                android.util.Log.w("Activity", "attachBaseContext failed, using raw base: " + t);
+                mBase = baseContext;
+            }
+            if (mBase == null) {
+                mBase = baseContext;
+            }
         }
         mApplication = application;
         mIntent = intent != null ? intent : new Intent();

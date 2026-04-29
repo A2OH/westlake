@@ -1128,10 +1128,17 @@ object WestlakeVM {
 
         log.add("Starting from ${vmDir.absolutePath}...")
         try {
+            val launchBinary = cmd.firstOrNull()
+            if ((launchBinary == "dalvikvm64" || launchBinary == "app_process64")
+                && apkConfig?.effectiveBackendMode() == BackendMode.TARGET_OHOS_BACKEND
+            ) {
+                log.add("ERROR: target/OHOS mode forbids phone ART launcher: $launchBinary")
+                return log
+            }
             val pb = ProcessBuilder(*cmd)
             pb.directory(File(runDir))
             // For dalvikvm64 (system binary): use real system paths
-            val useSysDvm = cmd.firstOrNull() == "dalvikvm64" || cmd.firstOrNull() == "app_process64"
+            val useSysDvm = launchBinary == "dalvikvm64" || launchBinary == "app_process64"
             pb.environment()["ANDROID_DATA"] = if (useSysDvm) "/data" else runDir
             pb.environment()["ANDROID_ROOT"] = if (useSysDvm) "/system" else runDir
             pb.environment()["ANDROID_ART_ROOT"] = "/apex/com.android.art"
@@ -1689,7 +1696,8 @@ fun WestlakeVMScreen() {
 fun WestlakeVMApkScreen(config: ApkVmConfig) {
 	    val activity = WestlakeActivity.instance ?: return
 	    val fullPhoneApp = config.packageName == "com.westlake.yelplive" ||
-	        config.packageName == "com.westlake.mcdprofile"
+	        config.packageName == "com.westlake.mcdprofile" ||
+	        config.packageName == "com.mcdonalds.app"
 	    val immersiveApp = fullPhoneApp ||
 	        config.packageName == "com.westlake.materialyelp"
 	    val guestFrameWidth = if (fullPhoneApp) {

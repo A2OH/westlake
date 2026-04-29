@@ -32,7 +32,7 @@ public class SharedPreferencesImpl implements SharedPreferences {
         store.put("SELECTED_MARKET_ID", "US");
         store.put("SELECTED_COUNTRY", "US");
         store.put("SELECTED_LANGUAGE", "en");
-        store.put("DEBUG_OVERRIDE_MARKET_ID", "");
+        store.put("DEBUG_OVERRIDE_MARKET_ID", "US");
         store.put("IS_FIRST_LAUNCH", "false");
         store.put("APP_VERSION", "7.0.0");
         store.put("HAS_ACCEPTED_TERMS", "true");
@@ -55,7 +55,6 @@ public class SharedPreferencesImpl implements SharedPreferences {
         synchronized (store) {
             Object v = store.get(key);
             String r = (v instanceof String) ? (String) v : defValue;
-            System.out.println("[SharedPrefs:" + name + "] getString(" + key + ") = " + r);
             return r;
         }
     }

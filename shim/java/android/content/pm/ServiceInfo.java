@@ -1,6 +1,6 @@
 package android.content.pm;
 
-public class ServiceInfo {
+public class ServiceInfo extends ComponentInfo {
     public ServiceInfo() {}
 
     public static final int FLAG_EXTERNAL_SERVICE = 0;
@@ -21,7 +21,7 @@ public class ServiceInfo {
     public String name;
     public String packageName;
     public int flags = 0;
-    public int permission = 0;
+    public String permission;
     public int describeContents() { return 0; }
     public void dump(Object p0, Object p1) {}
     public int getForegroundServiceType() { return 0; }

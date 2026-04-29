@@ -6972,7 +6972,21 @@ public abstract class ViewGroup extends View implements ViewParent, ViewManager 
     protected void measureChildWithMargins(View child,
             int parentWidthMeasureSpec, int widthUsed,
             int parentHeightMeasureSpec, int heightUsed) {
-        final MarginLayoutParams lp = (MarginLayoutParams) child.getLayoutParams();
+        LayoutParams rawLp = child.getLayoutParams();
+        if (rawLp == null) {
+            rawLp = generateDefaultLayoutParams();
+            if (rawLp == null) {
+                rawLp = new LayoutParams(LayoutParams.WRAP_CONTENT, LayoutParams.WRAP_CONTENT);
+            }
+            child.setLayoutParams(rawLp);
+        }
+        final MarginLayoutParams lp;
+        if (rawLp instanceof MarginLayoutParams) {
+            lp = (MarginLayoutParams) rawLp;
+        } else {
+            lp = new MarginLayoutParams(rawLp);
+            child.setLayoutParams(lp);
+        }
 
         final int childWidthMeasureSpec = getChildMeasureSpec(parentWidthMeasureSpec,
                 mPaddingLeft + mPaddingRight + lp.leftMargin + lp.rightMargin

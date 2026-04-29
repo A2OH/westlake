@@ -79,7 +79,7 @@ public class ManifestParser {
 
         // int fileSize = readInt(axmlData, 4);
         ManifestInfo info = new ManifestInfo();
-        String[] stringPool = null;
+        Object[] stringPool = null;
         int[] resourceIds = null;
 
         int pos = 8; // skip magic + fileSize
@@ -116,7 +116,7 @@ public class ManifestParser {
 
     // ── String Pool ─────────────────────────────────────────────────────────
 
-    private static String[] parseStringPool(byte[] data, int offset) {
+    private static Object[] parseStringPool(byte[] data, int offset) {
         // StringPool header:
         //   0: chunk type (4)
         //   4: chunk size (4)
@@ -139,7 +139,7 @@ public class ManifestParser {
             stringOffsets[i] = readInt(data, offset + 28 + i * 4);
         }
 
-        String[] pool = new String[stringCount];
+        Object[] pool = new Object[stringCount];
         for (int i = 0; i < stringCount; i++) {
             int strOff = stringsStart + stringOffsets[i];
             if (isUtf8) {
@@ -179,11 +179,7 @@ public class ManifestParser {
         if (byteCount == 0) return "";
         if (pos + byteCount > data.length) byteCount = data.length - pos;
 
-        try {
-            return new String(data, pos, byteCount, "UTF-8");
-        } catch (java.io.UnsupportedEncodingException e) {
-            return new String(data, pos, byteCount);
-        }
+        return decodeUtf8(data, pos, byteCount);
     }
 
     /**
@@ -214,7 +210,50 @@ public class ManifestParser {
             pos += 2;
         }
 
-        return new String(chars);
+        return new String(chars, 0, charCount);
+    }
+
+    private static String decodeUtf8(byte[] data, int offset, int byteCount) {
+        int end = offset + byteCount;
+        if (end > data.length) {
+            end = data.length;
+        }
+        char[] out = new char[Math.max(1, byteCount)];
+        int outLen = 0;
+        int pos = offset;
+        while (pos < end) {
+            int b0 = data[pos++] & 0xFF;
+            if (b0 < 0x80) {
+                out[outLen++] = (char) b0;
+            } else if ((b0 & 0xE0) == 0xC0 && pos < end) {
+                int b1 = data[pos++] & 0x3F;
+                out[outLen++] = (char) (((b0 & 0x1F) << 6) | b1);
+            } else if ((b0 & 0xF0) == 0xE0 && pos + 1 < end) {
+                int b1 = data[pos++] & 0x3F;
+                int b2 = data[pos++] & 0x3F;
+                out[outLen++] = (char) (((b0 & 0x0F) << 12) | (b1 << 6) | b2);
+            } else if ((b0 & 0xF8) == 0xF0 && pos + 2 < end) {
+                int b1 = data[pos++] & 0x3F;
+                int b2 = data[pos++] & 0x3F;
+                int b3 = data[pos++] & 0x3F;
+                int codePoint = ((b0 & 0x07) << 18) | (b1 << 12) | (b2 << 6) | b3;
+                if (codePoint <= 0x10FFFF) {
+                    int cp = codePoint - 0x10000;
+                    if (outLen + 2 > out.length) {
+                        char[] grown = new char[out.length + 2];
+                        System.arraycopy(out, 0, grown, 0, outLen);
+                        out = grown;
+                    }
+                    out[outLen++] = (char) (0xD800 | (cp >> 10));
+                    out[outLen++] = (char) (0xDC00 | (cp & 0x3FF));
+                } else {
+                    out[outLen++] = '\uFFFD';
+                }
+            } else {
+                out[outLen++] = '\uFFFD';
+            }
+        }
+        return new String(out, 0, outLen);
     }
 
     // ── Resource ID Table ───────────────────────────────────────────────────
@@ -232,7 +271,7 @@ public class ManifestParser {
     // ── Element Parsing ─────────────────────────────────────────────────────
 
     private static void parseStartElement(byte[] data, int offset,
-            String[] stringPool, int[] resourceIds, ManifestInfo info) {
+            Object[] stringPool, int[] resourceIds, ManifestInfo info) {
         // START_ELEMENT layout:
         //   0: chunk type (4)
         //   4: chunk size (4)
@@ -257,7 +296,7 @@ public class ManifestParser {
 
         int nameIdx = readInt(data, offset + 20);
         if (nameIdx < 0 || nameIdx >= stringPool.length) return;
-        String tagName = stringPool[nameIdx];
+        String tagName = stringAt(stringPool, nameIdx);
 
         int attrCount = readShort(data, offset + 28);
 
@@ -335,7 +374,7 @@ public class ManifestParser {
      * If the attribute's name string index maps to the target resId, it's our attribute.
      */
     private static String findAttributeByResId(byte[] data, int elementOffset,
-            int attrCount, String[] stringPool, int[] resourceIds, int targetResId) {
+            int attrCount, Object[] stringPool, int[] resourceIds, int targetResId) {
         if (resourceIds == null) return null;
 
         int attrOffset = elementOffset + 36;
@@ -359,7 +398,7 @@ public class ManifestParser {
      * Used as a fallback when resource IDs are not available or don't match.
      */
     private static String findAttributeByName(byte[] data, int elementOffset,
-            int attrCount, String[] stringPool, String targetName,
+            int attrCount, Object[] stringPool, String targetName,
             int[] resourceIds, int expectedResId) {
         int attrOffset = elementOffset + 36;
         for (int i = 0; i < attrCount; i++) {
@@ -369,7 +408,7 @@ public class ManifestParser {
             int attrNameIdx = readInt(data, attrBase + 4);
             if (attrNameIdx < 0 || attrNameIdx >= stringPool.length) continue;
 
-            if (targetName.equals(stringPool[attrNameIdx])) {
+            if (targetName.equals(stringAt(stringPool, attrNameIdx))) {
                 // If we have an expected resource ID, verify it doesn't conflict
                 // (the "name" string might be reused for non-android:name attributes)
                 if (expectedResId >= 0 && resourceIds != null
@@ -389,12 +428,12 @@ public class ManifestParser {
      * Prefers the raw string value (valueStringIdx); falls back to typed value data
      * if the type is TYPE_STRING.
      */
-    private static String getAttributeValue(byte[] data, int attrBase, String[] stringPool) {
+    private static String getAttributeValue(byte[] data, int attrBase, Object[] stringPool) {
         int valueStringIdx = readInt(data, attrBase + 8);
 
         // If we have a direct string pool reference, use it
         if (valueStringIdx >= 0 && valueStringIdx < stringPool.length) {
-            return stringPool[valueStringIdx];
+            return stringAt(stringPool, valueStringIdx);
         }
 
         // Otherwise check typed value
@@ -406,10 +445,18 @@ public class ManifestParser {
 
         // TYPE_STRING = 0x03
         if (dataType == 0x03 && valueData >= 0 && valueData < stringPool.length) {
-            return stringPool[valueData];
+            return stringAt(stringPool, valueData);
         }
 
         return null;
+    }
+
+    private static String stringAt(Object[] stringPool, int index) {
+        if (stringPool == null || index < 0 || index >= stringPool.length) {
+            return null;
+        }
+        Object value = stringPool[index];
+        return value instanceof String ? (String) value : null;
     }
 
     // ── Class Name Resolution ───────────────────────────────────────────────

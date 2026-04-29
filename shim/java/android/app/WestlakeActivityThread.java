@@ -650,7 +650,7 @@ public class WestlakeActivityThread {
         return out.toString();
     }
 
-    private static boolean shouldBootstrapMcdonaldsDataSource(String packageName,
+    private static boolean isMcdonaldsDataSourceLaunch(String packageName,
             String className, Intent intent) {
         if (isMcdonaldsPackageOrClass(packageName)
                 || isMcdonaldsPackageOrClass(className)) {
@@ -663,6 +663,167 @@ public class WestlakeActivityThread {
                     || isMcdonaldsPackageOrClass(component.getClassName()));
         } catch (Throwable ignored) {
             return false;
+        }
+    }
+
+    private static boolean isMcdonaldsDataSourceBootstrapEnabled() {
+        try {
+            if (Boolean.parseBoolean(System.getProperty(
+                    "westlake.mcd.datasource.bootstrap", "true"))) {
+                return true;
+            }
+        } catch (Throwable ignored) {
+        }
+        try {
+            return "1".equals(System.getenv("WESTLAKE_MCD_DATASOURCE_BOOTSTRAP"))
+                    || "true".equalsIgnoreCase(
+                            System.getenv("WESTLAKE_MCD_DATASOURCE_BOOTSTRAP"));
+        } catch (Throwable ignored) {
+            return false;
+        }
+    }
+
+    private static boolean shouldBootstrapMcdonaldsDataSource(String packageName,
+            String className, Intent intent) {
+        return isMcdonaldsDataSourceBootstrapEnabled()
+                && isMcdonaldsDataSourceLaunch(packageName, className, intent);
+    }
+
+    private static Object createKnownMcdDataSourceReturn(Class<?> returnType) {
+        if (returnType == null) return null;
+        String implName = null;
+        String returnName = returnType.getName();
+        if ("com.mcdonalds.mcdcoreapp.helper.interfaces.OrderModuleInteractor".equals(returnName)) {
+            implName = "com.mcdonalds.order.util.OrderModuleImplementation";
+        } else if ("com.mcdonalds.mcdcoreapp.helper.interfaces.PaymentModuleInteractor"
+                .equals(returnName)) {
+            implName = "com.mcdonalds.payments.PaymentModuleImplementation";
+        } else if ("com.mcdonalds.mcdcoreapp.helper.interfaces.HomeModuleInteractor"
+                .equals(returnName)) {
+            implName = "com.mcdonalds.homedashboard.util.HomeHelperImplementation";
+        } else if ("com.mcdonalds.mcdcoreapp.helper.interfaces.HomeDashboardModuleInteractor"
+                .equals(returnName)) {
+            implName = "com.mcdonalds.homedashboard.util.HomeDashboardModuleImpl";
+        } else if ("com.mcdonalds.mcdcoreapp.helper.interfaces.HomeDashboardHeroInteractor"
+                .equals(returnName)) {
+            implName = "com.mcdonalds.homedashboard.util.HomeDashboardHeroInteractorImpl";
+        }
+        if (implName == null) return null;
+        try {
+            ClassLoader cl = returnType.getClassLoader();
+            if (cl == null) cl = Thread.currentThread().getContextClassLoader();
+            if (cl == null) cl = ClassLoader.getSystemClassLoader();
+            Class<?> implClass = cl.loadClass(implName);
+            if (!returnType.isAssignableFrom(implClass)) {
+                log("W", "McD DataSource known return " + implName
+                        + " is not assignable to " + returnName);
+                return null;
+            }
+            Object instance = allocateWithoutConstructor(implClass);
+            if (instance != null) {
+                log("I", "McD DataSource " + returnName + " = " + implName);
+            }
+            return instance;
+        } catch (Throwable t) {
+            log("W", "McD DataSource known return failed " + returnName + ": "
+                    + t.getClass().getSimpleName() + ": " + t.getMessage());
+            return null;
+        }
+    }
+
+    private static Object createMcdInterfaceProxy(final Class<?> type, ClassLoader fallbackCl,
+            final String label) {
+        if (type == null || !type.isInterface()) {
+            return null;
+        }
+        try {
+            ClassLoader cl = type.getClassLoader();
+            if (cl == null) cl = fallbackCl;
+            if (cl == null) cl = Thread.currentThread().getContextClassLoader();
+            if (cl == null) cl = ClassLoader.getSystemClassLoader();
+            final ClassLoader proxyCl = cl;
+            final java.lang.reflect.InvocationHandler[] handlerRef =
+                    new java.lang.reflect.InvocationHandler[1];
+            handlerRef[0] = new java.lang.reflect.InvocationHandler() {
+                public Object invoke(Object proxy, java.lang.reflect.Method method, Object[] args) {
+                    String name = method.getName();
+                    if ("toString".equals(name)) {
+                        return "WestlakeMcDProxy(" + label + ":" + type.getSimpleName() + ")";
+                    }
+                    if ("hashCode".equals(name)) return Integer.valueOf(0);
+                    if ("equals".equals(name)) return Boolean.valueOf(proxy == (args != null
+                            && args.length > 0 ? args[0] : null));
+                    Class<?> rt = method.getReturnType();
+                    return defaultMcdProxyReturn(rt, proxyCl, label + "." + name);
+                }
+            };
+            return java.lang.reflect.Proxy.newProxyInstance(proxyCl, new Class<?>[] { type },
+                    handlerRef[0]);
+        } catch (Throwable t) {
+            log("W", "McD proxy failed for " + type.getName() + ": "
+                    + t.getClass().getSimpleName() + ": " + t.getMessage());
+            return null;
+        }
+    }
+
+    private static Object defaultMcdProxyReturn(Class<?> rt, ClassLoader fallbackCl, String label) {
+        if (rt == null || rt == Void.TYPE) return null;
+        if (rt == boolean.class) return Boolean.FALSE;
+        if (rt == byte.class) return Byte.valueOf((byte) 0);
+        if (rt == short.class) return Short.valueOf((short) 0);
+        if (rt == int.class) return Integer.valueOf(0);
+        if (rt == long.class) return Long.valueOf(0L);
+        if (rt == float.class) return Float.valueOf(0f);
+        if (rt == double.class) return Double.valueOf(0d);
+        if (rt == char.class) return Character.valueOf('\0');
+        if (rt == Boolean.class) return Boolean.FALSE;
+        if (rt == Byte.class) return Byte.valueOf((byte) 0);
+        if (rt == Short.class) return Short.valueOf((short) 0);
+        if (rt == Integer.class) return Integer.valueOf(0);
+        if (rt == Long.class) return Long.valueOf(0L);
+        if (rt == Float.class) return Float.valueOf(0f);
+        if (rt == Double.class) return Double.valueOf(0d);
+        if (rt == Character.class) return Character.valueOf('\0');
+        if (rt == String.class) return "";
+        if (rt.isInterface()) {
+            return createMcdInterfaceProxy(rt, fallbackCl, label);
+        }
+        return createKnownMcdDataSourceReturn(rt);
+    }
+
+    private static Object allocateWithoutConstructor(Class<?> clazz) {
+        try {
+            java.lang.reflect.Field unsafeField =
+                    Class.forName("sun.misc.Unsafe").getDeclaredField("theUnsafe");
+            unsafeField.setAccessible(true);
+            Object unsafe = unsafeField.get(null);
+            return unsafe.getClass().getMethod("allocateInstance", Class.class)
+                    .invoke(unsafe, clazz);
+        } catch (Throwable t) {
+            log("W", "Unsafe.allocateInstance failed for " + clazz.getName() + ": "
+                    + t.getClass().getSimpleName() + ": " + t.getMessage());
+            return null;
+        }
+    }
+
+    private static boolean shouldRunMcdonaldsLifecycleInStrict(String packageName,
+            String className, Intent intent) {
+        if (!isMcdonaldsDataSourceLaunch(packageName, className, intent)) {
+            return false;
+        }
+        try {
+            if ("false".equalsIgnoreCase(
+                    System.getProperty("westlake.mcd.lifecycle", "true"))) {
+                return false;
+            }
+        } catch (Throwable ignored) {
+        }
+        try {
+            String env = System.getenv("WESTLAKE_MCD_LIFECYCLE");
+            return env == null
+                    || (!"0".equals(env) && !"false".equalsIgnoreCase(env));
+        } catch (Throwable ignored) {
+            return true;
         }
     }
 
@@ -700,7 +861,8 @@ public class WestlakeActivityThread {
                                                Intent intent, Bundle savedState) {
         final boolean strictStandalone = !WestlakeLauncher.isRealFrameworkFallbackAllowed();
         final boolean forceLifecycleInStrict =
-                isCutoffCanaryLifecycleProbe(packageName, className, intent);
+                isCutoffCanaryLifecycleProbe(packageName, className, intent)
+                        || shouldRunMcdonaldsLifecycleInStrict(packageName, className, intent);
         if (strictStandalone) {
             WestlakeLauncher.marker("PF301 strict WAT impl entry");
         }
@@ -818,11 +980,19 @@ public class WestlakeActivityThread {
         // ── Step 3.5: Ensure DataSourceHelper is initialized before Activity constructor ──
         // Create stub proxies for ALL null interface fields on DataSourceHelper
         try {
-            if (!shouldBootstrapMcdonaldsDataSource(packageName, className, intent)) {
+            boolean mcdDatasourceLaunch =
+                    isMcdonaldsDataSourceLaunch(packageName, className, intent);
+            if (!mcdDatasourceLaunch) {
                 if (strictStandalone) {
                     WestlakeLauncher.marker("PF301 strict WAT impl datasource skipped non-mcd");
                 } else {
                     log("D", "Step 3.5 DataSourceHelper skipped: non-McDonald's launch");
+                }
+            } else if (!shouldBootstrapMcdonaldsDataSource(packageName, className, intent)) {
+                if (strictStandalone) {
+                    WestlakeLauncher.marker("PF301 strict WAT impl datasource skipped disabled");
+                } else {
+                    log("D", "Step 3.5 DataSourceHelper skipped: disabled for stock McDonald's launch");
                 }
             } else if (strictStandalone && cl == null) {
                 WestlakeLauncher.marker("PF301 strict WAT impl datasource skipped null classloader");
@@ -861,21 +1031,9 @@ public class WestlakeActivityThread {
                             return null;
                         }
                     }
-                    // For non-interface classes, try no-arg constructor first
-                    try { return rt.getDeclaredConstructor().newInstance(); } catch (Throwable t) {}
-                    // For abstract classes: use Unsafe.allocateInstance to create a bare instance
-                    // (abstract method calls will throw AbstractMethodError, but at least it's non-null)
-                    if (java.lang.reflect.Modifier.isAbstract(rt.getModifiers())) {
-                        try {
-                            java.lang.reflect.Field uf = Class.forName("sun.misc.Unsafe").getDeclaredField("theUnsafe");
-                            uf.setAccessible(true);
-                            Object unsafe = uf.get(null);
-                            Object inst = unsafe.getClass().getMethod("allocateInstance", Class.class).invoke(unsafe, rt);
-                            log("D", "[StubProxy] " + mn + "() -> Unsafe.allocateInstance(" + rt.getSimpleName() + ")");
-                            return inst;
-                        } catch (Throwable u) {
-                            log("W", "[StubProxy] " + mn + "() -> Unsafe failed: " + u.getMessage());
-                        }
+                    Object knownReturn = createKnownMcdDataSourceReturn(rt);
+                    if (knownReturn != null) {
+                        return knownReturn;
                     }
                     return null;
                 }
@@ -896,12 +1054,6 @@ public class WestlakeActivityThread {
                         Object stubProxy = java.lang.reflect.Proxy.newProxyInstance(fcl, new Class<?>[]{fType}, stubRef[0]);
                         f.set(null, stubProxy);
                         log("I", "DataSourceHelper." + f.getName() + " = stub proxy (" + fType.getSimpleName() + ")");
-                    } else if (!fType.isPrimitive() && fType != String.class) {
-                        try {
-                            Object inst = fType.getDeclaredConstructor().newInstance();
-                            f.set(null, inst);
-                            log("I", "DataSourceHelper." + f.getName() + " = new " + fType.getSimpleName() + "()");
-                        } catch (Throwable t) {}
                     }
                 } catch (Throwable perFieldEx) {
                     log("W", "DataSourceHelper field '" + f.getName() + "' scan error: " + perFieldEx.getMessage());
@@ -981,6 +1133,14 @@ public class WestlakeActivityThread {
             WestlakeLauncher.marker("PF301 strict WAT impl datasource done");
         } else {
             android.util.Log.i("WestlakeStep", "performLaunchActivity datasource end");
+        }
+        try {
+            if (shouldBootstrapMcdonaldsDataSource(packageName, className, intent)) {
+                seedMcdonaldsAppConfigurationState(cl);
+            }
+        } catch (Throwable t) {
+            log("W", "McD AppConfiguration seed failed: "
+                    + t.getClass().getSimpleName() + ": " + t.getMessage());
         }
 
         // ── Step 4: Instantiate the Activity via Instrumentation ──
@@ -1064,6 +1224,21 @@ public class WestlakeActivityThread {
                     + (app != null ? app.getClass().getName() : "null"));
         }
 
+        try {
+            if (shouldBootstrapMcdonaldsDataSource(packageName, className, intent)) {
+                seedMcdonaldsAppConfigurationState(cl);
+                seedMcdonaldsSdkCoreReady(cl, app != null ? app : baseContext);
+                seedMcdonaldsClickstreamState(cl, app);
+                seedMcdonaldsDeepLinkRouter(cl);
+                if (strictStandalone) {
+                    WestlakeLauncher.marker("PF301 strict WAT impl clickstream seeded");
+                }
+            }
+        } catch (Throwable t) {
+            log("W", "McD ClickstreamDataHelper seed failed: "
+                    + t.getClass().getSimpleName() + ": " + t.getMessage());
+        }
+
         // ── Step 6: Attach the activity ──
         if (strictStandalone) {
             WestlakeLauncher.marker("PF301 strict WAT impl step6 attach skip log");
@@ -1127,7 +1302,17 @@ public class WestlakeActivityThread {
                 WestlakeLauncher.marker("PF301 strict WAT impl step8 onCreate skipped");
                 WestlakeLauncher.marker("PF301 strict WAT impl step8 onCreate done");
             } else {
-                if (forceLifecycleInStrict) {
+                boolean mcdonaldsStrictLifecycle =
+                        strictStandalone
+                                && isMcdonaldsDataSourceLaunch(packageName, className, intent);
+                if (mcdonaldsStrictLifecycle) {
+                    // Stock McDonald's activities are constructed normally on
+                    // this path, so AndroidX constructor-owned saved-state fields
+                    // already exist. The synthetic repair path is only needed for
+                    // constructor-bypassed probes and currently trips the strict
+                    // runtime before SplashActivity.onCreate().
+                    WestlakeLauncher.marker("PFMCD precreate savedstate skipped constructor path");
+                } else if (forceLifecycleInStrict) {
                     int precreateProbeLevel = watPrecreateProbeLevel(intent);
                     if (precreateProbeLevel > 0 && !isExactWatPrecreateStage(intent)) {
                         probeNamedComponentActivitySavedStateReady(
@@ -1141,9 +1326,15 @@ public class WestlakeActivityThread {
                     ensureNamedComponentActivitySavedStateReady(activity);
                 }
                 WestlakeLauncher.trace("[WestlakeActivityThread] step8 onCreate begin");
+                if (mcdonaldsStrictLifecycle) {
+                    WestlakeLauncher.marker("PFMCD onCreate begin");
+                }
                 android.util.Log.i("WestlakeStep", "performLaunchActivity onCreate begin " + className);
                 mInstrumentation.callActivityOnCreate(activity, savedState);
                 WestlakeLauncher.trace("[WestlakeActivityThread] step8 onCreate done");
+                if (mcdonaldsStrictLifecycle) {
+                    WestlakeLauncher.marker("PFMCD onCreate done");
+                }
                 log("I", "  onCreate complete for " + className);
                 android.util.Log.i("WestlakeStep", "performLaunchActivity onCreate done " + className);
                 if ("com.westlake.mcdprofile".equals(packageName)
@@ -1164,6 +1355,304 @@ public class WestlakeActivityThread {
         }
 
         return activity;
+    }
+
+    private static void seedMcdonaldsAppConfigurationState(final ClassLoader cl) {
+        if (cl == null) {
+            return;
+        }
+        try {
+            Class<?> manager =
+                    cl.loadClass("com.mcdonalds.mcdcoreapp.common.services.AppConfigurationManager");
+            Class<?> appConfiguration =
+                    cl.loadClass("com.mcdonalds.common.interactor.AppConfiguration");
+            final java.util.Map<String, Object> config = new java.util.HashMap<>();
+            java.util.ArrayList<Object> markets = new java.util.ArrayList<>();
+            markets.add(newMcdMarketMap(cl));
+            config.put("markets", markets);
+            config.put("marketId", "US");
+            config.put("market", "US");
+            config.put("country", "US");
+            config.put("language", "en-US");
+            config.put("applicationName", "McDonald's");
+            config.put("applicationVersion", "7.0.0");
+            config.put("clientId", "westlake-offline");
+            config.put("clientSecret", "westlake-offline");
+            config.put("authUrl", "https://us-prod.api.mcd.com/v1/security/auth/token");
+            config.put("baseUrl", "https://us-prod.api.mcd.com/exp/v1/");
+            config.put("akamaiEnabled", Boolean.FALSE);
+
+            Object proxy = java.lang.reflect.Proxy.newProxyInstance(
+                    appConfiguration.getClassLoader() != null
+                            ? appConfiguration.getClassLoader() : cl,
+                    new Class<?>[] { appConfiguration },
+                    new java.lang.reflect.InvocationHandler() {
+                        public Object invoke(Object proxy, java.lang.reflect.Method method,
+                                Object[] args) {
+                            String name = method.getName();
+                            if ("toString".equals(name)) return "WestlakeMcDAppConfiguration";
+                            if ("hashCode".equals(name)) return Integer.valueOf(0);
+                            if ("equals".equals(name)) {
+                                return Boolean.valueOf(proxy == (args != null && args.length > 0
+                                        ? args[0] : null));
+                            }
+                            if ("s".equals(name) && args != null && args.length > 0
+                                    && args[0] instanceof java.util.Map) {
+                                java.util.Map<?, ?> update = (java.util.Map<?, ?>) args[0];
+                                for (java.util.Map.Entry<?, ?> entry : update.entrySet()) {
+                                    if (entry.getKey() != null) {
+                                        config.put(String.valueOf(entry.getKey()), entry.getValue());
+                                    }
+                                }
+                                return null;
+                            }
+                            if ("l".equals(name)) {
+                                return new java.util.HashMap<String, Object>(config);
+                            }
+                            if ("g".equals(name)) {
+                                return java.util.Locale.US;
+                            }
+                            if ("o".equals(name)) {
+                                return java.text.NumberFormat.getCurrencyInstance(java.util.Locale.US);
+                            }
+                            String key = args != null && args.length > 0 && args[0] != null
+                                    ? String.valueOf(args[0]) : "";
+                            if ("v".equals(name) || "t".equals(name)) {
+                                Object value = config.get(key);
+                                if (value != null) return value;
+                                if ("markets".equals(key)) {
+                                    java.util.ArrayList<Object> fallbackMarkets =
+                                            new java.util.ArrayList<>();
+                                    fallbackMarkets.add(newMcdMarketMap(cl));
+                                    return fallbackMarkets;
+                                }
+                                return null;
+                            }
+                            if ("u".equals(name) || "k".equals(name) || "m".equals(name)
+                                    || "n".equals(name)) {
+                                Object value = config.get(key);
+                                return value != null ? String.valueOf(value) : "";
+                            }
+                            if ("f".equals(name) || "w".equals(name) || "x".equals(name)) {
+                                return "US";
+                            }
+                            if ("A".equals(name) || "q".equals(name)) {
+                                Object value = config.get(key);
+                                return Boolean.valueOf(value instanceof Boolean
+                                        && ((Boolean) value).booleanValue());
+                            }
+                            if ("p".equals(name)) {
+                                Object value = config.get(key);
+                                return Integer.valueOf(value instanceof Number
+                                        ? ((Number) value).intValue()
+                                        : 0);
+                            }
+                            if ("z".equals(name)) {
+                                Object value = config.get(key);
+                                return Long.valueOf(value instanceof Number
+                                        ? ((Number) value).longValue()
+                                        : 0L);
+                            }
+                            if ("r".equals(name)) {
+                                Object value = config.get(key);
+                                return Double.valueOf(value instanceof Number
+                                        ? ((Number) value).doubleValue()
+                                        : 0d);
+                            }
+                            return defaultMcdProxyReturn(method.getReturnType(), cl,
+                                    "AppConfiguration." + name);
+                        }
+                    });
+
+            java.lang.reflect.Field field = manager.getDeclaredField("a");
+            field.setAccessible(true);
+            field.set(null, proxy);
+            log("I", "McD AppConfigurationManager seeded with offline US market config");
+        } catch (Throwable t) {
+            log("W", "McD AppConfigurationManager seed failed: "
+                    + t.getClass().getSimpleName() + ": " + t.getMessage());
+        }
+    }
+
+    @SuppressWarnings("unchecked")
+    private static java.util.Map<String, Object> newMcdMarketMap(ClassLoader cl) {
+        java.util.Map<String, Object> market = null;
+        try {
+            Class<?> linkedTreeMap = cl.loadClass("com.google.gson.internal.LinkedTreeMap");
+            Object instance = linkedTreeMap.getDeclaredConstructor().newInstance();
+            if (instance instanceof java.util.Map) {
+                market = (java.util.Map<String, Object>) instance;
+            }
+        } catch (Throwable ignored) {
+        }
+        if (market == null) {
+            market = new java.util.HashMap<>();
+        }
+        java.util.ArrayList<String> languages = new java.util.ArrayList<>();
+        languages.add("en-US");
+        languages.add("en");
+        market.put("marketId", "US");
+        market.put("market", "US");
+        market.put("country", "US");
+        market.put("language", "en-US");
+        market.put("languageSupported", languages);
+        market.put("applicationName", "McDonald's");
+        market.put("applicationVersion", "7.0.0");
+        market.put("clientId", "westlake-offline");
+        market.put("clientSecret", "westlake-offline");
+        market.put("authUrl", "https://us-prod.api.mcd.com/v1/security/auth/token");
+        market.put("baseUrl", "https://us-prod.api.mcd.com/exp/v1/");
+        return market;
+    }
+
+    private static void seedMcdonaldsSdkCoreReady(ClassLoader cl, Context context) {
+        if (cl == null || context == null) {
+            return;
+        }
+        try {
+            Class<?> coreManager =
+                    cl.loadClass("com.mcdonalds.androidsdk.core.internal.CoreManager");
+            java.lang.reflect.Field contextField = coreManager.getDeclaredField("b");
+            contextField.setAccessible(true);
+            if (contextField.get(null) == null) {
+                contextField.set(null, context);
+                log("I", "McD CoreManager context seeded for SDKManager.t()");
+            }
+        } catch (Throwable t) {
+            log("W", "McD CoreManager seed failed: "
+                    + t.getClass().getSimpleName() + ": " + t.getMessage());
+        }
+    }
+
+    private static void seedMcdonaldsClickstreamState(ClassLoader cl, Application app) {
+        if (cl == null) {
+            return;
+        }
+        try {
+            ClassLoader prior = Thread.currentThread().getContextClassLoader();
+            Thread.currentThread().setContextClassLoader(cl);
+            try {
+                Class<?> helperClass =
+                        cl.loadClass("com.mcdonalds.mcdcoreapp.analytics.ClickstreamDataHelper");
+                int seeded = 0;
+                for (java.lang.reflect.Field f : safeGetDeclaredFields(helperClass)) {
+                    if (!java.lang.reflect.Modifier.isStatic(f.getModifiers())) continue;
+                    f.setAccessible(true);
+                    if (f.get(null) != null) continue;
+                    Class<?> fType = f.getType();
+                    Object value = defaultMcdProxyReturn(fType, cl,
+                            "ClickstreamDataHelper." + f.getName());
+                    if (value != null) {
+                        f.set(null, value);
+                        seeded++;
+                    }
+                }
+
+                Object domain = null;
+                try {
+                    java.lang.reflect.Method getDomain = helperClass.getDeclaredMethod("u");
+                    getDomain.setAccessible(true);
+                    domain = getDomain.invoke(null);
+                    log("I", "ClickstreamDataHelper.u() seeded: "
+                            + (domain != null ? domain.getClass().getName() : "null"));
+                } catch (Throwable t) {
+                    log("W", "ClickstreamDataHelper.u() verify failed: "
+                            + t.getClass().getSimpleName() + ": " + t.getMessage());
+                }
+
+                seedMcdonaldsAnalyticsProvider(cl, app, domain);
+                log("I", "ClickstreamDataHelper seeded fields=" + seeded);
+            } finally {
+                Thread.currentThread().setContextClassLoader(prior);
+            }
+        } catch (Throwable t) {
+            log("W", "ClickstreamDataHelper seed failed: "
+                    + t.getClass().getSimpleName() + ": " + t.getMessage());
+        }
+    }
+
+    private static void seedMcdonaldsAnalyticsProvider(ClassLoader cl, Application app,
+            Object domain) {
+        if (cl == null || domain == null) {
+            return;
+        }
+        try {
+            Class<?> providerHelper =
+                    cl.loadClass("com.mcdonalds.analytics.utils.AnalyticsDataProviderHelper");
+            Class<?> providerType =
+                    cl.loadClass("com.mcdonalds.analytics.interfaces.McDMParticleWrapperProvider");
+            Object provider = java.lang.reflect.Proxy.newProxyInstance(
+                    providerType.getClassLoader() != null ? providerType.getClassLoader() : cl,
+                    new Class<?>[] { providerType },
+                    new java.lang.reflect.InvocationHandler() {
+                        public Object invoke(Object proxy, java.lang.reflect.Method method,
+                                Object[] args) {
+                            if ("toString".equals(method.getName())) {
+                                return "WestlakeMcDMParticleWrapperProvider";
+                            }
+                            if ("hashCode".equals(method.getName())) return Integer.valueOf(0);
+                            if ("equals".equals(method.getName())) {
+                                return Boolean.valueOf(proxy == (args != null && args.length > 0
+                                        ? args[0] : null));
+                            }
+                            if ("a".equals(method.getName())
+                                    && method.getParameterTypes().length == 0) {
+                                return domain;
+                            }
+                            return defaultMcdProxyReturn(method.getReturnType(), cl,
+                                    "AnalyticsDataProviderHelper." + method.getName());
+                        }
+                    });
+
+            int seeded = 0;
+            for (java.lang.reflect.Field f : safeGetDeclaredFields(providerHelper)) {
+                if (!java.lang.reflect.Modifier.isStatic(f.getModifiers())) continue;
+                f.setAccessible(true);
+                if (providerType.isAssignableFrom(f.getType())) {
+                    f.set(null, provider);
+                    seeded++;
+                }
+            }
+            if (seeded > 0) {
+                log("I", "AnalyticsDataProviderHelper provider seeded fields=" + seeded);
+            }
+        } catch (Throwable t) {
+            log("D", "AnalyticsDataProviderHelper seed skipped: "
+                    + t.getClass().getSimpleName() + ": " + t.getMessage());
+        }
+    }
+
+    private static void seedMcdonaldsDeepLinkRouter(ClassLoader cl) {
+        if (cl == null) {
+            return;
+        }
+        try {
+            ClassLoader prior = Thread.currentThread().getContextClassLoader();
+            Thread.currentThread().setContextClassLoader(cl);
+            try {
+                Class<?> jsonClass = cl.loadClass("org.json.JSONObject");
+                Object root = jsonClass.getDeclaredConstructor().newInstance();
+                Object routes = jsonClass.getDeclaredConstructor().newInstance();
+                Object defaultRoute = jsonClass.getDeclaredConstructor().newInstance();
+                java.lang.reflect.Method put = jsonClass.getMethod(
+                        "put", String.class, Object.class);
+                put.invoke(root, "routes", routes);
+                put.invoke(root, "defaultRoute", defaultRoute);
+
+                Class<?> routerClass = cl.loadClass(
+                        "com.mcdonalds.mcdcoreapp.config.deeplink.DeepLinkRouterObject");
+                Object router = routerClass.getDeclaredMethod("b").invoke(null);
+                java.lang.reflect.Method set = routerClass.getDeclaredMethod("c", jsonClass);
+                set.setAccessible(true);
+                set.invoke(router, root);
+                log("I", "DeepLinkRouterObject seeded with empty routes/defaultRoute");
+            } finally {
+                Thread.currentThread().setContextClassLoader(prior);
+            }
+        } catch (Throwable t) {
+            log("W", "DeepLinkRouterObject seed failed: "
+                    + t.getClass().getSimpleName() + ": " + t.getMessage());
+        }
     }
 
     private void ensureNamedComponentActivitySavedStateReady(Activity activity) {
@@ -1449,8 +1938,14 @@ public class WestlakeActivityThread {
                                  Application app, Intent intent,
                                  ComponentName component) {
         final boolean strictStandalone = !WestlakeLauncher.isRealFrameworkFallbackAllowed();
+        final boolean runMcdonaldsLifecycle =
+                shouldRunMcdonaldsLifecycleInStrict(
+                        component != null ? component.getPackageName() : null,
+                        component != null ? component.getClassName()
+                                : activity != null ? activity.getClass().getName() : null,
+                        intent);
         final boolean strictSkipLifecycle =
-                strictStandalone && !isCutoffCanaryLifecycleProbe(
+                strictStandalone && !runMcdonaldsLifecycle && !isCutoffCanaryLifecycleProbe(
                         component != null ? component.getPackageName() : null,
                         component != null ? component.getClassName()
                                 : activity != null ? activity.getClass().getName() : null,
@@ -1603,7 +2098,8 @@ public class WestlakeActivityThread {
         } else {
             try {
                 android.content.res.Resources actRes = activity.getResources();
-                String resDir = System.getProperty("westlake.apk.resdir");
+                String apkPath = WestlakeLauncher.currentApkPathForShim();
+                String resDir = WestlakeLauncher.currentResDirForShim();
                 WestlakeLauncher.trace("[WestlakeActivityThread] attachActivity resource wiring begin");
 
                 // Try to get ResourceTable from MiniServer's ApkInfo
@@ -1634,8 +2130,10 @@ public class WestlakeActivityThread {
                         if (table != null) tableField.set(actRes, table);
                     } catch (NoSuchFieldException e) { /* field may not exist */ }
                 }
-                ShimCompat.setApkPath(actRes, System.getProperty("westlake.apk.path"));
-                if (resDir != null) ShimCompat.setAssetDir(activity.getAssets(), resDir);
+                ShimCompat.setApkPath(actRes, apkPath);
+                android.content.res.AssetManager assets = activity.getAssets();
+                ShimCompat.setAssetApkPath(assets, apkPath);
+                if (resDir != null) ShimCompat.setAssetDir(assets, resDir);
                 WestlakeLauncher.trace("[WestlakeActivityThread] attachActivity resource wiring done");
             } catch (Throwable t) {
                 WestlakeLauncher.dumpThrowable("[WestlakeActivityThread] attachActivity resource wiring failed", t);
@@ -1798,7 +2296,9 @@ public class WestlakeActivityThread {
             return false;
         }
         String activityName = activity.getClass().getName();
-        return activityName != null && activityName.endsWith("SplashActivity");
+        return activityName != null
+                && activityName.endsWith("SplashActivity")
+                && !isMcdonaldsPackageOrClass(activityName);
     }
 
     private boolean isDashboardHostActivity(Activity activity) {

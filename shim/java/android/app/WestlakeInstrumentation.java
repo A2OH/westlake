@@ -32,10 +32,10 @@ public class WestlakeInstrumentation extends Instrumentation {
 
     private static final String TAG = "WestlakeInstrumentation";
 
-    private static String throwableSummary(Throwable t) {
-        if (t == null) {
-            return "null";
-        }
+	    private static String throwableSummary(Throwable t) {
+	        if (t == null) {
+	            return "null";
+	        }
         String message = null;
         try {
             message = t.getMessage();
@@ -44,8 +44,35 @@ public class WestlakeInstrumentation extends Instrumentation {
         if (message == null || message.isEmpty()) {
             return t.getClass().getName();
         }
-        return t.getClass().getName() + ": " + message;
-    }
+	        return t.getClass().getName() + ": " + message;
+	    }
+
+	    private static void markerThrowableFrames(String prefix, Throwable t, int maxFrames) {
+	        if (t == null) {
+	            return;
+	        }
+	        try {
+	            Throwable cause = t.getCause();
+	            if (cause != null && cause != t) {
+	                WestlakeLauncher.marker(prefix + " cause " + throwableSummary(cause));
+	            }
+	            StackTraceElement[] frames = t.getStackTrace();
+	            if (frames == null) {
+	                return;
+	            }
+	            int count = Math.min(maxFrames, frames.length);
+	            for (int i = 0; i < count; i++) {
+	                StackTraceElement frame = frames[i];
+	                if (frame == null) {
+	                    continue;
+	                }
+	                WestlakeLauncher.marker(prefix + " frame " + i + " "
+	                        + frame.getClassName() + "." + frame.getMethodName()
+	                        + ":" + frame.getLineNumber());
+	            }
+	        } catch (Throwable ignored) {
+	        }
+	    }
 
     private static java.lang.reflect.Field findFieldInHierarchy(Class<?> type, String name) {
         for (Class<?> c = type; c != null && c != Object.class; c = c.getSuperclass()) {
@@ -61,8 +88,23 @@ public class WestlakeInstrumentation extends Instrumentation {
         return null;
     }
 
+    private static boolean isMcdonaldsActivity(Activity activity) {
+        if (activity == null) {
+            return false;
+        }
+        try {
+            String name = activity.getClass().getName();
+            return name != null && name.startsWith("com.mcdonalds.");
+        } catch (Throwable ignored) {
+            return false;
+        }
+    }
+
     private void seedCtorBypassedHiltActivityState(Activity activity) {
         if (activity == null) {
+            return;
+        }
+        if (isMcdonaldsActivity(activity)) {
             return;
         }
         boolean isHiltActivity = false;
@@ -99,6 +141,9 @@ public class WestlakeInstrumentation extends Instrumentation {
 
     private static boolean isMinimalSplashClassName(String className) {
         if (className == null) {
+            return false;
+        }
+        if (className.startsWith("com.mcdonalds.")) {
             return false;
         }
         final String suffix = "SplashActivity";
@@ -542,14 +587,15 @@ public class WestlakeInstrumentation extends Instrumentation {
         WestlakeLauncher.trace("[WestlakeInstrumentation] callActivityOnCreate begin: "
                 + activity.getClass().getName());
         boolean minimalSplash = isMinimalSplashActivity(activity);
-        if (!minimalSplash) {
+        boolean mcdonaldsActivity = isMcdonaldsActivity(activity);
+        if (!minimalSplash && !mcdonaldsActivity) {
             try {
                 WestlakeLauncher.patchProblematicAppClasses(activity.getClass().getClassLoader());
             } catch (Throwable t) {
                 log("W", "patchProblematicAppClasses failed: " + throwableSummary(t));
             }
         }
-        if (!minimalSplash) {
+        if (!minimalSplash && !mcdonaldsActivity) {
             try {
                 dispatchLifecycleCallback("onActivityPreCreated", activity, icicle);
             } catch (Throwable t) {
@@ -581,13 +627,27 @@ public class WestlakeInstrumentation extends Instrumentation {
         try {
             WestlakeLauncher.trace("[WestlakeInstrumentation] invoking Activity.onCreate: "
                     + activity.getClass().getName());
+            if (mcdonaldsActivity) {
+                WestlakeLauncher.marker("PFMCD instr direct onCreate call");
+            }
             activity.onCreate(icicle);
+            if (mcdonaldsActivity) {
+                WestlakeLauncher.marker("PFMCD instr direct onCreate returned");
+            }
         } catch (Throwable firstEx) {
             onCreateFailure = firstEx;
+            if (mcdonaldsActivity) {
+                WestlakeLauncher.marker("PFMCD instr direct onCreate threw");
+	                WestlakeLauncher.marker("PFMCD instr direct onCreate throwable "
+	                        + throwableSummary(firstEx));
+	                WestlakeLauncher.dumpThrowable(
+	                        "[WestlakeInstrumentation] McD onCreate failure", firstEx);
+	                markerThrowableFrames("PFMCD instr direct onCreate throwable", firstEx, 18);
+	            }
             log("W", "onCreate initial failure: " + throwableSummary(firstEx));
         }
 
-        if (minimalSplash) {
+        if (minimalSplash || mcdonaldsActivity) {
             WestlakeLauncher.trace("[WestlakeInstrumentation] callActivityOnCreate done: "
                     + activity.getClass().getName());
             return;

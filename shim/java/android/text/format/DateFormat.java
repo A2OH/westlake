@@ -16,6 +16,7 @@ public class DateFormat {
     public static Object getMediumDateFormat(Object context) { return null; }
     public static Object getTimeFormat(Object context) { return null; }
     public static boolean is24HourFormat(Object context) { return false; }
+    public static boolean is24HourFormat(Context context) { return false; }
     public static boolean is24HourFormat(Context context, int userHandle) { return false; }
 
     /** Returns the time format string for the given context. */

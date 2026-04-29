@@ -1,5 +1,69 @@
 # Real Android APK on Dalvik/OHOS — Status
 
+## Supervisor Update: 2026-04-29
+
+The active real-APK proof has returned to the stock McDonald's APK. The
+controlled `com.westlake.mcdprofile` app remains useful as a portable OHOS
+boundary test, but it is no longer the current contract frontier.
+
+Current verified stock McDonald's status:
+
+- launch path is `com.westlake.host/.WestlakeActivity` with
+  `launch=WESTLAKE_ART_MCD`;
+- host APK owns the Android phone Activity/Surface/input on phone ART;
+- the guest APK runs in a separate Westlake `dalvikvm` subprocess;
+- `McDMarketApplication.onCreate` runs;
+- `SplashActivity.onCreate` runs;
+- `HomeDashboardActivity` is scheduled and entered;
+- `HomeDashboardFragment` is instantiated, `performCreate()` and
+  `performCreateView()` run, a `ScrollView` is attached, and
+  `performActivityCreated()` runs;
+- the visible frame is still mostly blank Westlake output, not the real
+  dashboard.
+
+Current blocker:
+
+- the latest `c90d15a...` runtime plus `a9b115...` shim phone proof no longer
+  reports `DATABINDING_TAG_NULL`, `ApplicationNotificationBinding`, or a fatal
+  signal in the captured log;
+- the former FragmentManager `commitNow()` SIGBUS and
+  `HomeDashboardFragment.performAttach()` SIGBUS are bypassed in strict mode
+  for this proof, exposing the next boundary;
+- `HomeDashboardActivity.onCreate` still throws
+  `ClassCastException: com.google.android.material.bottomnavigation.BottomNavigationView
+  cannot be cast to com.google.android.material.bottomnavigation.BottomNavigationView`.
+  This is a duplicate class identity problem between Westlake-owned Material
+  shim classes and app-loader upstream Material classes.
+
+Latest verified phone proof:
+
+- log:
+  `/mnt/c/Users/dspfa/TempWestlake/real_mcd/real_mcd_20260429_125936.log`
+  (`cd591d060b5617d969e18e3bdb75624473ca93eeea06aafaeec63e7d4633a077`)
+- screenshot:
+  `/mnt/c/Users/dspfa/TempWestlake/real_mcd/real_mcd_20260429_125936.png`
+  (`a4ae352c727c2c8f182275b68beb48543c258ffa4eb6652ed006ea7d103d3bd3`,
+  valid `1080x2280` PNG)
+- deployed runtime:
+  `c90d15a2e73be1bf6908ff713a5af18cf30736bfd396c609cffb3f0eec78f19f`
+- deployed shim:
+  `a9b115a81dba519991d20aa3e48e52f701abec43b71dd652cf07c933856bf40e`
+- deployed host APK:
+  `f080e20e9e96a6965be74a7ed38ea4369de38200b71054ffdeca6949b5b5d3a3`
+
+Important runtime note:
+
+- local ART runtime candidate
+  `7523774ecfdabeec733718326a3f74e87ce51aa080b28237a741f253be0efadb`
+  is rejected. It regressed before Splash/Dashboard with an
+  `AtomicIntegerFieldUpdater` bootstrap NPE and is not the accepted phone
+  runtime.
+
+Next work is to close Material class identity at ART/classloader resolution,
+then replace the McD-specific strict-mode fragment lifecycle skips with a
+generic app-AndroidX compatible attach/transaction path. Mock McD/Yelp visuals
+are not accepted as replacement evidence for this frontier.
+
 ## Supervisor Update: 2026-04-28
 
 The active bridge between controlled apps and a real McDonald's-class APK is

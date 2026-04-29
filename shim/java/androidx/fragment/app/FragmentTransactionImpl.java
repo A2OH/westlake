@@ -9,14 +9,14 @@ import java.util.List;
  * Concrete FragmentTransaction implementation that modifies the FragmentManager's
  * fragment list on commit.
  */
-class FragmentTransactionImpl extends FragmentTransaction {
+public class FragmentTransactionImpl extends FragmentTransaction {
 
     final FragmentManager mManager;
     final ArrayList<Op> mOps = new ArrayList<>();
     String mName;
     boolean mAddToBackStack;
 
-    FragmentTransactionImpl(FragmentManager manager) {
+    public FragmentTransactionImpl(FragmentManager manager) {
         mManager = manager;
     }
 

@@ -10,6 +10,7 @@ import com.google.android.material.navigation.NavigationBarView;
  * Renders as a horizontal bar with tab labels at the bottom.
  */
 public class BottomNavigationView extends NavigationBarView {
+    public static final boolean WESTLAKE_SHIM = true;
     private OnNavigationItemSelectedListener mListener;
 
     public BottomNavigationView(Context context) { super(context); init(); }

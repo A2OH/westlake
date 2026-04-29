@@ -824,6 +824,10 @@ public class MiniActivityManager {
             return instantiateKnownImpl(type, appCl, "com.mcdonalds.payments.PaymentModuleImplementation");
         }
 
+        if ("com.mcdonalds.mcdcoreapp.helper.interfaces.HomeModuleInteractor".equals(name)) {
+            return instantiateKnownImpl(type, appCl, "com.mcdonalds.homedashboard.util.HomeHelperImplementation");
+        }
+
         if ("com.mcdonalds.mcdcoreapp.helper.interfaces.AccountProfileInteractor".equals(name)) {
             return instantiateKnownImpl(type, appCl, "com.mcdonalds.account.util.AccountProfileImplementation");
         }

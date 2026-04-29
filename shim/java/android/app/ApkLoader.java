@@ -283,8 +283,12 @@ public class ApkLoader {
             }
         }
 
-        // Set res dir for layout inflation
-        info.assetDir = resDir;
+        // Set res dir for layout inflation and asset dir for AssetManager.
+        // The host/external staging layout is:
+        //   <resDir>/resources.arsc
+        //   <resDir>/res/...
+        //   <resDir>/assets/...
+        info.assetDir = new File(resDir, "assets").getAbsolutePath();
         info.resDir = resDir;
         if (!com.westlake.engine.WestlakeLauncher.isRealFrameworkFallbackAllowed()) {
             com.westlake.engine.WestlakeLauncher.strictTrace("PF202 ApkLoader res dirs ready");

@@ -193,6 +193,40 @@ public class HostBridge {
     }
 
     /**
+     * Delegate getServiceInfo(ComponentName, int) to host's real PM.
+     * Copies common fields into a shim ServiceInfo.
+     */
+    public static android.content.pm.ServiceInfo pm_getServiceInfo(
+            android.content.ComponentName component, int flags) {
+        Object hostPM = getHostPackageManager();
+        android.content.pm.ServiceInfo fallback = new android.content.pm.ServiceInfo();
+        if (component != null) {
+            fallback.packageName = component.getPackageName();
+            fallback.name = component.getClassName();
+        }
+        if (hostPM == null || component == null) return fallback;
+        try {
+            Class<?> cnClass = hostPM.getClass().getClassLoader()
+                .loadClass("android.content.ComponentName");
+            Object realCN = cnClass.getConstructor(String.class, String.class)
+                .newInstance(component.getPackageName(), component.getClassName());
+
+            Method m = hostPM.getClass().getMethod("getServiceInfo", cnClass, int.class);
+            Object realSI = m.invoke(hostPM, realCN, flags);
+            if (realSI == null) return fallback;
+
+            android.content.pm.ServiceInfo shimSI = new android.content.pm.ServiceInfo();
+            copyServiceInfoFields(realSI, shimSI);
+            if (shimSI.packageName == null) shimSI.packageName = fallback.packageName;
+            if (shimSI.name == null) shimSI.name = fallback.name;
+            return shimSI;
+        } catch (Exception e) {
+            android.util.Log.w(TAG, "pm_getServiceInfo: " + e.getCause());
+            return fallback;
+        }
+    }
+
+    /**
      * Delegate getApplicationInfo(String, int) to host's real PM.
      * Copies fields from the host's real ApplicationInfo into a shim ApplicationInfo.
      */
@@ -409,6 +443,22 @@ public class HostBridge {
         }
     }
 
+    /** Copy common fields from a real ServiceInfo to a shim ServiceInfo. */
+    private static void copyServiceInfoFields(Object src, android.content.pm.ServiceInfo dst) {
+        try {
+            dst.name = getStringField(src, "name");
+            dst.packageName = getStringField(src, "packageName");
+            dst.flags = getIntField(src, "flags");
+            dst.permission = getStringField(src, "permission");
+            dst.labelRes = getIntField(src, "labelRes");
+            dst.icon = getIntField(src, "icon");
+            dst.exported = getBooleanField(src, "exported");
+            dst.enabled = getBooleanField(src, "enabled") ? 1 : 0;
+        } catch (Exception e) {
+            android.util.Log.w(TAG, "copyServiceInfoFields: " + e);
+        }
+    }
+
     /** Copy common fields from a real ApplicationInfo to a shim ApplicationInfo. */
     private static void copyApplicationInfoFields(Object src, android.content.pm.ApplicationInfo dst) {
         try {
@@ -473,6 +523,15 @@ public class HostBridge {
             return f.getInt(obj);
         } catch (Exception e) {
             return 0;
+        }
+    }
+
+    private static boolean getBooleanField(Object obj, String fieldName) {
+        try {
+            java.lang.reflect.Field f = obj.getClass().getField(fieldName);
+            return f.getBoolean(obj);
+        } catch (Exception e) {
+            return false;
         }
     }
 }

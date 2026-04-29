@@ -20,7 +20,7 @@ public class FragmentActivity extends ComponentActivity {
      */
     public FragmentManager getSupportFragmentManager() {
         if (mSupportFragmentManager == null) {
-            mSupportFragmentManager = new FragmentManager();
+            mSupportFragmentManager = new FragmentManagerImpl();
             mSupportFragmentManager.setHost(this);
         }
         return mSupportFragmentManager;

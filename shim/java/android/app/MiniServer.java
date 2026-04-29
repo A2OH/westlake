@@ -196,6 +196,7 @@ public class MiniServer {
         // Wire APK path so LayoutInflater can read binary AXML layouts
         // directly from the APK ZIP via ApkResourceLoader
         ShimCompat.setApkPath(mApplication.getResources(), apkPath);
+        ShimCompat.setAssetApkPath(mApplication.getAssets(), apkPath);
 
         // Wire assets from extracted assets/ directory
         if (info.assetDir != null) {

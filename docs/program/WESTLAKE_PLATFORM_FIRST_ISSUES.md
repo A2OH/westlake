@@ -1,6 +1,6 @@
 # Westlake Platform-First Issue Map
 
-Last updated: 2026-04-28
+Last updated: 2026-04-29
 
 This file mirrors the active platform-first issue structure used for execution.
 
@@ -17,7 +17,8 @@ Primary issue families:
 - `PF-301` generic `ActivityThread` / `Activity` / `Window` startup: `A2OH/westlake#564`
 - `PF-302` generic surface/input/render survival: `A2OH/westlake#565`
 - `PF-401` app-owned AndroidX/AppCompat host integrity: `A2OH/westlake#566`
-- `PF-451` controlled local Android showcase app: today delivery target
+- `PF-451` controlled local Android showcase app: Android phone proof accepted;
+  OHOS adapter implementation remains open
 - `PF-452` guest networking/runtime bridge: Android phone host/OHBridge proof
   accepted; OHOS adapter implementation remains open
 - `PF-453` separate Yelp-like live data app: Android phone proof accepted;
@@ -152,6 +153,55 @@ McDonald's-class stock APK are documented in
   a sidecar proof, not full PF-470 closure, because the visible frame still
   uses the McD-specific direct renderer and ListView item selection is still
   launcher-assisted rather than pure `AbsListView` touch-dispatch behavior.
+- `PF-476` stock McDonald's dashboard/databinding blocker: real McDonald's APK
+  `com.mcdonalds.app` now stages and launches through Westlake, reaches
+  `McDMarketApplication.onCreate`, reaches `SplashActivity.onCreate`, schedules
+  `com.mcdonalds.homedashboard.activity.HomeDashboardActivity`, and enters
+  `HomeDashboardActivity.onCreate`. The previous Gson annotation proxy,
+  `sun.misc.Unsafe.allocateInstance()`, `TimeZone.getDefault()`, ICU regex, and
+  `DataSourceModuleProvider.v()` interface-dispatch blockers are no longer the
+  latest frontier in the current phone proof. The `c90d15a...` runtime plus
+  `a9b115...` shim proof no longer emits `DATABINDING_TAG_NULL` or
+  `ApplicationNotificationBinding`, and the current accepted log has no fatal
+  signal marker. The proof now bypasses app FragmentManager `commitNow()` and
+  `HomeDashboardFragment.performAttach()` in strict mode, reaches
+  `HomeDashboardFragment.performCreate()`, `performCreateView()`, attaches a
+  `ScrollView`, invokes `performActivityCreated()`, and logs
+  `Programmatic HomeDashboardFragment attached`. The latest blocker before
+  first real dashboard UI is still Material class identity:
+  `BottomNavigationView` cannot be cast to itself because app-loader upstream
+  Material and Westlake-owned shim Material resolve as different classes.
+  Current verified proof:
+  `/mnt/c/Users/dspfa/TempWestlake/real_mcd/real_mcd_20260429_125936.log`
+  (`cd591d060b5617d969e18e3bdb75624473ca93eeea06aafaeec63e7d4633a077`),
+  screenshot
+  `/mnt/c/Users/dspfa/TempWestlake/real_mcd/real_mcd_20260429_125936.png`
+  (`a4ae352c727c2c8f182275b68beb48543c258ffa4eb6652ed006ea7d103d3bd3`,
+  valid `1080x2280` PNG),
+  deployed runtime
+  `c90d15a2e73be1bf6908ff713a5af18cf30736bfd396c609cffb3f0eec78f19f`,
+  and deployed `aosp-shim.dex`
+  `a9b115a81dba519991d20aa3e48e52f701abec43b71dd652cf07c933856bf40e`.
+  The next implementation task is to close Material class ownership and
+  then remove the McD-specific strict-mode lifecycle skips by making
+  app-owned AndroidX fragment attach/transaction work generically.
+- `PF-477` Material class ownership for stock APKs: open. The current
+  dashboard `ClassCastException` proves duplicate definitions for
+  `com.google.android.material.*`. The intended fix is ART/classloader policy:
+  Material must be Westlake shim-owned for this path, with app bytecode and XML
+  inflation resolving to the same boot/shim class. A local ART source attempt
+  to prefer boot/shim Material produced runtime candidate
+  `7523774ecfdabeec733718326a3f74e87ce51aa080b28237a741f253be0efadb`, but
+  that binary regressed before Splash/Dashboard and is rejected. Keep phone
+  proofs on accepted runtime `c90d15a...` until a new runtime candidate passes
+  bootstrap and dashboard markers.
+- `PF-478` real McDonald's fragment lifecycle/rendering: open. The current
+  proof reaches `HomeDashboardFragment` creation/view attachment only by
+  strict-mode bypasses for app FragmentManager `commitNow()` and
+  `performAttach()`. This is acceptable as a boundary probe, not as a final
+  architecture. The contract gap is a generic app-AndroidX compatible
+  FragmentManager/Fragment attach path plus visible rendering of the attached
+  dashboard view tree.
 
 ## 2026-04-25 Roadmap Corrections
 

@@ -400,12 +400,182 @@ public class Resources {
     // ── Resource ID lookup ───────────────────────────────────────────────────
 
     public int getIdentifier(String name, String defType, String defPackage) {
+        String key = normalizeIdentifierKey(name, defType);
         if (mTable != null) {
-            // Search the ResourceTable for "type/name" pattern
-            String key = (defType != null ? defType + "/" : "") + name;
-            return mTable.getIdentifier(key);
+            int id = mTable.getIdentifier(key);
+            if (id != 0) {
+                return id;
+            }
+        }
+        String fallbackType = defType;
+        String fallbackName = name;
+        if (key != null) {
+            int slash = key.indexOf('/');
+            if (slash > 0 && slash + 1 < key.length()) {
+                fallbackType = key.substring(0, slash);
+                fallbackName = key.substring(slash + 1);
+            } else {
+                fallbackName = key;
+            }
+        }
+        int fallback = getKnownMcdResourceIdentifier(fallbackName, fallbackType, defPackage);
+        if (fallback != 0) {
+            return fallback;
         }
         return 0;
+    }
+
+    private static String normalizeIdentifierKey(String name, String defType) {
+        if (name == null) {
+            return null;
+        }
+        String key = name;
+        int colon = key.indexOf(':');
+        if (colon >= 0 && colon + 1 < key.length()) {
+            key = key.substring(colon + 1);
+        }
+        if (key.startsWith("res/")) {
+            key = key.substring(4);
+        }
+        if (key.endsWith(".xml")) {
+            key = key.substring(0, key.length() - 4);
+        }
+        if (key.indexOf('/') >= 0 || defType == null || defType.length() == 0) {
+            return key;
+        }
+        return defType + "/" + key;
+    }
+
+    private static int getKnownMcdResourceIdentifier(String name, String defType, String defPackage) {
+        if (name == null || defType == null) {
+            return 0;
+        }
+        boolean mcdPackage = defPackage != null && defPackage.contains("mcdonalds");
+        if (!mcdPackage) {
+            return 0;
+        }
+        if ("id".equals(defType)) {
+            if ("back".equals(name)) return 0x7f0b01c2;
+            if ("basket_error".equals(name)) return 0x7f0b0212;
+            if ("basket_layout".equals(name)) return 0x7f0b0219;
+            if ("basket_price".equals(name)) return 0x7f0b021c;
+            if ("close".equals(name)) return 0x7f0b03da;
+            if ("content_view".equals(name)) return 0x7f0b04ba;
+            if ("home_dashboard_container".equals(name)) return 0x7f0b0ae8;
+            if ("intermediate_layout_container".equals(name)) return 0x7f0b0b83;
+            if ("mcdBackNavigationButton".equals(name)) return 0x7f0b0e8a;
+            if ("page_content".equals(name)) return 0x7f0b11e0;
+            if ("page_content_holder".equals(name)) return 0x7f0b11e1;
+            if ("page_root".equals(name)) return 0x7f0b11e3;
+            if ("toolbar".equals(name)) return 0x7f0b1965;
+            if ("toolbarCenterImageIcon".equals(name)) return 0x7f0b1967;
+            if ("toolbarRightButton".equals(name)) return 0x7f0b196a;
+            if ("toolbarSearchIcon".equals(name)) return 0x7f0b196f;
+            if ("toolbarTitleText".equals(name)) return 0x7f0b1970;
+            if ("toolbar_title".equals(name)) return 0x7f0b1978;
+            return 0;
+        }
+        if ("layout".equals(defType)) {
+	            if ("activity_base".equals(name)) return 0x7f0e0038;
+	            if ("activity_dashboard_new".equals(name)) return 0x7f0e0044;
+	            if ("activity_home_dashboard".equals(name)) return 0x7f0e0058;
+	            if ("application_notification".equals(name)) return 0x7f0e00c3;
+	            if ("base_layout".equals(name)) return 0x7f0e00ee;
+	            if ("campaign_application_notification".equals(name)) return 0x7f0e010a;
+	            if ("deal_for_today_item_loy".equals(name)) return 0x7f0e019d;
+            if ("deal_viewall_item_loy".equals(name)) return 0x7f0e01b3;
+            if ("flex_fragment_home_dashboard_delivery_error_tile".equals(name)) return 0x7f0e0216;
+            if ("flex_order_cancelled_status_tile".equals(name)) return 0x7f0e0217;
+            if ("flex_order_cancelled_status_tile_v2".equals(name)) return 0x7f0e0218;
+            if ("flex_order_delivered_status_tile".equals(name)) return 0x7f0e0219;
+            if ("flex_order_delivered_status_tile_v2".equals(name)) return 0x7f0e021a;
+            if ("flex_order_in_progress_status_tile".equals(name)) return 0x7f0e021b;
+            if ("flex_order_in_progress_status_tile_v2".equals(name)) return 0x7f0e021c;
+            if ("flex_order_is_creating_status_tile_v2".equals(name)) return 0x7f0e021d;
+            if ("flex_order_on_way_status_tile".equals(name)) return 0x7f0e021e;
+            if ("flex_order_on_way_status_tile_v2".equals(name)) return 0x7f0e021f;
+            if ("flex_preparing_order_status_tile".equals(name)) return 0x7f0e0221;
+            if ("flex_preparing_order_status_tile_v2".equals(name)) return 0x7f0e0222;
+            if ("fragment_home_counter_pay_with_cash_hero_v2".equals(name)) return 0x7f0e027a;
+            if ("fragment_home_curbside_hero_v2".equals(name)) return 0x7f0e027c;
+            if ("fragment_home_dashboard".equals(name)) return 0x7f0e027d;
+            if ("fragment_home_dashboard_curbside_order_hero".equals(name)) return 0x7f0e027f;
+            if ("fragment_home_dashboard_needs_attention".equals(name)) return 0x7f0e0284;
+            if ("fragment_home_dashboard_no_spot_number_card".equals(name)) return 0x7f0e0285;
+            if ("fragment_home_drive_thru_hero_v2".equals(name)) return 0x7f0e028b;
+            if ("fragment_home_optin_checkout".equals(name)) return 0x7f0e028e;
+            if ("fragment_home_table_service_hero_v2".equals(name)) return 0x7f0e0290;
+            if ("fragment_oal_order_hero".equals(name)) return 0x7f0e02d0;
+            if ("home_dashboard_roa_order_in_progress_hero_v2".equals(name)) return 0x7f0e035f;
+            if ("home_dashboard_roa_thank_you_hero_v2".equals(name)) return 0x7f0e0361;
+            if ("home_deal_adapter_loy".equals(name)) return 0x7f0e0364;
+            if ("layout_bonus_tile_fragment".equals(name)) return 0x7f0e03ac;
+            if ("mcd_toolbar".equals(name)) return 0x7f0e03f5;
+            if ("one_app_home_delivery_fragment".equals(name)) return 0x7f0e044f;
+            if ("toolbar_close_back".equals(name)) return 0x7f0e0530;
+        }
+        return 0;
+    }
+
+    private static String getKnownMcdResourceName(int id) {
+        switch (id) {
+            case 0x7f0b01c2: return "id/back";
+            case 0x7f0b0212: return "id/basket_error";
+            case 0x7f0b0219: return "id/basket_layout";
+            case 0x7f0b021c: return "id/basket_price";
+            case 0x7f0b03da: return "id/close";
+            case 0x7f0b04ba: return "id/content_view";
+            case 0x7f0b0ae8: return "id/home_dashboard_container";
+            case 0x7f0b0b83: return "id/intermediate_layout_container";
+            case 0x7f0b0e8a: return "id/mcdBackNavigationButton";
+            case 0x7f0b11e0: return "id/page_content";
+            case 0x7f0b11e1: return "id/page_content_holder";
+            case 0x7f0b11e3: return "id/page_root";
+            case 0x7f0b1965: return "id/toolbar";
+            case 0x7f0b1967: return "id/toolbarCenterImageIcon";
+            case 0x7f0b196a: return "id/toolbarRightButton";
+            case 0x7f0b196f: return "id/toolbarSearchIcon";
+            case 0x7f0b1970: return "id/toolbarTitleText";
+            case 0x7f0b1978: return "id/toolbar_title";
+	            case 0x7f0e0038: return "layout/activity_base";
+	            case 0x7f0e0044: return "layout/activity_dashboard_new";
+	            case 0x7f0e0058: return "layout/activity_home_dashboard";
+	            case 0x7f0e00c3: return "layout/application_notification";
+	            case 0x7f0e00ee: return "layout/base_layout";
+	            case 0x7f0e010a: return "layout/campaign_application_notification";
+	            case 0x7f0e019d: return "layout/deal_for_today_item_loy";
+            case 0x7f0e01b3: return "layout/deal_viewall_item_loy";
+            case 0x7f0e0216: return "layout/flex_fragment_home_dashboard_delivery_error_tile";
+            case 0x7f0e0217: return "layout/flex_order_cancelled_status_tile";
+            case 0x7f0e0218: return "layout/flex_order_cancelled_status_tile_v2";
+            case 0x7f0e0219: return "layout/flex_order_delivered_status_tile";
+            case 0x7f0e021a: return "layout/flex_order_delivered_status_tile_v2";
+            case 0x7f0e021b: return "layout/flex_order_in_progress_status_tile";
+            case 0x7f0e021c: return "layout/flex_order_in_progress_status_tile_v2";
+            case 0x7f0e021d: return "layout/flex_order_is_creating_status_tile_v2";
+            case 0x7f0e021e: return "layout/flex_order_on_way_status_tile";
+            case 0x7f0e021f: return "layout/flex_order_on_way_status_tile_v2";
+            case 0x7f0e0221: return "layout/flex_preparing_order_status_tile";
+            case 0x7f0e0222: return "layout/flex_preparing_order_status_tile_v2";
+            case 0x7f0e027a: return "layout/fragment_home_counter_pay_with_cash_hero_v2";
+            case 0x7f0e027c: return "layout/fragment_home_curbside_hero_v2";
+            case 0x7f0e027d: return "layout/fragment_home_dashboard";
+            case 0x7f0e027f: return "layout/fragment_home_dashboard_curbside_order_hero";
+            case 0x7f0e0284: return "layout/fragment_home_dashboard_needs_attention";
+            case 0x7f0e0285: return "layout/fragment_home_dashboard_no_spot_number_card";
+            case 0x7f0e028b: return "layout/fragment_home_drive_thru_hero_v2";
+            case 0x7f0e028e: return "layout/fragment_home_optin_checkout";
+            case 0x7f0e0290: return "layout/fragment_home_table_service_hero_v2";
+            case 0x7f0e02d0: return "layout/fragment_oal_order_hero";
+            case 0x7f0e035f: return "layout/home_dashboard_roa_order_in_progress_hero_v2";
+            case 0x7f0e0361: return "layout/home_dashboard_roa_thank_you_hero_v2";
+            case 0x7f0e0364: return "layout/home_deal_adapter_loy";
+            case 0x7f0e03ac: return "layout/layout_bonus_tile_fragment";
+            case 0x7f0e03f5: return "layout/mcd_toolbar";
+            case 0x7f0e044f: return "layout/one_app_home_delivery_fragment";
+            case 0x7f0e0530: return "layout/toolbar_close_back";
+            default: return null;
+        }
     }
 
     /**
@@ -417,6 +587,8 @@ public class Resources {
             String name = mTable.getResourceName(id);
             if (name != null) return name;
         }
+        String known = getKnownMcdResourceName(id);
+        if (known != null) return known;
         return "res/0x" + Integer.toHexString(id);
     }
 
@@ -431,6 +603,14 @@ public class Resources {
                 return name;
             }
         }
+        String known = getKnownMcdResourceName(id);
+        if (known != null) {
+            int slash = known.indexOf('/');
+            if (slash >= 0 && slash + 1 < known.length()) {
+                return known.substring(slash + 1);
+            }
+            return known;
+        }
         return "entry_" + Integer.toHexString(id);
     }
 
@@ -442,6 +622,13 @@ public class Resources {
                 if (slash > 0) {
                     return name.substring(0, slash);
                 }
+            }
+        }
+        String known = getKnownMcdResourceName(id);
+        if (known != null) {
+            int slash = known.indexOf('/');
+            if (slash > 0) {
+                return known.substring(0, slash);
             }
         }
         // Derive type from the TT byte of the resource ID: 0xPPTTEEEE

@@ -1,6 +1,6 @@
 # Westlake Platform-First Contract
 
-Last updated: 2026-04-28
+Last updated: 2026-04-29
 
 This document is the repo-pushed version of the active Westlake delivery
 contract.
@@ -16,6 +16,79 @@ Required outcome:
 - coherent generic activity/window/looper/input/surface host contract
 - app-owned AndroidX/AppCompat running on that substrate
 - only then real McDonald's UI
+
+## Supervisor Update: Stock McDonald's Return Frontier
+
+The active contract frontier is back on the real McDonald's APK, not the
+controlled mock McD profile. The host APK still runs on the phone's normal ART
+only as a shell for Activity/Surface/input ownership; the guest APK is launched
+as a separate Westlake `dalvikvm` subprocess. The target/OHOS path must not
+fall back to `app_process64`, `dalvikvm64`, or the phone framework runtime.
+
+Latest verified real McDonald's progress on 2026-04-29:
+
+- `com.mcdonalds.app` is staged as
+  `/data/local/tmp/westlake/com_mcdonalds_app.apk` and launched with
+  `launch=WESTLAKE_ART_MCD`;
+- Westlake reaches `McDMarketApplication.onCreate`;
+- Westlake reaches
+  `com.mcdonalds.mcdcoreapp.common.activity.SplashActivity.onCreate`;
+- the guest schedules
+  `com.mcdonalds.homedashboard.activity.HomeDashboardActivity`;
+- Westlake enters `HomeDashboardActivity.onCreate`;
+- Westlake programmatically instantiates `HomeDashboardFragment`, bypasses the
+  unsafe app FragmentManager `commitNow()` and `performAttach()` calls in
+  strict mode, then reaches `performCreate()`, `performCreateView()`, attaches
+  a `ScrollView`, runs `performActivityCreated()`, and logs
+  `Programmatic HomeDashboardFragment attached`.
+
+The current blocker is still before first real dashboard paint. The
+`c90d15a...` runtime plus `a9b115...` shim phone proof no longer emits the
+earlier `ApplicationNotificationBinding` missing-tag marker and no longer logs
+a fatal signal in the captured window. It still throws the Material
+`BottomNavigationView` self-cast `ClassCastException`, proving a duplicate
+class identity problem between Westlake-owned Material shim classes and
+app-loader upstream Material classes. The visible screenshot is a valid
+`1080x2280` mostly blank Westlake frame, not the real McDonald's dashboard.
+
+Latest accepted real-McD proof:
+
+- `dalvikvm=c90d15a2e73be1bf6908ff713a5af18cf30736bfd396c609cffb3f0eec78f19f`
+- `aosp-shim.dex=a9b115a81dba519991d20aa3e48e52f701abec43b71dd652cf07c933856bf40e`
+- `westlake-host.apk=f080e20e9e96a6965be74a7ed38ea4369de38200b71054ffdeca6949b5b5d3a3`
+- log:
+  `/mnt/c/Users/dspfa/TempWestlake/real_mcd/real_mcd_20260429_125936.log`
+  (`cd591d060b5617d969e18e3bdb75624473ca93eeea06aafaeec63e7d4633a077`)
+- screenshot:
+  `/mnt/c/Users/dspfa/TempWestlake/real_mcd/real_mcd_20260429_125936.png`
+  (`a4ae352c727c2c8f182275b68beb48543c258ffa4eb6652ed006ea7d103d3bd3`)
+
+Rejected runtime candidate:
+
+- `dalvikvm=7523774ecfdabeec733718326a3f74e87ce51aa080b28237a741f253be0efadb`
+  regressed before Splash/Dashboard and must not replace the accepted
+  `c90d15a...` runtime.
+
+Current supervisor order:
+
+1. close Material class identity at ART/classloader resolution so app bytecode
+   and Westlake XML inflation see one `com.google.android.material.*` class
+   definition;
+2. replace the strict-mode McD fragment lifecycle skips with a generic
+   app-AndroidX compatible attach/transaction path;
+3. make the attached `HomeDashboardFragment` produce visible real dashboard
+   content through generic View rendering/layout;
+4. isolate and fix the next `SIGBUS` if the next real dashboard step exposes a
+   runtime dispatch fault;
+5. rerun the real McDonald's APK after each runtime/shim change and accept only
+   evidence that advances the real dashboard path;
+6. keep the southbound contracts portable for OHOS.
+
+Primary live docs:
+
+- `docs/engine/WESTLAKE-STATUS.md`
+- `docs/program/WESTLAKE_PLATFORM_FIRST_ISSUES.md`
+- `docs/engine/REAL-APK-STATUS.md`
 
 ## Today Delivery Goal: Controlled Mock McD Profile Boundary
 

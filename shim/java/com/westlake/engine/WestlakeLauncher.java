@@ -334,6 +334,11 @@ public class WestlakeLauncher {
             if (gate.get(null) == null) {
                 gate.set(null, new java.lang.ThreadLocal());
             }
+            java.lang.reflect.Field defaultCharset = charset.getDeclaredField("defaultCharset");
+            defaultCharset.setAccessible(true);
+            if (defaultCharset.get(null) == null) {
+                defaultCharset.set(null, java.nio.charset.StandardCharsets.UTF_8);
+            }
         } catch (Throwable ignored) {
         }
     }
@@ -754,13 +759,13 @@ public class WestlakeLauncher {
         if (loader == null) {
             return;
         }
-        String[] classes = {
+        Object[] classes = {
             "com.newrelic.agent.android.tracing.TraceMachine",
             "com.newrelic.agent.android.tracing.Trace",
             "com.newrelic.agent.android.NewRelic",
         };
         for (int i = 0; i < classes.length; i++) {
-            String className = classes[i];
+            String className = (String) classes[i];
             try {
                 if (nativePatchClassNoop(className, loader)) {
                     startupLog("[WestlakeLauncher] Patched " + className
@@ -799,6 +804,14 @@ public class WestlakeLauncher {
             return fileValue;
         }
         return snapshot;
+    }
+
+    public static String currentApkPathForShim() {
+        return propOrSnapshot("westlake.apk.path", sBootApkPath);
+    }
+
+    public static String currentResDirForShim() {
+        return propOrSnapshot("westlake.apk.resdir", sBootResDir);
     }
 
     private static String copyString(String value) {
@@ -1553,6 +1566,29 @@ public class WestlakeLauncher {
         }
     }
 
+    private static void repairClassLoaderPackageMaps(ClassLoader loader) {
+        ClassLoader current = loader;
+        int depth = 0;
+        while (current != null && depth++ < 8) {
+            try {
+                java.lang.reflect.Field packages =
+                        java.lang.ClassLoader.class.getDeclaredField("packages");
+                packages.setAccessible(true);
+                if (packages.get(current) == null) {
+                    packages.set(current, new java.util.HashMap());
+                    startupLog("[WestlakeLauncher] Repaired ClassLoader packages for "
+                            + loaderTag(current));
+                }
+            } catch (Throwable ignored) {
+            }
+            try {
+                current = current.getParent();
+            } catch (Throwable ignored) {
+                break;
+            }
+        }
+    }
+
     private static void logClassOwnership(String label, Class<?> cls) {
         if (cls == null) {
             startupLog("[WestlakeLauncher] Ownership " + label + "=null");
@@ -1664,11 +1700,13 @@ public class WestlakeLauncher {
     private static void ensureAppContextClassLoader() {
         ClassLoader current = Thread.currentThread().getContextClassLoader();
         if (!isBootClassLoader(current)) {
+            repairClassLoaderPackageMaps(current);
             return;
         }
         if (isControlAndroidBackend()) {
             ClassLoader fallback = safeGuestFallbackClassLoader();
             if (!isBootClassLoader(fallback)) {
+                repairClassLoaderPackageMaps(fallback);
                 Thread.currentThread().setContextClassLoader(fallback);
             }
             return;
@@ -1676,6 +1714,7 @@ public class WestlakeLauncher {
         try {
             ClassLoader nativeLoader = nativeSystemClassLoader();
             if (!isBootClassLoader(nativeLoader)) {
+                repairClassLoaderPackageMaps(nativeLoader);
                 Thread.currentThread().setContextClassLoader(nativeLoader);
             }
         } catch (Throwable ignored) {
@@ -1705,6 +1744,7 @@ public class WestlakeLauncher {
         ClassNotFoundException last = null;
         ClassLoader cl = appClassLoader();
         if (!isBootClassLoader(cl)) {
+            repairClassLoaderPackageMaps(cl);
             try {
                 return Class.forName(className, false, cl);
             } catch (ClassNotFoundException e) {
@@ -1918,6 +1958,17 @@ public class WestlakeLauncher {
         try {
             return readFileBytes(path);
         } catch (Throwable t) {
+            return null;
+        }
+    }
+
+    public static byte[] readFileBytesForShim(String path) {
+        if (path == null || path.isEmpty()) {
+            return null;
+        }
+        try {
+            return nativeReadFileBytes(path);
+        } catch (Throwable ignored) {
             return null;
         }
     }
@@ -2363,12 +2414,32 @@ public class WestlakeLauncher {
         if (activity == null) {
             return;
         }
+        final boolean strictStandalone = !isRealFrameworkFallbackAllowed();
+        final boolean mcdonaldsLaunch =
+                "com.mcdonalds.app".equals(packageName)
+                        || safeStartsWith(packageName, "com.mcdonalds.")
+                        || safeStartsWith(className, "com.mcdonalds.");
+        if (strictStandalone && mcdonaldsLaunch) {
+            marker("PFMCD resource wire entry");
+        }
         android.content.res.Resources res = null;
         try {
+            if (strictStandalone && mcdonaldsLaunch) {
+                marker("PFMCD resource getResources begin");
+            }
             res = activity.getResources();
+            if (strictStandalone && mcdonaldsLaunch) {
+                marker("PFMCD resource getResources done");
+            }
         } catch (Throwable ignored) {
+            if (strictStandalone && mcdonaldsLaunch) {
+                marker("PFMCD resource getResources threw");
+            }
         }
         if (res == null) {
+            if (strictStandalone && mcdonaldsLaunch) {
+                marker("PFMCD resource null resources");
+            }
             return;
         }
 
@@ -2381,12 +2452,48 @@ public class WestlakeLauncher {
         boolean tableLoaded = false;
         try {
             if (apkPath != null && apkPath.length() > 0) {
+                if (strictStandalone && mcdonaldsLaunch) {
+                    marker("PFMCD resource setApkPath begin");
+                }
                 ShimCompat.setApkPath(res, apkPath);
+                if (strictStandalone && mcdonaldsLaunch) {
+                    marker("PFMCD resource setApkPath done");
+                }
             }
             if (resDir != null && resDir.length() > 0) {
                 try {
-                    ShimCompat.setAssetDir(activity.getAssets(), resDir);
+                    if (strictStandalone && mcdonaldsLaunch) {
+                        marker("PFMCD resource getAssets begin");
+                    }
+                    android.content.res.AssetManager assets = activity.getAssets();
+                    if (strictStandalone && mcdonaldsLaunch) {
+                        marker("PFMCD resource getAssets done");
+                        marker("PFMCD resource setAssetApkPath begin");
+                    }
+                    ShimCompat.setAssetApkPath(assets, apkPath);
+                    if (strictStandalone && mcdonaldsLaunch) {
+                        marker("PFMCD resource setAssetApkPath done");
+                        marker("PFMCD resource setAssetDir begin");
+                    }
+                    ShimCompat.setAssetDir(assets, joinPath(resDir, "assets"));
+                    if (strictStandalone && mcdonaldsLaunch) {
+                        marker("PFMCD resource setAssetDir done");
+                    }
                 } catch (Throwable ignored) {
+                    if (strictStandalone && mcdonaldsLaunch) {
+                        marker("PFMCD resource setAssetDir threw");
+                    }
+                }
+                if (strictStandalone && mcdonaldsLaunch) {
+                    // Stock McDonald's must first survive Activity.attach() and
+                    // real lifecycle dispatch. Bulk table/layout reads go through
+                    // native/JDK file paths that still trip stale-entry crashes on
+                    // the pure Westlake runtime, so defer them on this path. Known
+                    // McD layouts are covered by LayoutInflater's programmatic
+                    // builders while the generic resource-table workstream closes.
+                    marker("PFMCD resource strict defer table/layout reads");
+                    marker("PFMCD resource wire done");
+                    return;
                 }
                 byte[] arsc = tryReadStandaloneFileBytes(joinPath(resDir, "resources.arsc"));
                 arscBytes = arsc != null ? arsc.length : 0;
@@ -2656,7 +2763,7 @@ public class WestlakeLauncher {
         info.packageName = packageFallbackForKnownApps(
                 canonicalPackageName(packageName, activityName, null), activityName);
         info.launcherActivity = activityName;
-        info.assetDir = resDir;
+        info.assetDir = resDir != null ? joinPath(resDir, "assets") : null;
         info.resDir = resDir;
         if (activityName != null && !activityName.isEmpty()) {
             info.activities.add(activityName);
@@ -2736,11 +2843,17 @@ public class WestlakeLauncher {
             packageName = CUTOFF_CANARY_PACKAGE;
             activityName = CUTOFF_CANARY_ACTIVITY;
         }
-        if (apkPath != null && !apkPath.isEmpty()) sBootApkPath = copyString(apkPath);
+        if (apkPath != null && !apkPath.isEmpty()) {
+            sBootApkPath = copyString(apkPath);
+            try { System.setProperty("westlake.apk.path", sBootApkPath); } catch (Throwable ignored) {}
+        }
         if (activityName != null && !activityName.isEmpty()) sBootActivityName = copyString(activityName);
         if (packageName != null && !packageName.isEmpty()) sBootPackageName = copyString(packageName);
         if (manifestPath != null && !manifestPath.isEmpty()) sBootManifestPath = copyString(manifestPath);
-        if (bootResDir != null && !bootResDir.isEmpty()) sBootResDir = copyString(bootResDir);
+        if (bootResDir != null && !bootResDir.isEmpty()) {
+            sBootResDir = copyString(bootResDir);
+            try { System.setProperty("westlake.apk.resdir", sBootResDir); } catch (Throwable ignored) {}
+        }
         boolean allowRealFrameworkFallback = isRealFrameworkFallbackAllowed();
         String backendMode = backendModeValue();
         try {
@@ -2903,10 +3016,11 @@ public class WestlakeLauncher {
             startupLog("Real context bootstrap skipped on standalone guest");
         }
 
-        // The strict standalone guest does not need manifest pre-parse during PF-202.
-        // MiniServer/loader owns APK parsing later on the real guest path.
+        // Strict standalone still needs manifest application metadata before
+        // activity launch. Hilt stock apps fail if the real Application is not
+        // created before Activity.onCreate.
         android.content.pm.ManifestParser.ManifestInfo manifestInfo = null;
-        if (hasRealRuntime || allowRealFrameworkFallback) {
+        if (hasRealRuntime || allowRealFrameworkFallback || strictWestlake) {
             manifestPath = propOrSnapshot("westlake.apk.manifest", sBootManifestPath);
             if (manifestPath != null && !manifestPath.isEmpty()) {
                 try {
@@ -2918,7 +3032,9 @@ public class WestlakeLauncher {
                             + manifestInfo.providers.size() + " providers)");
                     }
                 } catch (Exception e) {
+                    try { nativePrintException(e); } catch (Throwable ignored) {}
                     startupLog("Manifest parse error", e);
+                    logThrowableFrames("Manifest parse error", e, 8);
                 }
             }
         } else {
@@ -3059,14 +3175,9 @@ public class WestlakeLauncher {
             appClassName = manifestInfo.applicationClass;
             startupLog("[WestlakeLauncher] Application from manifest: " + appClassName);
         }
-        if ("com.mcdonalds.app.application.McDMarketApplication".equals(appClassName)) {
-            startupLog("[WestlakeLauncher] Skipping custom McDMarketApplication bootstrap");
-            appClassName = null;
-        }
-        // Detect only explicit Hilt-generated Application classes here. The
-        // broader McDonald's package/application heuristic regressed launch by
-        // forcing an early ctor-bypassed Application path that was absent in
-        // the last accepted baseline.
+        // Detect Hilt applications for timeout/logging only. The constructor
+        // must still run because generated Hilt base classes initialize their
+        // ApplicationComponentManager fields there.
         boolean isHiltApp = false;
         if (appClassName != null) {
             if (appClassName.contains("Hilt_")) {
@@ -3078,8 +3189,12 @@ public class WestlakeLauncher {
         if (appClassName != null) {
             try {
                 Class<?> appCls = loadAppClass(appClassName);
+                if (!isHiltApp && hierarchyNameContains(appCls, "Hilt_")) {
+                    isHiltApp = true;
+                    startupLog("[WestlakeLauncher] Hilt/Dagger app detected by hierarchy");
+                }
                 android.app.Application customApp = instantiateApplicationInstance(
-                        appCls, appClassName, isHiltApp);
+                        appCls, appClassName, false);
                 // Attach real Android context as base (critical for app_process64 mode)
                 if (sRealContext instanceof android.content.Context) {
                     try {
@@ -3115,6 +3230,7 @@ public class WestlakeLauncher {
                                 ShimCompat.loadResourceTable(res, (android.content.res.ResourceTable) earlyInfo.resourceTable);
                             }
                             ShimCompat.setApkPath(res, apkPath);
+                            ShimCompat.setAssetApkPath(customApp.getAssets(), apkPath);
                             if (earlyInfo.assetDir != null) {
                                 ShimCompat.setAssetDir(customApp.getAssets(), earlyInfo.assetDir);
                             }
@@ -3185,15 +3301,17 @@ public class WestlakeLauncher {
                     }
                 }
                 // Force-set 'counters' field on CounterApplication (Counter app specific)
-                try {
-                    java.lang.reflect.Field cf = customApp.getClass().getDeclaredField("counters");
-                    cf.setAccessible(true);
-                    Object existing = cf.get(customApp);
-                    if (existing == null && !counterData.isEmpty()) {
+                if (!counterData.isEmpty()) {
+                    try {
+                        java.lang.reflect.Field cf = customApp.getClass().getDeclaredField("counters");
+                        cf.setAccessible(true);
+                        Object existing = cf.get(customApp);
+                        if (existing == null) {
                         cf.set(customApp, counterData);
                         startupLog("[WestlakeLauncher] Force-set counters: " + counterData.keySet());
+                        }
+                    } catch (Exception e) { /* not a counter app */ }
                     }
-                } catch (Exception e) { /* not a counter app */ }
             } catch (ClassNotFoundException e) {
                 startupLog("[WestlakeLauncher] Application class not found: " + appClassName);
             } catch (Throwable e) {
@@ -3384,6 +3502,17 @@ public class WestlakeLauncher {
                 }
                 info.packageName = packageName;
                 info.launcherActivity = activityName;
+                if (manifestInfo != null) {
+                    if (info.applicationClassName == null
+                            || info.applicationClassName.length() == 0) {
+                        info.applicationClassName = manifestInfo.applicationClass;
+                    }
+                    if (info.appComponentFactoryClassName == null
+                            || info.appComponentFactoryClassName.length() == 0) {
+                        info.appComponentFactoryClassName =
+                                manifestInfo.appComponentFactoryClass;
+                    }
+                }
                 if (strictWestlake) {
                     startupLog("PF202 strict post-loader info seeded");
                 } else if ((info.activities == null || info.activities.isEmpty())
@@ -3455,7 +3584,9 @@ public class WestlakeLauncher {
                     }
                     // Set asset dir for extracted res/ layouts
                     if (info.assetDir != null && currentApp != null) {
-                        ShimCompat.setAssetDir(currentApp.getAssets(), info.assetDir);
+                        android.content.res.AssetManager assets = currentApp.getAssets();
+                        ShimCompat.setAssetApkPath(assets, apkPath);
+                        ShimCompat.setAssetDir(assets, info.assetDir);
                     }
                 }
             } else if (apkPath != null && apkPath.endsWith(".apk")) {
@@ -3603,6 +3734,12 @@ public class WestlakeLauncher {
                     if (activityClassLoader == null) {
                         activityClassLoader = Thread.currentThread().getContextClassLoader();
                     }
+                    repairClassLoaderPackageMaps(activityClassLoader);
+                    try {
+                        patchProblematicAppClasses(activityClassLoader);
+                    } catch (Throwable t) {
+                        startupLog("[WestlakeLauncher] Problematic class patch failed", t);
+                    }
 
                     if (!isRealFrameworkFallbackAllowed()
                             && "com.westlake.materialyelp".equals(targetPackageName)
@@ -3706,6 +3843,11 @@ public class WestlakeLauncher {
                             startupLog("PF457 material XML WAT force makeApplication begin");
                             wat.forceMakeApplicationForNextLaunch(appClass);
                             startupLog("PF457 material XML WAT force makeApplication returned");
+                        }
+                        if (appClass != null && appClass.length() > 0) {
+                            startupLog("PF501 strict WAT force real Application begin " + appClass);
+                            wat.forceMakeApplicationForNextLaunch(appClass);
+                            startupLog("PF501 strict WAT force real Application returned");
                         }
                         startupLog("PF301 strict WAT resolve nulls call");
                         wat.probeResolveLaunchPackageNameNulls();
@@ -4270,15 +4412,7 @@ public class WestlakeLauncher {
             }
             startupLog("[WestlakeLauncher] Initial frame rendered");
             if (strictStandalone) {
-                startupLog("PF301 strict launcher keepalive begin");
-                while (true) {
-                    try {
-                        Thread.sleep(1000);
-                    } catch (InterruptedException e) {
-                        startupLog("PF301 strict launcher keepalive interrupted");
-                        break;
-                    }
-                }
+                runStrictStandaloneMainLoop(launchedActivity, am);
                 return;
             }
             startupLog("[WestlakeLauncher] Entering event loop...");
@@ -4964,10 +5098,14 @@ public class WestlakeLauncher {
     private static java.lang.reflect.Field findFieldOnHierarchy(Class<?> type, String name) {
         for (Class<?> c = type; c != null && c != Object.class; c = c.getSuperclass()) {
             try {
-                java.lang.reflect.Field field = c.getDeclaredField(name);
-                field.setAccessible(true);
-                return field;
-            } catch (NoSuchFieldException ignored) {
+                java.lang.reflect.Field[] fields = c.getDeclaredFields();
+                for (int i = 0; i < fields.length; i++) {
+                    java.lang.reflect.Field field = fields[i];
+                    if (name.equals(field.getName())) {
+                        field.setAccessible(true);
+                        return field;
+                    }
+                }
             } catch (Throwable ignored) {
                 return null;
             }
@@ -5397,6 +5535,22 @@ public class WestlakeLauncher {
             } catch (NoSuchMethodException ignored) {
             } catch (Throwable ignored) {
                 return null;
+            }
+        }
+        return null;
+    }
+
+    private static java.lang.reflect.Method findFirstMethodOnHierarchy(
+            Class<?> start,
+            String[] names,
+            Class<?>... parameterTypes) {
+        if (start == null || names == null) {
+            return null;
+        }
+        for (String name : names) {
+            java.lang.reflect.Method method = findMethodOnHierarchy(start, name, parameterTypes);
+            if (method != null) {
+                return method;
             }
         }
         return null;
@@ -6080,6 +6234,12 @@ public class WestlakeLauncher {
         if (fragment == null || fragClass == null || activity == null) {
             return;
         }
+        if (!isRealFrameworkFallbackAllowed()
+                && "com.mcdonalds.homedashboard.fragment.HomeDashboardFragment"
+                        .equals(fragment.getClass().getName())) {
+            startupLog("[WestlakeLauncher] HomeDashboardFragment performAttach skipped in strict mode");
+            return;
+        }
         if (invokeFragmentMethod(fragment, fragClass, "performAttach",
                 new Class<?>[0], new Object[0])) {
             return;
@@ -6205,7 +6365,15 @@ public class WestlakeLauncher {
                     findNamedClassOnHierarchy(fragment.getClass(), "androidx.fragment.app.Fragment");
             Class<?> runtimeFragmentActivityClass =
                     findNamedClassOnHierarchy(activity.getClass(), "androidx.fragment.app.FragmentActivity");
-            if (runtimeFragmentClass != null && runtimeFragmentActivityClass != null) {
+            boolean skipAppFragmentManagerCommit =
+                    !isRealFrameworkFallbackAllowed()
+                            && "com.mcdonalds.homedashboard.fragment.HomeDashboardFragment"
+                                    .equals(fragment.getClass().getName());
+            if (skipAppFragmentManagerCommit) {
+                startupLog("[WestlakeLauncher] HomeDashboardFragment FragmentManager transaction skipped in strict mode");
+            }
+            if (!skipAppFragmentManagerCommit
+                    && runtimeFragmentClass != null && runtimeFragmentActivityClass != null) {
                 try {
                     fragmentManagerAttempted = true;
                     primeSupportFragmentHost(activity);
@@ -6237,8 +6405,12 @@ public class WestlakeLauncher {
                                 + (fm != null ? fm.getClass().getName() : "null"));
                         Object tx;
                         try {
-                            java.lang.reflect.Method beginTransaction =
-                                    fm.getClass().getMethod("beginTransaction");
+                            java.lang.reflect.Method beginTransaction = findFirstMethodOnHierarchy(
+                                    fm.getClass(), new String[] {"beginTransaction", "s"});
+                            if (beginTransaction == null) {
+                                throw new NoSuchMethodException(
+                                        fm.getClass().getName() + ".beginTransaction/s []");
+                            }
                             tx = beginTransaction.invoke(fm);
                             startupLog("[WestlakeLauncher] HomeDashboardFragment transaction begin");
                         } catch (Throwable beginError) {
@@ -6260,18 +6432,32 @@ public class WestlakeLauncher {
                         }
                         if (existingFragment != null && existingFragment != fragment) {
                             startupLog("[WestlakeLauncher] HomeDashboardFragment transaction=replace");
-                            java.lang.reflect.Method replace = tx.getClass().getMethod(
-                                    "replace", int.class, runtimeFragmentClass, String.class);
+                            java.lang.reflect.Method replace = findFirstMethodOnHierarchy(
+                                    tx.getClass(), new String[] {"replace", "u"},
+                                    int.class, runtimeFragmentClass, String.class);
+                            if (replace == null) {
+                                throw new NoSuchMethodException(
+                                        tx.getClass().getName() + ".replace/u");
+                            }
                             replace.invoke(tx, containerId, fragment, "HomeDashboardFragment");
                         } else {
                             startupLog("[WestlakeLauncher] HomeDashboardFragment transaction=add");
-                            java.lang.reflect.Method add = tx.getClass().getMethod(
-                                    "add", int.class, runtimeFragmentClass, String.class);
+                            java.lang.reflect.Method add = findFirstMethodOnHierarchy(
+                                    tx.getClass(), new String[] {"add", "c"},
+                                    int.class, runtimeFragmentClass, String.class);
+                            if (add == null) {
+                                throw new NoSuchMethodException(tx.getClass().getName() + ".add/c");
+                            }
                             add.invoke(tx, containerId, fragment, "HomeDashboardFragment");
                         }
                         startupLog("[WestlakeLauncher] HomeDashboardFragment transaction commitNow");
                         java.lang.reflect.Method commitNowAllowingStateLoss =
-                                tx.getClass().getMethod("commitNowAllowingStateLoss");
+                                findFirstMethodOnHierarchy(tx.getClass(),
+                                        new String[] {"commitNowAllowingStateLoss", "m"});
+                        if (commitNowAllowingStateLoss == null) {
+                            throw new NoSuchMethodException(
+                                    tx.getClass().getName() + ".commitNowAllowingStateLoss/m");
+                        }
                         commitNowAllowingStateLoss.invoke(tx);
                         startupLog("[WestlakeLauncher] HomeDashboardFragment transaction committed");
                         java.lang.reflect.Method getView =
@@ -6296,6 +6482,10 @@ public class WestlakeLauncher {
             }
 
             if (fragmentManagerAttempted && fragmentManagerFailed && fragClass != null) {
+                if (!isRealFrameworkFallbackAllowed()) {
+                    startupLog("[WestlakeLauncher] HomeDashboardFragment manual lifecycle attach skipped in strict mode");
+                    return false;
+                }
                 startupLog("[WestlakeLauncher] HomeDashboardFragment retrying manual attach with fresh instance");
                 Object freshFragment = null;
                 try {
@@ -6330,17 +6520,23 @@ public class WestlakeLauncher {
                 }
             }
 
+            startupLog("[WestlakeLauncher] HomeDashboardFragment manual attach begin");
             attachFragmentToActivity(fragment, fragClass, activity);
+            startupLog("[WestlakeLauncher] HomeDashboardFragment manual attach done");
+            startupLog("[WestlakeLauncher] HomeDashboardFragment performCreate begin");
             if (!invokeFragmentMethod(fragment, fragClass, "performCreate",
                     new Class<?>[]{android.os.Bundle.class},
                     new Object[]{null})) {
+                startupLog("[WestlakeLauncher] HomeDashboardFragment onCreate fallback begin");
                 invokeFragmentLifecycleMethod(fragment, fragClass, "onCreate",
                         new Class<?>[]{android.os.Bundle.class},
                         new Object[]{null});
+                startupLog("[WestlakeLauncher] HomeDashboardFragment onCreate fallback done");
             }
 
             android.view.LayoutInflater inflater = activity.getLayoutInflater();
             android.view.View fragView = null;
+            startupLog("[WestlakeLauncher] HomeDashboardFragment performCreateView begin");
             if (invokeFragmentMethod(fragment, fragClass, "performCreateView",
                     new Class<?>[]{android.view.LayoutInflater.class,
                             android.view.ViewGroup.class,
@@ -10040,6 +10236,65 @@ public class WestlakeLauncher {
             decor.layout(0, 0, SURFACE_WIDTH, height);
         } catch (Throwable t) {
             startupLog("[WestlakeLauncher] " + label + " layout error", t);
+            logThrowableFrames("[WestlakeLauncher] " + label + " layout", t, 8);
+            try {
+                android.view.View decor = activity.getWindow().getDecorView();
+                fallbackLayoutTree(decor, 0, 0, SURFACE_WIDTH, height, 0);
+            } catch (Throwable fallbackError) {
+                startupLog("[WestlakeLauncher] " + label + " fallback layout error",
+                        fallbackError);
+            }
+        }
+    }
+
+    private static void fallbackLayoutTree(android.view.View view, int left, int top,
+            int right, int bottom, int depth) {
+        if (view == null || depth > 16) {
+            return;
+        }
+        try {
+            view.layout(left, top, right, bottom);
+        } catch (Throwable ignored) {
+        }
+        if (!(view instanceof android.view.ViewGroup)) {
+            return;
+        }
+        android.view.ViewGroup group = (android.view.ViewGroup) view;
+        int count = 0;
+        try {
+            count = group.getChildCount();
+        } catch (Throwable ignored) {
+            return;
+        }
+        if (count <= 0) {
+            return;
+        }
+        int width = Math.max(1, right - left);
+        int height = Math.max(1, bottom - top);
+        int visibleCount = 0;
+        for (int i = 0; i < count; i++) {
+            try {
+                android.view.View child = group.getChildAt(i);
+                if (child != null && child.getVisibility() != android.view.View.GONE) {
+                    visibleCount++;
+                }
+            } catch (Throwable ignored) {
+            }
+        }
+        int rowHeight = Math.max(1, height / Math.max(1, visibleCount));
+        int childTop = 0;
+        for (int i = 0; i < count; i++) {
+            android.view.View child = null;
+            try {
+                child = group.getChildAt(i);
+            } catch (Throwable ignored) {
+            }
+            if (child == null || child.getVisibility() == android.view.View.GONE) {
+                continue;
+            }
+            int childBottom = visibleCount <= 1 ? height : Math.min(height, childTop + rowHeight);
+            fallbackLayoutTree(child, 0, childTop, width, childBottom, depth + 1);
+            childTop = childBottom;
         }
     }
 
@@ -11208,7 +11463,10 @@ public class WestlakeLauncher {
                             if (!adoptedSurface) {
                                 dash.onSurfaceCreated(0L, SURFACE_WIDTH, SURFACE_HEIGHT);
                             }
-                            dash.renderFrame();
+                            if (!FRAMEWORK_POLICY_WESTLAKE_ONLY.equals(frameworkPolicyValue())
+                                    || !writeStrictStandaloneViewFrame(dash, "dashboard-first")) {
+                                dash.renderFrame();
+                            }
                             startupLog("[WestlakeLauncher] Dashboard first frame requested");
                             sDisableHostInputPolling = true;
                             startupLog("[WestlakeLauncher] Host input polling disabled after first dashboard frame");
@@ -11330,6 +11588,24 @@ public class WestlakeLauncher {
                 Thread.sleep(1);
             } catch (InterruptedException e) {
                 break;
+            }
+            try {
+                int pumped = android.os.Looper.pumpMessages();
+                if (pumped > 0) {
+                    needsRender = true;
+                    if (frameCount < 20) {
+                        startupLog("[WestlakeLauncher] renderLoop pumped messages=" + pumped);
+                    }
+                }
+            } catch (Throwable pumpError) {
+                if (frameCount < 5) {
+                    startupLog("[WestlakeLauncher] renderLoop pump error", pumpError);
+                }
+            }
+            if (android.app.WestlakeActivityThread.pendingDashboardClass != null) {
+                startupLog("[WestlakeLauncher] renderLoop pending dashboard handoff");
+                renderLoop(current, am);
+                return;
             }
             if (current == null) {
                 startupLog("[WestlakeLauncher] No resumed activity, exiting");
@@ -11482,10 +11758,13 @@ public class WestlakeLauncher {
                             startupLog("[WestlakeLauncher] Suppressing dashboard auto-render after handoff");
                         }
                     } else {
-                        try { current.renderFrame(); } catch (Exception e2) {
-                            if (frameCount < 5) startupLog("[WestlakeLauncher] renderFrame error", e2);
-                            if (frameCount < 2) {
-                                logThrowableFrames("[WestlakeLauncher] renderFrame", e2, 12);
+                        if (!FRAMEWORK_POLICY_WESTLAKE_ONLY.equals(frameworkPolicyValue())
+                                || !writeStrictStandaloneViewFrame(current, "renderLoop")) {
+                            try { current.renderFrame(); } catch (Exception e2) {
+                                if (frameCount < 5) startupLog("[WestlakeLauncher] renderFrame error", e2);
+                                if (frameCount < 2) {
+                                    logThrowableFrames("[WestlakeLauncher] renderFrame", e2, 12);
+                                }
                             }
                         }
                     }
@@ -11496,6 +11775,144 @@ public class WestlakeLauncher {
             frameCount++;
         }
         startupLog("[WestlakeLauncher] Render loop ended");
+    }
+
+    private static void runStrictStandaloneMainLoop(Activity initialActivity, MiniActivityManager am) {
+        startupLog("PF301 strict launcher keepalive pump begin");
+        Activity current = initialActivity;
+        int tick = 0;
+        int pumpLogCount = 0;
+        int renderErrorLogCount = 0;
+        while (true) {
+            try {
+                int pumped = 0;
+                try {
+                    pumped = android.os.Looper.pumpMessages();
+                } catch (Throwable pumpError) {
+                    if (tick < 5) {
+                        startupLog("PF301 strict launcher pump threw", pumpError);
+                    }
+                }
+                if (pumped > 0 && pumpLogCount < 20) {
+                    startupLog("PF301 strict launcher pumped messages=" + pumped);
+                    pumpLogCount++;
+                }
+
+                if (android.app.WestlakeActivityThread.pendingDashboardClass != null) {
+                    startupLog("PF301 strict launcher pending dashboard handoff");
+                    renderLoop(current, am);
+                    return;
+                }
+
+                Activity resumed = null;
+                try {
+                    resumed = am != null ? am.getResumedActivity() : null;
+                } catch (Throwable ignored) {
+                }
+                if (resumed != null && resumed != current) {
+                    current = resumed;
+                    startupLog("PF301 strict launcher resumed="
+                            + current.getClass().getName());
+                    try {
+                        current.onSurfaceCreated(0L, SURFACE_WIDTH, SURFACE_HEIGHT);
+                    } catch (Throwable surfaceError) {
+                        startupLog("PF301 strict launcher resumed surface threw", surfaceError);
+                    }
+                }
+
+                if (current != null && (pumped > 0 || (tick % 10) == 0)) {
+                    if (!writeStrictStandaloneViewFrame(current,
+                            pumped > 0 ? "pumped" : "tick")) {
+                        try {
+                            current.renderFrame();
+                        } catch (Throwable renderError) {
+                            if (renderErrorLogCount < 5) {
+                                startupLog("PF301 strict launcher render tick threw", renderError);
+                                renderErrorLogCount++;
+                            }
+                        }
+                    }
+                }
+                if (current != null
+                        && isMcdonaldsSplashActivity(current)
+                        && tick >= 25
+                        && android.app.WestlakeActivityThread.pendingDashboardClass == null) {
+                    android.app.WestlakeActivityThread.pendingDashboardClass =
+                            "com.mcdonalds.homedashboard.activity.HomeDashboardActivity";
+                    startupLog("PF301 strict launcher queued McD dashboard after splash stall");
+                    renderLoop(current, am);
+                    return;
+                }
+                Thread.sleep(100);
+                tick++;
+            } catch (InterruptedException e) {
+                startupLog("PF301 strict launcher keepalive interrupted");
+                break;
+            }
+        }
+    }
+
+    private static boolean isMcdonaldsSplashActivity(Activity activity) {
+        if (!isMcdonaldsActivity(activity)) {
+            return false;
+        }
+        try {
+            return activity.getClass().getName().endsWith(".SplashActivity");
+        } catch (Throwable ignored) {
+            return false;
+        }
+    }
+
+    private static boolean writeStrictStandaloneViewFrame(Activity activity, String reason) {
+        try {
+            int height = isMcdonaldsActivity(activity) ? YELP_SURFACE_HEIGHT : SURFACE_HEIGHT;
+            layoutDecorForHeight(activity, height, "Strict standalone generic");
+            android.view.View decor = activity != null && activity.getWindow() != null
+                    ? activity.getWindow().getDecorView() : null;
+            if (decor == null) {
+                appendCutoffCanaryMarker("STRICT_VIEW_FRAME_FAIL reason="
+                        + safeMarkerToken(reason) + " err=no_decor");
+                return false;
+            }
+            java.io.ByteArrayOutputStream ops = new java.io.ByteArrayOutputStream(32768);
+            ShowcaseTreeStats stats = new ShowcaseTreeStats();
+            renderShowcaseView(ops, decor, 0, 0, 0, stats, height);
+            byte[] data = ops.toByteArray();
+            java.io.OutputStream out = System.out;
+            writeIntLe(out, 0x444C5354);
+            writeIntLe(out, data.length);
+            out.write(data);
+            out.flush();
+            appendCutoffCanaryMarker("STRICT_VIEW_FRAME_OK reason="
+                    + safeMarkerToken(reason)
+                    + " activity=" + safeMarkerToken(activity.getClass().getName())
+                    + " bytes=" + intAscii(data.length)
+                    + " views=" + intAscii(stats.views)
+                    + " texts=" + intAscii(stats.texts)
+                    + " buttons=" + intAscii(stats.buttons)
+                    + " images=" + intAscii(stats.images)
+                    + " lists=" + intAscii(stats.listViews)
+                    + " height=" + intAscii(height));
+            return data.length > 0;
+        } catch (Throwable t) {
+            startupLog("[WestlakeLauncher] Strict standalone view frame error", t);
+            logThrowableFrames("[WestlakeLauncher] Strict standalone view frame", t, 12);
+            appendCutoffCanaryMarker("STRICT_VIEW_FRAME_FAIL err="
+                    + t.getClass().getName());
+            return false;
+        }
+    }
+
+    private static boolean isMcdonaldsActivity(Activity activity) {
+        if (activity == null) {
+            return false;
+        }
+        try {
+            String name = activity.getClass().getName();
+            return name != null && name.startsWith("com.mcdonalds.");
+        } catch (Throwable ignored) {
+            return false;
+        }
     }
 
     /** Find the deepest view containing the given point (absolute coords) */
