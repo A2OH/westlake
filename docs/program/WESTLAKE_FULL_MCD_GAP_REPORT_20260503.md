@@ -619,4 +619,114 @@ at $HOME/art-latest/build-ohos-arm64/bin/dalvikvm REGRESSED — see §13.3).
 |---|---|---|
 | Pre-deploy runtime backup | Saved | `$HOME/westlake-runtime-backups/dalvikvm.pre-pf630-d7e10e47.bak` |
 | PF-630 candidate regression gate | FAIL | `artifacts/real-mcd/20260503_120432_mcd_pf630_candidate_bounded_regression/` |
-| Post-rollback baseline | (running) | `artifacts/real-mcd/20260503_*_mcd_baseline_post_pf630_rollback/` |
+| Post-rollback baseline | PASS | `artifacts/real-mcd/20260503_121537_mcd_baseline_post_pf630_rollback/` |
+| PF-629 quantity_plus (handoff waits) | FAIL — PDP never loaded (lifecycle=0) | `artifacts/real-mcd/20260503_122359_mcd_pf629_quantity_plus_cart2_gate/` |
+| PF-629 quantity_plus (bounded waits) | FAIL — PDP loaded, then SIGBUS at 12th basket commit | `artifacts/real-mcd/20260503_154816_mcd_pf629_quantity_plus_cart2_bounded_waits/` |
+
+### 13.7 PF-630 candidate runtime dissection (out-of-scope PF-625 logic caused the regression)
+
+A second-pass analysis of `$HOME/art-latest/patches/runtime/interpreter/interpreter_common.cc` (uncommitted relative to art-latest `HEAD`) revealed why the candidate failed.
+
+**Patch shape:** ~9,556 insertions across 172 files. Behaviourally significant clusters:
+
+1. **Realm in-process emulation** (~3,000 lines, `interpreter_common.cc:+5694..+8704`): `PFCutRealmGlobalState`, `PFCutRealmTableState`, `PFCutRealmSetStringArrayResult`, `PFCutTryRealmNativeState`, `PFCutTryRealmNativeBoundaryNoop`. Targets `Lio/realm/internal/OsSharedRealm;` and `nativeCloseSharedRealm` — short-circuits the JNI boundary BEFORE crossing into librealm. **This is the actual PF-630 fix and it is independent of the regression cluster.**
+2. **Stale-native-entry detection widened** (`interpreter_common.cc:53-64` and `interpreter.cc:60-67`):
+   ```cpp
+   static inline bool PFCutPf625EntryLooksInvalid(const void* entry) {
+     const uintptr_t value = reinterpret_cast<uintptr_t>(entry);
+     if (value == 0u) return false;
+     return value == kPFCutPf625StaleNativeEntry ||
+         value < 4096u ||
+         (value >> 48u) == 0xffffu ||
+         (value & 0x3u) != 0u;
+   }
+   ```
+   Previously a single-sentinel equality check; now flags anything `< 4096`, in the kernel half, or unaligned. Three call sites in `DoCallCommon` (lines `+10994`, `+11244`) and one in `ArtInterpreterToCompiledCodeBridge` (`+9477`) react by clobbering `EntryPointFromJniPtrSize(nullptr)` and forcing the interpreter JNI dispatch.
+3. **Mirror Unsafe path "bogus object" widened** in `sun_misc_Unsafe.cc` and `interpreter.cc`. Interpreter path uses `PFCutUnsafeGetObjectArraySlot` / `PFCutUnsafeSetObjectArraySlot` which call `mirror::ObjectArray::SetWithoutChecks` — typed-array element check **bypassed**.
+4. **Atomic intrinsic rewrites** to `Get/SetFieldObjectVolatile` + `CasFieldObject<false>` — bypasses typed-array element check on `getAndSet` / `compareAndSet`.
+5. **Lifecycle factory broad fallback gate weakened** (`+5031`): `number_of_inputs != 3u` → `< 2u`; `kotlin.reflect.KClass` substring requirement dropped.
+
+**Empirical evidence (FAIL vs PASS comparison):**
+
+| Marker | FAIL (candidate) | PASS (baseline) |
+|---|---|---|
+| `Tolerating clinit failure` lines | 11+ | 0 |
+| `ArrayStoreException` mentions | 46 | 0 |
+| `[PFCUT] InterpreterJni` early (08:04:43) | 100+ | 0 — first not until 08:20:07 (16 min in) |
+| `[PFCUT] InterpreterJni jdk.Unsafe CAS ref` during ICU/Provider/Crypto clinit | active | not invoked |
+| Dashboard sections inflated (HERO/MENU/PROMOTION/POPULAR) | 0 | 1 each |
+
+Boot-class clinit ASE cascade in FAIL artifact (excerpt):
+```
+08:04:43.013  Landroid/icu/impl/ICUBinary;       ArrayStoreException
+08:04:43.220  Ljava/nio/charset/CoderResult;     ArrayStoreException
+08:04:43.221  Ljava/lang/VMClassLoader;          NPE (cascade from above)
+08:04:43.256  Lsun/security/jca/Providers;       ArrayStoreException
+08:05:15.376  Landroid/os/Build;                 ArrayStoreException
+08:05:30.753  Lcom/mcdonalds/mcdcoreapp/common/Crypto;  ArrayStoreException
+08:04:44.328  [WestlakeLauncher] Application error (caught): java.lang.ArrayStoreException
+```
+
+**Root cause (high confidence):** the widened `PFCutPf625EntryLooksInvalid` is **falsely flagging legitimate early-boot native JNI entries as stale**, then redirecting them through the `InterpreterJni` path. That path uses `PFCutUnsafe[Get|Set]ObjectArraySlot` which call `SetWithoutChecks` — typed-array element check bypassed. Boot-phase code (Charset/ICU/Provider/Crypto) heavily uses `Unsafe.compareAndSwapObject` on `String[]`-backed slots (`Atomic*FieldUpdater`, internal cache arrays). With the bypassed type-checked path active during boot, wrong-typed references leak into String-typed slots; the next regular `aget-object`/`aput-object` reads/writes through the typed-array path and observes the wrong element class, producing the canonical `ArrayStoreException: java.lang.String cannot be stored in an array of type java.lang.String[]` (the message wording is `dst_component_type` driven and indicates a slot whose element class is `[Ljava/lang/String;` instead of `Ljava/lang/String;`).
+
+**Confirmation signal:** FAIL log shows `[PFCUT] InterpreterJni jdk.Unsafe CAS ref ... array_index=N success=1` IMMEDIATELY before each ASE-clinit failure. PASS log has zero `InterpreterJni` activity in the first 16 minutes — Unsafe goes through the registered FAST_NATIVE entry.
+
+**Cross-reference with PF-630 issue body** (#596): acceptance scope is "Realm finalizer cleanup path / `OsSharedRealm.nativeCloseSharedRealm`". The stale-entry widening and interpreter JNI redirection in this candidate are **out of scope for PF-630** — they appear to be PF-625 logic broadened opportunistically. The remediation can keep the in-scope work and drop the out-of-scope changes.
+
+**Proposed remediation (ordered by promise/risk):**
+
+1. **Lowest risk — narrow the stale-entry test back.** Restore `PFCutPf625EntryLooksInvalid` to single-sentinel equality (`value == kPFCutPf625StaleNativeEntry`) at:
+   - `art-latest/patches/runtime/interpreter/interpreter_common.cc:53-64`
+   - the three reaction sites (`DoCallCommon` `+10994`, `+11244`; `ArtInterpreterToCompiledCodeBridge` `+9477`)
+   - `art-latest/patches/runtime/interpreter/interpreter.cc:60-67` and the equivalent at `:487`
+   - `art-latest/patches/runtime/native/sun_misc_Unsafe.cc` mirror predicate
+   Approximately 10 lines changed total. Keep all the new Realm in-process emulation.
+2. **If broader detection needed** for actual SIGBUS-bait entries, narrow the gate to apply only AFTER the boot ClassLoader is fully populated:
+   ```cpp
+   if (called_method->IsNative() && Runtime::Current()->IsStarted() && app_class_loader_seen)
+   ```
+   Boot classes resolve all natives via `JNI_OnLoad_javacore` (08:04:42.897 in failure log) which is detectable.
+3. **Realm finalizer race itself** is already addressed by `PFCutTryRealmNativeState`/`PFCutTryRealmNativeBoundaryNoop` independently of the stale-entry widening. Keep these.
+4. **Lifecycle broad fallback** restore: re-require KClass OR add a positive declaring-class match. Low risk.
+5. Rebuild via `make -f Makefile.ohos-arm64` (working dir `$HOME/art-latest`); deploy via `DALVIKVM_SRC=…` flag to `sync-westlake-phone-runtime.sh`; run bounded regression FIRST, then long-soak for actual PF-630 acceptance.
+
+**Files referenced (absolute):**
+- `$HOME/art-latest/patches/runtime/interpreter/interpreter_common.cc`
+- `$HOME/art-latest/patches/runtime/interpreter/interpreter.cc`
+- `$HOME/art-latest/patches/runtime/native/sun_misc_Unsafe.cc`
+- `$HOME/art-latest/patches/runtime/native/jdk_internal_misc_Unsafe.cc`
+- `$HOME/art-latest/build-ohos-arm64/bin/dalvikvm` (sha256 `20acd7b1…`)
+- `/tmp/pf630_diff.txt` (full candidate diff, 5074 lines, generated for analysis only)
+
+**Next-agent prompt for PF-630 (replaces the §4 prompt):**
+```
+PRECONDITION: art-latest at HEAD has the candidate uncommitted; the stale-entry
+widening regressed the bounded baseline (see §13.7 above). Plan: revert the
+out-of-scope PF-625 changes, keep the in-scope Realm emulation, rebuild, sync,
+test.
+
+1. cd $HOME/art-latest; verify git status shows the modified patches.
+2. Edit `patches/runtime/interpreter/interpreter_common.cc` (lines ~53-64,
+   ~9477, ~10994, ~11244) to restore the single-sentinel equality:
+     return value == kPFCutPf625StaleNativeEntry;
+3. Apply the same revert to `patches/runtime/interpreter/interpreter.cc:60-67`
+   and `:487`, and `patches/runtime/native/sun_misc_Unsafe.cc` mirror predicate.
+4. KEEP the Realm in-process emulation block (lines ~5694-8704 in
+   interpreter_common.cc). KEEP the AtomicReference rewrites (or revert
+   separately if you want; they are not the boot-time root cause).
+5. Optionally also restore the lifecycle factory broad-fallback gate to
+   `!= 3u` and re-require `kotlin.reflect.KClass`.
+6. make -f Makefile.ohos-arm64 (will re-link dalvikvm; check the build
+   actually picks up your edits — patches/ is the source of truth).
+7. sha256 the resulting build-ohos-arm64/bin/dalvikvm; that's the new
+   candidate hash. Update PF-630 issue with it.
+8. Rollback-prepare:
+     /mnt/c/Users/dspfa/Dev/platform-tools/adb.exe -s cfb7c9e3 \
+       pull /data/local/tmp/westlake/dalvikvm \
+       $HOME/westlake-runtime-backups/dalvikvm.pre-pf630-v2.bak
+9. Sync the new candidate via DALVIKVM_SRC=… (see existing handoff prompt).
+10. Bounded regression gate FIRST. Must be PASS to proceed.
+11. Long-soak gate (10 min post-cart). Must be PASS for PF-630 acceptance.
+12. If bounded REGRESSES again, roll back from the v2 backup, re-baseline, and
+    surface the new failure mode.
+```
