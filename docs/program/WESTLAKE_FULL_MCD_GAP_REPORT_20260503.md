@@ -498,3 +498,125 @@ For each, the agent prompt in §4 contains the exact env-var-prefixed command.
 - Southbound: `docs/program/WESTLAKE_SOUTHBOUND_API.md`
 - Platform-first contract: `docs/program/WESTLAKE_PLATFORM_FIRST_CONTRACT.md`
 - Issues on GitHub: `https://github.com/A2OH/westlake/issues` (PF-606=#579, 607=#580, 608=#581, 609=#582, 622=#587, 623=#589, 624=#590, 625=#591, 626=#592, 627=#593, 628=#594, 629=#595, 630=#596, 632=#597)
+
+---
+
+## 13. Addendum — review-session findings (2026-05-03 PT supervised fix spree)
+
+This section records empirical findings from the 2026-05-03 PT supervised fix spree that ran immediately after this doc was first committed (`20c3b52e`). Three subagents ran in parallel; one phone gate executed against the PF-630 candidate runtime.
+
+### 13.1 PF-632 verified — already fixed; bundling proven on phone (Agent B)
+
+- Constructor `public Builder(Context context, int themeResId)` exists at `shim/java/android/app/AlertDialog.java:202-205` with a real generic body — wraps `context` in `ContextThemeWrapper(context, themeResId)` when `themeResId != 0`, stores `themeResId` in `mThemeResId`. The no-arg `Builder(Context)` (line 198-200) delegates to it via `this(context, 0)`.
+- `aosp-shim.dex` is built by `scripts/build-shim-dex.sh` from every `*.java` under `shim/java/`. `AlertDialog$Builder` is in scope.
+- `dexdump -h` on the phone-side `aosp-shim.dex` (hash `da24e7a3…`) confirms BOTH `<init>(Landroid/content/Context;)V` AND `<init>(Landroid/content/Context;I)V` are present.
+- **Stale dex caveat:** `ohos-deploy/arm64-a15/aosp-shim.dex` (May 2 18:10) is missing the `(Context,int)` constructor — but it is NOT what gets pushed by `sync-westlake-phone-runtime.sh` (which uses `$REPO_ROOT/aosp-shim.dex` per `sync-westlake-phone-runtime.sh:29`). Don't accidentally publish or sync the stale dex.
+- **Empirical performClick proof still pending** — there is no `WESTLAKE_GATE_PDP_FORCE_PERFORM_CLICK` env hook today; the bounded gate uses `callOnClick` by design. Adding such a hook is the cheapest way to retire PF-632.
+- **Classloader precedence note** (Agent B flagged): under the dalvikvm64 path used by `run-real-mcd-phone-gate.sh`, the shim dex wins because it's first on the classpath. If the same shim were ever loaded inside a Zygote-spawned app process, the platform's `boot.art`-baked `android.app.AlertDialog` would shadow it. Not actionable now; worth knowing.
+
+### 13.2 PF-628 — architectural reframe (Agent C)
+
+The handoff's framing ("remove the `MCD_PDP_CARTINFO_SET_BRIDGE` so `CartViewModel` updates from natural lifecycle/LiveData") **does not match the code**. Empirical evidence from `WestlakeLauncher.java:20001-20013`:
+
+```java
+boolean observerAllowed = isMcdUnsafeObserverDispatchEnabled();   // line 20001
+boolean storageAllowed  = isMcdUnsafeStorageCommitEnabled();
+boolean allowed = requested && observerAllowed && storageAllowed;
+...
+} else if (!observerAllowed) {
+    reason = "observer_dispatch_opt_in_required";                  // line 20008
+}
+```
+
+`isMcdUnsafeObserverDispatchEnabled()` (`WestlakeLauncher.java:320-338`) is true only if `westlake.mcd.unsafe_observer_dispatch` system prop / env / launch-file / probe file `westlake_mcd_unsafe_observer_dispatch.txt` is set. **The gate is purely an opt-in flag check; it has nothing to do with LiveData or Lifecycle state.**
+
+When the flag IS set, the code reflectively invokes `fragment.q7(Boolean.TRUE)` at `WestlakeLauncher.java:20040` — i.e. it fires the LiveData manually, bypassing the observer chain entirely. So:
+- The gate currently emits `allowed=false reason=observer_dispatch_opt_in_required` in **both** the bounded green proof AND the no-bridge attempt (verified by grepping `MCD_PDP_OBSERVER_DISPATCH_GATE` across both artifacts: identical wording at L48537 and L48542 respectively).
+- The bounded proof is "green" because of the **side-channel reflective `cartVm.setCartInfo(stockCartInfo)`** at `WestlakeLauncher.java:21059-21082`, NOT because any observer fired. Proof: `MCD_PDP_OBSERVER_DISPATCH ... invoked=true` count is 0 in both artifacts.
+- The acceptance script accepts via `pdp_cartinfo_bridge_positive` / `pdp_cart_or_bag_mutated` at `scripts/check-real-mcd-proof.sh:518-519,720`. **That acceptance line is itself a McD-specific accommodation.**
+
+**Cross-rule-out:**
+- **PF-622 mislabel: NOT involved here.** `MCD_PDP_LIVEDATA_STATE` shows `lifecycleState=RESUMED fragmentResumed=true` in both artifacts (L48534/48539). Lifecycle is correctly RESUMED at gate-fire time.
+- **PF-607 coroutine shield: NOT involved here.** Both runs have identical `[PFCUT-MCD] JustFlipBase.c event emission noop` shield state; neither uses the coroutine event path to drive the LiveData.
+
+**Implications for PF-628 acceptance:**
+- "Remove the bridge" without changing anything else just removes the side-channel — there is no other path to mutate the VM cart today.
+- A meaningful no-bridge gate must (a) plant `westlake_mcd_unsafe_observer_dispatch.txt` (under explicit `unsafe_*` artifact naming per handoff guardrail), and (b) verify the observer dispatch actually invokes `q7(true)`, and (c) verify `BasketAPIHandler.Q → nativeSetLong` survives — the latter blocked on a working PF-630 fix.
+- Long-term, PF-628 acceptance criterion in `check-real-mcd-proof.sh` should require `MCD_PDP_OBSERVER_DISPATCH ... invoked=true count >= 1`, not just `pdp_cart_or_bag_mutated`.
+
+**Next-agent prompt for PF-628 (replaces the §4 prompt above):**
+```
+PRECONDITION: a working PF-630 fix is on the phone (the 2026-05-03 candidate
+at $HOME/art-latest/build-ohos-arm64/bin/dalvikvm REGRESSED — see §13.3).
+
+1. Plant the unsafe opt-in probe (artifact naming MUST include "unsafe"):
+     /mnt/c/Users/dspfa/Dev/platform-tools/adb.exe -s cfb7c9e3 \
+       shell 'echo 1 > /data/local/tmp/westlake/westlake_mcd_unsafe_observer_dispatch.txt'
+2. Run a labeled-unsafe gate with bridge OFF:
+     env ADB_BIN=… ADB_HOST=… ADB_PORT=… ADB_SERIAL=… \
+       WESTLAKE_HTTP_PROXY_BASE=http://127.0.0.1:18080 \
+       WESTLAKE_START_HTTP_PROXY=1 WESTLAKE_GATE_INTERACT=1 \
+       MCD_PDP_CARTINFO_SET_BRIDGE=0 \
+       WESTLAKE_GATE_SLEEP=600 WESTLAKE_DASH_WAIT=360 WESTLAKE_PDP_WAIT=240 \
+       ./scripts/run-real-mcd-phone-gate.sh \
+         mcd_unsafe_pf628_no_bridge_observer_dispatch_post_pf630
+3. Acceptance (decisive grep):
+     grep -c 'MCD_PDP_OBSERVER_DISPATCH .*invoked=true' \
+       artifacts/real-mcd/<latest>/logcat-stream.txt
+   Expected >= 1 AND no SIGBUS in BasketAPIHandler.Q AND
+   pf621_final_acceptance_gate=PASS without MCD_PDP_CARTINFO_SET_BRIDGE
+   applied=true having to fire.
+4. Always remove the unsafe probe afterward:
+     adb -s cfb7c9e3 shell 'rm -f /data/local/tmp/westlake/westlake_mcd_unsafe_observer_dispatch.txt'
+5. If observer dispatch invokes but downstream still crashes in
+   BasketAPIHandler.Q, the storage commit also needs unsafe opt-in
+   (westlake_mcd_unsafe_storage_commit.txt). Treat that as a separate test.
+```
+
+### 13.3 PF-630 candidate runtime — REGRESSED the bounded baseline
+
+- Candidate: `$HOME/art-latest/build-ohos-arm64/bin/dalvikvm`, sha256 `20acd7b1c18493cd9a52c0cf8f67243c32459e34fc0faa2be1295cf0f43d2999` (matches handoff hash claim).
+- Test: bounded regression gate `mcd_pf630_candidate_bounded_regression`, 2026-05-03 12:04:32 PT.
+- Result: **`gate_status=FAIL`** at `artifacts/real-mcd/20260503_120432_mcd_pf630_candidate_bounded_regression/check-real-mcd-proof.txt`.
+- Failure profile:
+  - `FAIL no_fatal_failed_requirement count=2`
+  - `FAIL network_bridge_or_urlconnection newrelic=0 westlake_bridge=0 urlconnection_noop=0`
+  - All dashboard sections `count=0` (HERO, MENU, PROMOTION, POPULAR)
+  - `FAIL strict_dashboard_frame_sparse bytes=1734 views=4`
+- Diagnostic clue from logcat: repeated `java.lang.NoClassDefFoundError: Class not found using the boot class loader; no stack trace available` near app startup — suggests the patched `interpreter_common.cc` broke a boot class loading path (the original runtime resolves the same classes fine).
+- **Rollback executed**: original runtime `d7e10e47…` restored from `$HOME/westlake-runtime-backups/dalvikvm.pre-pf630-d7e10e47.bak`. Verified post-rollback bounded gate.
+- **Implication for PF-630 issue (#596):** the candidate is not deployable as-is. The next agent on PF-630 should:
+  1. Investigate why `interpreter_common.cc` patch produces `NoClassDefFoundError` for boot classes (likely a class-init / resolution path bug introduced by the patch).
+  2. Reproduce the regression locally if possible (run a minimal class-resolution test against the candidate runtime).
+  3. Either revise the patch or pursue an alternative root-cause fix for `OsSharedRealm.nativeCloseSharedRealm` SIGBUS.
+  4. Re-run the bounded regression gate before any long-soak.
+- **Backup retained** at `$HOME/westlake-runtime-backups/dalvikvm.pre-pf630-d7e10e47.bak` for future rollback if anyone re-tries the candidate.
+
+### 13.4 Stale-doc cleanup committed (Agent A)
+
+- Commit `78d4d098` on `main` (not pushed).
+- 16 single-line italic annotations on `WESTLAKE_PLATFORM_FIRST_ISSUES.md`:
+  - 5× `[SUPERSEDED 2026-05-03 — see 18:10 PT update; PF-620 is green]` above earlier red entries
+  - 8× `[SUBTAG COLLAPSED INTO PARENT IN 18:10 PT UPDATE]` above PF-625 sub-tag headers (file had 8, the spec listed 6 — Agent annotated all)
+  - 1× `[STILL OPEN — masked by compatibility marker; see WESTLAKE_FULL_MCD_GAP_REPORT_20260503.md §3 B5]` above the PF-622 17:08 PT entry
+  - 1× `[GREEN BUT REGRESSION-PRONE; see GAP_REPORT_20260503 §4 PF-624]` above the 15:28 PT PF-624 first green-flip
+  - 1× top-of-file note pointing readers at this doc
+- Insertions only — no content removed or paragraphs rewritten.
+
+### 13.5 Updated priority ordering after this session
+
+| Priority | Item | Adjustment |
+|---|---|---|
+| **P0** | PF-630 runtime fix re-attempt | Candidate REGRESSED; need a different patch or different root-cause approach. Diagnose `NoClassDefFoundError` from boot class loader first. |
+| **P0** | PF-628 acceptance redefinition | Agent C revealed acceptance currently passes via reflective `setCartInfo`, not observer dispatch. The `check-real-mcd-proof.sh` line `pdp_cartinfo_bridge_positive` should ultimately require `MCD_PDP_OBSERVER_DISPATCH ... invoked=true`. |
+| **P0** | PF-632 empirical proof | Add `WESTLAKE_GATE_PDP_FORCE_PERFORM_CLICK` env hook to gate harness so the fix's wire-up can be verified. |
+| **P1** | PF-629 quantity_plus probe | Independent of PF-630/PF-628 chain — can run on rolled-back baseline to prove cart=2. |
+| Unchanged | PF-627, PF-625, PF-606, PF-607, PF-608/626 | Per §7 above. |
+
+### 13.6 Artifacts produced this session
+
+| Artifact | Result | Path |
+|---|---|---|
+| Pre-deploy runtime backup | Saved | `$HOME/westlake-runtime-backups/dalvikvm.pre-pf630-d7e10e47.bak` |
+| PF-630 candidate regression gate | FAIL | `artifacts/real-mcd/20260503_120432_mcd_pf630_candidate_bounded_regression/` |
+| Post-rollback baseline | (running) | `artifacts/real-mcd/20260503_*_mcd_baseline_post_pf630_rollback/` |
