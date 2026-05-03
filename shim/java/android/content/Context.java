@@ -13,6 +13,7 @@ import android.os.Looper;
 import android.view.Display;
 import java.io.File;
 import java.util.concurrent.Executor;
+import java.util.concurrent.CopyOnWriteArrayList;
 
 public class Context {
     // Real Android context for resource loading (set when running on app_process64)
@@ -20,6 +21,24 @@ public class Context {
     protected Context mBase;
     public static void setRealContext(Object ctx) { sRealContext = ctx; }
     public static Object getRealContext() { return sRealContext; }
+
+    private static final CopyOnWriteArrayList<RegisteredReceiver> sRegisteredReceivers =
+            new CopyOnWriteArrayList<>();
+
+    private static final class RegisteredReceiver {
+        final Context context;
+        final BroadcastReceiver receiver;
+        final IntentFilter filter;
+        final Handler scheduler;
+
+        RegisteredReceiver(Context context, BroadcastReceiver receiver, IntentFilter filter,
+                Handler scheduler) {
+            this.context = context;
+            this.receiver = receiver;
+            this.filter = filter;
+            this.scheduler = scheduler;
+        }
+    }
 
     // Service name constants (AOSP values)
     public static final String ACCESSIBILITY_SERVICE = "accessibility";
@@ -97,6 +116,8 @@ public class Context {
     public static final int CONTEXT_INCLUDE_CODE = 0x1;
     public static final int CONTEXT_RESTRICTED = 0x4;
     public static final int RECEIVER_VISIBLE_TO_INSTANT_APPS = 0x1;
+    public static final int RECEIVER_EXPORTED = 0x2;
+    public static final int RECEIVER_NOT_EXPORTED = 0x4;
 
     // File mode constants (remain int)
     public static final int MODE_PRIVATE = 0;
@@ -108,6 +129,7 @@ public class Context {
 
     public Context getBaseContext() { return mBase != null ? mBase : this; }
     public void attachBaseContext(Context base) { mBase = base; }
+    public String getAttributionTag() { return null; }
 
     public boolean bindIsolatedService(Intent p0, int p1, String p2, Executor p3, ServiceConnection p4) { return false; }
     public boolean bindService(Intent p0, ServiceConnection p1, int p2) {
@@ -119,7 +141,7 @@ public class Context {
     public int checkSelfPermission(String p0) { return PackageManager.PERMISSION_GRANTED; }
     public int checkCallingPermission(String p0) { return PackageManager.PERMISSION_GRANTED; }
     public int checkPermission(String p0, int p1, int p2) { return PackageManager.PERMISSION_GRANTED; }
-    public Context createConfigurationContext(Configuration p0) { return null; }
+    public Context createConfigurationContext(Configuration p0) { return this; }
     public Context createContextForSplit(String p0) { return null; }
     public Context createDeviceProtectedStorageContext() { return null; }
     public Context createDisplayContext(Display p0) { return null; }
@@ -135,7 +157,10 @@ public class Context {
     public void enforcePermission(String p0, int p1, int p2, String p3) {}
     public void enforceUriPermission(Uri p0, int p1, int p2, int p3, String p4) {}
     public void enforceUriPermission(Uri p0, String p1, String p2, int p3, int p4, int p5, String p6) {}
-    public String[] fileList() { return null; }
+    public String[] fileList() {
+        String[] files = getFilesDir().list();
+        return files != null ? files : new String[0];
+    }
     public Context getApplicationContext() {
         // Return the Application from MiniServer if available
         try {
@@ -233,6 +258,16 @@ public class Context {
     public String getPackageResourcePath() { return null; }
     private Resources mResources;
     public Resources getResources() {
+        try {
+            android.app.Application app = android.app.MiniServer.get().getApplication();
+            if (app != null && app != this) {
+                Resources appResources = app.getResources();
+                if (appResources != null && appResources.getResourceTable() != null) {
+                    return appResources;
+                }
+            }
+        } catch (Throwable ignored) {
+        }
         if (mResources == null) mResources = new Resources();
         return mResources;
     }
@@ -261,14 +296,32 @@ public class Context {
                         editor.apply();
                     }
                 } catch (Exception e) {}
+                if (shimSp instanceof SharedPreferencesImpl) {
+                    ((SharedPreferencesImpl) shimSp).ensureMcDonaldsDefaultsIfNeeded();
+                }
                 return shimSp;
             }
         }
         return SharedPreferencesImpl.getInstance(p0);
     }
+    private android.app.job.JobScheduler mJobScheduler;
+    private android.app.job.JobScheduler getJobSchedulerService() {
+        if (mJobScheduler == null) {
+            mJobScheduler = new android.app.job.JobScheduler();
+        }
+        return mJobScheduler;
+    }
     public Object getSystemService(String p0) {
         if (LAYOUT_INFLATER_SERVICE.equals(p0)) {
             return new android.view.LayoutInflater(this);
+        }
+        if (WINDOW_SERVICE.equals(p0) || "WindowManager".equals(p0)
+                || "android.view.WindowManager".equals(p0)) {
+            return android.view.WindowManagerGlobal.getInstance();
+        }
+        if (JOB_SCHEDULER_SERVICE.equals(p0) || "JobScheduler".equals(p0)
+                || "android.app.job.JobScheduler".equals(p0)) {
+            return getJobSchedulerService();
         }
         // Try host's real system services first (provides real WindowManager, LayoutInflater, etc.)
         if (android.app.HostBridge.hasHost()) {
@@ -298,8 +351,10 @@ public class Context {
     public void registerComponentCallbacks(ComponentCallbacks p0) {}
     public void revokeUriPermission(Uri p0, int p1) {}
     public void revokeUriPermission(String p0, Uri p1, int p2) {}
-    public void sendBroadcast(Intent p0) {}
-    public void sendBroadcast(Intent p0, String p1) {}
+    public void sendBroadcast(Intent p0) {
+        dispatchRegisteredBroadcast(p0);
+    }
+    public void sendBroadcast(Intent p0, String p1) { sendBroadcast(p0); }
     public void sendBroadcastWithMultiplePermissions(Intent p0, String[] p1) {}
     public void sendOrderedBroadcast(Intent p0, String p1) {}
     public void sendOrderedBroadcast(Intent p0, String p1, BroadcastReceiver p2, Handler p3, int p4, String p5, Bundle p6) {}
@@ -329,9 +384,60 @@ public class Context {
     }
     public void unregisterComponentCallbacks(ComponentCallbacks p0) {}
     public Intent registerReceiver(BroadcastReceiver receiver, IntentFilter filter) {
+        return registerReceiver(receiver, filter, null, null, 0);
+    }
+    public Intent registerReceiver(BroadcastReceiver receiver, IntentFilter filter, int flags) {
+        return registerReceiver(receiver, filter, null, null, flags);
+    }
+    public Intent registerReceiver(BroadcastReceiver receiver, IntentFilter filter,
+            String broadcastPermission, Handler scheduler) {
+        return registerReceiver(receiver, filter, broadcastPermission, scheduler, 0);
+    }
+    public Intent registerReceiver(BroadcastReceiver receiver, IntentFilter filter,
+            String broadcastPermission, Handler scheduler, int flags) {
+        if (receiver != null && filter != null) {
+            sRegisteredReceivers.add(new RegisteredReceiver(this, receiver, filter, scheduler));
+        }
+        return stickyIntentForFilter(filter);
+    }
+    public void unregisterReceiver(BroadcastReceiver receiver) {
+        if (receiver == null) return;
+        for (RegisteredReceiver record : sRegisteredReceivers) {
+            if (record.receiver == receiver) {
+                sRegisteredReceivers.remove(record);
+            }
+        }
+    }
+
+    private static Intent stickyIntentForFilter(IntentFilter filter) {
+        if (filter != null && filter.hasAction(Intent.ACTION_BATTERY_CHANGED)) {
+            return new Intent(Intent.ACTION_BATTERY_CHANGED)
+                    .putExtra("status", 2)
+                    .putExtra("level", 100)
+                    .putExtra("scale", 100)
+                    .putExtra("plugged", 1);
+        }
         return null;
     }
-    public void unregisterReceiver(BroadcastReceiver p0) {}
+
+    private static void dispatchRegisteredBroadcast(Intent intent) {
+        if (intent == null) return;
+        final String action = intent.getAction();
+        for (final RegisteredReceiver record : sRegisteredReceivers) {
+            if (record == null || record.receiver == null || record.filter == null) continue;
+            if (!record.filter.matchAction(action)) continue;
+            Runnable delivery = new Runnable() {
+                @Override public void run() {
+                    record.receiver.onReceive(record.context, intent);
+                }
+            };
+            if (record.scheduler != null) {
+                record.scheduler.post(delivery);
+            } else {
+                delivery.run();
+            }
+        }
+    }
     public void updateServiceGroup(ServiceConnection p0, int p1, int p2) {}
 
     public android.content.res.TypedArray obtainStyledAttributes(android.util.AttributeSet set, int[] attrs) {
@@ -360,6 +466,9 @@ public class Context {
     }
 
     public android.graphics.drawable.Drawable getDrawable(int id) {
+        if (id == 0x7f0800ad) {
+            return new android.graphics.drawable.VectorDrawable();
+        }
         // Try real Android context first (app_process64 mode)
         Object realCtx = com.westlake.engine.WestlakeLauncher.sRealContext;
         if (com.westlake.engine.WestlakeLauncher.isRealFrameworkFallbackAllowed() && realCtx != null) {
@@ -390,7 +499,11 @@ public class Context {
             if (table != null) {
                 String filePath = table.getString(id);
                 if (filePath == null) filePath = table.getEntryFilePath(id);
-                if (filePath != null) {
+                    if (filePath != null) {
+                    String lowerPath = filePath.toLowerCase(java.util.Locale.US);
+                    if (lowerPath.endsWith(".xml") && lowerPath.indexOf("vector") >= 0) {
+                        return new android.graphics.drawable.VectorDrawable();
+                    }
                     String resDir = System.getProperty("westlake.apk.resdir");
                     if (resDir != null) {
                         java.io.File f = new java.io.File(resDir, filePath);
@@ -421,9 +534,18 @@ public class Context {
     public void startActivityAsUser(android.content.Intent intent, android.os.UserHandle user) {}
     public boolean canLoadUnsafeResources() { return false; }
 
-    public final CharSequence getText(int resId) { return ""; }
-    public final String getString(int resId) { return ""; }
-    public final String getString(int resId, Object... formatArgs) { return ""; }
+    public final CharSequence getText(int resId) {
+        android.content.res.Resources res = getResources();
+        return res != null ? res.getText(resId) : "";
+    }
+    public final String getString(int resId) {
+        android.content.res.Resources res = getResources();
+        return res != null ? res.getString(resId) : "";
+    }
+    public final String getString(int resId, Object... formatArgs) {
+        android.content.res.Resources res = getResources();
+        return res != null ? res.getString(resId, formatArgs) : "";
+    }
     public final int getColor(int id) { return 0; }
     public android.view.Display getDisplay() { return null; }
     public int getUserId() { return 0; }

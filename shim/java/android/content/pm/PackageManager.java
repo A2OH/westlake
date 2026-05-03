@@ -183,7 +183,16 @@ public class PackageManager {
     public int getInstantAppCookieMaxBytes() { return 0; }
     public int getPackageGids(Object p0) { return 0; }
     public int getPackageGids(Object p0, Object p1) { return 0; }
-    public Object getPackageInfo(Object p0, Object p1) { return null; }
+    public Object getPackageInfo(Object p0, Object p1) {
+        if (p0 instanceof String) {
+            int flags = objectToInt(p1, 0);
+            try {
+                return getPackageInfo((String) p0, flags);
+            } catch (NameNotFoundException ignored) {
+            }
+        }
+        return null;
+    }
     public int getPackageUid(Object p0, Object p1) { return 0; }
     public Object getPermissionInfo(Object p0, Object p1) { return null; }
     public boolean getSyntheticAppDetailsActivityEnabled(Object p0) { return false; }
@@ -237,6 +246,16 @@ public class PackageManager {
             ActivityInfo result = android.app.HostBridge.pm_getActivityInfo(component, flags);
             if (result != null && result.name != null) return result;
         }
+        if (component != null) {
+            ActivityInfo fallback = new ActivityInfo();
+            fallback.packageName = component.getPackageName();
+            fallback.name = component.getClassName();
+            fallback.parentActivityName = null;
+            fallback.metaData = null;
+            fallback.enabled = 1;
+            fallback.exported = true;
+            return fallback;
+        }
         throw new NameNotFoundException(component != null ? component.flattenToString() : "null");
     }
 
@@ -252,8 +271,13 @@ public class PackageManager {
         }
         ServiceInfo fallback = new ServiceInfo();
         if (component != null) {
+            String className = component.getClassName();
+            if ("androidx.appcompat.app.AppLocalesMetadataHolderService".equals(className)) {
+                return buildAppCompatLocalesServiceInfo(component.getPackageName());
+            }
             fallback.packageName = component.getPackageName();
-            fallback.name = component.getClassName();
+            fallback.name = className;
+            fallback.metaData = new android.os.Bundle();
             return fallback;
         }
         throw new NameNotFoundException("null");
@@ -269,6 +293,9 @@ public class PackageManager {
             ApplicationInfo result = android.app.HostBridge.pm_getApplicationInfo(packageName, flags);
             if (result != null && result.packageName != null) return result;
         }
+        if (isGuestPackage(packageName)) {
+            return buildGuestApplicationInfo(packageName);
+        }
         throw new NameNotFoundException(packageName);
     }
 
@@ -281,6 +308,9 @@ public class PackageManager {
         if (android.app.HostBridge.hasHost()) {
             PackageInfo result = android.app.HostBridge.pm_getPackageInfo(packageName, flags);
             if (result != null) return result;
+        }
+        if (isGuestPackage(packageName)) {
+            return buildGuestPackageInfo(packageName);
         }
         throw new NameNotFoundException(packageName);
     }
@@ -345,6 +375,131 @@ public class PackageManager {
      */
     public int getComponentEnabledSetting(android.content.ComponentName component) {
         return COMPONENT_ENABLED_STATE_DEFAULT;
+    }
+
+    private static boolean isGuestPackage(String packageName) {
+        if (packageName == null || packageName.length() == 0) {
+            return false;
+        }
+        String targetPackage = System.getProperty("westlake.apk.package");
+        if (targetPackage != null && targetPackage.equals(packageName)) {
+            return true;
+        }
+        return "com.mcdonalds.app".equals(packageName);
+    }
+
+    private static ApplicationInfo buildGuestApplicationInfo(String packageName) {
+        ApplicationInfo info = new ApplicationInfo();
+        info.packageName = packageName;
+        info.name = packageName;
+        info.className = "com.mcdonalds.mcdcoreapp.common.McDApplication";
+        info.processName = packageName;
+        info.sourceDir = System.getProperty(
+                "westlake.apk.path",
+                "/data/local/tmp/westlake/com_mcdonalds_app.apk");
+        info.publicSourceDir = info.sourceDir;
+        info.splitSourceDirs = splitPathList(System.getProperty("westlake.apk.splitSourceDirs"));
+        info.splitPublicSourceDirs = info.splitSourceDirs;
+        info.dataDir = System.getProperty("westlake.data.dir", "/data/local/tmp/westlake");
+        info.nativeLibraryDir = System.getProperty(
+                "westlake.native.lib.dir",
+                "/data/local/tmp/westlake/app_lib");
+        info.nativeLibraryRootDir = info.nativeLibraryDir;
+        info.primaryCpuAbi = "arm64-v8a";
+        info.secondaryCpuAbi = "armeabi-v7a";
+        info.targetSdkVersion = 35;
+        return info;
+    }
+
+    private static PackageInfo buildGuestPackageInfo(String packageName) {
+        PackageInfo info = new PackageInfo();
+        info.packageName = packageName;
+        info.versionCode = parseIntProperty("westlake.apk.versionCode", 1);
+        info.versionCodeMajor = parseIntProperty("westlake.apk.versionCodeMajor", 0);
+        info.versionName = System.getProperty("westlake.apk.versionName", "westlake-guest");
+        long now = java.lang.System.currentTimeMillis();
+        info.firstInstallTime = now;
+        info.lastUpdateTime = now;
+        info.applicationInfo = buildGuestApplicationInfo(packageName);
+        info.activities = new ActivityInfo[] {
+                buildGuestActivityInfo(packageName,
+                        "com.mcdonalds.mcdcoreapp.common.activity.SplashActivity"),
+                buildGuestActivityInfo(packageName,
+                        "com.mcdonalds.homedashboard.activity.HomeDashboardActivity")
+        };
+        info.services = new ServiceInfo[] {
+                buildAppCompatLocalesServiceInfo(packageName)
+        };
+        info.providers = new ProviderInfo[0];
+        info.permissions = new PermissionInfo[0];
+        info.requestedPermissions = new String[] {
+                "android.permission.INTERNET",
+                "android.permission.ACCESS_NETWORK_STATE"
+        };
+        info.signatures = new Signature[0];
+        info.signingInfo = new SigningInfo();
+        info.splitNames = new String[0];
+        info.splitRevisionCodes = new int[0];
+        return info;
+    }
+
+    private static ActivityInfo buildGuestActivityInfo(String packageName, String className) {
+        ActivityInfo info = new ActivityInfo();
+        info.packageName = packageName;
+        info.name = className;
+        info.enabled = 1;
+        info.exported = true;
+        info.metaData = new android.os.Bundle();
+        return info;
+    }
+
+    private static ServiceInfo buildAppCompatLocalesServiceInfo(String packageName) {
+        ServiceInfo info = new ServiceInfo();
+        info.packageName = packageName;
+        info.name = "androidx.appcompat.app.AppLocalesMetadataHolderService";
+        info.enabled = 1;
+        info.exported = false;
+        info.metaData = new android.os.Bundle();
+        info.metaData.putBoolean("autoStoreLocales", false);
+        return info;
+    }
+
+    private static String[] splitPathList(String value) {
+        if (value == null || value.length() == 0) {
+            return new String[0];
+        }
+        java.util.ArrayList<String> result = new java.util.ArrayList<String>();
+        int start = 0;
+        for (int i = 0; i <= value.length(); i++) {
+            if (i == value.length() || value.charAt(i) == ':') {
+                if (i > start) {
+                    result.add(value.substring(start, i));
+                }
+                start = i + 1;
+            }
+        }
+        return result.toArray(new String[result.size()]);
+    }
+
+    private static int parseIntProperty(String key, int fallback) {
+        try {
+            String value = System.getProperty(key);
+            if (value != null && value.length() > 0) {
+                return Integer.parseInt(value);
+            }
+        } catch (Throwable ignored) {
+        }
+        return fallback;
+    }
+
+    private static int objectToInt(Object value, int fallback) {
+        if (value instanceof Integer) {
+            return ((Integer) value).intValue();
+        }
+        if (value instanceof Number) {
+            return ((Number) value).intValue();
+        }
+        return fallback;
     }
 
     public static class NameNotFoundException extends Exception {

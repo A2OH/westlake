@@ -81,5 +81,59 @@ public class Configuration {
         locale = java.util.Locale.getDefault();
     }
 
+    public boolean equals(Configuration that) {
+        if (that == null) {
+            return false;
+        }
+        return orientation == that.orientation
+                && screenWidthDp == that.screenWidthDp
+                && screenHeightDp == that.screenHeightDp
+                && densityDpi == that.densityDpi
+                && uiMode == that.uiMode
+                && screenLayout == that.screenLayout
+                && Float.compare(fontScale, that.fontScale) == 0
+                && smallestScreenWidthDp == that.smallestScreenWidthDp
+                && navigation == that.navigation
+                && touchscreen == that.touchscreen
+                && keyboard == that.keyboard
+                && keyboardHidden == that.keyboardHidden
+                && hardKeyboardHidden == that.hardKeyboardHidden
+                && navigationHidden == that.navigationHidden
+                && mnc == that.mnc
+                && mcc == that.mcc
+                && colorMode == that.colorMode
+                && screenLayoutLong == that.screenLayoutLong
+                && (locale == that.locale || (locale != null && locale.equals(that.locale)));
+    }
+
+    @Override
+    public boolean equals(Object that) {
+        return that instanceof Configuration && equals((Configuration) that);
+    }
+
+    @Override
+    public int hashCode() {
+        int result = orientation;
+        result = 31 * result + screenWidthDp;
+        result = 31 * result + screenHeightDp;
+        result = 31 * result + densityDpi;
+        result = 31 * result + uiMode;
+        result = 31 * result + screenLayout;
+        result = 31 * result + Float.floatToIntBits(fontScale);
+        result = 31 * result + smallestScreenWidthDp;
+        result = 31 * result + navigation;
+        result = 31 * result + touchscreen;
+        result = 31 * result + keyboard;
+        result = 31 * result + keyboardHidden;
+        result = 31 * result + hardKeyboardHidden;
+        result = 31 * result + navigationHidden;
+        result = 31 * result + mnc;
+        result = 31 * result + mcc;
+        result = 31 * result + colorMode;
+        result = 31 * result + screenLayoutLong;
+        result = 31 * result + (locale != null ? locale.hashCode() : 0);
+        return result;
+    }
+
     public int diff(Configuration delta) { return 0; }
 }

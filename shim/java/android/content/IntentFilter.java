@@ -3,7 +3,8 @@ package android.content;
 import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
-import java.net.URI;
+import java.util.Set;
+import android.net.Uri;
 
 /**
  * Android-compatible IntentFilter shim.
@@ -14,6 +15,11 @@ import java.net.URI;
  * Pure Java stub — no OH bridge calls needed.
  */
 public class IntentFilter {
+    public static final int NO_MATCH_TYPE = -1;
+    public static final int NO_MATCH_DATA = -2;
+    public static final int NO_MATCH_ACTION = -3;
+    public static final int NO_MATCH_CATEGORY = -4;
+    public static final int MATCH_CATEGORY_EMPTY = 0x0100000;
 
     private final List<String> mActions    = new ArrayList<>();
     private final List<String> mCategories = new ArrayList<>();
@@ -200,6 +206,68 @@ public class IntentFilter {
      */
     public boolean match(String action) {
         return matchAction(action);
+    }
+
+    public int match(String action, String type, String scheme, Uri data,
+            Set<String> categories, String logTag) {
+        if (!matchAction(action)) {
+            return NO_MATCH_ACTION;
+        }
+        if (!matchDataType(type)) {
+            return NO_MATCH_TYPE;
+        }
+        String dataScheme = scheme;
+        if (dataScheme == null && data != null) {
+            dataScheme = data.getScheme();
+        }
+        if (!matchDataScheme(dataScheme)) {
+            return NO_MATCH_DATA;
+        }
+        if (!matchCategories(categories)) {
+            return NO_MATCH_CATEGORY;
+        }
+        return MATCH_CATEGORY_EMPTY + mPriority;
+    }
+
+    private boolean matchDataType(String type) {
+        if (mDataTypes.isEmpty() || type == null) {
+            return true;
+        }
+        for (String filterType : mDataTypes) {
+            if (filterType == null) {
+                continue;
+            }
+            if (filterType.equals(type)) {
+                return true;
+            }
+            if (filterType.endsWith("/*")) {
+                int slash = type.indexOf('/');
+                String prefix = slash >= 0 ? type.substring(0, slash + 1) : type + "/";
+                if (filterType.regionMatches(0, prefix, 0, prefix.length())) {
+                    return true;
+                }
+            }
+        }
+        return false;
+    }
+
+    private boolean matchDataScheme(String scheme) {
+        if (mDataSchemes.isEmpty() || scheme == null) {
+            return true;
+        }
+        return mDataSchemes.contains(scheme);
+    }
+
+    private boolean matchCategories(Set<String> categories) {
+        if (mCategories.isEmpty() || categories == null || categories.isEmpty()) {
+            return true;
+        }
+        for (String category : categories) {
+            if (category != null && !mCategories.contains(category)) {
+                return false;
+            }
+        }
+        return true;
     }
 
     @Override

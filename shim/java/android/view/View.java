@@ -819,6 +819,8 @@ public class View implements Drawable.Callback, KeyEvent.Callback,
      * The logging tag used by this class with android.util.Log.
      */
     protected static final String VIEW_LOG_TAG = "View";
+    private static int sWestlakePerformClickMarkerCount = 0;
+    private static int sWestlakeTouchLifecycleMarkerCount = 0;
 
     /**
      * The logging tag used by this class when logging verbose, autofill-related messages.
@@ -5183,7 +5185,14 @@ public class View implements Drawable.Callback, KeyEvent.Callback,
      * cleanup.
      */
     @UnsupportedAppUsage
-    final RenderNode mRenderNode;
+    RenderNode mRenderNode;
+
+    private RenderNode ensureRenderNode() {
+        if (mRenderNode == null) {
+            mRenderNode = RenderNode.create(getClass().getName(), new ViewAnimationHostBridge(this));
+        }
+        return mRenderNode;
+    }
 
     /**
      * Set to true when the view is sending hover accessibility events because it
@@ -6019,7 +6028,7 @@ public class View implements Drawable.Callback, KeyEvent.Callback,
                     setAccessibilityHeading(a.getBoolean(attr, false));
                     break;
                 case R.styleable.View_forceDarkAllowed:
-                    mRenderNode.setForceDarkAllowed(a.getBoolean(attr, true));
+                    ensureRenderNode().setForceDarkAllowed(a.getBoolean(attr, true));
                     break;
                 case R.styleable.View_scrollCaptureHint:
                     setScrollCaptureHint((a.getInt(attr, SCROLL_CAPTURE_HINT_AUTO)));
@@ -7460,8 +7469,10 @@ public class View implements Drawable.Callback, KeyEvent.Callback,
         final ListenerInfo li = mListenerInfo;
         if (li != null && li.mOnClickListener != null) {
             playSoundEffect(SoundEffectConstants.CLICK);
+            logWestlakePerformClickMarker("before");
             li.mOnClickListener.onClick(this);
             result = true;
+            logWestlakePerformClickMarker("after");
         } else {
             result = false;
         }
@@ -7471,6 +7482,58 @@ public class View implements Drawable.Callback, KeyEvent.Callback,
         notifyEnterOrExitForAutoFillIfNeeded(true);
 
         return result;
+    }
+
+    private void logWestlakePerformClickMarker(String phase) {
+        if (sWestlakePerformClickMarkerCount >= 160) {
+            return;
+        }
+        sWestlakePerformClickMarkerCount++;
+        String marker = "phase=" + phase
+                + " view=" + getClass().getName()
+                + " id=" + westlakeViewIdToken()
+                + " w=" + getWidth()
+                + " h=" + getHeight()
+                + " text=" + westlakeClickTextToken();
+        android.util.Log.i("WestlakeVM", "VM: WESTLAKE_VIEW_PERFORM_CLICK " + marker);
+        try {
+            com.westlake.engine.WestlakeLauncher.appendCutoffCanaryMarker(
+                    "WESTLAKE_VIEW_PERFORM_CLICK " + marker);
+        } catch (Throwable ignored) {
+        }
+    }
+
+    private String westlakeViewIdToken() {
+        try {
+            return "0x" + Integer.toHexString(getId());
+        } catch (Throwable ignored) {
+            return "unknown";
+        }
+    }
+
+    private String westlakeClickTextToken() {
+        try {
+            if (this instanceof android.widget.TextView) {
+                CharSequence text = ((android.widget.TextView) this).getText();
+                if (text != null) {
+                    String raw = text.toString();
+                    StringBuilder out = new StringBuilder(raw.length());
+                    for (int i = 0; i < raw.length() && i < 48; i++) {
+                        char c = raw.charAt(i);
+                        if ((c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z')
+                                || (c >= '0' && c <= '9') || c == '.' || c == '_'
+                                || c == '-') {
+                            out.append(c);
+                        } else {
+                            out.append('_');
+                        }
+                    }
+                    return out.toString();
+                }
+            }
+        } catch (Throwable ignored) {
+        }
+        return "";
     }
 
     /**
@@ -11460,7 +11523,7 @@ public class View implements Drawable.Callback, KeyEvent.Callback,
         if (rects.isEmpty()) {
             info.mSystemGestureExclusionRects = null;
             if (info.mPositionUpdateListener != null) {
-                mRenderNode.removePositionUpdateListener(info.mPositionUpdateListener);
+                ensureRenderNode().removePositionUpdateListener(info.mPositionUpdateListener);
             }
         } else {
             info.mSystemGestureExclusionRects = rects;
@@ -11476,7 +11539,7 @@ public class View implements Drawable.Callback, KeyEvent.Callback,
                         postUpdateSystemGestureExclusionRects();
                     }
                 };
-                mRenderNode.addPositionUpdateListener(info.mPositionUpdateListener);
+                ensureRenderNode().addPositionUpdateListener(info.mPositionUpdateListener);
             }
         }
         postUpdateSystemGestureExclusionRects();
@@ -14307,6 +14370,7 @@ public class View implements Drawable.Callback, KeyEvent.Callback,
      * @return True if the event was handled by the view, false otherwise.
      */
     public boolean dispatchTouchEvent(MotionEvent event) {
+        final boolean westlakeLogLifecycle = shouldLogWestlakeTouchLifecycle(event);
         // If the event should be handled by accessibility focus first.
         if (event.isTargetAccessibilityFocus()) {
             // We don't have focus or no virtual descendant has it, do not handle the event.
@@ -14358,7 +14422,75 @@ public class View implements Drawable.Callback, KeyEvent.Callback,
             stopNestedScroll();
         }
 
+        if (westlakeLogLifecycle) {
+            logWestlakeTouchLifecycleMarker(event, result);
+        }
+
         return result;
+    }
+
+    private boolean shouldLogWestlakeTouchLifecycle(MotionEvent event) {
+        if (event == null || sWestlakeTouchLifecycleMarkerCount >= 240) {
+            return false;
+        }
+        int action = event.getActionMasked();
+        if (action != MotionEvent.ACTION_DOWN
+                && action != MotionEvent.ACTION_UP
+                && action != MotionEvent.ACTION_CANCEL) {
+            return false;
+        }
+        ListenerInfo li = mListenerInfo;
+        boolean hasClickListener = li != null && li.mOnClickListener != null;
+        boolean hasTouchListener = li != null && li.mOnTouchListener != null;
+        boolean clickable = (mViewFlags & CLICKABLE) == CLICKABLE
+                || (mViewFlags & LONG_CLICKABLE) == LONG_CLICKABLE
+                || (mViewFlags & CONTEXT_CLICKABLE) == CONTEXT_CLICKABLE;
+        return hasClickListener || hasTouchListener || clickable;
+    }
+
+    private void logWestlakeTouchLifecycleMarker(MotionEvent event, boolean handled) {
+        if (sWestlakeTouchLifecycleMarkerCount >= 240 || event == null) {
+            return;
+        }
+        sWestlakeTouchLifecycleMarkerCount++;
+        String action;
+        switch (event.getActionMasked()) {
+            case MotionEvent.ACTION_DOWN:
+                action = "down";
+                break;
+            case MotionEvent.ACTION_UP:
+                action = "up";
+                break;
+            case MotionEvent.ACTION_CANCEL:
+                action = "cancel";
+                break;
+            default:
+                action = String.valueOf(event.getActionMasked());
+                break;
+        }
+        ListenerInfo li = mListenerInfo;
+        boolean hasClickListener = li != null && li.mOnClickListener != null;
+        boolean hasTouchListener = li != null && li.mOnTouchListener != null;
+        String marker = "view=" + getClass().getName()
+                + " id=" + westlakeViewIdToken()
+                + " action=" + action
+                + " handled=" + handled
+                + " clickable=" + (((mViewFlags & CLICKABLE) == CLICKABLE) ? "true" : "false")
+                + " clickListener=" + (hasClickListener ? "true" : "false")
+                + " touchListener=" + (hasTouchListener ? "true" : "false")
+                + " enabled=" + (((mViewFlags & ENABLED_MASK) == ENABLED) ? "true" : "false")
+                + " pressed=" + (((mPrivateFlags & PFLAG_PRESSED) != 0) ? "true" : "false")
+                + " x=" + (int) event.getX()
+                + " y=" + (int) event.getY()
+                + " w=" + getWidth()
+                + " h=" + getHeight()
+                + " text=" + westlakeClickTextToken();
+        android.util.Log.i("WestlakeVM", "VM: WESTLAKE_VIEW_TOUCH_LIFECYCLE " + marker);
+        try {
+            com.westlake.engine.WestlakeLauncher.appendCutoffCanaryMarker(
+                    "WESTLAKE_VIEW_TOUCH_LIFECYCLE " + marker);
+        } catch (Throwable ignored) {
+        }
     }
 
     boolean isAccessibilityFocusedViewOrHost() {
@@ -16591,7 +16723,7 @@ public class View implements Drawable.Callback, KeyEvent.Callback,
     public Matrix getMatrix() {
         ensureTransformationInfo();
         final Matrix matrix = mTransformationInfo.mMatrix;
-        mRenderNode.getMatrix(matrix);
+        ensureRenderNode().getMatrix(matrix);
         return matrix;
     }
 
@@ -16604,7 +16736,7 @@ public class View implements Drawable.Callback, KeyEvent.Callback,
      */
     @UnsupportedAppUsage
     public final boolean hasIdentityMatrix() {
-        return mRenderNode.hasIdentityMatrix();
+        return ensureRenderNode().hasIdentityMatrix();
     }
 
     @UnsupportedAppUsage
@@ -16629,7 +16761,7 @@ public class View implements Drawable.Callback, KeyEvent.Callback,
             mTransformationInfo.mInverseMatrix = new Matrix();
         }
         final Matrix matrix = mTransformationInfo.mInverseMatrix;
-        mRenderNode.getInverseMatrix(matrix);
+        ensureRenderNode().getInverseMatrix(matrix);
         return matrix;
     }
 
@@ -16642,7 +16774,7 @@ public class View implements Drawable.Callback, KeyEvent.Callback,
      */
     public float getCameraDistance() {
         final float dpi = mResources.getDisplayMetrics().densityDpi;
-        return mRenderNode.getCameraDistance() * dpi;
+        return ensureRenderNode().getCameraDistance() * dpi;
     }
 
     /**
@@ -16688,7 +16820,7 @@ public class View implements Drawable.Callback, KeyEvent.Callback,
         final float dpi = mResources.getDisplayMetrics().densityDpi;
 
         invalidateViewProperty(true, false);
-        mRenderNode.setCameraDistance(Math.abs(distance) / dpi);
+        ensureRenderNode().setCameraDistance(Math.abs(distance) / dpi);
         invalidateViewProperty(false, false);
 
         invalidateParentIfNeededAndWasQuickRejected();
@@ -16706,7 +16838,7 @@ public class View implements Drawable.Callback, KeyEvent.Callback,
     @ViewDebug.ExportedProperty(category = "drawing")
     @InspectableProperty
     public float getRotation() {
-        return mRenderNode.getRotationZ();
+        return ensureRenderNode().getRotationZ();
     }
 
     /**
@@ -16727,7 +16859,7 @@ public class View implements Drawable.Callback, KeyEvent.Callback,
         if (rotation != getRotation()) {
             // Double-invalidation is necessary to capture view's old and new areas
             invalidateViewProperty(true, false);
-            mRenderNode.setRotationZ(rotation);
+            ensureRenderNode().setRotationZ(rotation);
             invalidateViewProperty(false, true);
 
             invalidateParentIfNeededAndWasQuickRejected();
@@ -16747,7 +16879,7 @@ public class View implements Drawable.Callback, KeyEvent.Callback,
     @ViewDebug.ExportedProperty(category = "drawing")
     @InspectableProperty
     public float getRotationY() {
-        return mRenderNode.getRotationY();
+        return ensureRenderNode().getRotationY();
     }
 
     /**
@@ -16772,7 +16904,7 @@ public class View implements Drawable.Callback, KeyEvent.Callback,
     public void setRotationY(float rotationY) {
         if (rotationY != getRotationY()) {
             invalidateViewProperty(true, false);
-            mRenderNode.setRotationY(rotationY);
+            ensureRenderNode().setRotationY(rotationY);
             invalidateViewProperty(false, true);
 
             invalidateParentIfNeededAndWasQuickRejected();
@@ -16792,7 +16924,7 @@ public class View implements Drawable.Callback, KeyEvent.Callback,
     @ViewDebug.ExportedProperty(category = "drawing")
     @InspectableProperty
     public float getRotationX() {
-        return mRenderNode.getRotationX();
+        return ensureRenderNode().getRotationX();
     }
 
     /**
@@ -16817,7 +16949,7 @@ public class View implements Drawable.Callback, KeyEvent.Callback,
     public void setRotationX(float rotationX) {
         if (rotationX != getRotationX()) {
             invalidateViewProperty(true, false);
-            mRenderNode.setRotationX(rotationX);
+            ensureRenderNode().setRotationX(rotationX);
             invalidateViewProperty(false, true);
 
             invalidateParentIfNeededAndWasQuickRejected();
@@ -16838,7 +16970,7 @@ public class View implements Drawable.Callback, KeyEvent.Callback,
     @ViewDebug.ExportedProperty(category = "drawing")
     @InspectableProperty
     public float getScaleX() {
-        return mRenderNode.getScaleX();
+        return ensureRenderNode().getScaleX();
     }
 
     /**
@@ -16855,7 +16987,7 @@ public class View implements Drawable.Callback, KeyEvent.Callback,
         if (scaleX != getScaleX()) {
             scaleX = sanitizeFloatPropertyValue(scaleX, "scaleX");
             invalidateViewProperty(true, false);
-            mRenderNode.setScaleX(scaleX);
+            ensureRenderNode().setScaleX(scaleX);
             invalidateViewProperty(false, true);
 
             invalidateParentIfNeededAndWasQuickRejected();
@@ -16876,7 +17008,7 @@ public class View implements Drawable.Callback, KeyEvent.Callback,
     @ViewDebug.ExportedProperty(category = "drawing")
     @InspectableProperty
     public float getScaleY() {
-        return mRenderNode.getScaleY();
+        return ensureRenderNode().getScaleY();
     }
 
     /**
@@ -16893,7 +17025,7 @@ public class View implements Drawable.Callback, KeyEvent.Callback,
         if (scaleY != getScaleY()) {
             scaleY = sanitizeFloatPropertyValue(scaleY, "scaleY");
             invalidateViewProperty(true, false);
-            mRenderNode.setScaleY(scaleY);
+            ensureRenderNode().setScaleY(scaleY);
             invalidateViewProperty(false, true);
 
             invalidateParentIfNeededAndWasQuickRejected();
@@ -16916,7 +17048,7 @@ public class View implements Drawable.Callback, KeyEvent.Callback,
     @ViewDebug.ExportedProperty(category = "drawing")
     @InspectableProperty(name = "transformPivotX")
     public float getPivotX() {
-        return mRenderNode.getPivotX();
+        return ensureRenderNode().getPivotX();
     }
 
     /**
@@ -16935,9 +17067,9 @@ public class View implements Drawable.Callback, KeyEvent.Callback,
      * @attr ref android.R.styleable#View_transformPivotX
      */
     public void setPivotX(float pivotX) {
-        if (!mRenderNode.isPivotExplicitlySet() || pivotX != getPivotX()) {
+        if (!ensureRenderNode().isPivotExplicitlySet() || pivotX != getPivotX()) {
             invalidateViewProperty(true, false);
-            mRenderNode.setPivotX(pivotX);
+            ensureRenderNode().setPivotX(pivotX);
             invalidateViewProperty(false, true);
 
             invalidateParentIfNeededAndWasQuickRejected();
@@ -16959,7 +17091,7 @@ public class View implements Drawable.Callback, KeyEvent.Callback,
     @ViewDebug.ExportedProperty(category = "drawing")
     @InspectableProperty(name = "transformPivotY")
     public float getPivotY() {
-        return mRenderNode.getPivotY();
+        return ensureRenderNode().getPivotY();
     }
 
     /**
@@ -16977,9 +17109,9 @@ public class View implements Drawable.Callback, KeyEvent.Callback,
      * @attr ref android.R.styleable#View_transformPivotY
      */
     public void setPivotY(float pivotY) {
-        if (!mRenderNode.isPivotExplicitlySet() || pivotY != getPivotY()) {
+        if (!ensureRenderNode().isPivotExplicitlySet() || pivotY != getPivotY()) {
             invalidateViewProperty(true, false);
-            mRenderNode.setPivotY(pivotY);
+            ensureRenderNode().setPivotY(pivotY);
             invalidateViewProperty(false, true);
 
             invalidateParentIfNeededAndWasQuickRejected();
@@ -16994,7 +17126,7 @@ public class View implements Drawable.Callback, KeyEvent.Callback,
      * @return True if a pivot has been set, false if the default pivot is being used
      */
     public boolean isPivotSet() {
-        return mRenderNode.isPivotExplicitlySet();
+        return ensureRenderNode().isPivotExplicitlySet();
     }
 
     /**
@@ -17003,7 +17135,7 @@ public class View implements Drawable.Callback, KeyEvent.Callback,
      * and the pivot used for rotation will return to default of being centered on the view.
      */
     public void resetPivot() {
-        if (mRenderNode.resetPivot()) {
+        if (ensureRenderNode().resetPivot()) {
             invalidateViewProperty(false, false);
         }
     }
@@ -17128,7 +17260,7 @@ public class View implements Drawable.Callback, KeyEvent.Callback,
             } else {
                 mPrivateFlags &= ~PFLAG_ALPHA_SET;
                 invalidateViewProperty(true, false);
-                mRenderNode.setAlpha(getFinalAlpha());
+                ensureRenderNode().setAlpha(getFinalAlpha());
             }
         }
     }
@@ -17154,7 +17286,7 @@ public class View implements Drawable.Callback, KeyEvent.Callback,
                 return true;
             } else {
                 mPrivateFlags &= ~PFLAG_ALPHA_SET;
-                mRenderNode.setAlpha(getFinalAlpha());
+                ensureRenderNode().setAlpha(getFinalAlpha());
             }
         }
         return false;
@@ -17182,7 +17314,7 @@ public class View implements Drawable.Callback, KeyEvent.Callback,
             mTransformationInfo.mTransitionAlpha = alpha;
             mPrivateFlags &= ~PFLAG_ALPHA_SET;
             invalidateViewProperty(true, false);
-            mRenderNode.setAlpha(getFinalAlpha());
+            ensureRenderNode().setAlpha(getFinalAlpha());
         }
     }
 
@@ -17226,7 +17358,7 @@ public class View implements Drawable.Callback, KeyEvent.Callback,
      * @param allow Whether or not to allow force dark.
      */
     public void setForceDarkAllowed(boolean allow) {
-        if (mRenderNode.setForceDarkAllowed(allow)) {
+        if (ensureRenderNode().setForceDarkAllowed(allow)) {
             // Currently toggling force-dark requires a new display list push to apply
             // TODO: Make it not clobber the display list so this is just a damageSelf() instead
             invalidate();
@@ -17241,7 +17373,7 @@ public class View implements Drawable.Callback, KeyEvent.Callback,
     @ViewDebug.ExportedProperty(category = "drawing")
     @InspectableProperty
     public boolean isForceDarkAllowed() {
-        return mRenderNode.isForceDarkAllowed();
+        return ensureRenderNode().isForceDarkAllowed();
     }
 
     /**
@@ -17286,7 +17418,7 @@ public class View implements Drawable.Callback, KeyEvent.Callback,
             int oldHeight = mBottom - mTop;
 
             mTop = top;
-            mRenderNode.setTop(mTop);
+            ensureRenderNode().setTop(mTop);
 
             sizeChange(width, mBottom - mTop, width, oldHeight);
 
@@ -17351,7 +17483,7 @@ public class View implements Drawable.Callback, KeyEvent.Callback,
             int oldHeight = mBottom - mTop;
 
             mBottom = bottom;
-            mRenderNode.setBottom(mBottom);
+            ensureRenderNode().setBottom(mBottom);
 
             sizeChange(width, mBottom - mTop, width, oldHeight);
 
@@ -17410,7 +17542,7 @@ public class View implements Drawable.Callback, KeyEvent.Callback,
             int height = mBottom - mTop;
 
             mLeft = left;
-            mRenderNode.setLeft(left);
+            ensureRenderNode().setLeft(left);
 
             sizeChange(mRight - mLeft, height, oldWidth, height);
 
@@ -17466,7 +17598,7 @@ public class View implements Drawable.Callback, KeyEvent.Callback,
             int height = mBottom - mTop;
 
             mRight = right;
-            mRenderNode.setRight(mRight);
+            ensureRenderNode().setRight(mRight);
 
             sizeChange(mRight - mLeft, height, oldWidth, height);
 
@@ -17597,7 +17729,7 @@ public class View implements Drawable.Callback, KeyEvent.Callback,
     @ViewDebug.ExportedProperty(category = "drawing")
     @InspectableProperty
     public float getElevation() {
-        return mRenderNode.getElevation();
+        return ensureRenderNode().getElevation();
     }
 
     /**
@@ -17609,7 +17741,7 @@ public class View implements Drawable.Callback, KeyEvent.Callback,
         if (elevation != getElevation()) {
             elevation = sanitizeFloatPropertyValue(elevation, "elevation");
             invalidateViewProperty(true, false);
-            mRenderNode.setElevation(elevation);
+            ensureRenderNode().setElevation(elevation);
             invalidateViewProperty(false, true);
 
             invalidateParentIfNeededAndWasQuickRejected();
@@ -17626,7 +17758,7 @@ public class View implements Drawable.Callback, KeyEvent.Callback,
     @ViewDebug.ExportedProperty(category = "drawing")
     @InspectableProperty
     public float getTranslationX() {
-        return mRenderNode.getTranslationX();
+        return ensureRenderNode().getTranslationX();
     }
 
     /**
@@ -17642,7 +17774,7 @@ public class View implements Drawable.Callback, KeyEvent.Callback,
     public void setTranslationX(float translationX) {
         if (translationX != getTranslationX()) {
             invalidateViewProperty(true, false);
-            mRenderNode.setTranslationX(translationX);
+            ensureRenderNode().setTranslationX(translationX);
             invalidateViewProperty(false, true);
 
             invalidateParentIfNeededAndWasQuickRejected();
@@ -17661,7 +17793,7 @@ public class View implements Drawable.Callback, KeyEvent.Callback,
     @ViewDebug.ExportedProperty(category = "drawing")
     @InspectableProperty
     public float getTranslationY() {
-        return mRenderNode.getTranslationY();
+        return ensureRenderNode().getTranslationY();
     }
 
     /**
@@ -17677,7 +17809,7 @@ public class View implements Drawable.Callback, KeyEvent.Callback,
     public void setTranslationY(float translationY) {
         if (translationY != getTranslationY()) {
             invalidateViewProperty(true, false);
-            mRenderNode.setTranslationY(translationY);
+            ensureRenderNode().setTranslationY(translationY);
             invalidateViewProperty(false, true);
 
             invalidateParentIfNeededAndWasQuickRejected();
@@ -17693,7 +17825,7 @@ public class View implements Drawable.Callback, KeyEvent.Callback,
     @ViewDebug.ExportedProperty(category = "drawing")
     @InspectableProperty
     public float getTranslationZ() {
-        return mRenderNode.getTranslationZ();
+        return ensureRenderNode().getTranslationZ();
     }
 
     /**
@@ -17705,7 +17837,7 @@ public class View implements Drawable.Callback, KeyEvent.Callback,
         if (translationZ != getTranslationZ()) {
             translationZ = sanitizeFloatPropertyValue(translationZ, "translationZ");
             invalidateViewProperty(true, false);
-            mRenderNode.setTranslationZ(translationZ);
+            ensureRenderNode().setTranslationZ(translationZ);
             invalidateViewProperty(false, true);
 
             invalidateParentIfNeededAndWasQuickRejected();
@@ -17725,7 +17857,7 @@ public class View implements Drawable.Callback, KeyEvent.Callback,
      */
     public void setAnimationMatrix(@Nullable Matrix matrix) {
         invalidateViewProperty(true, false);
-        mRenderNode.setAnimationMatrix(matrix);
+        ensureRenderNode().setAnimationMatrix(matrix);
         invalidateViewProperty(false, true);
 
         invalidateParentIfNeededAndWasQuickRejected();
@@ -17744,7 +17876,7 @@ public class View implements Drawable.Callback, KeyEvent.Callback,
      */
     @Nullable
     public Matrix getAnimationMatrix() {
-        return mRenderNode.getAnimationMatrix();
+        return ensureRenderNode().getAnimationMatrix();
     }
 
     /**
@@ -17792,7 +17924,7 @@ public class View implements Drawable.Callback, KeyEvent.Callback,
      * @see #setClipToOutline(boolean)
      */
     public final boolean getClipToOutline() {
-        return mRenderNode.getClipToOutline();
+        return ensureRenderNode().getClipToOutline();
     }
 
     /**
@@ -17813,7 +17945,7 @@ public class View implements Drawable.Callback, KeyEvent.Callback,
     public void setClipToOutline(boolean clipToOutline) {
         damageInParent();
         if (getClipToOutline() != clipToOutline) {
-            mRenderNode.setClipToOutline(clipToOutline);
+            ensureRenderNode().setClipToOutline(clipToOutline);
         }
     }
 
@@ -17899,14 +18031,14 @@ public class View implements Drawable.Callback, KeyEvent.Callback,
 
         if (mOutlineProvider == null) {
             // no provider, remove outline
-            mRenderNode.setOutline(null);
+            ensureRenderNode().setOutline(null);
         } else {
             final Outline outline = mAttachInfo.mTmpOutline;
             outline.setEmpty();
             outline.setAlpha(1.0f);
 
             mOutlineProvider.getOutline(this, outline);
-            mRenderNode.setOutline(outline);
+            ensureRenderNode().setOutline(outline);
         }
     }
 
@@ -17917,7 +18049,7 @@ public class View implements Drawable.Callback, KeyEvent.Callback,
      */
     @ViewDebug.ExportedProperty(category = "drawing")
     public boolean hasShadow() {
-        return mRenderNode.hasShadow();
+        return ensureRenderNode().hasShadow();
     }
 
     /**
@@ -17935,7 +18067,7 @@ public class View implements Drawable.Callback, KeyEvent.Callback,
      * @param color The color this View will cast for its elevation spot shadow.
      */
     public void setOutlineSpotShadowColor(@ColorInt int color) {
-        if (mRenderNode.setSpotShadowColor(color)) {
+        if (ensureRenderNode().setSpotShadowColor(color)) {
             invalidateViewProperty(true, true);
         }
     }
@@ -17946,7 +18078,7 @@ public class View implements Drawable.Callback, KeyEvent.Callback,
      */
     @InspectableProperty
     public @ColorInt int getOutlineSpotShadowColor() {
-        return mRenderNode.getSpotShadowColor();
+        return ensureRenderNode().getSpotShadowColor();
     }
 
     /**
@@ -17964,7 +18096,7 @@ public class View implements Drawable.Callback, KeyEvent.Callback,
      * @param color The color this View will cast for its elevation shadow.
      */
     public void setOutlineAmbientShadowColor(@ColorInt int color) {
-        if (mRenderNode.setAmbientShadowColor(color)) {
+        if (ensureRenderNode().setAmbientShadowColor(color)) {
             invalidateViewProperty(true, true);
         }
     }
@@ -17975,13 +18107,13 @@ public class View implements Drawable.Callback, KeyEvent.Callback,
      */
     @InspectableProperty
     public @ColorInt int getOutlineAmbientShadowColor() {
-        return mRenderNode.getAmbientShadowColor();
+        return ensureRenderNode().getAmbientShadowColor();
     }
 
 
     /** @hide */
     public void setRevealClip(boolean shouldClip, float x, float y, float radius) {
-        mRenderNode.setRevealClip(shouldClip, x, y, radius);
+        ensureRenderNode().setRevealClip(shouldClip, x, y, radius);
         invalidateViewProperty(false, false);
     }
 
@@ -17996,7 +18128,7 @@ public class View implements Drawable.Callback, KeyEvent.Callback,
         } else {
             final RectF tmpRect = mAttachInfo.mTmpTransformRect;
             tmpRect.set(0, 0, getWidth(), getHeight());
-            getMatrix().mapRect(tmpRect); // TODO: mRenderNode.mapRect(tmpRect)
+            getMatrix().mapRect(tmpRect); // TODO: ensureRenderNode().mapRect(tmpRect)
             outRect.set((int) tmpRect.left + mLeft, (int) tmpRect.top + mTop,
                     (int) tmpRect.right + mLeft, (int) tmpRect.bottom + mTop);
         }
@@ -18115,7 +18247,7 @@ public class View implements Drawable.Callback, KeyEvent.Callback,
 
             mTop += offset;
             mBottom += offset;
-            mRenderNode.offsetTopAndBottom(offset);
+            ensureRenderNode().offsetTopAndBottom(offset);
             if (isHardwareAccelerated()) {
                 invalidateViewProperty(false, false);
                 invalidateParentIfNeededAndWasQuickRejected();
@@ -18163,7 +18295,7 @@ public class View implements Drawable.Callback, KeyEvent.Callback,
 
             mLeft += offset;
             mRight += offset;
-            mRenderNode.offsetLeftAndRight(offset);
+            ensureRenderNode().offsetLeftAndRight(offset);
             if (isHardwareAccelerated()) {
                 invalidateViewProperty(false, false);
                 invalidateParentIfNeededAndWasQuickRejected();
@@ -18614,7 +18746,7 @@ public class View implements Drawable.Callback, KeyEvent.Callback,
     @UnsupportedAppUsage
     void invalidateViewProperty(boolean invalidateParent, boolean forceRedraw) {
         if (!isHardwareAccelerated()
-                || !mRenderNode.hasDisplayList()
+                || !ensureRenderNode().hasDisplayList()
                 || (mPrivateFlags & PFLAG_DRAW_ANIMATION) != 0) {
             if (invalidateParent) {
                 invalidateParentCaches();
@@ -20926,7 +21058,7 @@ public class View implements Drawable.Callback, KeyEvent.Callback,
                     + "LAYER_TYPE_SOFTWARE or LAYER_TYPE_HARDWARE");
         }
 
-        boolean typeChanged = mRenderNode.setLayerType(layerType);
+        boolean typeChanged = ensureRenderNode().setLayerType(layerType);
 
         if (!typeChanged) {
             setLayerPaint(paint);
@@ -20942,7 +21074,7 @@ public class View implements Drawable.Callback, KeyEvent.Callback,
 
         mLayerType = layerType;
         mLayerPaint = mLayerType == LAYER_TYPE_NONE ? null : paint;
-        mRenderNode.setLayerPaint(mLayerPaint);
+        ensureRenderNode().setLayerPaint(mLayerPaint);
 
         // draw() behaves differently if we are on a layer, so we need to
         // invalidate() here
@@ -20980,7 +21112,7 @@ public class View implements Drawable.Callback, KeyEvent.Callback,
         if (layerType != LAYER_TYPE_NONE) {
             mLayerPaint = paint;
             if (layerType == LAYER_TYPE_HARDWARE) {
-                if (mRenderNode.setLayerPaint(paint)) {
+                if (ensureRenderNode().setLayerPaint(paint)) {
                     invalidateViewProperty(false, false);
                 }
             } else {
@@ -21042,8 +21174,9 @@ public class View implements Drawable.Callback, KeyEvent.Callback,
         switch (mLayerType) {
             case LAYER_TYPE_HARDWARE:
                 updateDisplayListIfDirty();
-                if (attachInfo.mThreadedRenderer != null && mRenderNode.hasDisplayList()) {
-                    attachInfo.mThreadedRenderer.buildLayer(mRenderNode);
+                final RenderNode renderNode = ensureRenderNode();
+                if (attachInfo.mThreadedRenderer != null && renderNode.hasDisplayList()) {
+                    attachInfo.mThreadedRenderer.buildLayer(renderNode);
                 }
                 break;
             case LAYER_TYPE_SOFTWARE:
@@ -21202,7 +21335,7 @@ public class View implements Drawable.Callback, KeyEvent.Callback,
     @NonNull
     @UnsupportedAppUsage
     public RenderNode updateDisplayListIfDirty() {
-        final RenderNode renderNode = mRenderNode;
+        final RenderNode renderNode = ensureRenderNode();
         if (!canHaveDisplayList()) {
             // can't populate RenderNode, don't try
             return renderNode;
@@ -21273,7 +21406,7 @@ public class View implements Drawable.Callback, KeyEvent.Callback,
 
     @UnsupportedAppUsage
     private void resetDisplayList() {
-        mRenderNode.discardDisplayList();
+        ensureRenderNode().discardDisplayList();
         if (mBackgroundRenderNode != null) {
             mBackgroundRenderNode.discardDisplayList();
         }
@@ -21885,7 +22018,7 @@ public class View implements Drawable.Callback, KeyEvent.Callback,
         } else {
             mClipBounds = null;
         }
-        mRenderNode.setClipRect(mClipBounds);
+        ensureRenderNode().setClipRect(mClipBounds);
         invalidateViewProperty(false, false);
     }
 
@@ -22059,7 +22192,7 @@ public class View implements Drawable.Callback, KeyEvent.Callback,
         } else {
             if ((mPrivateFlags3 & PFLAG3_VIEW_IS_ANIMATING_TRANSFORM) != 0) {
                 // No longer animating: clear out old animation matrix
-                mRenderNode.setAnimationMatrix(null);
+                ensureRenderNode().setAnimationMatrix(null);
                 mPrivateFlags3 &= ~PFLAG3_VIEW_IS_ANIMATING_TRANSFORM;
             }
             if (!drawingWithRenderNode
@@ -23009,7 +23142,7 @@ public class View implements Drawable.Callback, KeyEvent.Callback,
             mTop = top;
             mRight = right;
             mBottom = bottom;
-            mRenderNode.setLeftTopRightBottom(mLeft, mTop, mRight, mBottom);
+            ensureRenderNode().setLeftTopRightBottom(mLeft, mTop, mRight, mBottom);
 
             mPrivateFlags |= PFLAG_HAS_BOUNDS;
 
@@ -25174,7 +25307,7 @@ public class View implements Drawable.Callback, KeyEvent.Callback,
      * @return A long that uniquely identifies this view's drawing component
      */
     public long getUniqueDrawingId() {
-        return mRenderNode.getUniqueId();
+        return ensureRenderNode().getUniqueId();
     }
 
     /**
@@ -25970,6 +26103,22 @@ public class View implements Drawable.Callback, KeyEvent.Callback,
         setAnimation(animation);
         invalidateParentCaches();
         invalidate(true);
+        fastForwardWestlakeHeadlessAnimation(animation);
+    }
+
+    private void fastForwardWestlakeHeadlessAnimation(Animation animation) {
+        if (animation == null) {
+            return;
+        }
+        try {
+            android.view.animation.Transformation transform =
+                    new android.view.animation.Transformation();
+            long now = android.view.animation.AnimationUtils.currentAnimationTimeMillis();
+            animation.getTransformation(now, transform);
+            long duration = Math.max(1L, animation.computeDurationHint());
+            animation.getTransformation(now + duration + 1L, transform);
+        } catch (Throwable ignored) {
+        }
     }
 
     /**

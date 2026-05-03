@@ -305,6 +305,23 @@ public class ActivityManager {
     }
 
     /**
+     * Populates process state for the current app. Android exposes this as a
+     * static helper and several analytics/GMS stacks call it during startup.
+     */
+    public static void getMyMemoryState(RunningAppProcessInfo outState) {
+        if (outState == null) return;
+        outState.processName = "com.example.app";
+        outState.pid = android.os.Process.myPid();
+        outState.uid = android.os.Process.myUid();
+        outState.pkgList = new String[]{"com.example.app"};
+        outState.importance = RunningAppProcessInfo.IMPORTANCE_FOREGROUND;
+        outState.lru = 0;
+        outState.lastTrimLevel = 0;
+        outState.importanceReasonCode = RunningAppProcessInfo.REASON_UNKNOWN;
+        outState.importanceReasonPid = 0;
+    }
+
+    /**
      * Returns a list of running application processes. Returns a single entry
      * representing the current process.
      */

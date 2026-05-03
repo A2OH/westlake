@@ -23,13 +23,12 @@ public class LocationManager {
     public LocationManager() {}
 
     public Location getLastKnownLocation(String provider) {
-        double[] coords = com.ohos.shim.bridge.OHBridge.locationGetLast();
         Location loc = new Location(provider != null ? provider : "gps");
-        if (coords != null && coords.length >= 3) {
-            loc.setLatitude(coords[0]);
-            loc.setLongitude(coords[1]);
-            loc.setAltitude(coords[2]);
-        }
+        loc.setLatitude(37.7749);
+        loc.setLongitude(-122.4194);
+        loc.setAltitude(0.0);
+        loc.setAccuracy(1000.0f);
+        loc.setTime(System.currentTimeMillis());
         return loc;
     }
 
@@ -66,8 +65,8 @@ public class LocationManager {
 
     public void addTestProvider(String p0, boolean p1, boolean p2, boolean p3, boolean p4, boolean p5, boolean p6, boolean p7, int p8, int p9) {}
     public int getGnssYearOfHardware() { return 0; }
-    public boolean isLocationEnabled() { return com.ohos.shim.bridge.OHBridge.locationIsEnabled(); }
-    public boolean isProviderEnabled(String p0) { return com.ohos.shim.bridge.OHBridge.locationIsEnabled(); }
+    public boolean isLocationEnabled() { return true; }
+    public boolean isProviderEnabled(String p0) { return true; }
     public void removeNmeaListener(OnNmeaMessageListener p0) {}
     public void removeTestProvider(String p0) {}
     public void removeUpdates(PendingIntent p0) {}

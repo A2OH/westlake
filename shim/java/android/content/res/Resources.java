@@ -134,7 +134,23 @@ public class Resources {
         // Then ResourceTable
         if (mTable != null) {
             String s = mTable.getString(id);
-            if (s != null) return s;
+            if (s != null) {
+                if (id == 0x7f150ba9) {
+                    try {
+                        com.westlake.engine.WestlakeLauncher.marker(
+                                "CV PF-MCD-RES_GET_STRING id=0x7f150ba9 value=" + s);
+                    } catch (Throwable ignored) {
+                    }
+                }
+                return s;
+            }
+        }
+        if (id == 0x7f150ba9) {
+            try {
+                com.westlake.engine.WestlakeLauncher.marker(
+                        "CV PF-MCD-RES_GET_STRING_MISS id=0x7f150ba9");
+            } catch (Throwable ignored) {
+            }
         }
         return "string_" + id;
     }
@@ -210,7 +226,7 @@ public class Resources {
         Object reg = mRegistry.get(Integer.valueOf(id));
         if (reg instanceof Integer) return (float) ((Integer) reg).intValue();
         if (mTable != null) {
-            return (float) mTable.getInteger(id, 0);
+            return mTable.getDimension(id, resourceDensity());
         }
         return 0f;
     }
@@ -219,7 +235,15 @@ public class Resources {
         Object reg = mRegistry.get(Integer.valueOf(id));
         if (reg instanceof Integer) return ((Integer) reg).intValue();
         if (mTable != null) {
-            return mTable.getInteger(id, 0);
+            float value = mTable.getDimension(id, resourceDensity());
+            int rounded = (int) (value >= 0 ? value + 0.5f : value - 0.5f);
+            if (rounded != 0) {
+                return rounded;
+            }
+            if (value == 0f) {
+                return 0;
+            }
+            return value > 0f ? 1 : -1;
         }
         return 0;
     }
@@ -228,9 +252,16 @@ public class Resources {
         Object reg = mRegistry.get(Integer.valueOf(id));
         if (reg instanceof Integer) return ((Integer) reg).intValue();
         if (mTable != null) {
-            return mTable.getInteger(id, 0);
+            return (int) mTable.getDimension(id, resourceDensity());
         }
         return 0;
+    }
+
+    private float resourceDensity() {
+        if (mDisplayMetrics != null && mDisplayMetrics.density > 0f) {
+            return mDisplayMetrics.density;
+        }
+        return 1.0f;
     }
 
     // ── Drawable resources ───────────────────────────────────────────────────
@@ -241,9 +272,16 @@ public class Resources {
         if (reg instanceof Integer) {
             return new ColorDrawable(((Integer) reg).intValue());
         }
+        String resourceName = getResourceName(id);
+        if (resourceName != null && resourceName.indexOf("abc_vector_test") >= 0) {
+            return new android.graphics.drawable.VectorDrawable();
+        }
         if (mTable != null) {
             // Check if the resource is a file path (drawable image)
             String path = mTable.getString(id);
+            if (isVectorDrawableResource(path, resourceName)) {
+                return new android.graphics.drawable.VectorDrawable();
+            }
             if (path != null && (path.endsWith(".webp") || path.endsWith(".png") ||
                     path.endsWith(".jpg") || path.endsWith(".jpeg") || path.endsWith(".gif"))) {
                 Drawable d = loadDrawableFromFile(path);
@@ -255,6 +293,15 @@ public class Resources {
             }
         }
         return new ColorDrawable(0xFFCCCCCC);
+    }
+
+    private boolean isVectorDrawableResource(String path, String resourceName) {
+        String value = path != null ? path : resourceName;
+        if (value == null) {
+            return false;
+        }
+        String lower = value.toLowerCase(java.util.Locale.US);
+        return lower.indexOf("vector") >= 0 && lower.endsWith(".xml");
     }
 
     private Drawable loadDrawableFromFile(String resPath) {
@@ -481,8 +528,9 @@ public class Resources {
 	            if ("activity_home_dashboard".equals(name)) return 0x7f0e0058;
 	            if ("application_notification".equals(name)) return 0x7f0e00c3;
 	            if ("base_layout".equals(name)) return 0x7f0e00ee;
-	            if ("campaign_application_notification".equals(name)) return 0x7f0e010a;
-	            if ("deal_for_today_item_loy".equals(name)) return 0x7f0e019d;
+            if ("campaign_application_notification".equals(name)) return 0x7f0e010a;
+            if ("category_list_item".equals(name)) return 0x7f0e014a;
+            if ("deal_for_today_item_loy".equals(name)) return 0x7f0e019d;
             if ("deal_viewall_item_loy".equals(name)) return 0x7f0e01b3;
             if ("flex_fragment_home_dashboard_delivery_error_tile".equals(name)) return 0x7f0e0216;
             if ("flex_order_cancelled_status_tile".equals(name)) return 0x7f0e0217;
@@ -496,21 +544,38 @@ public class Resources {
             if ("flex_order_on_way_status_tile_v2".equals(name)) return 0x7f0e021f;
             if ("flex_preparing_order_status_tile".equals(name)) return 0x7f0e0221;
             if ("flex_preparing_order_status_tile_v2".equals(name)) return 0x7f0e0222;
+            if ("fragment_deal_section".equals(name)) return 0x7f0e0252;
+            if ("fragment_deal_section_layout_header".equals(name)) return 0x7f0e0253;
+            if ("fragment_deal_section_loyalty".equals(name)) return 0x7f0e0254;
             if ("fragment_home_counter_pay_with_cash_hero_v2".equals(name)) return 0x7f0e027a;
             if ("fragment_home_curbside_hero_v2".equals(name)) return 0x7f0e027c;
             if ("fragment_home_dashboard".equals(name)) return 0x7f0e027d;
             if ("fragment_home_dashboard_curbside_order_hero".equals(name)) return 0x7f0e027f;
+            if ("fragment_home_dashboard_hero_section".equals(name)) return 0x7f0e0282;
+            if ("fragment_home_dashboard_hero_section_updated".equals(name)) return 0x7f0e0283;
             if ("fragment_home_dashboard_needs_attention".equals(name)) return 0x7f0e0284;
             if ("fragment_home_dashboard_no_spot_number_card".equals(name)) return 0x7f0e0285;
             if ("fragment_home_drive_thru_hero_v2".equals(name)) return 0x7f0e028b;
+            if ("fragment_menu_section".equals(name)) return 0x7f0e02b1;
             if ("fragment_home_optin_checkout".equals(name)) return 0x7f0e028e;
             if ("fragment_home_table_service_hero_v2".equals(name)) return 0x7f0e0290;
             if ("fragment_oal_order_hero".equals(name)) return 0x7f0e02d0;
+            if ("fragment_order".equals(name)) return 0x7f0e02d4;
+            if ("fragment_popular_section".equals(name)) return 0x7f0e0305;
+            if ("fragment_promotion_section".equals(name)) return 0x7f0e030e;
             if ("home_dashboard_roa_order_in_progress_hero_v2".equals(name)) return 0x7f0e035f;
             if ("home_dashboard_roa_thank_you_hero_v2".equals(name)) return 0x7f0e0361;
+            if ("home_dashboard_section".equals(name)) return 0x7f0e0362;
             if ("home_deal_adapter_loy".equals(name)) return 0x7f0e0364;
+            if ("home_menu_guest_user".equals(name)) return 0x7f0e0366;
+            if ("home_menu_section_full_menu_item".equals(name)) return 0x7f0e0367;
+            if ("home_menu_section_item".equals(name)) return 0x7f0e0368;
+            if ("home_popular_item_adapter".equals(name)) return 0x7f0e0369;
+            if ("home_promotion_item".equals(name)) return 0x7f0e036a;
+            if ("home_promotion_item_updated".equals(name)) return 0x7f0e036b;
             if ("layout_bonus_tile_fragment".equals(name)) return 0x7f0e03ac;
             if ("mcd_toolbar".equals(name)) return 0x7f0e03f5;
+            if ("new_plp_product_item".equals(name)) return 0x7f0e0433;
             if ("one_app_home_delivery_fragment".equals(name)) return 0x7f0e044f;
             if ("toolbar_close_back".equals(name)) return 0x7f0e0530;
         }
@@ -542,8 +607,9 @@ public class Resources {
 	            case 0x7f0e0058: return "layout/activity_home_dashboard";
 	            case 0x7f0e00c3: return "layout/application_notification";
 	            case 0x7f0e00ee: return "layout/base_layout";
-	            case 0x7f0e010a: return "layout/campaign_application_notification";
-	            case 0x7f0e019d: return "layout/deal_for_today_item_loy";
+            case 0x7f0e010a: return "layout/campaign_application_notification";
+            case 0x7f0e014a: return "layout/category_list_item";
+            case 0x7f0e019d: return "layout/deal_for_today_item_loy";
             case 0x7f0e01b3: return "layout/deal_viewall_item_loy";
             case 0x7f0e0216: return "layout/flex_fragment_home_dashboard_delivery_error_tile";
             case 0x7f0e0217: return "layout/flex_order_cancelled_status_tile";
@@ -557,21 +623,38 @@ public class Resources {
             case 0x7f0e021f: return "layout/flex_order_on_way_status_tile_v2";
             case 0x7f0e0221: return "layout/flex_preparing_order_status_tile";
             case 0x7f0e0222: return "layout/flex_preparing_order_status_tile_v2";
+            case 0x7f0e0252: return "layout/fragment_deal_section";
+            case 0x7f0e0253: return "layout/fragment_deal_section_layout_header";
+            case 0x7f0e0254: return "layout/fragment_deal_section_loyalty";
             case 0x7f0e027a: return "layout/fragment_home_counter_pay_with_cash_hero_v2";
             case 0x7f0e027c: return "layout/fragment_home_curbside_hero_v2";
             case 0x7f0e027d: return "layout/fragment_home_dashboard";
             case 0x7f0e027f: return "layout/fragment_home_dashboard_curbside_order_hero";
+            case 0x7f0e0282: return "layout/fragment_home_dashboard_hero_section";
+            case 0x7f0e0283: return "layout/fragment_home_dashboard_hero_section_updated";
             case 0x7f0e0284: return "layout/fragment_home_dashboard_needs_attention";
             case 0x7f0e0285: return "layout/fragment_home_dashboard_no_spot_number_card";
             case 0x7f0e028b: return "layout/fragment_home_drive_thru_hero_v2";
             case 0x7f0e028e: return "layout/fragment_home_optin_checkout";
             case 0x7f0e0290: return "layout/fragment_home_table_service_hero_v2";
+            case 0x7f0e02b1: return "layout/fragment_menu_section";
             case 0x7f0e02d0: return "layout/fragment_oal_order_hero";
+            case 0x7f0e02d4: return "layout/fragment_order";
+            case 0x7f0e0305: return "layout/fragment_popular_section";
+            case 0x7f0e030e: return "layout/fragment_promotion_section";
             case 0x7f0e035f: return "layout/home_dashboard_roa_order_in_progress_hero_v2";
             case 0x7f0e0361: return "layout/home_dashboard_roa_thank_you_hero_v2";
+            case 0x7f0e0362: return "layout/home_dashboard_section";
             case 0x7f0e0364: return "layout/home_deal_adapter_loy";
+            case 0x7f0e0366: return "layout/home_menu_guest_user";
+            case 0x7f0e0367: return "layout/home_menu_section_full_menu_item";
+            case 0x7f0e0368: return "layout/home_menu_section_item";
+            case 0x7f0e0369: return "layout/home_popular_item_adapter";
+            case 0x7f0e036a: return "layout/home_promotion_item";
+            case 0x7f0e036b: return "layout/home_promotion_item_updated";
             case 0x7f0e03ac: return "layout/layout_bonus_tile_fragment";
             case 0x7f0e03f5: return "layout/mcd_toolbar";
+            case 0x7f0e0433: return "layout/new_plp_product_item";
             case 0x7f0e044f: return "layout/one_app_home_delivery_fragment";
             case 0x7f0e0530: return "layout/toolbar_close_back";
             default: return null;
@@ -700,8 +783,71 @@ public class Resources {
         return new android.graphics.drawable.DrawableInflater(this, getClass().getClassLoader());
     }
 
+    public void getValue(int id, android.util.TypedValue outValue, boolean resolveRefs) {
+        if (outValue == null) {
+            throw new NullPointerException("outValue");
+        }
+        outValue.resourceId = id;
+        outValue.density = mDisplayMetrics != null ? mDisplayMetrics.densityDpi : 0;
+        outValue.assetCookie = 0;
+        outValue.changingConfigurations = 0;
+        outValue.sourceResourceId = id;
+        outValue.string = null;
+        outValue.data = 0;
+        outValue.type = android.util.TypedValue.TYPE_NULL;
+
+        Object reg = mRegistry.get(Integer.valueOf(id));
+        if (reg instanceof Integer) {
+            outValue.type = android.util.TypedValue.TYPE_INT_DEC;
+            outValue.data = ((Integer) reg).intValue();
+            return;
+        }
+        if (reg instanceof String) {
+            outValue.type = android.util.TypedValue.TYPE_STRING;
+            outValue.string = (String) reg;
+            return;
+        }
+
+        if (mTable != null) {
+            String text = mTable.getString(id);
+            if (text != null) {
+                outValue.type = android.util.TypedValue.TYPE_STRING;
+                outValue.string = text;
+                return;
+            }
+        }
+
+        String typeName = getResourceTypeName(id);
+        if ("color".equals(typeName)) {
+            outValue.type = android.util.TypedValue.TYPE_FIRST_COLOR_INT;
+            outValue.data = getColor(id);
+        } else if ("bool".equals(typeName)) {
+            outValue.type = android.util.TypedValue.TYPE_INT_BOOLEAN;
+            outValue.data = getBoolean(id) ? 1 : 0;
+        } else if ("integer".equals(typeName)) {
+            outValue.type = android.util.TypedValue.TYPE_INT_DEC;
+            outValue.data = getInteger(id);
+        } else if ("dimen".equals(typeName)) {
+            outValue.type = android.util.TypedValue.TYPE_DIMENSION;
+            outValue.data = getDimensionPixelSize(id);
+        } else if ("string".equals(typeName)) {
+            outValue.type = android.util.TypedValue.TYPE_STRING;
+            outValue.string = getString(id);
+        } else if ("layout".equals(typeName) || "drawable".equals(typeName)
+                || "xml".equals(typeName) || "raw".equals(typeName)) {
+            outValue.type = android.util.TypedValue.TYPE_STRING;
+            outValue.string = getResourceName(id);
+        } else {
+            outValue.type = android.util.TypedValue.TYPE_REFERENCE;
+            outValue.data = id;
+        }
+    }
+
     public void getValueForDensity(int id, int density, android.util.TypedValue outValue, boolean resolveRefs) {
-        // stub: no-op
+        getValue(id, outValue, resolveRefs);
+        if (outValue != null) {
+            outValue.density = density;
+        }
     }
 
     public java.io.InputStream openRawResource(int id, android.util.TypedValue value) {

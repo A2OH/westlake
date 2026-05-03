@@ -79,7 +79,14 @@ public class FrameLayout extends ViewGroup {
     @UnsupportedAppUsage
     private int mForegroundPaddingBottom = 0;
 
-    private final ArrayList<View> mMatchParentChildren = new ArrayList<>(1);
+    private ArrayList<View> mMatchParentChildren = new ArrayList<>(1);
+
+    private ArrayList<View> ensureMatchParentChildren() {
+        if (mMatchParentChildren == null) {
+            mMatchParentChildren = new ArrayList<>(1);
+        }
+        return mMatchParentChildren;
+    }
 
     public FrameLayout(@NonNull Context context) {
         super(context);
@@ -182,7 +189,8 @@ public class FrameLayout extends ViewGroup {
         final boolean measureMatchParentChildren =
                 MeasureSpec.getMode(widthMeasureSpec) != MeasureSpec.EXACTLY ||
                 MeasureSpec.getMode(heightMeasureSpec) != MeasureSpec.EXACTLY;
-        mMatchParentChildren.clear();
+        final ArrayList<View> matchParentChildren = ensureMatchParentChildren();
+        matchParentChildren.clear();
 
         int maxHeight = 0;
         int maxWidth = 0;
@@ -201,7 +209,7 @@ public class FrameLayout extends ViewGroup {
                 if (measureMatchParentChildren) {
                     if (lp.width == LayoutParams.MATCH_PARENT ||
                             lp.height == LayoutParams.MATCH_PARENT) {
-                        mMatchParentChildren.add(child);
+                        matchParentChildren.add(child);
                     }
                 }
             }
@@ -226,10 +234,10 @@ public class FrameLayout extends ViewGroup {
                 resolveSizeAndState(maxHeight, heightMeasureSpec,
                         childState << MEASURED_HEIGHT_STATE_SHIFT));
 
-        count = mMatchParentChildren.size();
-        if (count > 1) {
+        count = matchParentChildren.size();
+        if (count > 0) {
             for (int i = 0; i < count; i++) {
-                final View child = mMatchParentChildren.get(i);
+                final View child = matchParentChildren.get(i);
                 final MarginLayoutParams lp = (MarginLayoutParams) child.getLayoutParams();
 
                 final int childWidthMeasureSpec;

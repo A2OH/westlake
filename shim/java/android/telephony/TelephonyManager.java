@@ -134,15 +134,15 @@ public class TelephonyManager {
     }
 
     public String getDeviceId() {
-        return com.ohos.shim.bridge.OHBridge.telephonyGetDeviceId();
+        return "";
     }
 
     public String getLine1Number() {
-        return com.ohos.shim.bridge.OHBridge.telephonyGetLine1Number();
+        return "";
     }
 
     public int getNetworkType() {
-        return com.ohos.shim.bridge.OHBridge.telephonyGetNetworkType();
+        return NETWORK_TYPE_LTE;
     }
 
     public boolean canChangeDtmfToneLength() { return false; }
@@ -159,11 +159,11 @@ public class TelephonyManager {
     public String getNetworkCountryIso() { return null; }
     public String getNetworkOperator() { return null; }
     public String getNetworkOperatorName() {
-        return com.ohos.shim.bridge.OHBridge.telephonyGetNetworkOperatorName();
+        return "Westlake";
     }
     public String getNetworkSpecifier() { return null; }
     public int getPhoneType() {
-        return com.ohos.shim.bridge.OHBridge.telephonyGetPhoneType();
+        return PHONE_TYPE_GSM;
     }
     public int getSimCarrierId() { return 0; }
     public String getSimCountryIso() { return null; }
@@ -171,7 +171,7 @@ public class TelephonyManager {
     public String getSimOperatorName() { return null; }
     public int getSimSpecificCarrierId() { return 0; }
     public int getSimState() {
-        return com.ohos.shim.bridge.OHBridge.telephonyGetSimState();
+        return SIM_STATE_READY;
     }
     public int getSimState(int p0) { return 0; }
     public int getSubscriptionId() { return 0; }

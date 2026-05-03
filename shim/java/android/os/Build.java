@@ -54,6 +54,11 @@ public class Build {
     public static final String ID = "WESTLAKE";
     public static final String BOARD = "westlake";
     public static final String BOOTLOADER = "unknown";
+    public static final String CPU_ABI = "arm64-v8a";
+    public static final String CPU_ABI2 = "armeabi-v7a";
+    public static final String[] SUPPORTED_ABIS = new String[] {"arm64-v8a", "armeabi-v7a", "armeabi"};
+    public static final String[] SUPPORTED_32_BIT_ABIS = new String[] {"armeabi-v7a", "armeabi"};
+    public static final String[] SUPPORTED_64_BIT_ABIS = new String[] {"arm64-v8a"};
     public static final String TYPE = "userdebug";
     public static final String TAGS = "release-keys";
     public static final String USER = "westlake";

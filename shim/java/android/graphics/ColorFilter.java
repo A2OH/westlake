@@ -73,5 +73,7 @@ public class ColorFilter {
 
     }
 
-    private static native long nativeGetFinalizer();
+    private static long nativeGetFinalizer() {
+        return 0L;
+    }
 }

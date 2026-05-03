@@ -4,7 +4,8 @@
 #
 # Sync the shared Westlake guest runtime payload that the phone host uses from
 # /data/local/tmp/westlake. This keeps the real phone run aligned with the
-# current local dalvikvm and aosp-shim.dex.
+# current local dalvikvm, core-oj.jar, core-libart.jar, core-icu4j.jar,
+# bouncycastle.jar, and aosp-shim.dex.
 
 set -euo pipefail
 
@@ -21,6 +22,10 @@ ADB_SERIAL="${ADB_SERIAL:-cfb7c9e3}"
 ADB_TIMEOUT="${ADB_TIMEOUT:-30}"
 PHONE_DIR="${PHONE_DIR:-/data/local/tmp/westlake}"
 DALVIKVM_SRC="${DALVIKVM_SRC:-$REPO_ROOT/ohos-deploy/arm64-a15/dalvikvm}"
+CORE_OJ_SRC="${CORE_OJ_SRC:-$REPO_ROOT/ohos-deploy/arm64-a15/core-oj.jar}"
+CORE_LIBART_SRC="${CORE_LIBART_SRC:-$REPO_ROOT/ohos-deploy/arm64-a15/core-libart.jar}"
+CORE_ICU4J_SRC="${CORE_ICU4J_SRC:-$REPO_ROOT/ohos-deploy/arm64-a15/core-icu4j.jar}"
+BOUNCYCASTLE_SRC="${BOUNCYCASTLE_SRC:-$REPO_ROOT/westlake-host-gradle/app/src/main/assets/bouncycastle.jar}"
 AOSP_SHIM_SRC="${AOSP_SHIM_SRC:-$REPO_ROOT/aosp-shim.dex}"
 
 if [ -n "$ADB_HOST" ]; then
@@ -31,6 +36,26 @@ fi
 
 if [ ! -f "$DALVIKVM_SRC" ]; then
     echo "ERROR: dalvikvm source not found: $DALVIKVM_SRC" >&2
+    exit 1
+fi
+
+if [ ! -f "$CORE_OJ_SRC" ]; then
+    echo "ERROR: core-oj source not found: $CORE_OJ_SRC" >&2
+    exit 1
+fi
+
+if [ ! -f "$CORE_LIBART_SRC" ]; then
+    echo "ERROR: core-libart source not found: $CORE_LIBART_SRC" >&2
+    exit 1
+fi
+
+if [ ! -f "$CORE_ICU4J_SRC" ]; then
+    echo "ERROR: core-icu4j source not found: $CORE_ICU4J_SRC" >&2
+    exit 1
+fi
+
+if [ ! -f "$BOUNCYCASTLE_SRC" ]; then
+    echo "ERROR: bouncycastle source not found: $BOUNCYCASTLE_SRC" >&2
     exit 1
 fi
 
@@ -51,25 +76,33 @@ echo "ADB server:    ${ADB_HOST:-default}:$ADB_PORT"
 echo "Device:        $ADB_SERIAL"
 echo "Phone dir:     $PHONE_DIR"
 echo "dalvikvm src:  $DALVIKVM_SRC"
+echo "core-oj src:   $CORE_OJ_SRC"
+echo "core-libart:   $CORE_LIBART_SRC"
+echo "core-icu4j:    $CORE_ICU4J_SRC"
+echo "bouncycastle:  $BOUNCYCASTLE_SRC"
 echo "aosp-shim src: $AOSP_SHIM_SRC"
 
 timeout "$ADB_TIMEOUT" "${ADB[@]}" get-state >/dev/null
 "${ADB[@]}" shell mkdir -p "$PHONE_DIR"
 
-for remote_name in dalvikvm aosp-shim.dex; do
+for remote_name in dalvikvm core-oj.jar core-libart.jar core-icu4j.jar bouncycastle.jar aosp-shim.dex; do
     if "${ADB[@]}" shell "[ -f '$PHONE_DIR/$remote_name' ]" >/dev/null 2>&1; then
         "${ADB[@]}" shell cp "$PHONE_DIR/$remote_name" "$PHONE_DIR/$remote_name.bak.$STAMP"
     fi
 done
 
 "${ADB[@]}" push "$DALVIKVM_SRC" "$PHONE_DIR/dalvikvm" >/dev/null
+"${ADB[@]}" push "$CORE_OJ_SRC" "$PHONE_DIR/core-oj.jar" >/dev/null
+"${ADB[@]}" push "$CORE_LIBART_SRC" "$PHONE_DIR/core-libart.jar" >/dev/null
+"${ADB[@]}" push "$CORE_ICU4J_SRC" "$PHONE_DIR/core-icu4j.jar" >/dev/null
+"${ADB[@]}" push "$BOUNCYCASTLE_SRC" "$PHONE_DIR/bouncycastle.jar" >/dev/null
 "${ADB[@]}" push "$AOSP_SHIM_SRC" "$PHONE_DIR/aosp-shim.dex" >/dev/null
-"${ADB[@]}" shell chmod 0777 "$PHONE_DIR/dalvikvm" "$PHONE_DIR/aosp-shim.dex"
+"${ADB[@]}" shell chmod 0777 "$PHONE_DIR/dalvikvm" "$PHONE_DIR/core-oj.jar" "$PHONE_DIR/core-libart.jar" "$PHONE_DIR/core-icu4j.jar" "$PHONE_DIR/bouncycastle.jar" "$PHONE_DIR/aosp-shim.dex"
 
 echo
 echo "Local hashes:"
-sha256sum "$DALVIKVM_SRC" "$AOSP_SHIM_SRC"
+sha256sum "$DALVIKVM_SRC" "$CORE_OJ_SRC" "$CORE_LIBART_SRC" "$CORE_ICU4J_SRC" "$BOUNCYCASTLE_SRC" "$AOSP_SHIM_SRC"
 
 echo
 echo "Phone hashes:"
-"${ADB[@]}" shell sha256sum "$PHONE_DIR/dalvikvm" "$PHONE_DIR/aosp-shim.dex"
+"${ADB[@]}" shell sha256sum "$PHONE_DIR/dalvikvm" "$PHONE_DIR/core-oj.jar" "$PHONE_DIR/core-libart.jar" "$PHONE_DIR/core-icu4j.jar" "$PHONE_DIR/bouncycastle.jar" "$PHONE_DIR/aosp-shim.dex"

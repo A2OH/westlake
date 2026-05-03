@@ -5,6 +5,14 @@ import java.lang.reflect.Method;
 import java.lang.reflect.Proxy;
 
 public final class EntryPoints {
+    private static void log(String message) {
+        try {
+            java.io.PrintStream err = System.err;
+            if (err != null) err.println(message);
+        } catch (Throwable ignored) {
+        }
+    }
+
     private static final InvocationHandler STUB_HANDLER = new InvocationHandler() {
         @Override
         public Object invoke(Object proxy, Method method, Object[] args) throws Throwable {
@@ -26,10 +34,7 @@ public final class EntryPoints {
                     return Proxy.newProxyInstance(rt.getClassLoader(), new Class<?>[]{ rt }, this);
                 } catch (Throwable t) { return null; }
             }
-            // For class return types, try to create via no-arg constructor
-            try {
-                return rt.getDeclaredConstructor().newInstance();
-            } catch (Throwable t) { return null; }
+            return null;
         }
     };
 
@@ -37,7 +42,7 @@ public final class EntryPoints {
 
     @SuppressWarnings("unchecked")
     public static <T> T get(Object component, Class<T> entryPoint) {
-        System.err.println("[EntryPoints] get(" + (component != null ? component.getClass().getSimpleName() : "null") + ", " + entryPoint.getSimpleName() + ")");
+        log("[EntryPoints] get(" + (component != null ? component.getClass().getSimpleName() : "null") + ", " + entryPoint.getSimpleName() + ")");
         // Extract the real DI component from the Application/holder
         Object realComponent = component;
         // Try generatedComponent() (unobfuscated)
@@ -61,7 +66,7 @@ public final class EntryPoints {
             if (singleton != null) realComponent = singleton;
         }
 
-        System.err.println("[EntryPoints] realComponent=" + (realComponent != null ? realComponent.getClass().getSimpleName() : "null")
+        log("[EntryPoints] realComponent=" + (realComponent != null ? realComponent.getClass().getSimpleName() : "null")
                 + " isInstance=" + (realComponent != null && entryPoint.isInstance(realComponent)));
 
         if (realComponent != null && entryPoint.isInstance(realComponent)) {
@@ -76,9 +81,9 @@ public final class EntryPoints {
                 return (T) Proxy.newProxyInstance(cl, new Class<?>[]{ entryPoint }, STUB_HANDLER);
             }
         } catch (Exception e) {
-            System.err.println("[EntryPoints] Proxy failed: " + e);
+            log("[EntryPoints] Proxy failed: " + e);
         }
-        System.err.println("[EntryPoints] WARNING: returning null for " + entryPoint.getName());
+        log("[EntryPoints] WARNING: returning null for " + entryPoint.getName());
         return null;
     }
 

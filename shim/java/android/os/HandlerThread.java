@@ -24,8 +24,16 @@ public class HandlerThread extends Thread {
     public void run() {
         mReady = true;
         synchronized (this) { notifyAll(); }
+        // Keep Android's HandlerThread lifetime shape without parking in
+        // Thread.sleep(). The portable VM's current signal path can crash when
+        // a worker is asleep during heavy Realm startup logging; handlers are
+        // routed to the engine main Looper, so this thread only backs isAlive.
+        long spin = 0;
         while (!mQuit) {
-            try { Thread.sleep(10); } catch (InterruptedException e) { break; }
+            spin++;
+            if ((spin & 0x7fffffL) == 0L && isInterrupted()) {
+                break;
+            }
         }
     }
 

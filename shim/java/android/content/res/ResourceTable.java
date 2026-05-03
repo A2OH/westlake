@@ -62,6 +62,8 @@ public class ResourceTable {
     /** Maps resource ID to resource name ("type/key"). */
     private static final Map<Integer, String> sGlobalNames = new HashMap<>();
     private final Map<Integer, String> mNames = sGlobalNames;
+    private static final Map<String, Integer> sGlobalIdentifiers = new HashMap<>();
+    private final Map<String, Integer> mIdentifiers = sGlobalIdentifiers;
     private static final Map<Integer, Integer> sGlobalEntryValues = new HashMap<>();
     private final Map<Integer, Integer> mEntryValues = sGlobalEntryValues;
 
@@ -123,6 +125,588 @@ public class ResourceTable {
     }
 
     /**
+     * Parse only selected string resources by entry name.
+     *
+     * This is used during strict standalone bootstrap before Application.onCreate.
+     * Large production resources.arsc files can contain many configs and entries;
+     * eager full parsing is too expensive at that point. This path lazily decodes
+     * string pools, scans only the app package string type, and populates the same
+     * maps used by getString().
+     */
+    public int parseStringResourcesByName(byte[] data, String[] targetKeyNames) {
+        if (data == null || data.length < 12 || targetKeyNames == null
+                || targetKeyNames.length == 0) {
+            return 0;
+        }
+
+        int tableType = readU16(data, 0);
+        int tableHeaderSize = readU16(data, 2);
+        if (tableType != RES_TABLE_TYPE || tableHeaderSize < 12
+                || tableHeaderSize > data.length) {
+            return 0;
+        }
+
+        LazyStringPool globalPool = null;
+        int found = 0;
+        int pos = tableHeaderSize;
+        while (pos >= 0 && pos + 8 <= data.length) {
+            int chunkStart = pos;
+            int chunkType = readU16(data, chunkStart);
+            int chunkHeaderSize = readU16(data, chunkStart + 2);
+            int chunkSize = readS32(data, chunkStart + 4);
+            if (chunkSize < 8 || chunkHeaderSize < 8 || chunkStart + chunkSize > data.length) {
+                break;
+            }
+
+            if (chunkType == RES_STRING_POOL_TYPE) {
+                globalPool = newLazyStringPool(data, chunkStart, chunkHeaderSize, chunkSize);
+            } else if (chunkType == RES_TABLE_PACKAGE_TYPE && globalPool != null) {
+                found += parsePackageStringResourcesByName(
+                        data, chunkStart, chunkHeaderSize, chunkSize,
+                        globalPool, targetKeyNames);
+            }
+
+            pos = chunkStart + chunkSize;
+        }
+        return found;
+    }
+
+    public boolean parseStringResourceByName(byte[] data, String targetKeyName) {
+        if (targetKeyName == null) {
+            return false;
+        }
+        return parseStringResourcesByName(data, new String[] { targetKeyName }) > 0;
+    }
+
+    /**
+     * Lazily parse every simple entry in the app package string type.
+     *
+     * This is the strict runtime path used before Application.onCreate: it gives
+     * stock apps real string resources without paying for all drawables, layouts,
+     * bags, and integer tables during early bootstrap.
+     */
+    public int parseStringResources(byte[] data) {
+        if (data == null || data.length < 12) {
+            return 0;
+        }
+
+        int tableType = readU16(data, 0);
+        int tableHeaderSize = readU16(data, 2);
+        if (tableType != RES_TABLE_TYPE || tableHeaderSize < 12
+                || tableHeaderSize > data.length) {
+            return 0;
+        }
+
+        LazyStringPool globalPool = null;
+        int found = 0;
+        int pos = tableHeaderSize;
+        while (pos >= 0 && pos + 8 <= data.length) {
+            int chunkStart = pos;
+            int chunkType = readU16(data, chunkStart);
+            int chunkHeaderSize = readU16(data, chunkStart + 2);
+            int chunkSize = readS32(data, chunkStart + 4);
+            if (chunkSize < 8 || chunkHeaderSize < 8 || chunkStart + chunkSize > data.length) {
+                break;
+            }
+
+            if (chunkType == RES_STRING_POOL_TYPE) {
+                globalPool = newLazyStringPool(data, chunkStart, chunkHeaderSize, chunkSize);
+            } else if (chunkType == RES_TABLE_PACKAGE_TYPE && globalPool != null) {
+                found += parsePackageStringResources(
+                        data, chunkStart, chunkHeaderSize, chunkSize, globalPool);
+            }
+
+            pos = chunkStart + chunkSize;
+        }
+        return found;
+    }
+
+    private int parsePackageStringResources(byte[] data, int chunkStart,
+            int chunkHeaderSize, int chunkSize, LazyStringPool globalPool) {
+        int packageBody = chunkStart + 8;
+        if (packageBody + 272 > data.length) {
+            return 0;
+        }
+
+        int packageId = readS32(data, packageBody);
+        int typeStringsOffset = readS32(data, packageBody + 4 + 256);
+        int keyStringsOffset = readS32(data, packageBody + 4 + 256 + 8);
+        int packageEnd = chunkStart + chunkSize;
+
+        LazyStringPool typeStringPool = parseLazyPoolAtPackageOffset(
+                data, chunkStart, packageEnd, typeStringsOffset);
+        LazyStringPool keyStringPool = parseLazyPoolAtPackageOffset(
+                data, chunkStart, packageEnd, keyStringsOffset);
+        if (typeStringPool == null || keyStringPool == null) {
+            return 0;
+        }
+
+        int stringTypeId = 0;
+        for (int i = 0; i < typeStringPool.count; i++) {
+            if ("string".equals(typeStringPool.get(i))) {
+                stringTypeId = i + 1;
+                break;
+            }
+        }
+        if (stringTypeId == 0) {
+            return 0;
+        }
+
+        int scanStart = chunkStart + chunkHeaderSize;
+        if (typeStringPool.chunkEnd > scanStart) scanStart = typeStringPool.chunkEnd;
+        if (keyStringPool.chunkEnd > scanStart) scanStart = keyStringPool.chunkEnd;
+
+        int found = 0;
+        int pos = scanStart;
+        while (pos + 8 <= packageEnd) {
+            int subChunkStart = pos;
+            int subType = readU16(data, subChunkStart);
+            int subHeaderSize = readU16(data, subChunkStart + 2);
+            int subSize = readS32(data, subChunkStart + 4);
+            if (subSize < 8 || subHeaderSize < 8 || subChunkStart + subSize > packageEnd) {
+                break;
+            }
+
+            if (subType == RES_TABLE_TYPE_TYPE
+                    && subChunkStart + 20 <= data.length
+                    && (data[subChunkStart + 8] & 0xFF) == stringTypeId) {
+                found += parseTypeStringResources(
+                        data, subChunkStart, subHeaderSize, subSize,
+                        packageId, stringTypeId, keyStringPool, globalPool);
+            }
+
+            pos = subChunkStart + subSize;
+        }
+        return found;
+    }
+
+    private int parseTypeStringResources(byte[] data, int chunkStart,
+            int headerSize, int chunkSize, int packageId, int typeId,
+            LazyStringPool keyStringPool, LazyStringPool globalPool) {
+        if (chunkStart + 20 > data.length) {
+            return 0;
+        }
+        int entryCount = readS32(data, chunkStart + 12);
+        int entriesStart = readS32(data, chunkStart + 16);
+        if (entryCount < 0 || entryCount > 100000) {
+            return 0;
+        }
+        int offsetsPos = chunkStart + headerSize;
+        int entryDataStart = chunkStart + entriesStart;
+        int chunkEnd = chunkStart + chunkSize;
+        if (offsetsPos < 0 || offsetsPos + (entryCount * 4) > data.length
+                || entryDataStart < 0 || entryDataStart > chunkEnd) {
+            return 0;
+        }
+
+        boolean defaultConfig = isDefaultConfig(data, chunkStart);
+        int found = 0;
+        for (int i = 0; i < entryCount; i++) {
+            int offset = readS32(data, offsetsPos + (i * 4));
+            if (offset < 0) {
+                continue;
+            }
+            int entryPos = entryDataStart + offset;
+            if (entryPos < 0 || entryPos + 8 > chunkEnd || entryPos + 8 > data.length) {
+                continue;
+            }
+
+            int entrySize = readU16(data, entryPos);
+            int entryFlags = readU16(data, entryPos + 2);
+            int keyIndex = readS32(data, entryPos + 4);
+            if ((entryFlags & FLAG_COMPLEX) != 0) {
+                continue;
+            }
+
+            int valuePos = entryPos + entrySize;
+            if (entrySize < 8 || valuePos + 8 > chunkEnd || valuePos + 8 > data.length) {
+                continue;
+            }
+
+            int dataType = data[valuePos + 3] & 0xFF;
+            int valueData = readS32(data, valuePos + 4);
+            if (dataType != TYPE_STRING || !globalPool.isValidIndex(valueData)) {
+                continue;
+            }
+
+            int resId = (packageId << 24) | (typeId << 16) | i;
+            if (!defaultConfig && mStrings.containsKey(resId)) {
+                continue;
+            }
+            String value = globalPool.get(valueData);
+            if (value == null) {
+                continue;
+            }
+            mStrings.put(resId, value);
+            if (!mEntryValues.containsKey(resId)) {
+                mEntryValues.put(resId, valueData);
+            }
+            if (keyStringPool.isValidIndex(keyIndex) && !mNames.containsKey(resId)) {
+                String keyName = keyStringPool.get(keyIndex);
+                if (keyName != null) {
+                    putResourceName(resId, "string/" + keyName);
+                }
+            }
+            found++;
+        }
+        return found;
+    }
+
+    private int parsePackageStringResourcesByName(byte[] data, int chunkStart,
+            int chunkHeaderSize, int chunkSize, LazyStringPool globalPool,
+            String[] targetKeyNames) {
+        int packageBody = chunkStart + 8;
+        if (packageBody + 272 > data.length) {
+            return 0;
+        }
+
+        int packageId = readS32(data, packageBody);
+        int typeStringsOffset = readS32(data, packageBody + 4 + 256);
+        int keyStringsOffset = readS32(data, packageBody + 4 + 256 + 8);
+        int packageEnd = chunkStart + chunkSize;
+
+        LazyStringPool typeStringPool = parseLazyPoolAtPackageOffset(
+                data, chunkStart, packageEnd, typeStringsOffset);
+        LazyStringPool keyStringPool = parseLazyPoolAtPackageOffset(
+                data, chunkStart, packageEnd, keyStringsOffset);
+        if (typeStringPool == null || keyStringPool == null) {
+            return 0;
+        }
+
+        int stringTypeId = 0;
+        for (int i = 0; i < typeStringPool.count; i++) {
+            if ("string".equals(typeStringPool.get(i))) {
+                stringTypeId = i + 1;
+                break;
+            }
+        }
+        if (stringTypeId == 0) {
+            return 0;
+        }
+
+        int[] targetKeyIndexes = new int[targetKeyNames.length];
+        for (int i = 0; i < targetKeyIndexes.length; i++) {
+            targetKeyIndexes[i] = -1;
+        }
+        int unresolved = 0;
+        for (int i = 0; i < targetKeyNames.length; i++) {
+            if (targetKeyNames[i] != null && targetKeyNames[i].length() > 0) {
+                unresolved++;
+            }
+        }
+        if (unresolved == 0) {
+            return 0;
+        }
+
+        for (int i = 0; i < keyStringPool.count && unresolved > 0; i++) {
+            String key = keyStringPool.get(i);
+            for (int t = 0; t < targetKeyNames.length; t++) {
+                if (targetKeyIndexes[t] < 0 && targetKeyNames[t] != null
+                        && targetKeyNames[t].equals(key)) {
+                    targetKeyIndexes[t] = i;
+                    unresolved--;
+                }
+            }
+        }
+        if (unresolved == targetKeyNames.length) {
+            return 0;
+        }
+
+        int scanStart = chunkStart + chunkHeaderSize;
+        if (typeStringPool.chunkEnd > scanStart) scanStart = typeStringPool.chunkEnd;
+        if (keyStringPool.chunkEnd > scanStart) scanStart = keyStringPool.chunkEnd;
+
+        int found = 0;
+        int pos = scanStart;
+        while (pos + 8 <= packageEnd) {
+            int subChunkStart = pos;
+            int subType = readU16(data, subChunkStart);
+            int subHeaderSize = readU16(data, subChunkStart + 2);
+            int subSize = readS32(data, subChunkStart + 4);
+            if (subSize < 8 || subHeaderSize < 8 || subChunkStart + subSize > packageEnd) {
+                break;
+            }
+
+            if (subType == RES_TABLE_TYPE_TYPE
+                    && subChunkStart + 20 <= data.length
+                    && (data[subChunkStart + 8] & 0xFF) == stringTypeId) {
+                found += parseTypeStringResourcesByName(
+                        data, subChunkStart, subHeaderSize, subSize,
+                        packageId, stringTypeId, keyStringPool, globalPool,
+                        targetKeyNames, targetKeyIndexes);
+            }
+
+            pos = subChunkStart + subSize;
+        }
+        return found;
+    }
+
+    private int parseTypeStringResourcesByName(byte[] data, int chunkStart,
+            int headerSize, int chunkSize, int packageId, int typeId,
+            LazyStringPool keyStringPool, LazyStringPool globalPool,
+            String[] targetKeyNames, int[] targetKeyIndexes) {
+        if (chunkStart + 20 > data.length) {
+            return 0;
+        }
+        int entryCount = readS32(data, chunkStart + 12);
+        int entriesStart = readS32(data, chunkStart + 16);
+        if (entryCount < 0 || entryCount > 100000) {
+            return 0;
+        }
+        int offsetsPos = chunkStart + headerSize;
+        int entryDataStart = chunkStart + entriesStart;
+        int chunkEnd = chunkStart + chunkSize;
+        if (offsetsPos < 0 || offsetsPos + (entryCount * 4) > data.length
+                || entryDataStart < 0 || entryDataStart > chunkEnd) {
+            return 0;
+        }
+
+        boolean defaultConfig = isDefaultConfig(data, chunkStart);
+        int found = 0;
+        for (int i = 0; i < entryCount; i++) {
+            int offset = readS32(data, offsetsPos + (i * 4));
+            if (offset < 0) {
+                continue;
+            }
+            int entryPos = entryDataStart + offset;
+            if (entryPos < 0 || entryPos + 8 > chunkEnd || entryPos + 8 > data.length) {
+                continue;
+            }
+
+            int entrySize = readU16(data, entryPos);
+            int entryFlags = readU16(data, entryPos + 2);
+            int keyIndex = readS32(data, entryPos + 4);
+            int targetSlot = indexOfTargetKey(targetKeyIndexes, keyIndex);
+            if (targetSlot < 0 || (entryFlags & FLAG_COMPLEX) != 0) {
+                continue;
+            }
+
+            int valuePos = entryPos + entrySize;
+            if (entrySize < 8 || valuePos + 8 > chunkEnd || valuePos + 8 > data.length) {
+                continue;
+            }
+
+            int dataType = data[valuePos + 3] & 0xFF;
+            int valueData = readS32(data, valuePos + 4);
+            if (dataType != TYPE_STRING || !globalPool.isValidIndex(valueData)) {
+                continue;
+            }
+
+            int resId = (packageId << 24) | (typeId << 16) | i;
+            if (!defaultConfig && mStrings.containsKey(resId)) {
+                continue;
+            }
+            String value = globalPool.get(valueData);
+            if (value == null) {
+                continue;
+            }
+            mStrings.put(resId, value);
+            if (!mEntryValues.containsKey(resId)) {
+                mEntryValues.put(resId, valueData);
+            }
+            String keyName = targetKeyNames[targetSlot];
+            if (keyName == null && keyStringPool.isValidIndex(keyIndex)) {
+                keyName = keyStringPool.get(keyIndex);
+            }
+            if (keyName != null && !mNames.containsKey(resId)) {
+                putResourceName(resId, "string/" + keyName);
+            }
+            found++;
+        }
+        return found;
+    }
+
+    private static int indexOfTargetKey(int[] targetKeyIndexes, int keyIndex) {
+        if (targetKeyIndexes == null) {
+            return -1;
+        }
+        for (int i = 0; i < targetKeyIndexes.length; i++) {
+            if (targetKeyIndexes[i] == keyIndex) {
+                return i;
+            }
+        }
+        return -1;
+    }
+
+    private static boolean isDefaultConfig(byte[] data, int typeChunkStart) {
+        int configPos = typeChunkStart + 20;
+        if (configPos + 4 > data.length) {
+            return true;
+        }
+        int configSize = readS32(data, configPos);
+        if (configSize < 4 || configSize > 4096 || configPos + configSize > data.length) {
+            return true;
+        }
+        for (int i = configPos + 4; i < configPos + configSize; i++) {
+            if (data[i] != 0) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    private LazyStringPool parseLazyPoolAtPackageOffset(byte[] data, int packageStart,
+            int packageEnd, int offset) {
+        if (offset <= 0) {
+            return null;
+        }
+        int poolStart = packageStart + offset;
+        if (poolStart < packageStart || poolStart + 8 > packageEnd) {
+            return null;
+        }
+        int poolType = readU16(data, poolStart);
+        int poolHeaderSize = readU16(data, poolStart + 2);
+        int poolSize = readS32(data, poolStart + 4);
+        if (poolType != RES_STRING_POOL_TYPE || poolSize < 8
+                || poolStart + poolSize > packageEnd) {
+            return null;
+        }
+        return newLazyStringPool(data, poolStart, poolHeaderSize, poolSize);
+    }
+
+    private final class LazyStringPool {
+        final byte[] data;
+        final int chunkStart;
+        final int chunkEnd;
+        final int count;
+        final boolean utf8;
+        final int stringsStart;
+        final int[] offsets;
+
+        private LazyStringPool(byte[] data, int chunkStart, int chunkSize,
+                int count, boolean utf8, int stringsStart, int[] offsets) {
+            this.data = data;
+            this.chunkStart = chunkStart;
+            this.chunkEnd = chunkStart + chunkSize;
+            this.count = count;
+            this.utf8 = utf8;
+            this.stringsStart = stringsStart;
+            this.offsets = offsets;
+        }
+
+        boolean isValidIndex(int index) {
+            return index >= 0 && index < count;
+        }
+
+        String get(int index) {
+            if (!isValidIndex(index)) {
+                return null;
+            }
+            int pos = stringsStart + offsets[index];
+            if (pos < chunkStart || pos >= chunkEnd || pos >= data.length) {
+                return null;
+            }
+            try {
+                if (utf8) {
+                    return readUtf8StringAt(data, pos, chunkEnd);
+                }
+                return readUtf16StringAt(data, pos, chunkEnd);
+            } catch (Throwable ignored) {
+                return null;
+            }
+        }
+    }
+
+    private LazyStringPool newLazyStringPool(byte[] data, int chunkStart,
+            int headerSize, int chunkSize) {
+        if (data == null || chunkStart < 0 || chunkStart + 28 > data.length
+                || headerSize < 28 || chunkSize < headerSize
+                || chunkStart + chunkSize > data.length) {
+            return null;
+        }
+        int stringCount = readS32(data, chunkStart + 8);
+        int styleCount = readS32(data, chunkStart + 12);
+        int flags = readS32(data, chunkStart + 16);
+        int stringsStartOffset = readS32(data, chunkStart + 20);
+        if (stringCount < 0 || stringCount > 200000 || styleCount < 0
+                || stringsStartOffset < headerSize || stringsStartOffset >= chunkSize) {
+            return null;
+        }
+        int offsetsPos = chunkStart + 28;
+        if (offsetsPos + (stringCount * 4) > data.length
+                || offsetsPos + (stringCount * 4) > chunkStart + chunkSize) {
+            return null;
+        }
+        int[] offsets = new int[stringCount];
+        for (int i = 0; i < stringCount; i++) {
+            offsets[i] = readS32(data, offsetsPos + (i * 4));
+        }
+        return new LazyStringPool(data, chunkStart, chunkSize, stringCount,
+                (flags & (1 << 8)) != 0, chunkStart + stringsStartOffset, offsets);
+    }
+
+    private static int readU16(byte[] data, int offset) {
+        if (offset < 0 || offset + 2 > data.length) {
+            return 0;
+        }
+        return (data[offset] & 0xFF) | ((data[offset + 1] & 0xFF) << 8);
+    }
+
+    private static int readS32(byte[] data, int offset) {
+        if (offset < 0 || offset + 4 > data.length) {
+            return 0;
+        }
+        return (data[offset] & 0xFF)
+                | ((data[offset + 1] & 0xFF) << 8)
+                | ((data[offset + 2] & 0xFF) << 16)
+                | (data[offset + 3] << 24);
+    }
+
+    private String readUtf8StringAt(byte[] data, int pos, int limit) {
+        if (pos < 0 || pos >= limit) {
+            return "";
+        }
+        int[] p = new int[] { pos };
+        int charLen = readUtf8Length(data, p, limit);
+        int byteLen = readUtf8Length(data, p, limit);
+        if (charLen < 0 || byteLen < 0 || p[0] + byteLen > limit
+                || p[0] + byteLen > data.length) {
+            return "";
+        }
+        byte[] strBytes = new byte[byteLen];
+        System.arraycopy(data, p[0], strBytes, 0, byteLen);
+        return decodeUtf8(strBytes);
+    }
+
+    private static int readUtf8Length(byte[] data, int[] pos, int limit) {
+        if (pos[0] >= limit || pos[0] >= data.length) {
+            return -1;
+        }
+        int value = data[pos[0]++] & 0xFF;
+        if ((value & 0x80) != 0) {
+            if (pos[0] >= limit || pos[0] >= data.length) {
+                return -1;
+            }
+            value = ((value & 0x7F) << 8) | (data[pos[0]++] & 0xFF);
+        }
+        return value;
+    }
+
+    private String readUtf16StringAt(byte[] data, int pos, int limit) {
+        if (pos < 0 || pos + 2 > limit || pos + 2 > data.length) {
+            return "";
+        }
+        int charLen = readU16(data, pos);
+        pos += 2;
+        if ((charLen & 0x8000) != 0) {
+            if (pos + 2 > limit || pos + 2 > data.length) {
+                return "";
+            }
+            charLen = ((charLen & 0x7FFF) << 16) | readU16(data, pos);
+            pos += 2;
+        }
+        if (charLen < 0 || pos + (charLen * 2) > limit
+                || pos + (charLen * 2) > data.length) {
+            return "";
+        }
+        char[] chars = new char[charLen];
+        for (int i = 0; i < charLen; i++) {
+            chars[i] = (char) readU16(data, pos + (i * 2));
+        }
+        return new String(chars);
+    }
+
+    /**
      * Get a string resource value by resource ID.
      */
     public String getString(int resId) {
@@ -156,26 +740,40 @@ public class ResourceTable {
         if (key == null) {
             return 0;
         }
-        for (Map.Entry<Integer, String> entry : mNames.entrySet()) {
-            if (key.equals(entry.getValue())) return entry.getKey();
+        Integer exact = mIdentifiers.get(key);
+        if (exact != null) {
+            return exact.intValue();
         }
         int slash = key.indexOf('/');
         String type = slash > 0 ? key.substring(0, slash) : null;
         String name = slash >= 0 && slash + 1 < key.length()
                 ? key.substring(slash + 1)
                 : key;
+        if (type != null) {
+            return 0;
+        }
         for (Map.Entry<Integer, String> entry : mNames.entrySet()) {
             String val = entry.getValue();
             if (val == null) {
                 continue;
             }
-            if (type != null) {
-                if (val.equals(type + "/" + name)) return entry.getKey();
-            } else if (val.endsWith("/" + name)) {
+            if (val.endsWith("/" + name)) {
                 return entry.getKey();
             }
         }
         return 0;
+    }
+
+    private void putResourceName(int resId, String name) {
+        if (name == null) {
+            return;
+        }
+        if (!mNames.containsKey(resId)) {
+            mNames.put(resId, name);
+        }
+        if (!mIdentifiers.containsKey(name)) {
+            mIdentifiers.put(name, resId);
+        }
     }
 
     /**
@@ -695,7 +1293,7 @@ public class ResourceTable {
             }
             if (typeName != null && keyName != null) {
                 if (!mNames.containsKey(resId)) {
-                    mNames.put(resId, typeName + "/" + keyName);
+                    putResourceName(resId, typeName + "/" + keyName);
                 }
             }
 

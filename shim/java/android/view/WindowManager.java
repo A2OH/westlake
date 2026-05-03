@@ -2,6 +2,9 @@ package android.view;
 
 public interface WindowManager extends ViewManager {
     void removeViewImmediate(View p0);
+    Display getDefaultDisplay();
+    WindowMetrics getCurrentWindowMetrics();
+    WindowMetrics getMaximumWindowMetrics();
 
     /** Auto-generated stub. */
     public static class LayoutParams extends ViewGroup.LayoutParams {

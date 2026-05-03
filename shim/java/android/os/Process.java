@@ -40,17 +40,32 @@ public class Process {
     }
 
     private static int resolvePid() {
-        // java.lang.management approach: "pid@hostname"
+        // Android does not expose java.lang.management. Prefer /proc when
+        // available, but keep a stable fallback for non-Linux hosts such as OHOS.
+        java.io.FileInputStream in = null;
         try {
-            String name = java.lang.management.ManagementFactory.getRuntimeMXBean().getName();
-            int idx = name.indexOf('@');
-            if (idx > 0) {
-                return Integer.parseInt(name.substring(0, idx));
+            in = new java.io.FileInputStream("/proc/self/stat");
+            byte[] buf = new byte[32];
+            int len = in.read(buf);
+            int pid = 0;
+            for (int i = 0; i < len; i++) {
+                int ch = buf[i] & 0xff;
+                if (ch < '0' || ch > '9') {
+                    break;
+                }
+                pid = pid * 10 + (ch - '0');
+            }
+            if (pid > 0) {
+                return pid;
             }
         } catch (Exception e) {
             // fall through
+        } finally {
+            try {
+                if (in != null) in.close();
+            } catch (Exception ignored) {
+            }
         }
-        // Fallback: return a mock PID
         return 1000;
     }
 
@@ -103,12 +118,7 @@ public class Process {
     }
 
     public static long getElapsedCpuTime() {
-        try {
-            return java.lang.management.ManagementFactory.getThreadMXBean()
-                .getCurrentThreadCpuTime() / 1_000_000;
-        } catch (Exception e) {
-            return 0;
-        }
+        return SystemClock.elapsedRealtime();
     }
 
     public static boolean isApplicationUid(int uid) {

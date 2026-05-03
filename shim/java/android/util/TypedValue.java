@@ -75,6 +75,15 @@ public class TypedValue {
     /** Screen density associated with this value, or 0. */
     public int density;
 
+    /** Asset cookie for framework resource loaders. Zero means no backing asset. */
+    public int assetCookie;
+
+    /** Configuration bit mask for resource invalidation. */
+    public int changingConfigurations;
+
+    /** Source resource ID for aliased values. */
+    public int sourceResourceId;
+
     /** String data for TYPE_STRING values (may be null). */
     public CharSequence string;
 

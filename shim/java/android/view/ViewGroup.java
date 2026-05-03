@@ -208,6 +208,11 @@ public abstract class ViewGroup extends View implements ViewParent, ViewManager 
     // First touch target in the linked list of touch targets.
     @UnsupportedAppUsage
     private TouchTarget mFirstTouchTarget;
+    private static boolean sWestlakeScaledTouchRedispatch;
+    private static int sWestlakeScaledTouchMarkerCount;
+    private boolean mWestlakeScaledTouchActive;
+    private float mWestlakeScaledTouchOffsetX;
+    private float mWestlakeScaledTouchOffsetY;
 
     // For debugging only.  You can see these in hierarchyviewer.
     @SuppressWarnings({"FieldCanBeLocal", "UnusedDeclaration"})
@@ -2645,6 +2650,9 @@ public abstract class ViewGroup extends View implements ViewParent, ViewManager 
         if (onFilterTouchEventForSecurity(ev)) {
             final int action = ev.getAction();
             final int actionMasked = action & MotionEvent.ACTION_MASK;
+            if (mWestlakeScaledTouchActive && actionMasked != MotionEvent.ACTION_DOWN) {
+                return dispatchWestlakeScaledTouchStream(ev, actionMasked);
+            }
 
             // Handle an initial down.
             if (actionMasked == MotionEvent.ACTION_DOWN) {
@@ -2826,12 +2834,255 @@ public abstract class ViewGroup extends View implements ViewParent, ViewManager 
                 final int idBitsToRemove = 1 << ev.getPointerId(actionIndex);
                 removePointersFromTouchTargets(idBitsToRemove);
             }
+            if (!handled && actionMasked == MotionEvent.ACTION_DOWN) {
+                handled = dispatchWestlakeScaledTouchDown(ev);
+            }
         }
 
         if (!handled && mInputEventConsistencyVerifier != null) {
             mInputEventConsistencyVerifier.onUnhandledEvent(ev, 1);
         }
         return handled;
+    }
+
+    private boolean dispatchWestlakeScaledTouchStream(MotionEvent event, int actionMasked) {
+        MotionEvent transformed = null;
+        boolean handled = false;
+        boolean keepActive = actionMasked != MotionEvent.ACTION_UP
+                && actionMasked != MotionEvent.ACTION_CANCEL;
+        try {
+            transformed = MotionEvent.obtain(event);
+            transformed.offsetLocation(mWestlakeScaledTouchOffsetX, mWestlakeScaledTouchOffsetY);
+            mWestlakeScaledTouchActive = false;
+            handled = dispatchTouchEvent(transformed);
+        } finally {
+            if (transformed != null) {
+                transformed.recycle();
+            }
+            mWestlakeScaledTouchActive = keepActive;
+            if (!keepActive) {
+                mWestlakeScaledTouchOffsetX = 0.0f;
+                mWestlakeScaledTouchOffsetY = 0.0f;
+            }
+        }
+        return handled;
+    }
+
+    private boolean dispatchWestlakeScaledTouchDown(MotionEvent event) {
+        if (event == null || sWestlakeScaledTouchRedispatch || getHeight() <= 0) {
+            return false;
+        }
+        float x = event.getX();
+        float y = event.getY();
+        if (getHeight() < 700 || y < (getHeight() * 3.0f) / 4.0f) {
+            return false;
+        }
+        int contentBottom = westlakeTouchableContentBottom(this, 0, 0);
+        if (contentBottom <= 0) {
+            return false;
+        }
+        WestlakeTouchRedirect redirect = westlakeFindTouchRedirect(this, x, y, contentBottom);
+        if (redirect == null || redirect.target == null || redirect.target == this) {
+            return false;
+        }
+        float offsetX = redirect.x - x;
+        float offsetY = redirect.y - y;
+        if (Math.abs(offsetX) < 1.0f && Math.abs(offsetY) < 1.0f) {
+            return false;
+        }
+
+        MotionEvent transformed = null;
+        boolean handled = false;
+        try {
+            transformed = MotionEvent.obtain(event);
+            transformed.offsetLocation(offsetX, offsetY);
+            sWestlakeScaledTouchRedispatch = true;
+            handled = dispatchTouchEvent(transformed);
+        } finally {
+            sWestlakeScaledTouchRedispatch = false;
+            if (transformed != null) {
+                transformed.recycle();
+            }
+        }
+        if (handled) {
+            mWestlakeScaledTouchActive = true;
+            mWestlakeScaledTouchOffsetX = offsetX;
+            mWestlakeScaledTouchOffsetY = offsetY;
+        }
+        logWestlakeScaledTouchMarker(handled, x, y, redirect.x, redirect.y,
+                contentBottom, redirect.target, redirect.reason);
+        return handled;
+    }
+
+    private static int westlakeTouchableContentBottom(View view, int offsetX, int offsetY) {
+        if (view == null || view.getVisibility() != View.VISIBLE) {
+            return 0;
+        }
+        int best = 0;
+        if (view instanceof ViewGroup) {
+            ViewGroup group = (ViewGroup) view;
+            for (int i = 0; i < group.getChildCount(); i++) {
+                View child = group.getChildAt(i);
+                if (child == null || child.getVisibility() != View.VISIBLE) {
+                    continue;
+                }
+                int childLeft = offsetX + child.getLeft() - group.getScrollX();
+                int childTop = offsetY + child.getTop() - group.getScrollY();
+                best = Math.max(best,
+                        westlakeTouchableContentBottom(child, childLeft, childTop));
+            }
+        }
+        if (westlakeIsTouchableCandidate(view)) {
+            best = Math.max(best, offsetY + view.getHeight());
+        }
+        return best;
+    }
+
+    private static WestlakeTouchRedirect westlakeFindTouchRedirect(
+            ViewGroup root, float x, float y, int contentBottom) {
+        float scaledY = (y * contentBottom) / Math.max(1, root.getHeight());
+        View scaledTarget = westlakeFindTouchableAt(root, x, scaledY, 0);
+        if (scaledTarget != null && scaledTarget != root) {
+            WestlakeTouchRedirect redirect = new WestlakeTouchRedirect();
+            redirect.target = scaledTarget;
+            redirect.x = x;
+            redirect.y = scaledY;
+            redirect.reason = "scaled_content";
+            return redirect;
+        }
+        WestlakeTouchRedirect nearest = new WestlakeTouchRedirect();
+        nearest.score = Float.MAX_VALUE;
+        westlakeFindNearestTouchableProjection(root, x, y, 0.0f, 0.0f, 0, nearest);
+        if (nearest.target != null && nearest.score < Float.MAX_VALUE) {
+            nearest.reason = "nearest_root_projection";
+            return nearest;
+        }
+        return null;
+    }
+
+    private static View westlakeFindTouchableAt(View view, float x, float y, int depth) {
+        if (view == null || depth > 32 || view.getVisibility() != View.VISIBLE) {
+            return null;
+        }
+        if (x < 0 || y < 0 || x >= view.getWidth() || y >= view.getHeight()) {
+            return null;
+        }
+        if (view instanceof ViewGroup) {
+            ViewGroup group = (ViewGroup) view;
+            for (int i = group.getChildCount() - 1; i >= 0; i--) {
+                View child = group.getChildAt(i);
+                if (child == null || child.getVisibility() != View.VISIBLE) {
+                    continue;
+                }
+                float childX = x - child.getLeft() + group.getScrollX();
+                float childY = y - child.getTop() + group.getScrollY();
+                View found = westlakeFindTouchableAt(child, childX, childY, depth + 1);
+                if (found != null) {
+                    return found;
+                }
+            }
+        }
+        return westlakeIsTouchableCandidate(view) ? view : null;
+    }
+
+    private static void westlakeFindNearestTouchableProjection(View view, float rootX,
+            float rootY, float offsetX, float offsetY, int depth,
+            WestlakeTouchRedirect best) {
+        if (view == null || best == null || depth > 32
+                || view.getVisibility() != View.VISIBLE) {
+            return;
+        }
+        float left = offsetX;
+        float top = offsetY;
+        float right = left + view.getWidth();
+        float bottom = top + view.getHeight();
+        if (westlakeIsTouchableCandidate(view)
+                && rootX >= left && rootX < right
+                && view.getWidth() > 0 && view.getHeight() > 0) {
+            float verticalDistance = rootY < top ? top - rootY
+                    : (rootY >= bottom ? rootY - bottom : 0.0f);
+            float score = verticalDistance + Math.max(0.0f, 24.0f - view.getHeight());
+            if (score < best.score) {
+                best.score = score;
+                best.target = view;
+                best.x = Math.max(left + 1.0f, Math.min(rootX, right - 1.0f));
+                best.y = top + Math.max(1.0f, view.getHeight() / 2.0f);
+            }
+        }
+        if (view instanceof ViewGroup) {
+            ViewGroup group = (ViewGroup) view;
+            for (int i = group.getChildCount() - 1; i >= 0; i--) {
+                View child = group.getChildAt(i);
+                if (child == null || child.getVisibility() != View.VISIBLE) {
+                    continue;
+                }
+                float childLeft = left + child.getLeft() - group.getScrollX();
+                float childTop = top + child.getTop() - group.getScrollY();
+                westlakeFindNearestTouchableProjection(child, rootX, rootY,
+                        childLeft, childTop, depth + 1, best);
+            }
+        }
+    }
+
+    private static boolean westlakeIsTouchableCandidate(View view) {
+        if (view == null || view.getVisibility() != View.VISIBLE || !view.isEnabled()) {
+            return false;
+        }
+        try {
+            return view.hasOnClickListeners()
+                    || view.isClickable()
+                    || view.isLongClickable();
+        } catch (Throwable ignored) {
+            return false;
+        }
+    }
+
+    private void logWestlakeScaledTouchMarker(boolean handled, float x, float y,
+            float redirectX, float redirectY, int contentBottom, View target,
+            String reason) {
+        if (sWestlakeScaledTouchMarkerCount >= 80) {
+            return;
+        }
+        sWestlakeScaledTouchMarkerCount++;
+        String marker = "source=viewgroup_root_hit"
+                + " reason=" + reason
+                + " handled=" + handled
+                + " x=" + (int) x
+                + " y=" + (int) y
+                + " redirectX=" + (int) redirectX
+                + " redirectY=" + (int) redirectY
+                + " contentBottom=" + contentBottom
+                + " root=" + westlakeViewSummary(this)
+                + " target=" + westlakeViewSummary(target);
+        Log.i("WestlakeVM", "VM: WESTLAKE_GENERIC_TOUCH_SYNTH_DOWN " + marker);
+        try {
+            com.westlake.engine.WestlakeLauncher.appendCutoffCanaryMarker(
+                    "WESTLAKE_GENERIC_TOUCH_SYNTH_DOWN " + marker);
+        } catch (Throwable ignored) {
+        }
+    }
+
+    private static String westlakeViewSummary(View view) {
+        if (view == null) {
+            return "null";
+        }
+        StringBuilder sb = new StringBuilder(96);
+        sb.append(view.getClass().getName());
+        try {
+            sb.append("#0x").append(Integer.toHexString(view.getId()));
+        } catch (Throwable ignored) {
+        }
+        sb.append("_w").append(view.getWidth())
+                .append("_h").append(view.getHeight());
+        return sb.toString();
+    }
+
+    private static final class WestlakeTouchRedirect {
+        View target;
+        float x;
+        float y;
+        float score;
+        String reason;
     }
 
     /**

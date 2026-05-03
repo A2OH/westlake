@@ -1,12 +1,14 @@
 package androidx.fragment.app;
 
 import android.app.Activity;
+import android.animation.Animator;
 import android.content.Context;
 import android.os.Bundle;
 import android.util.Log;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
+import android.view.animation.Animation;
 
 import androidx.lifecycle.Lifecycle;
 import androidx.lifecycle.LifecycleOwner;
@@ -90,6 +92,7 @@ public class Fragment implements LifecycleOwner, ViewModelStoreOwner, SavedState
     public FragmentActivity mActivity;
     Object mHost;  // FragmentHostCallback in real impl, just Object for stub
     public View mView;
+    public int mState;
     int mContainerId;
     boolean mAdded;
     boolean mDetached;
@@ -104,6 +107,7 @@ public class Fragment implements LifecycleOwner, ViewModelStoreOwner, SavedState
     private boolean mMenuVisible = true;
     private boolean mUserVisibleHint = true;
     private LifecycleRegistry mLifecycleRegistry = new LifecycleRegistry(this);
+    private FragmentViewLifecycleOwner mViewLifecycleOwner;
     private ViewModelStore mViewModelStore;
     private SavedStateRegistryController mSavedStateRegistryController;
 
@@ -124,6 +128,10 @@ public class Fragment implements LifecycleOwner, ViewModelStoreOwner, SavedState
         }
         Context context = getContext();
         return context != null ? LayoutInflater.from(context) : null;
+    }
+
+    public LayoutInflater getLayoutInflater() {
+        return onGetLayoutInflater(null);
     }
 
     public View onCreateView(LayoutInflater inflater, ViewGroup container,
@@ -153,6 +161,8 @@ public class Fragment implements LifecycleOwner, ViewModelStoreOwner, SavedState
     public void onSaveInstanceState(Bundle outState) {}
     public void onViewStateRestored(Bundle savedInstanceState) {}
     public void onHiddenChanged(boolean hidden) {}
+    public Animation onCreateAnimation(int transit, boolean enter, int nextAnim) { return null; }
+    public Animator onCreateAnimator(int transit, boolean enter, int nextAnim) { return null; }
 
     // ── Accessors ──
 
@@ -240,10 +250,12 @@ public class Fragment implements LifecycleOwner, ViewModelStoreOwner, SavedState
 
     /**
      * Returns a LifecycleOwner scoped to the Fragment's View.
-     * Stub returns {@code this} (Fragment is not actually a LifecycleOwner in the stub,
-     * but callers just need a non-null reference).
+     * The owner is separate from the Fragment so LiveData observers bound to the
+     * view can follow AndroidX's CREATED/STARTED/RESUMED progression.
      */
-    public LifecycleOwner getViewLifecycleOwner() { return this; }
+    public LifecycleOwner getViewLifecycleOwner() {
+        return ensureViewLifecycleOwner();
+    }
 
     /**
      * Returns the Lifecycle of this fragment. Stub returns null.
@@ -256,6 +268,55 @@ public class Fragment implements LifecycleOwner, ViewModelStoreOwner, SavedState
             mLifecycleRegistry = new LifecycleRegistry(this);
         }
         return mLifecycleRegistry;
+    }
+
+    private FragmentViewLifecycleOwner ensureViewLifecycleOwner() {
+        if (mViewLifecycleOwner == null) {
+            mViewLifecycleOwner = new FragmentViewLifecycleOwner(this);
+        }
+        mViewLifecycleOwner.b();
+        syncViewLifecycleOwnerToFragmentState(mViewLifecycleOwner);
+        return mViewLifecycleOwner;
+    }
+
+    private FragmentViewLifecycleOwner ensureFreshViewLifecycleOwner() {
+        if (mViewLifecycleOwner == null
+                || mViewLifecycleOwner.getLifecycle().getCurrentState()
+                == Lifecycle.State.DESTROYED) {
+            mViewLifecycleOwner = new FragmentViewLifecycleOwner(this);
+        }
+        mViewLifecycleOwner.b();
+        return mViewLifecycleOwner;
+    }
+
+    private void syncViewLifecycleOwnerToFragmentState(FragmentViewLifecycleOwner owner) {
+        if (owner == null || mView == null) {
+            return;
+        }
+        if (mResumed || mState >= 7) {
+            moveViewLifecycleOwnerAtLeast(owner, Lifecycle.State.RESUMED);
+        } else if (mStarted || mState >= 5) {
+            moveViewLifecycleOwnerAtLeast(owner, Lifecycle.State.STARTED);
+        } else if (mCreated || mState >= 1) {
+            moveViewLifecycleOwnerAtLeast(owner, Lifecycle.State.CREATED);
+        }
+    }
+
+    private void moveViewLifecycleOwnerAtLeast(FragmentViewLifecycleOwner owner,
+            Lifecycle.State state) {
+        if (owner == null || state == null) {
+            return;
+        }
+        try {
+            Lifecycle lifecycle = owner.getLifecycle();
+            if (lifecycle == null || lifecycle.getCurrentState() == Lifecycle.State.DESTROYED) {
+                return;
+            }
+            if (!lifecycle.getCurrentState().isAtLeast(state)) {
+                owner.setCurrentState(state);
+            }
+        } catch (Throwable ignored) {
+        }
     }
 
     private ViewModelStore ensureViewModelStore() {
@@ -352,6 +413,7 @@ public class Fragment implements LifecycleOwner, ViewModelStoreOwner, SavedState
     void performAttach(FragmentActivity host) {
         mActivity = host;
         mHost = host;
+        mState = 0;
         ensureLifecycleRegistry().handleLifecycleEvent(Lifecycle.Event.ON_CREATE);
         if (host == null) {
             throw new IllegalStateException("Fragment.performAttach host=null for " + this);
@@ -381,6 +443,7 @@ public class Fragment implements LifecycleOwner, ViewModelStoreOwner, SavedState
     }
 
     void performCreate(Bundle savedInstanceState) {
+        mState = 1;
         mCreated = true;
         SavedStateRegistryController controller = ensureSavedStateRegistryController();
         if (controller != null) {
@@ -393,11 +456,13 @@ public class Fragment implements LifecycleOwner, ViewModelStoreOwner, SavedState
 
     void performCreateView(LayoutInflater inflater, ViewGroup container,
                            Bundle savedInstanceState) {
+        FragmentViewLifecycleOwner viewLifecycleOwner = ensureFreshViewLifecycleOwner();
         mView = onCreateView(inflater, container, savedInstanceState);
         if (mView != null) {
-            ViewTreeLifecycleOwner.set(mView, this);
+            ViewTreeLifecycleOwner.set(mView, viewLifecycleOwner);
             ViewTreeViewModelStoreOwner.set(mView, this);
             ViewTreeSavedStateRegistryOwner.set(mView, this);
+            moveViewLifecycleOwnerAtLeast(viewLifecycleOwner, Lifecycle.State.CREATED);
             onViewCreated(mView, savedInstanceState);
         }
     }
@@ -407,35 +472,56 @@ public class Fragment implements LifecycleOwner, ViewModelStoreOwner, SavedState
     }
 
     void performStart() {
+        mState = 5;
+        onStart();
         mStarted = true;
         ensureLifecycleRegistry().handleLifecycleEvent(Lifecycle.Event.ON_START);
-        onStart();
+        if (mViewLifecycleOwner != null) {
+            moveViewLifecycleOwnerAtLeast(mViewLifecycleOwner, Lifecycle.State.STARTED);
+        }
     }
 
     void performResume() {
+        mState = 7;
+        onResume();
         mResumed = true;
         ensureLifecycleRegistry().handleLifecycleEvent(Lifecycle.Event.ON_RESUME);
-        onResume();
+        if (mViewLifecycleOwner != null) {
+            moveViewLifecycleOwnerAtLeast(mViewLifecycleOwner, Lifecycle.State.RESUMED);
+        }
     }
 
     void performPause() {
+        mState = 5;
         mResumed = false;
+        if (mViewLifecycleOwner != null) {
+            mViewLifecycleOwner.handleLifecycleEvent(Lifecycle.Event.ON_PAUSE);
+        }
         ensureLifecycleRegistry().handleLifecycleEvent(Lifecycle.Event.ON_PAUSE);
         onPause();
     }
 
     void performStop() {
+        mState = 4;
         mStarted = false;
+        if (mViewLifecycleOwner != null) {
+            mViewLifecycleOwner.handleLifecycleEvent(Lifecycle.Event.ON_STOP);
+        }
         ensureLifecycleRegistry().handleLifecycleEvent(Lifecycle.Event.ON_STOP);
         onStop();
     }
 
     void performDestroyView() {
+        if (mViewLifecycleOwner != null) {
+            mViewLifecycleOwner.handleLifecycleEvent(Lifecycle.Event.ON_DESTROY);
+        }
         onDestroyView();
+        mViewLifecycleOwner = null;
         mView = null;
     }
 
     void performDestroy() {
+        mState = 0;
         mCreated = false;
         ensureLifecycleRegistry().handleLifecycleEvent(Lifecycle.Event.ON_DESTROY);
         onDestroy();

@@ -28,6 +28,7 @@ import java.util.zip.ZipFile;
  * 4. Returns an ApkInfo with all metadata needed to launch the app
  */
 public class ApkLoader {
+    private static native byte[] nativeReadFileBytes(String path);
 
     /**
      * Load and parse an APK file.
@@ -266,21 +267,70 @@ public class ApkLoader {
             com.westlake.engine.WestlakeLauncher.strictTrace("PF202 ApkLoader info seeded");
         }
 
-        // Parse resources.arsc (skip entirely on strict standalone bootstrap —
-        // the first native read here is still enough to derail PF-202 before UI
-        // launch. The host pre-extracted path can be revisited once the guest
-        // survives past core bootstrap and first activity startup.)
-        if (com.westlake.engine.WestlakeLauncher.isRealFrameworkFallbackAllowed()) {
+        // Parse resources.arsc early. Stock applications call Context.getString()
+        // during Application.onCreate(); delaying app resources until activity
+        // inflation makes those calls resolve to placeholders.
+        try {
+            File arscFile = new File(resDir, "resources.arsc");
+            String arscPath = arscFile.getAbsolutePath();
             try {
-                byte[] data = readFileBytes(new File(resDir, "resources.arsc"));
-                if (data != null && data.length > 0) {
-                    ResourceTable resTable = new ResourceTable();
-                    resTable.parse(data);
-                    info.resourceTable = resTable;
-                }
-            } catch (Throwable e) {
-                // Ignore missing or unreadable resource table during early bootstrap.
+                com.westlake.engine.WestlakeLauncher.marker(
+                        "CV PF-MCD-RES_TABLE_READ_BEGIN path=" + arscPath);
+            } catch (Throwable ignored) {
             }
+            byte[] data = nativeReadFileBytes(arscPath);
+            if (data == null && com.westlake.engine.WestlakeLauncher.isRealFrameworkFallbackAllowed()) {
+                data = readFileBytes(arscFile);
+            }
+            try {
+                com.westlake.engine.WestlakeLauncher.marker(
+                        "CV PF-MCD-RES_TABLE_READ_DONE bytes=" + (data != null ? data.length : -1));
+            } catch (Throwable ignored) {
+            }
+            if (data != null && data.length > 0) {
+                ResourceTable resTable = new ResourceTable();
+                try {
+                    com.westlake.engine.WestlakeLauncher.marker("CV PF-MCD-RES_TABLE_PARSE_BEGIN");
+                } catch (Throwable ignored) {
+                }
+                if (com.westlake.engine.WestlakeLauncher.isRealFrameworkFallbackAllowed()) {
+                    resTable.parse(data);
+                } else {
+                    int stringCount = resTable.parseStringResources(data);
+                    if (stringCount <= 0) {
+                        resTable.parseStringResourcesByName(data, new String[] {
+                                "default_market_id",
+                                "app_name",
+                                "selected_manual_store_expiry_time_in_mins"
+                        });
+                    }
+                }
+                try {
+                    com.westlake.engine.WestlakeLauncher.marker("CV PF-MCD-RES_TABLE_PARSE_DONE");
+                } catch (Throwable ignored) {
+                }
+                info.resourceTable = resTable;
+                try {
+                    com.westlake.engine.WestlakeLauncher.marker(
+                            "CV PF-MCD-RES_TABLE_LOADED bytes=" + data.length
+                                    + " strings=" + resTable.getStringCount()
+                                    + " integers=" + resTable.getIntegerCount());
+                } catch (Throwable ignored) {
+                }
+            } else {
+                try {
+                    com.westlake.engine.WestlakeLauncher.marker(
+                            "CV PF-MCD-RES_TABLE_FAIL err=native_read_null");
+                } catch (Throwable ignored) {
+                }
+            }
+        } catch (Throwable e) {
+            try {
+                com.westlake.engine.WestlakeLauncher.marker(
+                        "CV PF-MCD-RES_TABLE_FAIL err=" + e.getClass().getName());
+            } catch (Throwable ignored) {
+            }
+            // Ignore missing or unreadable resource table during early bootstrap.
         }
 
         // Set res dir for layout inflation and asset dir for AssetManager.

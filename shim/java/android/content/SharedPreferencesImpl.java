@@ -21,18 +21,49 @@ public class SharedPreferencesImpl implements SharedPreferences {
     SharedPreferencesImpl(String name) {
         this.name = name;
         // Pre-populate McDonald's config to prevent NPE in HomeHelper.setAppParameter()
-        if (name != null && name.contains("mcd")) {
+        if (shouldSeedMcDonaldsDefaults(name)) {
+            seedMcDonaldsDefaults();
+        }
+    }
+
+    private static boolean shouldSeedMcDonaldsDefaults(String prefName) {
+        if (prefName != null) {
+            String lower = prefName.toLowerCase();
+            if (lower.contains("mcd") || lower.contains("market")
+                    || lower.contains("config") || lower.contains("default")) {
+                return true;
+            }
+        }
+        try {
+            String pkg = System.getProperty("westlake.apk.package", "");
+            String activity = System.getProperty("westlake.apk.activity", "");
+            return containsMcdonalds(pkg) || containsMcdonalds(activity);
+        } catch (Throwable ignored) {
+            return false;
+        }
+    }
+
+    private static boolean containsMcdonalds(String value) {
+        if (value == null) {
+            return false;
+        }
+        String lower = value.toLowerCase();
+        return lower.contains("mcdonalds") || lower.contains("mcdonald");
+    }
+
+    void ensureMcDonaldsDefaultsIfNeeded() {
+        if (shouldSeedMcDonaldsDefaults(name)) {
             seedMcDonaldsDefaults();
         }
     }
 
     private void seedMcDonaldsDefaults() {
         // Minimal market config JSON that HomeHelper.setAppParameter() expects
-        store.put("SELECTED_CONFIG", "{\"marketId\":\"US\",\"country\":\"US\",\"language\":\"en\",\"currencyCode\":\"USD\",\"currencySymbol\":\"$\",\"justFlip.splitEnvironmentId\":\"474f8810-15c1-11ee-b490-4afd76afc5e7\",\"justFlip.splitApiKey\":\"offline\",\"baseUrl\":\"https://us-prod.api.mcd.com/exp/v1/\",\"tokenUrl\":\"https://us-prod.api.mcd.com/v1/security/auth/token\",\"configMap\":{\"justFlip.splitEnvironmentId\":\"474f8810-15c1-11ee-b490-4afd76afc5e7\"}}");
-        store.put("SELECTED_MARKET_ID", "US");
+        store.put("SELECTED_CONFIG", "{\"marketId\":\"usdap_prod\",\"country\":\"US\",\"language\":\"en-US\",\"currencyCode\":\"USD\",\"currencySymbol\":\"$\",\"justFlip.splitEnvironmentId\":\"474f8810-15c1-11ee-b490-4afd76afc5e7\",\"justFlip.splitApiKey\":\"offline\",\"baseUrl\":\"https://us-prod.api.mcd.com/exp/v1/\",\"tokenUrl\":\"https://us-prod.api.mcd.com/v1/security/auth/token\",\"configMap\":{\"justFlip.splitEnvironmentId\":\"474f8810-15c1-11ee-b490-4afd76afc5e7\"}}");
+        store.put("SELECTED_MARKET_ID", "usdap_prod");
         store.put("SELECTED_COUNTRY", "US");
-        store.put("SELECTED_LANGUAGE", "en");
-        store.put("DEBUG_OVERRIDE_MARKET_ID", "US");
+        store.put("SELECTED_LANGUAGE", "en-US");
+        store.put("DEBUG_OVERRIDE_MARKET_ID", "usdap_prod");
         store.put("IS_FIRST_LAUNCH", "false");
         store.put("APP_VERSION", "7.0.0");
         store.put("HAS_ACCEPTED_TERMS", "true");
@@ -53,10 +84,33 @@ public class SharedPreferencesImpl implements SharedPreferences {
     }
     @Override public String getString(String key, String defValue) {
         synchronized (store) {
+            if (shouldSeedMcDonaldsDefaults(name) && isMcDonaldsConfigKey(key)) {
+                seedMcDonaldsDefaults();
+            }
             Object v = store.get(key);
             String r = (v instanceof String) ? (String) v : defValue;
+            if (isMcDonaldsConfigKey(key)) {
+                try {
+                    String value = r;
+                    if ("SELECTED_CONFIG".equals(key) && value != null && value.length() > 96) {
+                        value = value.substring(0, 96);
+                    }
+                    com.westlake.engine.WestlakeLauncher.marker(
+                            "CV PF-MCD-PREF_GET name=" + name
+                                    + " key=" + key
+                                    + " value=" + value);
+                } catch (Throwable ignored) {
+                }
+            }
             return r;
         }
+    }
+
+    private static boolean isMcDonaldsConfigKey(String key) {
+        return "SELECTED_CONFIG".equals(key)
+                || "SELECTED_MARKET_ID".equals(key)
+                || "SELECTED_LANGUAGE".equals(key)
+                || "DEBUG_OVERRIDE_MARKET_ID".equals(key);
     }
     @Override public int getInt(String key, int defValue) {
         synchronized (store) { Object v = store.get(key); return (v instanceof Integer) ? (Integer) v : defValue; }

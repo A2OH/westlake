@@ -11,10 +11,13 @@ public class DisplayManagerGlobal {
     public static DisplayManagerGlobal getInstance() { return sInstance; }
 
     public Display getCompatibleDisplay(int displayId, android.content.res.Resources resources) {
-        return null;
+        return new Display(this, displayId, getDisplayInfo(displayId), resources);
     }
 
-    public Display getRealDisplay(int displayId) { return null; }
+    public Display getRealDisplay(int displayId) {
+        return new Display(this, displayId, getDisplayInfo(displayId),
+                new android.view.DisplayAdjustments());
+    }
 
     public DisplayInfo getDisplayInfo(int displayId) {
         return new DisplayInfo();

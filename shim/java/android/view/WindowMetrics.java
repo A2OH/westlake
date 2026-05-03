@@ -1,8 +1,5 @@
 package android.view;
 import android.graphics.Rect;
-import android.graphics.Rect;
-
-import android.graphics.Rect;
 
 /**
  * Shim: android.view.WindowMetrics (API 30+)
@@ -11,13 +8,18 @@ import android.graphics.Rect;
 public class WindowMetrics {
 
     private final Rect bounds;
-    private final Object windowInsets;
+    private final WindowInsets windowInsets;
 
     // ── Constructor ─────────────────────────────────────────────────────────
 
     public WindowMetrics(Rect bounds, Object windowInsets) {
+        this(bounds, windowInsets instanceof WindowInsets
+                ? (WindowInsets) windowInsets : new WindowInsets());
+    }
+
+    public WindowMetrics(Rect bounds, WindowInsets windowInsets) {
         this.bounds = bounds;
-        this.windowInsets = windowInsets;
+        this.windowInsets = windowInsets != null ? windowInsets : new WindowInsets();
     }
 
     // ── Accessors ───────────────────────────────────────────────────────────
@@ -29,10 +31,8 @@ public class WindowMetrics {
 
     /**
      * Returns the window insets.
-     * Stub: always returns null (typed as Object to avoid pulling in
-     * the full WindowInsets dependency chain).
      */
-    public Object getWindowInsets() {
-        return null;
+    public WindowInsets getWindowInsets() {
+        return windowInsets;
     }
 }

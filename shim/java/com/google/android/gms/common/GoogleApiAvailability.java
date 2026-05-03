@@ -1,13 +1,16 @@
 package com.google.android.gms.common;
 
 import android.app.Activity;
+import android.app.Dialog;
 import android.content.Context;
+import android.content.DialogInterface;
+import android.content.Intent;
 
 /**
  * Stub GoogleApiAvailability — reports Play Services as unavailable.
  * Apps that gracefully handle missing GMS will fall back to non-GMS paths.
  */
-public class GoogleApiAvailability {
+public class GoogleApiAvailability extends GoogleApiAvailabilityLight {
     public static final int SUCCESS = 0;
     public static final int SERVICE_MISSING = 1;
     public static final int SERVICE_VERSION_UPDATE_REQUIRED = 2;
@@ -30,11 +33,30 @@ public class GoogleApiAvailability {
 
     public void makeGooglePlayServicesAvailable(Activity activity) {}
 
+    public Dialog getErrorDialog(Activity activity, int errorCode, int requestCode) {
+        return null;
+    }
+
+    public Dialog getErrorDialog(Activity activity, int errorCode, int requestCode,
+            DialogInterface.OnCancelListener cancelListener) {
+        return null;
+    }
+
+    @Override
+    public Intent getErrorResolutionIntent(Context context, int errorCode, String trackingSource) {
+        return null;
+    }
+
     public String getErrorString(int errorCode) {
         return "Google Play Services not available (Westlake)";
     }
 
     public boolean showErrorDialogFragment(Activity activity, int errorCode, int requestCode) {
+        return false;
+    }
+
+    public boolean showErrorDialogFragment(Activity activity, int errorCode, int requestCode,
+            DialogInterface.OnCancelListener cancelListener) {
         return false;
     }
 }

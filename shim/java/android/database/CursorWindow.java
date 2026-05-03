@@ -7,6 +7,8 @@ import android.os.Parcel;
 import android.os.Parcelable;
 
 public class CursorWindow extends SQLiteClosable implements Parcelable {
+    private static int sCursorWindowSize = -1;
+
     public CursorWindow(String p0) {}
     public CursorWindow(String p0, long p1) {}
 

@@ -421,7 +421,27 @@ public class TextUtils {
     }
     public static Object expandTemplate(Object p0, Object p1) { return null; }
     public static int getCapsMode(Object p0, Object p1, Object p2) { return 0; }
-    public static int getLayoutDirectionFromLocale(Object p0) { return 0; }
+    public static int getLayoutDirectionFromLocale(Object p0) {
+        return p0 instanceof java.util.Locale
+                ? getLayoutDirectionFromLocale((java.util.Locale) p0)
+                : android.view.View.LAYOUT_DIRECTION_LTR;
+    }
+
+    public static int getLayoutDirectionFromLocale(java.util.Locale locale) {
+        if (locale == null || locale.equals(java.util.Locale.ROOT)) {
+            return android.view.View.LAYOUT_DIRECTION_LTR;
+        }
+        String language = locale.getLanguage();
+        if ("ar".equals(language)
+                || "fa".equals(language)
+                || "he".equals(language)
+                || "iw".equals(language)
+                || "ur".equals(language)
+                || "yi".equals(language)) {
+            return android.view.View.LAYOUT_DIRECTION_RTL;
+        }
+        return android.view.View.LAYOUT_DIRECTION_LTR;
+    }
     public static int getOffsetAfter(Object p0, Object p1) { return 0; }
     public static int getOffsetBefore(Object p0, Object p1) { return 0; }
     public static Object listEllipsize(Object p0, Object p1, Object p2, Object p3, Object p4, Object p5, Object p6) { return null; }

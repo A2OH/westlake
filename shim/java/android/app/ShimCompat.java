@@ -72,12 +72,23 @@ public class ShimCompat {
      * Call Resources.loadResourceTable(table) if available (shim), otherwise no-op.
      */
     public static void loadResourceTable(android.content.res.Resources res, Object table) {
+        if (res == null || table == null) {
+            return;
+        }
+        if (table instanceof android.content.res.ResourceTable) {
+            try {
+                res.loadResourceTable((android.content.res.ResourceTable) table);
+                return;
+            } catch (Throwable ignored) {
+                // Fall through to compatibility lookup for non-shim runtimes.
+            }
+        }
         try {
             Method m = res.getClass().getMethod("loadResourceTable",
                     android.content.res.ResourceTable.class);
             m.setAccessible(true);
             m.invoke(res, table);
-        } catch (Exception e) {
+        } catch (Throwable e) {
             log("loadResourceTable not available: " + e.getClass().getSimpleName());
         }
     }
@@ -87,11 +98,20 @@ public class ShimCompat {
      * Required for ApkResourceLoader.loadLayout() to read AXML from the APK ZIP.
      */
     public static void setApkPath(android.content.res.Resources res, String path) {
+        if (res == null || path == null || path.length() == 0) {
+            return;
+        }
+        try {
+            res.setApkPath(path);
+            return;
+        } catch (Throwable ignored) {
+            // Fall through to compatibility lookup for non-shim runtimes.
+        }
         try {
             Method m = res.getClass().getMethod("setApkPath", String.class);
             m.setAccessible(true);
             m.invoke(res, path);
-        } catch (Exception e) {
+        } catch (Throwable e) {
             log("setApkPath not available: " + e.getClass().getSimpleName());
         }
     }
@@ -100,11 +120,20 @@ public class ShimCompat {
      * Call AssetManager.setAssetDir(path) if available (shim), otherwise no-op.
      */
     public static void setAssetDir(android.content.res.AssetManager assets, String path) {
+        if (assets == null || path == null || path.length() == 0) {
+            return;
+        }
+        try {
+            assets.setAssetDir(path);
+            return;
+        } catch (Throwable ignored) {
+            // Fall through to compatibility lookup for non-shim runtimes.
+        }
         try {
             Method m = assets.getClass().getMethod("setAssetDir", String.class);
             m.setAccessible(true);
             m.invoke(assets, path);
-        } catch (Exception e) {
+        } catch (Throwable e) {
             log("setAssetDir not available: " + e.getClass().getSimpleName());
         }
     }
@@ -117,10 +146,16 @@ public class ShimCompat {
             return;
         }
         try {
+            assets.setApkPath(path);
+            return;
+        } catch (Throwable ignored) {
+            // Fall through to compatibility lookup for non-shim runtimes.
+        }
+        try {
             Method m = assets.getClass().getMethod("setApkPath", String.class);
             m.setAccessible(true);
             m.invoke(assets, path);
-        } catch (Exception e) {
+        } catch (Throwable e) {
             log("setAssetApkPath not available: " + e.getClass().getSimpleName());
         }
     }

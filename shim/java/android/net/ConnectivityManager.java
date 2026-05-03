@@ -1,7 +1,5 @@
 package android.net;
 
-import com.ohos.shim.bridge.OHBridge;
-
 import java.util.ArrayList;
 import java.util.List;
 
@@ -17,9 +15,10 @@ import java.util.List;
  *   isDefaultNetworkActive()        → OHBridge.isNetworkAvailable()
  *   registerDefaultNetworkCallback  → connection.on('netAvailable' / 'netLost')
  *
- * Native queries are delegated to OHBridge.isNetworkAvailable() and
- * OHBridge.getNetworkType(), which already exist in both the real Rust bridge
- * and the mock OHBridge used during local JVM testing.
+ * Native queries go through NetworkBridge instead of calling OHBridge directly.
+ * The real-McD subprocess path can run before OHBridge natives are registered;
+ * direct native calls there are fatal, while NetworkBridge can fall back to a
+ * portable Java answer and later be wired to the OHOS network backend.
  */
 public class ConnectivityManager {
 
@@ -73,10 +72,10 @@ public class ConnectivityManager {
      * OHBridge.getNetworkType(), which map to @ohos.net.connection queries.
      */
     public NetworkInfo getActiveNetworkInfo() {
-        if (!OHBridge.isNetworkAvailable()) {
+        if (!NetworkBridge.isNetworkAvailable()) {
             return null;
         }
-        int ohType = OHBridge.getNetworkType();
+        int ohType = NetworkBridge.getNetworkType();
         return buildNetworkInfo(ohTypeToAndroidType(ohType), true);
     }
 
@@ -89,17 +88,17 @@ public class ConnectivityManager {
      * around continues to work.
      */
     public Network getActiveNetwork() {
-        if (!OHBridge.isNetworkAvailable()) {
+        if (!NetworkBridge.isNetworkAvailable()) {
             return null;
         }
-        return new Network(OHBridge.getNetworkType());
+        return new Network(NetworkBridge.getNetworkType());
     }
 
     /**
      * Returns true if the default network is currently active.
      */
     public boolean isDefaultNetworkActive() {
-        return OHBridge.isNetworkAvailable();
+        return NetworkBridge.isNetworkAvailable();
     }
 
     /**
@@ -109,10 +108,10 @@ public class ConnectivityManager {
      * @param networkType one of TYPE_MOBILE, TYPE_WIFI, TYPE_ETHERNET, …
      */
     public NetworkInfo getNetworkInfo(int networkType) {
-        if (!OHBridge.isNetworkAvailable()) {
+        if (!NetworkBridge.isNetworkAvailable()) {
             return buildNetworkInfo(networkType, false);
         }
-        int activeAndroidType = ohTypeToAndroidType(OHBridge.getNetworkType());
+        int activeAndroidType = ohTypeToAndroidType(NetworkBridge.getNetworkType());
         boolean active = (activeAndroidType == networkType);
         return buildNetworkInfo(networkType, active);
     }

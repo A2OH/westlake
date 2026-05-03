@@ -465,9 +465,21 @@ public class HostBridge {
             dst.packageName = getStringField(src, "packageName");
             dst.name = getStringField(src, "className"); // ApplicationInfo uses className
             if (dst.name == null) dst.name = getStringField(src, "name");
+            dst.className = dst.name;
+            dst.processName = getStringField(src, "processName");
             dst.appComponentFactory = getStringField(src, "appComponentFactory");
             dst.sourceDir = getStringField(src, "sourceDir");
+            dst.publicSourceDir = getStringField(src, "publicSourceDir");
+            if (dst.publicSourceDir == null) dst.publicSourceDir = dst.sourceDir;
+            dst.splitSourceDirs = getStringArrayField(src, "splitSourceDirs");
+            dst.splitPublicSourceDirs = getStringArrayField(src, "splitPublicSourceDirs");
+            dst.resourceDirs = getStringArrayField(src, "resourceDirs");
             dst.dataDir = getStringField(src, "dataDir");
+            dst.nativeLibraryDir = getStringField(src, "nativeLibraryDir");
+            dst.secondaryNativeLibraryDir = getStringField(src, "secondaryNativeLibraryDir");
+            dst.nativeLibraryRootDir = getStringField(src, "nativeLibraryRootDir");
+            dst.primaryCpuAbi = getStringField(src, "primaryCpuAbi");
+            dst.secondaryCpuAbi = getStringField(src, "secondaryCpuAbi");
             dst.flags = getIntField(src, "flags");
             dst.uid = getIntField(src, "uid");
             dst.targetSdkVersion = getIntField(src, "targetSdkVersion");
@@ -523,6 +535,16 @@ public class HostBridge {
             return f.getInt(obj);
         } catch (Exception e) {
             return 0;
+        }
+    }
+
+    private static String[] getStringArrayField(Object obj, String fieldName) {
+        try {
+            java.lang.reflect.Field f = obj.getClass().getField(fieldName);
+            Object val = f.get(obj);
+            return val instanceof String[] ? (String[]) val : new String[0];
+        } catch (Exception e) {
+            return new String[0];
         }
     }
 

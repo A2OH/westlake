@@ -27,6 +27,7 @@ public class SystemServiceRegistry {
     private static Object sPhoneService;
     private static Object sSensorService;
     private static Object sInputMethodService;
+    private static Object sWindowService;
 
     private static String[] sCustomNames = new String[4];
     private static Object[] sCustomServices = new Object[4];
@@ -117,6 +118,12 @@ public class SystemServiceRegistry {
                 sInputMethodService = new android.view.inputmethod.InputMethodManager();
             }
             return sInputMethodService;
+        }
+        if ("window".equals(name)) {
+            if (sWindowService == null) {
+                sWindowService = android.view.WindowManagerGlobal.getInstance();
+            }
+            return sWindowService;
         }
 
         return null;

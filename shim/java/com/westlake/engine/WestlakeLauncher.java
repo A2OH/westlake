@@ -37,9 +37,25 @@ public class WestlakeLauncher {
     private static final int YELP_ROW_GAP = 12;
     private static final String FRAMEWORK_POLICY_PROP = "westlake.framework.policy";
     private static final String FRAMEWORK_POLICY_WESTLAKE_ONLY = "westlake_only";
+    private static final String MCD_DASHBOARD_SYNTHETIC_FALLBACK_PROP =
+            "westlake.mcd.dashboard.synthetic_fallback";
+    private static final String MCD_UNSAFE_MODEL_COMMIT_PROP =
+            "westlake.mcd.unsafe_model_commit";
+    private static final String MCD_UNSAFE_STORAGE_COMMIT_PROP =
+            "westlake.mcd.unsafe_storage_commit";
+    private static final String MCD_UNSAFE_OBSERVER_DISPATCH_PROP =
+            "westlake.mcd.unsafe_observer_dispatch";
+    private static int sMcdDashboardSectionsSeededForActivity;
+    private static int sMcdDashboardHomeVisibleForcedForActivity;
+    private static int sMcdNonDashboardFrameProbeCount;
+    private static int sMcdOrderPdpRootProbeCount;
+    private static int sMcdOrderPdpReadyProbeCount;
     private static final String BACKEND_MODE_PROP = "westlake.backend.mode";
     private static final String BACKEND_MODE_TARGET_OHOS = "target_ohos_backend";
     private static final String BACKEND_MODE_CONTROL_ANDROID = "control_android_backend";
+    private static final String ICU_DATA_PATH_PROP = "android.icu.impl.ICUBinary.dataPath";
+    private static final String ICU_DATA_PATH_DEFAULT =
+            "/data/local/tmp/westlake/icu:/apex/com.android.i18n/etc/icu";
     private static final String CUTOFF_CANARY_STAGE_PROP = "westlake.canary.stage";
     private static final String CUTOFF_CANARY_PACKAGE = "com.westlake.cutoffcanary";
     private static final String CUTOFF_CANARY_APPLICATION = "com.westlake.cutoffcanary.CanaryApp";
@@ -68,6 +84,9 @@ public class WestlakeLauncher {
     private static boolean sNativeAllocUnavailable;
     private static boolean sNativePrimeLaunchConfigUnavailable;
     private static boolean sStandardStreamsInstalled;
+    private static final Object sStrictFrameOutputLock = new Object();
+    private static java.io.OutputStream sStrictFrameFileOut;
+    private static String sStrictFrameFilePath;
     private static boolean sBackendModeResolved;
     private static boolean sControlAndroidBackendCached;
     private static String sResolvedBackendMode;
@@ -80,6 +99,8 @@ public class WestlakeLauncher {
     private static final java.util.HashMap<String, String> sLaunchFileProps = new java.util.HashMap<String, String>();
     private static final java.util.ArrayList<Activity> sInstalledDashboardFallbacks =
             new java.util.ArrayList<Activity>();
+    private static android.widget.TextView sDashboardFallbackStatusView;
+    private static int sDashboardFallbackCartCount;
     private static boolean sLaunchFileLoaded;
     private static boolean sLoggedAppClassLoaders;
     private static boolean sLoggedDashboardOwnership;
@@ -87,9 +108,47 @@ public class WestlakeLauncher {
     private static boolean sDisableHostInputPolling;
     private static int sDashboardRootDrawCount;
     private static int sDashboardCanvasDrawCount;
+    private static int sDashboardRootProbeCount;
+    private static int sDashboardInstallProbeCount;
+    private static int sMcdDashboardRecyclerBoundsFixCount;
+    private static int sDirectRecyclerRenderLogCount;
+    private static int sStrictImageRowLogCount;
+    private static int sMcdDashboardScrollLogCount;
+    private static int sMcdDashboardTouchLogCount;
+    private static int sMcdDashboardProjectionScrollOffset;
+    private static final int MCD_OFFLINE_MAX_QTTY_ALLOWED_PER_ORDER = 99;
+    private static volatile int sMcdOrderPdpQuantity = 1;
+    private static volatile int sMcdOrderPdpBagCount;
+    private static volatile String sMcdOrderPdpLastAction = "Ready";
     private static int sHttpBridgeSeq;
     private static volatile int sHttpBridgeLastStatus;
     private static volatile String sHttpBridgeLastError;
+    private static volatile String sMcdMenuJson;
+    private static volatile String sMcdHeroJson;
+    private static volatile String sMcdMarketingJson;
+    private static volatile boolean sMcdPromoImageFallbackLogged;
+    private static final java.util.HashMap<String, byte[]> sMcdImageCache =
+            new java.util.HashMap<String, byte[]>();
+    private static volatile androidx.recyclerview.widget.RecyclerView sMcdDashboardPopularRecycler;
+    private static volatile Object sMcdLastPopularProduct;
+    private static final Object sMcdPdpDeferredStockAddLock = new Object();
+    private static volatile int sMcdPdpPendingStockAddCount;
+    private static volatile boolean sMcdPdpDeferredStockAddWorkerActive;
+    private static final java.util.IdentityHashMap sMcdGlideProbeRequests =
+            new java.util.IdentityHashMap();
+    private static boolean sViewFrameFieldsResolved;
+    private static java.lang.reflect.Field sViewLeftField;
+    private static java.lang.reflect.Field sViewTopField;
+    private static java.lang.reflect.Field sViewRightField;
+    private static java.lang.reflect.Field sViewBottomField;
+    private static java.lang.reflect.Field sViewMeasuredWidthField;
+    private static java.lang.reflect.Field sViewMeasuredHeightField;
+    private static final String MCD_MENU_JSON_URL =
+            "https://www.mcdonalds.com/GMA/gma/us-prod/5.0/json/menu.json";
+    private static final String MCD_PROMOTION_SEED_IMAGE_URL =
+            "https://s7d1.scene7.com/is/image/mcdonalds/DC_202302_0005-999_BigMac_1564x1564-1:nutrition-calculator-tile";
+    private static final String MCD_POPULAR_SEED_IMAGE_NAME =
+            "DC_202302_0005-999_BigMac_1564x1564-1";
     public static byte[] splashImageData; // Raw image bytes for OP_IMAGE rendering
     /** Real Android context when running on app_process64 */
     public static Object sRealContext;
@@ -104,6 +163,8 @@ public class WestlakeLauncher {
     private static final String CUTOFF_CANARY_PUBLIC_MARKER_PATH =
             "/data/local/tmp/westlake/cutoff_canary_markers.log";
     private static volatile String sLastLaunchMarker;
+    private static volatile boolean sIcuDataBootstrapped;
+    private static volatile boolean sSecurityProvidersBootstrapped;
 
     private static void safeNativeLog(String message) {
         if (sNativeLogUnavailable || message == null) {
@@ -185,6 +246,117 @@ public class WestlakeLauncher {
 
     public static boolean isRealFrameworkFallbackAllowed() {
         return !FRAMEWORK_POLICY_WESTLAKE_ONLY.equals(frameworkPolicyValue());
+    }
+
+    private static boolean isTruthyConfigValue(String value) {
+        return value != null && value.length() > 0
+                && !"0".equals(value)
+                && !"false".equalsIgnoreCase(value)
+                && !"no".equalsIgnoreCase(value)
+                && !"off".equalsIgnoreCase(value);
+    }
+
+    private static boolean isDashboardSyntheticFallbackEnabled() {
+        try {
+            if (isTruthyConfigValue(System.getProperty(
+                    MCD_DASHBOARD_SYNTHETIC_FALLBACK_PROP))) {
+                return true;
+            }
+        } catch (Throwable ignored) {
+        }
+        try {
+            if (isTruthyConfigValue(System.getenv(
+                    "WESTLAKE_MCD_DASHBOARD_SYNTHETIC_FALLBACK"))) {
+                return true;
+            }
+        } catch (Throwable ignored) {
+        }
+        String launchValue = launchFilePropertyInternal(
+                MCD_DASHBOARD_SYNTHETIC_FALLBACK_PROP, false);
+        return isTruthyConfigValue(launchValue);
+    }
+
+    private static boolean isMcdUnsafeModelCommitEnabled() {
+        try {
+            if (isTruthyConfigValue(System.getProperty(MCD_UNSAFE_MODEL_COMMIT_PROP))) {
+                return true;
+            }
+        } catch (Throwable ignored) {
+        }
+        try {
+            if (isTruthyConfigValue(System.getenv("WESTLAKE_MCD_UNSAFE_MODEL_COMMIT"))) {
+                return true;
+            }
+        } catch (Throwable ignored) {
+        }
+        if (isMcdProbeFlagFileEnabled("westlake_mcd_unsafe_model_commit.txt")) {
+            return true;
+        }
+        String launchValue = launchFilePropertyInternal(MCD_UNSAFE_MODEL_COMMIT_PROP, false);
+        return isTruthyConfigValue(launchValue);
+    }
+
+    private static boolean isMcdUnsafeStorageCommitEnabled() {
+        try {
+            if (isTruthyConfigValue(System.getProperty(MCD_UNSAFE_STORAGE_COMMIT_PROP))) {
+                return true;
+            }
+        } catch (Throwable ignored) {
+        }
+        try {
+            if (isTruthyConfigValue(System.getenv("WESTLAKE_MCD_UNSAFE_STORAGE_COMMIT"))) {
+                return true;
+            }
+        } catch (Throwable ignored) {
+        }
+        if (isMcdProbeFlagFileEnabled("westlake_mcd_unsafe_storage_commit.txt")) {
+            return true;
+        }
+        String launchValue = launchFilePropertyInternal(MCD_UNSAFE_STORAGE_COMMIT_PROP, false);
+        return isTruthyConfigValue(launchValue);
+    }
+
+    private static boolean isMcdUnsafeObserverDispatchEnabled() {
+        try {
+            if (isTruthyConfigValue(System.getProperty(MCD_UNSAFE_OBSERVER_DISPATCH_PROP))) {
+                return true;
+            }
+        } catch (Throwable ignored) {
+        }
+        try {
+            if (isTruthyConfigValue(System.getenv("WESTLAKE_MCD_UNSAFE_OBSERVER_DISPATCH"))) {
+                return true;
+            }
+        } catch (Throwable ignored) {
+        }
+        if (isMcdProbeFlagFileEnabled("westlake_mcd_unsafe_observer_dispatch.txt")) {
+            return true;
+        }
+        String launchValue = launchFilePropertyInternal(
+                MCD_UNSAFE_OBSERVER_DISPATCH_PROP, false);
+        return isTruthyConfigValue(launchValue);
+    }
+
+    private static boolean isMcdProbeFlagFileEnabled(String name) {
+        if (name == null || name.indexOf('/') >= 0) {
+            return false;
+        }
+        return isTruthyFileValue("/sdcard/Android/data/com.westlake.host/files/" + name)
+                || isTruthyFileValue("/storage/emulated/0/Android/data/com.westlake.host/files/"
+                        + name)
+                || isTruthyFileValue("/data/local/tmp/westlake/" + name);
+    }
+
+    private static boolean isTruthyFileValue(String path) {
+        try {
+            byte[] data = tryReadFileBytes(path);
+            if (data == null || data.length == 0) {
+                return false;
+            }
+            return isTruthyConfigValue(new String(data).trim());
+        } catch (Throwable ignored) {
+            return false;
+        }
     }
 
     private static String backendModeValue() {
@@ -322,22 +494,23 @@ public class WestlakeLauncher {
     }
 
     private static void primeCharsetState() {
+        Class<?> charset;
         try {
-            Class<?> charset = Class.forName("java.nio.charset.Charset");
-            java.lang.reflect.Field cache2 = charset.getDeclaredField("cache2");
-            cache2.setAccessible(true);
-            if (cache2.get(null) == null) {
-                cache2.set(null, new java.util.HashMap());
-            }
-            java.lang.reflect.Field gate = charset.getDeclaredField("gate");
-            gate.setAccessible(true);
-            if (gate.get(null) == null) {
-                gate.set(null, new java.lang.ThreadLocal());
-            }
-            java.lang.reflect.Field defaultCharset = charset.getDeclaredField("defaultCharset");
-            defaultCharset.setAccessible(true);
-            if (defaultCharset.get(null) == null) {
-                defaultCharset.set(null, java.nio.charset.StandardCharsets.UTF_8);
+            charset = Class.forName("java.nio.charset.Charset");
+        } catch (Throwable ignored) {
+            return;
+        }
+        setStaticFieldIfNull(charset, "cache2", new java.util.HashMap());
+        setStaticFieldIfNull(charset, "gate", new java.lang.ThreadLocal());
+        setStaticFieldIfNull(charset, "defaultCharset", java.nio.charset.StandardCharsets.UTF_8);
+    }
+
+    private static void setStaticFieldIfNull(Class<?> owner, String fieldName, Object value) {
+        try {
+            java.lang.reflect.Field field = owner.getDeclaredField(fieldName);
+            field.setAccessible(true);
+            if (field.get(null) == null) {
+                field.set(null, value);
             }
         } catch (Throwable ignored) {
         }
@@ -458,12 +631,42 @@ public class WestlakeLauncher {
         return throwableTag(t) + ": " + message;
     }
 
+    private static Throwable rootCause(Throwable t) {
+        Throwable current = t;
+        while (current instanceof java.lang.reflect.InvocationTargetException
+                && ((java.lang.reflect.InvocationTargetException) current).getCause() != null) {
+            current = ((java.lang.reflect.InvocationTargetException) current).getCause();
+        }
+        return current;
+    }
+
+    private static String throwableFirstFrameTag(Throwable t) {
+        if (t == null) {
+            return "null";
+        }
+        try {
+            StackTraceElement[] stack = t.getStackTrace();
+            if (stack == null || stack.length == 0 || stack[0] == null) {
+                return "none";
+            }
+            StackTraceElement frame = stack[0];
+            return frame.getClassName() + "." + frame.getMethodName()
+                    + ":" + frame.getLineNumber();
+        } catch (Throwable ignored) {
+            return "error";
+        }
+    }
+
     public static void dumpThrowable(String prefix, Throwable t) {
         if (prefix != null) {
             startupLog(prefix + ": " + throwableSummary(t));
         } else if (t != null) {
             startupLog(throwableSummary(t));
         }
+    }
+
+    public static void dumpThrowableFrames(String prefix, Throwable t, int maxFrames) {
+        logThrowableFrames(prefix, t, maxFrames);
     }
 
     private static void logThrowableFrames(String prefix, Throwable t, int maxFrames) {
@@ -552,6 +755,14 @@ public class WestlakeLauncher {
             }
         }
         return true;
+    }
+
+    private static boolean isMcdonaldsPackageOrClass(String value) {
+        if (value == null) {
+            return false;
+        }
+        String lower = value.toLowerCase(java.util.Locale.US);
+        return lower.contains("mcdonalds") || lower.contains(".mcd");
     }
 
     public static boolean appendCutoffCanaryMarker(String message) {
@@ -804,6 +1015,108 @@ public class WestlakeLauncher {
             return fileValue;
         }
         return snapshot;
+    }
+
+    public static void bootstrapIcuDataPath() {
+        if (sIcuDataBootstrapped) {
+            return;
+        }
+        sIcuDataBootstrapped = true;
+
+        String dataPath = safeNativeVmProperty(ICU_DATA_PATH_PROP);
+        if (dataPath == null || dataPath.isEmpty()) {
+            try {
+                dataPath = System.getProperty(ICU_DATA_PATH_PROP);
+            } catch (Throwable ignored) {
+            }
+        }
+        if (dataPath == null || dataPath.isEmpty()) {
+            dataPath = launchFilePropertyInternal(ICU_DATA_PATH_PROP, false);
+        }
+        if (dataPath == null || dataPath.isEmpty()) {
+            dataPath = ICU_DATA_PATH_DEFAULT;
+        }
+
+        try {
+            System.setProperty(ICU_DATA_PATH_PROP, dataPath);
+        } catch (Throwable ignored) {
+        }
+
+        try {
+            Class<?> icuBinary = Class.forName("android.icu.impl.ICUBinary");
+            java.lang.reflect.Field filesField = icuBinary.getDeclaredField("icuDataFiles");
+            filesField.setAccessible(true);
+            Object files = filesField.get(null);
+            int before = collectionSize(files);
+
+            java.lang.reflect.Method addMethod = icuBinary.getDeclaredMethod(
+                    "addDataFilesFromPath", String.class, java.util.List.class);
+            addMethod.setAccessible(true);
+            addMethod.invoke(null, dataPath, files);
+
+            int after = collectionSize(files);
+            Object probe = null;
+            try {
+                java.lang.reflect.Method getData = icuBinary.getMethod("getData", String.class);
+                probe = getData.invoke(null, "en_US.res");
+            } catch (Throwable ignored) {
+            }
+            startupLog("[WestlakeLauncher] ICU dataPath bootstrapped: " + dataPath
+                    + " files=" + before + "->" + after
+                    + " en_US=" + (probe != null));
+        } catch (Throwable t) {
+            startupLog("[WestlakeLauncher] ICU dataPath bootstrap failed: " + throwableTag(t));
+        }
+    }
+
+    public static void bootstrapSecurityProviders() {
+        if (sSecurityProvidersBootstrapped) {
+            return;
+        }
+        sSecurityProvidersBootstrapped = true;
+        try {
+            java.security.Provider provider =
+                    new java.security.Provider("WestlakeDigest", 1.0,
+                            "Westlake digest provider") {
+                        {
+                            put("MessageDigest.SHA-256",
+                                    "sun.security.provider.SHA2$SHA256");
+                            put("Alg.Alias.MessageDigest.SHA256", "SHA-256");
+                            put("Alg.Alias.MessageDigest.2.16.840.1.101.3.4.2.1",
+                                    "SHA-256");
+                        }
+                    };
+            java.security.Security.insertProviderAt(provider, 1);
+        } catch (Throwable t) {
+            marker("WESTLAKE_SECURITY_PROVIDER_INSTALL_FAIL err="
+                    + safeMarkerToken(throwableTag(t)));
+        }
+        try {
+            Class.forName("sun.security.provider.SHA2$SHA256");
+            java.security.MessageDigest digest =
+                    java.security.MessageDigest.getInstance("SHA-256");
+            byte[] value = digest.digest(new byte[] { 0x61, 0x62, 0x63 });
+            marker("WESTLAKE_SECURITY_SHA256_READY provider="
+                    + safeMarkerToken(digest.getProvider() != null
+                            ? digest.getProvider().getName() : "null")
+                    + " len=" + intAscii(value != null ? value.length : -1)
+                    + " first=" + intAscii(value != null && value.length > 0
+                            ? value[0] & 0xff : -1));
+        } catch (Throwable t) {
+            marker("WESTLAKE_SECURITY_SHA256_FAIL err="
+                    + safeMarkerToken(throwableTag(t))
+                    + " msg=" + safeMarkerToken(throwableMessage(t)));
+        }
+    }
+
+    private static int collectionSize(Object value) {
+        if (value instanceof java.util.Collection) {
+            try {
+                return ((java.util.Collection<?>) value).size();
+            } catch (Throwable ignored) {
+            }
+        }
+        return -1;
     }
 
     public static String currentApkPathForShim() {
@@ -2025,7 +2338,7 @@ public class WestlakeLauncher {
         }
         int clampedMax = maxBytes;
         if (clampedMax <= 0) clampedMax = 128 * 1024;
-        if (clampedMax > 512 * 1024) clampedMax = 512 * 1024;
+        if (clampedMax > 4 * 1024 * 1024) clampedMax = 4 * 1024 * 1024;
         int clampedTimeout = timeoutMs;
         if (clampedTimeout < 250) clampedTimeout = 250;
         if (clampedTimeout > 15000) clampedTimeout = 15000;
@@ -2051,6 +2364,11 @@ public class WestlakeLauncher {
                 if (status >= 200 && status < 300) {
                     byte[] body = tryReadFileBytes(bodyPath);
                     if (body != null) {
+                        cacheMcdBridgeResponse(url, body);
+                        startupLog("[WestlakeLauncher] WestlakeHttp GET response code="
+                                + intAscii(status)
+                                + " bytes=" + intAscii(body.length)
+                                + " url=" + safeMarkerToken(url));
                         return body;
                     }
                     sHttpBridgeLastError = "body_missing";
@@ -2069,6 +2387,416 @@ public class WestlakeLauncher {
         }
         sHttpBridgeLastStatus = -408;
         sHttpBridgeLastError = "timeout";
+        return null;
+    }
+
+    private static void cacheMcdBridgeResponse(String url, byte[] body) {
+        if (url == null || body == null || body.length == 0) {
+            return;
+        }
+        try {
+            String json = null;
+            if (url.indexOf("/menu.json") >= 0) {
+                json = bytesToUtf8(body);
+                sMcdMenuJson = json;
+            } else if (url.indexOf("hero-android") >= 0) {
+                json = bytesToUtf8(body);
+                sMcdHeroJson = json;
+            } else if (url.indexOf("marketing-android") >= 0) {
+                json = bytesToUtf8(body);
+                sMcdMarketingJson = json;
+            }
+            if (json != null) {
+                startupLog("[WestlakeLauncher] MCD_LIVE_JSON_CACHE url="
+                        + safeMarkerToken(url)
+                        + " chars=" + intAscii(json.length()));
+            }
+        } catch (Throwable ignored) {
+        }
+    }
+
+    private static String ensureMcdMenuJson() {
+        String json = sMcdMenuJson;
+        if (json != null && json.length() > 0) {
+            return json;
+        }
+        synchronized (WestlakeLauncher.class) {
+            json = sMcdMenuJson;
+            if (json != null && json.length() > 0) {
+                return json;
+            }
+            byte[] body = bridgeHttpGetBytes(MCD_MENU_JSON_URL, 512 * 1024, 12000);
+            if (body != null && body.length > 0) {
+                json = bytesToUtf8(body);
+                sMcdMenuJson = json;
+                return json;
+            }
+        }
+        return null;
+    }
+
+    public static String mcdLiveAdapterLabel(int recyclerId, int position, String fallback) {
+        if ((recyclerId == 0x7f0b1367 || recyclerId == 0x7f0b13f3)
+                && fallback != null && fallback.length() > 0) {
+            return fallback;
+        }
+        String json = ensureMcdMenuJson();
+        if (json == null || json.length() == 0) {
+            return fallback;
+        }
+        int offset = mcdLiveMenuOffset(recyclerId, fallback);
+        String value = nthMcdMenuEnglishValue(json, "ShortName", offset + position);
+        if (value == null || value.length() == 0) {
+            value = nthMcdMenuEnglishValue(json, "LongName", offset + position);
+        }
+        return value != null && value.length() > 0 ? value : fallback;
+    }
+
+    public static byte[] mcdLiveAdapterImageBytes(int recyclerId, int position) {
+        return mcdLiveAdapterImageBytes(recyclerId, position, null);
+    }
+
+    public static byte[] mcdLiveAdapterImageBytes(
+            int recyclerId, int position, String labelHint) {
+        String json = ensureMcdMenuJson();
+        if (json == null || json.length() == 0) {
+            return null;
+        }
+        String url = mcdMenuProductImageUrlForLabel(json, labelHint);
+        if (url == null || url.length() == 0) {
+            url = mcdMenuCategoryImageUrlForLabel(json, labelHint);
+        }
+        if (url == null || url.length() == 0) {
+            int offset = mcdLiveMenuOffset(recyclerId, null);
+            url = nthMcdMenuEnglishImageUrl(json, offset + position);
+        }
+        if ((url == null || url.length() == 0) && recyclerId == 0x7f0b13f3) {
+            url = MCD_PROMOTION_SEED_IMAGE_URL;
+            logMcdPromoImageFallback(position, "missing_menu_image");
+        }
+        if (url == null || url.length() == 0) {
+            return null;
+        }
+        synchronized (sMcdImageCache) {
+            byte[] cached = sMcdImageCache.get(url);
+            if (cached != null) {
+                return cached;
+            }
+        }
+        byte[] body = bridgeHttpGetBytes(url, 512 * 1024, 8000);
+        if ((body == null || body.length == 0)
+                && recyclerId == 0x7f0b13f3
+                && !MCD_PROMOTION_SEED_IMAGE_URL.equals(url)) {
+            url = MCD_PROMOTION_SEED_IMAGE_URL;
+            logMcdPromoImageFallback(position, "menu_image_fetch_failed");
+            body = bridgeHttpGetBytes(url, 512 * 1024, 8000);
+        }
+        if (body != null && body.length > 0) {
+            synchronized (sMcdImageCache) {
+                if (sMcdImageCache.size() < 16) {
+                    sMcdImageCache.put(url, body);
+                }
+            }
+        }
+        return body;
+    }
+
+    private static void logMcdPromoImageFallback(int position, String reason) {
+        if (sMcdPromoImageFallbackLogged) {
+            return;
+        }
+        sMcdPromoImageFallbackLogged = true;
+        String markerValue = "position=" + intAscii(position)
+                + " reason=" + safeMarkerToken(reason)
+                + " url=" + safeMarkerToken(MCD_PROMOTION_SEED_IMAGE_URL);
+        marker("MCD_DASH_PROMO_IMAGE_FALLBACK " + markerValue);
+        appendCutoffCanaryMarker("MCD_DASH_PROMO_IMAGE_FALLBACK " + markerValue);
+        startupLog("[WestlakeLauncher] MCD_DASH_PROMO_IMAGE_FALLBACK "
+                + markerValue);
+    }
+
+    private static String mcdMenuCategoryImageUrlForLabel(String json, String label) {
+        String categoryName = mcdMenuCategoryNameForLabel(label);
+        if (json == null || categoryName == null || categoryName.length() == 0) {
+            return null;
+        }
+        String categoryNeedle = categoryName.toLowerCase(java.util.Locale.US);
+        int pos = 0;
+        while (pos >= 0 && pos < json.length()) {
+            int imageKey = json.indexOf("\"imageUrl\"", pos);
+            if (imageKey < 0) {
+                return null;
+            }
+            String url = extractJsonStringValue(json, imageKey);
+            int nextImage = json.indexOf("\"imageUrl\"", imageKey + 10);
+            int end = nextImage >= 0 ? nextImage : json.length();
+            String segment = json.substring(imageKey, Math.min(end, imageKey + 2200));
+            try {
+                if (segment.toLowerCase(java.util.Locale.US).indexOf(categoryNeedle) >= 0) {
+                    return url;
+                }
+            } catch (Throwable ignored) {
+            }
+            pos = imageKey + 10;
+        }
+        return null;
+    }
+
+    private static String mcdMenuProductImageUrlForLabel(String json, String label) {
+        String labelNeedle = normalizeMcdMenuName(label);
+        if (json == null || labelNeedle == null || labelNeedle.length() < 3) {
+            return null;
+        }
+        int pos = 0;
+        while (pos >= 0 && pos < json.length()) {
+            int lang = json.indexOf("\"LanguageID\"", pos);
+            if (lang < 0) {
+                return null;
+            }
+            int nextLang = json.indexOf("\"LanguageID\"", lang + 12);
+            int en = json.indexOf("\"en-US\"", lang);
+            if (en < 0 || (nextLang >= 0 && en > nextLang)) {
+                pos = nextLang >= 0 ? nextLang : lang + 12;
+                continue;
+            }
+            int shortNameKey = json.indexOf("\"ShortName\"", en);
+            int longNameKey = json.indexOf("\"LongName\"", en);
+            String shortName = (shortNameKey >= 0 && (nextLang < 0 || shortNameKey < nextLang))
+                    ? extractJsonStringValue(json, shortNameKey) : null;
+            String longName = (longNameKey >= 0 && (nextLang < 0 || longNameKey < nextLang))
+                    ? extractJsonStringValue(json, longNameKey) : null;
+            if (mcdMenuNameMatches(labelNeedle, shortName)
+                    || mcdMenuNameMatches(labelNeedle, longName)) {
+                int imageKey = json.lastIndexOf("\"imageUrl\"", lang);
+                if (imageKey >= 0) {
+                    String url = extractJsonStringValue(json, imageKey);
+                    if (url != null && url.length() > 0) {
+                        return url;
+                    }
+                }
+            }
+            pos = nextLang >= 0 ? nextLang : lang + 12;
+        }
+        return null;
+    }
+
+    private static boolean mcdMenuNameMatches(String labelNeedle, String menuName) {
+        String candidate = normalizeMcdMenuName(menuName);
+        if (labelNeedle == null || candidate == null
+                || labelNeedle.length() < 3 || candidate.length() < 3) {
+            return false;
+        }
+        return candidate.equals(labelNeedle)
+                || candidate.indexOf(labelNeedle) >= 0
+                || labelNeedle.indexOf(candidate) >= 0;
+    }
+
+    private static String normalizeMcdMenuName(String value) {
+        if (value == null) {
+            return null;
+        }
+        String lower;
+        try {
+            lower = value.toLowerCase(java.util.Locale.US);
+        } catch (Throwable ignored) {
+            lower = value;
+        }
+        StringBuilder out = new StringBuilder(lower.length());
+        boolean lastSpace = true;
+        for (int i = 0; i < lower.length(); i++) {
+            char c = lower.charAt(i);
+            boolean keep = (c >= 'a' && c <= 'z') || (c >= '0' && c <= '9');
+            if (keep) {
+                out.append(c);
+                lastSpace = false;
+            } else if (!lastSpace) {
+                out.append(' ');
+                lastSpace = true;
+            }
+        }
+        int len = out.length();
+        if (len > 0 && out.charAt(len - 1) == ' ') {
+            out.setLength(len - 1);
+        }
+        return out.length() > 0 ? out.toString() : null;
+    }
+
+    private static String mcdMenuCategoryNameForLabel(String label) {
+        if (label == null) {
+            return null;
+        }
+        String lower;
+        try {
+            lower = label.toLowerCase(java.util.Locale.US);
+        } catch (Throwable ignored) {
+            lower = label;
+        }
+        if (lower.indexOf("nugget") >= 0 || lower.indexOf("chicken") >= 0
+                || lower.indexOf("crispy") >= 0) {
+            return "Chicken";
+        }
+        if (lower.indexOf("fries") >= 0 || lower.indexOf("fry") >= 0
+                || lower.indexOf("side") >= 0 || lower.indexOf("hash") >= 0) {
+            return "Hash Browns & Sides";
+        }
+        if (lower.indexOf("big mac") >= 0 || lower.indexOf("burger") >= 0
+                || lower.indexOf("cheeseburger") >= 0) {
+            return "Burgers";
+        }
+        if (lower.indexOf("mccafe") >= 0 || lower.indexOf("mccaf") >= 0
+                || lower.indexOf("cafe") >= 0 || lower.indexOf("coffee") >= 0) {
+            return "McCafé";
+        }
+        if (lower.indexOf("breakfast") >= 0 || lower.indexOf("sandwich") >= 0) {
+            return "Sandwiches";
+        }
+        if (lower.indexOf("happy") >= 0) {
+            return "Happy Meal";
+        }
+        return null;
+    }
+
+    private static int mcdLiveMenuOffset(int recyclerId, String fallback) {
+        if (recyclerId == 0x7f0b1367) {
+            return 8;
+        }
+        if (recyclerId == 0x7f0b13f3) {
+            return 12;
+        }
+        if (fallback != null && (fallback.indexOf("Big Mac") >= 0
+                || fallback.indexOf("McNuggets") >= 0)) {
+            return 8;
+        }
+        return 0;
+    }
+
+    private static String nthMcdMenuEnglishValue(String json, String field, int wanted) {
+        if (json == null || field == null || wanted < 0) {
+            return null;
+        }
+        String[] seen = new String[48];
+        int seenCount = 0;
+        int found = 0;
+        int pos = 0;
+        while (pos >= 0 && pos < json.length()) {
+            int lang = json.indexOf("\"LanguageID\"", pos);
+            if (lang < 0) {
+                return null;
+            }
+            int en = json.indexOf("\"en-US\"", lang);
+            int nextLang = json.indexOf("\"LanguageID\"", lang + 12);
+            if (en < 0 || (nextLang >= 0 && en > nextLang)) {
+                pos = nextLang >= 0 ? nextLang : lang + 12;
+                continue;
+            }
+            int key = json.indexOf("\"" + field + "\"", en);
+            if (key < 0 || (nextLang >= 0 && key > nextLang)) {
+                pos = nextLang >= 0 ? nextLang : en + 7;
+                continue;
+            }
+            String value = extractJsonStringValue(json, key);
+            pos = key + field.length() + 2;
+            if (value == null || value.length() == 0 || stringArrayContains(seen, seenCount, value)) {
+                continue;
+            }
+            if (seenCount < seen.length) {
+                seen[seenCount++] = value;
+            }
+            if (found == wanted) {
+                return value;
+            }
+            found++;
+        }
+        return null;
+    }
+
+    private static String nthMcdMenuEnglishImageUrl(String json, int wanted) {
+        if (json == null || wanted < 0) {
+            return null;
+        }
+        String[] seen = new String[48];
+        int seenCount = 0;
+        int found = 0;
+        int pos = 0;
+        while (pos >= 0 && pos < json.length()) {
+            int lang = json.indexOf("\"LanguageID\"", pos);
+            if (lang < 0) {
+                return null;
+            }
+            int en = json.indexOf("\"en-US\"", lang);
+            int nextLang = json.indexOf("\"LanguageID\"", lang + 12);
+            if (en < 0 || (nextLang >= 0 && en > nextLang)) {
+                pos = nextLang >= 0 ? nextLang : lang + 12;
+                continue;
+            }
+            int shortName = json.indexOf("\"ShortName\"", en);
+            if (shortName < 0 || (nextLang >= 0 && shortName > nextLang)) {
+                pos = nextLang >= 0 ? nextLang : en + 7;
+                continue;
+            }
+            String name = extractJsonStringValue(json, shortName);
+            pos = shortName + 11;
+            if (name == null || name.length() == 0 || stringArrayContains(seen, seenCount, name)) {
+                continue;
+            }
+            if (seenCount < seen.length) {
+                seen[seenCount++] = name;
+            }
+            int imageKey = json.lastIndexOf("\"imageUrl\"", lang);
+            if (found == wanted && imageKey >= 0) {
+                return extractJsonStringValue(json, imageKey);
+            }
+            found++;
+        }
+        return null;
+    }
+
+    private static boolean stringArrayContains(String[] values, int count, String needle) {
+        if (values == null || needle == null) {
+            return false;
+        }
+        int limit = Math.min(count, values.length);
+        for (int i = 0; i < limit; i++) {
+            if (needle.equals(values[i])) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private static String extractJsonStringValue(String json, int keyIndex) {
+        if (json == null || keyIndex < 0) {
+            return null;
+        }
+        int colon = json.indexOf(':', keyIndex);
+        if (colon < 0) {
+            return null;
+        }
+        int start = json.indexOf('"', colon + 1);
+        if (start < 0) {
+            return null;
+        }
+        StringBuilder out = new StringBuilder(32);
+        boolean escape = false;
+        for (int i = start + 1; i < json.length(); i++) {
+            char c = json.charAt(i);
+            if (escape) {
+                if (c == 'n') {
+                    out.append('\n');
+                } else if (c == 't') {
+                    out.append('\t');
+                } else {
+                    out.append(c);
+                }
+                escape = false;
+            } else if (c == '\\') {
+                escape = true;
+            } else if (c == '"') {
+                return out.toString();
+            } else {
+                out.append(c);
+            }
+        }
         return null;
     }
 
@@ -2170,7 +2898,7 @@ public class WestlakeLauncher {
     private static int clampBridgeHttpMaxBytes(int maxBytes) {
         int clampedMax = maxBytes;
         if (clampedMax <= 0) clampedMax = 128 * 1024;
-        if (clampedMax > 512 * 1024) clampedMax = 512 * 1024;
+        if (clampedMax > 4 * 1024 * 1024) clampedMax = 4 * 1024 * 1024;
         return clampedMax;
     }
 
@@ -2354,11 +3082,15 @@ public class WestlakeLauncher {
         if (bytes == null || bytes.length == 0) {
             return "";
         }
-        char[] chars = new char[bytes.length];
-        for (int i = 0; i < bytes.length; i++) {
-            chars[i] = (char) (bytes[i] & 0xff);
+        try {
+            return new String(bytes, "UTF-8");
+        } catch (Throwable ignored) {
+            char[] chars = new char[bytes.length];
+            for (int i = 0; i < bytes.length; i++) {
+                chars[i] = (char) (bytes[i] & 0xff);
+            }
+            return new String(chars);
         }
-        return new String(chars);
     }
 
     private static int parseBridgeMetaInt(String meta, String key, int fallback) {
@@ -2704,6 +3436,22 @@ public class WestlakeLauncher {
                 .equals(activity.getClass().getName());
     }
 
+    private static boolean isOrderProductDetailsActivity(Activity activity) {
+        return activity != null
+                && "com.mcdonalds.order.activity.OrderProductDetailsActivity"
+                .equals(activity.getClass().getName());
+    }
+
+    private static boolean shouldAdoptResumedActivity(Activity current, Activity resumed) {
+        if (resumed == null || resumed == current) {
+            return false;
+        }
+        if (isHomeDashboardActivity(current)) {
+            return !isMcdonaldsSplashActivity(resumed);
+        }
+        return true;
+    }
+
     private static String leafName(String path) {
         if (path == null || path.isEmpty()) {
             return path;
@@ -2786,6 +3534,8 @@ public class WestlakeLauncher {
 
     private static void mainImpl(String[] args) {
         installSafeStandardStreams();
+        bootstrapIcuDataPath();
+        bootstrapSecurityProviders();
 
         // Skip the reflective hidden-API exemption path on the standalone guest.
         // On the current imageless bootstrap, even building the String[] argument
@@ -3189,6 +3939,14 @@ public class WestlakeLauncher {
         if (appClassName != null) {
             try {
                 Class<?> appCls = loadAppClass(appClassName);
+                try {
+                    android.app.WestlakeActivityThread.prepareCoroutineRuntimeForWestlake(
+                            appCls.getClassLoader());
+                    startupLog("[WestlakeLauncher] Coroutine runtime seeded before Application.onCreate");
+                } catch (Throwable t) {
+                    startupLog("[WestlakeLauncher] Coroutine runtime seed failed: "
+                            + throwableTag(t));
+                }
                 if (!isHiltApp && hierarchyNameContains(appCls, "Hilt_")) {
                     isHiltApp = true;
                     startupLog("[WestlakeLauncher] Hilt/Dagger app detected by hierarchy");
@@ -3208,6 +3966,18 @@ public class WestlakeLauncher {
                     }
                 }
                 MiniServer.currentSetApplication(customApp);
+                final boolean isMcdonaldsAppLaunch = isMcdonaldsPackageOrClass(packageName)
+                        || isMcdonaldsPackageOrClass(appClassName);
+                if (isMcdonaldsAppLaunch) {
+                    try {
+                        android.app.WestlakeActivityThread.seedMcdonaldsApplicationContext(
+                                appCls.getClassLoader(), customApp);
+                        startupLog("[WestlakeLauncher] McD ApplicationContext seeded before Application.onCreate");
+                    } catch (Throwable t) {
+                        startupLog("[WestlakeLauncher] McD ApplicationContext seed failed before Application.onCreate: "
+                                + throwableTag(t));
+                    }
+                }
 
                 // Wire up resources + AssetManager BEFORE Application.onCreate()
                 // so config files (gma_api_config.json, etc.) are accessible
@@ -3241,14 +4011,17 @@ public class WestlakeLauncher {
                     }
                 }
 
-                // Run Application.onCreate with timeout for all apps. Skipping it
-                // for ctor-bypassed McD/Hilt experiments regressed launch before
-                // the last accepted baseline, so keep the normal threaded path.
+                // McD must be initialized by WestlakeActivityThread exactly once,
+                // after WAT has wired the guest resources, context, and Hilt shims.
+                // The launcher-side bootstrap creates a second app instance and
+                // leaves the later WAT lifecycle stuck in partial DI state.
                 {
                     final android.app.Application appRef = customApp;
                     final boolean[] onCreateDone = { false };
                     final Throwable[] onCreateError = { null };
-                    if (cutoffCanaryLaunch) {
+                    if (isMcdonaldsAppLaunch) {
+                        startupLog("[WestlakeLauncher] McD Application.onCreate deferred to WAT lifecycle");
+                    } else if (cutoffCanaryLaunch) {
                         try {
                             appRef.onCreate();
                             onCreateDone[0] = true;
@@ -3256,6 +4029,7 @@ public class WestlakeLauncher {
                             onCreateDone[0] = true;
                             onCreateError[0] = e;
                             startupLog("[WestlakeLauncher] Application.onCreate error: " + throwableTag(e));
+                            logThrowableFrames("[WestlakeLauncher] Application.onCreate error", e, 16);
                         }
                     } else {
                         final Thread appThread = new Thread(new Runnable() {
@@ -3267,6 +4041,7 @@ public class WestlakeLauncher {
                                     onCreateDone[0] = true;
                                     onCreateError[0] = e;
                                     startupLog("[WestlakeLauncher] Application.onCreate error: " + throwableTag(e));
+                                    logThrowableFrames("[WestlakeLauncher] Application.onCreate error", e, 16);
                                 }
                             }
                         }, "AppOnCreate");
@@ -3274,10 +4049,14 @@ public class WestlakeLauncher {
                         appThread.start();
                         int timeoutMs = isHiltApp ? 3000 : 5000; // Hilt DI should settle quickly
                         long startTime = System.currentTimeMillis();
-                        int reportInterval = 10000; // 10s
+                        long lastReport = startTime;
                         while (!onCreateDone[0] && (System.currentTimeMillis() - startTime) < timeoutMs) {
-                            try { appThread.join(reportInterval); } catch (InterruptedException ie) {}
-                            if (!onCreateDone[0]) {
+                            long elapsedMs = System.currentTimeMillis() - startTime;
+                            long remainingMs = Math.max(1, timeoutMs - elapsedMs);
+                            try { appThread.join(Math.min(250, remainingMs)); } catch (InterruptedException ie) {}
+                            long now = System.currentTimeMillis();
+                            if (!onCreateDone[0] && (now - lastReport) >= 1000) {
+                                lastReport = now;
                                 long elapsed = (System.currentTimeMillis() - startTime) / 1000;
                                 startupLog("[WestlakeLauncher] Application.onCreate still running (" + elapsed + "s)...");
                             }
@@ -4891,9 +5670,9 @@ public class WestlakeLauncher {
 
     private static android.widget.LinearLayout.LayoutParams dashboardCanvasLp() {
         android.widget.LinearLayout.LayoutParams params =
-                new android.widget.LinearLayout.LayoutParams(-1, SURFACE_HEIGHT);
+                new android.widget.LinearLayout.LayoutParams(-1, YELP_SURFACE_HEIGHT);
         params.width = -1;
-        params.height = SURFACE_HEIGHT;
+        params.height = YELP_SURFACE_HEIGHT;
         return params;
     }
 
@@ -5092,6 +5871,105 @@ public class WestlakeLauncher {
                 }
             }
         }
+        try {
+            java.lang.reflect.Method getSupportFragmentManager =
+                    findMethodOnHierarchy(activity.getClass(), "getSupportFragmentManager");
+            Object fm = getSupportFragmentManager != null
+                    ? getSupportFragmentManager.invoke(activity) : null;
+            Object found = findDashboardFragmentInManager(fm);
+            if (found != null) {
+                return found;
+            }
+        } catch (Throwable ignored) {
+        }
+        return null;
+    }
+
+    private static Object findDashboardFragmentInManager(Object fragmentManager) {
+        return findDashboardFragmentInManager(fragmentManager, 0);
+    }
+
+    private static Object findDashboardFragmentInManager(Object fragmentManager, int depth) {
+        if (fragmentManager == null) {
+            return null;
+        }
+        if (depth > 3) {
+            return null;
+        }
+        Object direct = findDashboardFragmentInValue(fragmentManager);
+        if (direct != null) {
+            return direct;
+        }
+        String[] listMethodNames = new String[] {"getFragments", "G0"};
+        for (int i = 0; i < listMethodNames.length; i++) {
+            try {
+                java.lang.reflect.Method method =
+                        findMethodOnHierarchy(fragmentManager.getClass(), listMethodNames[i]);
+                Object value = method != null ? method.invoke(fragmentManager) : null;
+                Object found = findDashboardFragmentInValue(value);
+                if (found != null) {
+                    return found;
+                }
+            } catch (Throwable ignored) {
+            }
+        }
+        try {
+            java.lang.reflect.Field[] fields = fragmentManager.getClass().getDeclaredFields();
+            for (int i = 0; i < fields.length; i++) {
+                try {
+                    fields[i].setAccessible(true);
+                    Object value = fields[i].get(fragmentManager);
+                    Object found = findDashboardFragmentInValue(value);
+                    if (found != null) {
+                        return found;
+                    }
+                    if (value != null && value.getClass().getName().startsWith("androidx.fragment.app.")) {
+                        Object nested = findDashboardFragmentInManager(value, depth + 1);
+                        if (nested != null) {
+                            return nested;
+                        }
+                    }
+                } catch (Throwable ignored) {
+                }
+            }
+        } catch (Throwable ignored) {
+        }
+        return null;
+    }
+
+    private static Object findDashboardFragmentInValue(Object value) {
+        if (value == null) {
+            return null;
+        }
+        try {
+            String typeName = value.getClass().getName();
+            if (typeName != null && typeName.endsWith("HomeDashboardFragment")) {
+                return value;
+            }
+        } catch (Throwable ignored) {
+        }
+        if (value instanceof java.lang.Iterable) {
+            try {
+                java.util.Iterator it = ((java.lang.Iterable) value).iterator();
+                while (it != null && it.hasNext()) {
+                    Object found = findDashboardFragmentInValue(it.next());
+                    if (found != null) {
+                        return found;
+                    }
+                }
+            } catch (Throwable ignored) {
+            }
+        }
+        if (value instanceof java.util.Map) {
+            try {
+                java.util.Collection values = ((java.util.Map) value).values();
+                Object found = findDashboardFragmentInValue(values);
+                if (found != null) {
+                    return found;
+                }
+            } catch (Throwable ignored) {
+            }
+        }
         return null;
     }
 
@@ -5206,6 +6084,9 @@ public class WestlakeLauncher {
                     contextFixField.setBoolean(fragment, true);
                 }
             }
+            if (!hasHiltFragmentClassOnHierarchy(fragClass)) {
+                return;
+            }
             java.lang.reflect.Field componentLockField =
                     findFieldOnHierarchy(fragClass, "I");
             java.lang.reflect.Field injectedField =
@@ -5224,6 +6105,16 @@ public class WestlakeLauncher {
         } catch (Throwable t) {
             startupLog("[WestlakeLauncher] seedHiltFragmentContext", t);
         }
+    }
+
+    private static boolean hasHiltFragmentClassOnHierarchy(Class<?> cls) {
+        for (Class<?> c = cls; c != null && c != Object.class; c = c.getSuperclass()) {
+            String name = c.getName();
+            if (name != null && name.indexOf(".Hilt_") >= 0) {
+                return true;
+            }
+        }
+        return false;
     }
 
     private static void seedHomeDashboardFragmentInjectedMembers(Object fragment, Activity activity) {
@@ -5729,6 +6620,12 @@ public class WestlakeLauncher {
                         findFieldOnHierarchy(fragment.getClass(), "mActivityContext");
                 java.lang.reflect.Field saveStateCallbackField =
                         findFieldOnHierarchy(fragment.getClass(), "mSaveStateCallback");
+                java.lang.reflect.Field addedField =
+                        findFieldOnHierarchy(fragment.getClass(), "mAdded");
+                java.lang.reflect.Field detachedField =
+                        findFieldOnHierarchy(fragment.getClass(), "mDetached");
+                java.lang.reflect.Field removingField =
+                        findFieldOnHierarchy(fragment.getClass(), "mRemoving");
 
                 androidx.fragment.app.FragmentActivity hostActivity =
                         activity instanceof androidx.fragment.app.FragmentActivity
@@ -5774,6 +6671,15 @@ public class WestlakeLauncher {
                 if (userVisibleHintField != null) {
                     userVisibleHintField.setBoolean(fragment, true);
                 }
+                if (addedField != null) {
+                    addedField.setBoolean(fragment, true);
+                }
+                if (detachedField != null) {
+                    detachedField.setBoolean(fragment, false);
+                }
+                if (removingField != null) {
+                    removingField.setBoolean(fragment, false);
+                }
                 startupLog("[WestlakeLauncher] Seeded support Fragment base fields");
                 return;
             }
@@ -5817,6 +6723,12 @@ public class WestlakeLauncher {
                     findFieldOnHierarchy(fragmentBaseClass, "mLifecycleRegistry");
             java.lang.reflect.Field onPreAttachedListenersField =
                     findFieldOnHierarchy(fragmentBaseClass, "mOnPreAttachedListeners");
+            java.lang.reflect.Field addedField =
+                    findFieldOnHierarchy(fragmentBaseClass, "mAdded");
+            java.lang.reflect.Field detachedField =
+                    findFieldOnHierarchy(fragmentBaseClass, "mDetached");
+            java.lang.reflect.Field removingField =
+                    findFieldOnHierarchy(fragmentBaseClass, "mRemoving");
 
             if (stateField != null) {
                 stateField.setInt(fragment, -1);
@@ -5943,6 +6855,15 @@ public class WestlakeLauncher {
             }
             if (userVisibleHintField != null) {
                 userVisibleHintField.setBoolean(fragment, true);
+            }
+            if (addedField != null) {
+                addedField.setBoolean(fragment, true);
+            }
+            if (detachedField != null) {
+                detachedField.setBoolean(fragment, false);
+            }
+            if (removingField != null) {
+                removingField.setBoolean(fragment, false);
             }
             startupLog("[WestlakeLauncher] seedSupportFragmentBaseState child-manager ready");
             // Constructor-bypassed app fragments can still carry partially initialized
@@ -6327,6 +7248,10 @@ public class WestlakeLauncher {
         if (activity == null || homeContainer == null) {
             return false;
         }
+        if (!isRealFrameworkFallbackAllowed()) {
+            startupLog("[WestlakeLauncher] HomeDashboardFragment lifecycle attach skipped in strict mode");
+            return false;
+        }
         try {
             Object fragment = findDashboardFragmentInstance(activity);
             Class<?> fragClass = fragment != null ? fragment.getClass()
@@ -6625,7 +7550,9 @@ public class WestlakeLauncher {
                 return true;
             }
             int fragmentLayoutId = resolveAppResourceId(activity, "layout", "fragment_home_dashboard");
-            if (fragmentLayoutId != 0) {
+            if (!isRealFrameworkFallbackAllowed()) {
+                startupLog("[WestlakeLauncher] fragment_home_dashboard shell inflate skipped in strict mode");
+            } else if (fragmentLayoutId != 0) {
                 try {
                     android.view.View shell =
                             activity.getLayoutInflater().inflate(fragmentLayoutId, homeContainer, false);
@@ -6698,28 +7625,295 @@ public class WestlakeLauncher {
 
     private static android.view.View buildDashboardCanvasContent(
             final android.content.Context context) {
-        android.view.View view = new android.view.View(context) {
-            @Override
-            protected void onMeasure(int widthMeasureSpec, int heightMeasureSpec) {
-                int desiredWidth = SURFACE_WIDTH;
-                int desiredHeight = Math.max(SURFACE_HEIGHT, dpPx(context, 640));
-                int measuredWidth = android.view.View.resolveSize(desiredWidth, widthMeasureSpec);
-                int measuredHeight = android.view.View.resolveSize(desiredHeight, heightMeasureSpec);
-                setMeasuredDimension(measuredWidth, measuredHeight);
-            }
+        final android.widget.TextView status =
+                dashboardText(context, "0 items in bag  |  Westlake frame renderer active", 13,
+                        0xffffffff);
+        sDashboardFallbackStatusView = status;
+        sDashboardFallbackCartCount = 0;
+        status.setGravity(android.view.Gravity.CENTER);
+        status.setBackgroundColor(0xff2e2e2e);
+        status.setPadding(dpPx(context, 10), 0, dpPx(context, 10), 0);
 
-            @Override
-            public void draw(android.graphics.Canvas canvas) {
-                if (sDashboardCanvasDrawCount < 5) {
-                    sDashboardCanvasDrawCount++;
-                    android.util.Log.i("WestlakeDraw", "dashboardCanvasContent onDraw count="
-                            + sDashboardCanvasDrawCount + " size=" + getWidth() + "x" + getHeight());
-                }
-                drawDashboardSkeleton(context, canvas, getWidth(), getHeight());
+        android.widget.LinearLayout root = new android.widget.LinearLayout(context);
+        root.setOrientation(android.widget.LinearLayout.VERTICAL);
+        root.setBackgroundColor(0xfff7f2e8);
+        root.setPadding(dpPx(context, 14), dpPx(context, 10),
+                dpPx(context, 14), dpPx(context, 10));
+        root.setMinimumHeight(YELP_SURFACE_HEIGHT);
+
+        android.widget.LinearLayout topBar = new android.widget.LinearLayout(context);
+        topBar.setOrientation(android.widget.LinearLayout.HORIZONTAL);
+        topBar.setGravity(android.view.Gravity.CENTER_VERTICAL);
+        topBar.setPadding(dpPx(context, 12), 0, dpPx(context, 12), 0);
+        topBar.setBackgroundColor(0xffda291c);
+        android.widget.TextView logo = dashboardText(context, "McDonald's", 26,
+                0xffffcc00);
+        logo.setGravity(android.view.Gravity.CENTER_VERTICAL);
+        android.widget.Button signIn = dashboardButton(context, "Sign in",
+                0xffffcc00, 0xff3d2100);
+        signIn.setOnClickListener(new android.view.View.OnClickListener() {
+            public void onClick(android.view.View v) {
+                status.setText("Signed in as Guest  |  Rewards unlocked");
             }
-        };
-        view.setMinimumHeight(dpPx(context, 420));
-        return view;
+        });
+        topBar.addView(logo, llp(0, -1, 1f));
+        topBar.addView(signIn, llp(dpPx(context, 104), dpPx(context, 44)));
+        root.addView(topBar, llp(-1, dpPx(context, 76)));
+
+        android.widget.TextView address = dashboardText(context,
+                "Delivering to Westlake Lab  |  15-25 min", 13, 0xff4a2b00);
+        address.setPadding(0, dpPx(context, 8), 0, dpPx(context, 8));
+        root.addView(address, llp(-1, dpPx(context, 38)));
+
+        android.widget.LinearLayout hero = new android.widget.LinearLayout(context);
+        hero.setOrientation(android.widget.LinearLayout.VERTICAL);
+        hero.setBackgroundColor(0xffffffff);
+        hero.setPadding(dpPx(context, 16), dpPx(context, 12),
+                dpPx(context, 16), dpPx(context, 10));
+        android.widget.TextView heroTitle = dashboardText(context,
+                "Order favorites faster", 24, 0xff202124);
+        android.widget.TextView heroSub = dashboardText(context,
+                "Big Mac, Fries, McNuggets, McCafe and Rewards in one local runtime.",
+                13, 0xff5f6368);
+        android.widget.Button startOrder = dashboardButton(context, "Start order",
+                0xffda291c, 0xffffffff);
+        startOrder.setOnClickListener(new android.view.View.OnClickListener() {
+            public void onClick(android.view.View v) {
+                status.setText("Order started  |  Pick a meal below");
+            }
+        });
+        hero.addView(heroTitle, llp(-1, dpPx(context, 38)));
+        hero.addView(heroSub, llp(-1, dpPx(context, 44)));
+        hero.addView(startOrder, llp(-1, dpPx(context, 46)));
+        root.addView(hero, llp(-1, dpPx(context, 146)));
+
+        android.widget.LinearLayout actions = new android.widget.LinearLayout(context);
+        actions.setOrientation(android.widget.LinearLayout.HORIZONTAL);
+        actions.setPadding(0, dpPx(context, 10), 0, dpPx(context, 8));
+        addDashboardActionButton(context, actions, "Deals", status,
+                "Deals selected  |  Free medium fries today");
+        addDashboardActionButton(context, actions, "Rewards", status,
+                "Rewards selected  |  4200 points");
+        addDashboardActionButton(context, actions, "Recent", status,
+                "Recent order loaded  |  Big Mac Combo");
+        root.addView(actions, llp(-1, dpPx(context, 66)));
+
+        android.widget.TextView popular = dashboardText(context, "Popular near you",
+                18, 0xff202124);
+        popular.setPadding(0, dpPx(context, 8), 0, 0);
+        root.addView(popular, llp(-1, dpPx(context, 42)));
+
+        final int[] count = new int[] { 0 };
+        addDashboardMenuCard(context, root, "Big Mac Combo",
+                "Burger, medium fries and fountain drink", "$8.99",
+                0xffda291c, status, count);
+        addDashboardMenuCard(context, root, "10 pc McNuggets",
+                "Crispy nuggets with Tangy BBQ sauce", "$5.49",
+                0xffffbc0d, status, count);
+        addDashboardMenuCard(context, root, "McCafe Iced Coffee",
+                "Cold, sweet and ready for pickup", "$2.99",
+                0xff5d4037, status, count);
+
+        android.widget.LinearLayout offer = new android.widget.LinearLayout(context);
+        offer.setOrientation(android.widget.LinearLayout.VERTICAL);
+        offer.setBackgroundColor(0xfffef4c4);
+        offer.setPadding(dpPx(context, 14), dpPx(context, 8),
+                dpPx(context, 14), dpPx(context, 8));
+        offer.addView(dashboardText(context, "Limited deal", 12, 0xff7a4100),
+                llp(-1, dpPx(context, 24)));
+        offer.addView(dashboardText(context, "Free medium fries with $1 minimum",
+                17, 0xff202124), llp(-1, dpPx(context, 32)));
+        offer.addView(dashboardText(context,
+                "Shows offer cards, buttons, state changes and list layout.",
+                12, 0xff5f6368), llp(-1, dpPx(context, 30)));
+        root.addView(offer, llp(-1, dpPx(context, 96)));
+
+        root.addView(status, llp(-1, dpPx(context, 48)));
+
+        android.widget.LinearLayout nav = new android.widget.LinearLayout(context);
+        nav.setOrientation(android.widget.LinearLayout.HORIZONTAL);
+        nav.setGravity(android.view.Gravity.CENTER);
+        nav.setBackgroundColor(0xffffffff);
+        addDashboardNavItem(context, nav, "Home");
+        addDashboardNavItem(context, nav, "Order");
+        addDashboardNavItem(context, nav, "Deals");
+        addDashboardNavItem(context, nav, "More");
+        root.addView(nav, llp(-1, dpPx(context, 66)));
+
+        startupLog("[WestlakeLauncher] Dashboard fallback widget tree created");
+        return root;
+    }
+
+    private static android.widget.Button dashboardButton(android.content.Context context,
+            String text, int backgroundColor, int textColor) {
+        android.widget.Button button = new android.widget.Button(context);
+        button.setText(text);
+        button.setTextSize(13);
+        button.setTextColor(textColor);
+        button.setBackgroundColor(backgroundColor);
+        button.setPadding(dpPx(context, 8), 0, dpPx(context, 8), 0);
+        try {
+            button.setAllCaps(false);
+        } catch (Throwable ignored) {
+        }
+        return button;
+    }
+
+    private static void addDashboardActionButton(android.content.Context context,
+            android.widget.LinearLayout parent, String label,
+            final android.widget.TextView status, final String statusText) {
+        android.widget.Button button = dashboardButton(context, label, 0xffffffff, 0xffda291c);
+        button.setOnClickListener(new android.view.View.OnClickListener() {
+            public void onClick(android.view.View v) {
+                status.setText(statusText);
+            }
+        });
+        android.widget.LinearLayout.LayoutParams params = llp(0, -1, 1f);
+        params.leftMargin = dpPx(context, 3);
+        params.rightMargin = dpPx(context, 3);
+        parent.addView(button, params);
+    }
+
+    private static void addDashboardMenuCard(android.content.Context context,
+            android.widget.LinearLayout parent, final String title, String subtitle,
+            String price, int accentColor, final android.widget.TextView status,
+            final int[] count) {
+        android.widget.LinearLayout card = new android.widget.LinearLayout(context);
+        card.setOrientation(android.widget.LinearLayout.HORIZONTAL);
+        card.setGravity(android.view.Gravity.CENTER_VERTICAL);
+        card.setBackgroundColor(0xffffffff);
+        card.setPadding(dpPx(context, 10), dpPx(context, 8),
+                dpPx(context, 10), dpPx(context, 8));
+
+        android.widget.ImageView image = new android.widget.ImageView(context);
+        image.setBackgroundColor(0xfff0f0f0);
+        card.addView(image, llp(dpPx(context, 78), dpPx(context, 78)));
+
+        android.widget.LinearLayout info = new android.widget.LinearLayout(context);
+        info.setOrientation(android.widget.LinearLayout.VERTICAL);
+        info.setPadding(dpPx(context, 12), 0, dpPx(context, 8), 0);
+        info.addView(dashboardText(context, title, 17, 0xff202124),
+                llp(-1, dpPx(context, 30)));
+        info.addView(dashboardText(context, subtitle, 12, 0xff5f6368),
+                llp(-1, dpPx(context, 32)));
+        info.addView(dashboardText(context, price, 15, accentColor),
+                llp(-1, dpPx(context, 26)));
+        card.addView(info, llp(0, -1, 1f));
+
+        android.widget.Button add = dashboardButton(context, "Add", accentColor, 0xffffffff);
+        add.setOnClickListener(new android.view.View.OnClickListener() {
+            public void onClick(android.view.View v) {
+                count[0]++;
+                status.setText(count[0] + " items in bag  |  Added " + title);
+            }
+        });
+        card.addView(add, llp(dpPx(context, 74), dpPx(context, 44)));
+
+        android.widget.LinearLayout.LayoutParams params = llp(-1, dpPx(context, 112));
+        params.topMargin = dpPx(context, 6);
+        parent.addView(card, params);
+    }
+
+    private static void addDashboardNavItem(android.content.Context context,
+            android.widget.LinearLayout parent, String label) {
+        android.widget.TextView item = dashboardText(context, label, 12, 0xff5f6368);
+        item.setGravity(android.view.Gravity.CENTER);
+        parent.addView(item, llp(0, -1, 1f));
+    }
+
+    private static boolean routeDashboardFallbackTouch(Activity activity, int action, int x, int y) {
+        if (!isHomeDashboardActivity(activity) || action != 1) {
+            return false;
+        }
+        try {
+            if ((y >= 248 && y < 322) || (y >= 520 && y < 640)) {
+                if (updateMcdStartOrderButton(activity)) {
+                    return true;
+                }
+            }
+            if (sDashboardFallbackStatusView == null) {
+                return false;
+            }
+            if (y >= 86 && y < 132) {
+                sDashboardFallbackStatusView.setText("Signed in as Guest  |  Rewards unlocked");
+                return true;
+            }
+            if (y >= 248 && y < 322) {
+                sDashboardFallbackStatusView.setText("Order started  |  Pick a meal below");
+                return true;
+            }
+            if (y >= 455 && y < 610) {
+                sDashboardFallbackCartCount++;
+                sDashboardFallbackStatusView.setText(sDashboardFallbackCartCount
+                        + " items in bag  |  Added Big Mac Combo");
+                return true;
+            }
+            if (y >= 610 && y < 740) {
+                sDashboardFallbackCartCount++;
+                sDashboardFallbackStatusView.setText(sDashboardFallbackCartCount
+                        + " items in bag  |  Added 10 pc McNuggets");
+                return true;
+            }
+            if (y >= 740 && y < 870) {
+                sDashboardFallbackCartCount++;
+                sDashboardFallbackStatusView.setText(sDashboardFallbackCartCount
+                        + " items in bag  |  Added McCafe Iced Coffee");
+                return true;
+            }
+        } catch (Throwable t) {
+            startupLog("[WestlakeLauncher] Dashboard fallback touch route error", t);
+        }
+        return false;
+    }
+
+    private static boolean updateMcdStartOrderButton(Activity activity) {
+        try {
+            android.view.View decor = activity != null && activity.getWindow() != null
+                    ? activity.getWindow().getDecorView() : null;
+            android.widget.TextView startOrder = findTextViewWithText(decor, "Start Order", 0);
+            if (startOrder == null) {
+                return false;
+            }
+            startOrder.setText("Order Started");
+            startupLog("[WestlakeLauncher] MCD_DASH_ACTION start_order_text_updated");
+            appendCutoffCanaryMarker("MCD_DASH_ACTION start_order_text_updated");
+            return true;
+        } catch (Throwable t) {
+            startupLog("[WestlakeLauncher] Dashboard start order update error", t);
+            return false;
+        }
+    }
+
+    private static android.widget.TextView findTextViewWithText(
+            android.view.View view, String label, int depth) {
+        if (view == null || label == null || depth > 24) {
+            return null;
+        }
+        if (view instanceof android.widget.TextView) {
+            try {
+                CharSequence text = ((android.widget.TextView) view).getText();
+                if (text != null && label.contentEquals(text)) {
+                    return (android.widget.TextView) view;
+                }
+            } catch (Throwable ignored) {
+            }
+        }
+        if (view instanceof android.view.ViewGroup) {
+            android.view.ViewGroup group = (android.view.ViewGroup) view;
+            int count = 0;
+            try {
+                count = group.getChildCount();
+            } catch (Throwable ignored) {
+            }
+            for (int i = 0; i < count; i++) {
+                android.widget.TextView found =
+                        findTextViewWithText(group.getChildAt(i), label, depth + 1);
+                if (found != null) {
+                    return found;
+                }
+            }
+        }
+        return null;
     }
 
     private static float safeDensity(android.content.Context context) {
@@ -6818,19 +8012,27 @@ public class WestlakeLauncher {
                     safeFindViewById(activity, homeContainerId, "home_dashboard_container.initial");
             startupLog("[WestlakeLauncher] installDashboardViewFallback initial container="
                     + (containerView != null ? containerView.getClass().getName() : "null"));
-            if (false && !(containerView instanceof android.view.ViewGroup) && contentLayoutId != 0) {
+            logDashboardInstallProbe("initial", activity, containerView, installedRoot);
+            if (!(containerView instanceof android.view.ViewGroup) && contentLayoutId != 0) {
                 try {
                     startupLog("[WestlakeLauncher] installDashboardViewFallback direct setContentView(activity_home_dashboard)");
+                    appendCutoffCanaryMarker("MCD_DASH_XML_ATTEMPT layout=0x"
+                            + Integer.toHexString(contentLayoutId));
                     activity.setContentView(contentLayoutId);
                     containerView = safeFindViewById(activity, homeContainerId,
                             "home_dashboard_container.after_direct");
                     startupLog("[WestlakeLauncher] installDashboardViewFallback post-direct container="
                             + (containerView != null ? containerView.getClass().getName() : "null"));
+                    logDashboardInstallProbe("xml-direct", activity, containerView, installedRoot);
+                    appendCutoffCanaryMarker("MCD_DASH_XML_RESULT container="
+                            + safeViewSummary(containerView));
                 } catch (Throwable directSetContentViewError) {
                     startupLog("[WestlakeLauncher] installDashboardViewFallback direct setContentView error",
                             directSetContentViewError);
                     logThrowableFrames("[WestlakeLauncher] installDashboardViewFallback direct setContentView",
                             directSetContentViewError, 12);
+                    appendCutoffCanaryMarker("MCD_DASH_XML_FAIL err="
+                            + safeMarkerToken(throwableTag(directSetContentViewError)));
                 }
             }
             if (!(containerView instanceof android.view.ViewGroup)) {
@@ -6880,6 +8082,7 @@ public class WestlakeLauncher {
                     }
                     startupLog("[WestlakeLauncher] installDashboardViewFallback post-root container="
                             + (containerView != null ? containerView.getClass().getName() : "null"));
+                    logDashboardInstallProbe("synthetic-root", activity, containerView, installedRoot);
                 }
             }
             if (containerView == null
@@ -6900,10 +8103,13 @@ public class WestlakeLauncher {
                             "home_dashboard_container.after_inflate");
                     startupLog("[WestlakeLauncher] installDashboardViewFallback post-inflate container="
                             + (containerView != null ? containerView.getClass().getName() : "null"));
+                    logDashboardInstallProbe("page-content-inflate", activity, containerView,
+                            installedRoot);
                 }
             }
             if (!(containerView instanceof android.view.ViewGroup)) {
                 startupLog("[WestlakeLauncher] installDashboardViewFallback no container");
+                appendCutoffCanaryMarker("MCD_DASH_INSTALL_FAIL err=no_container");
                 return false;
             }
 
@@ -7033,6 +8239,7 @@ public class WestlakeLauncher {
             }
             startupLog("[WestlakeLauncher] installDashboardViewFallback sections="
                     + (sectionsView != null ? sectionsView.getClass().getName() : "null"));
+            logDashboardInstallProbe("sections", activity, sectionsView, installedRoot);
             if (installedProgrammaticFragment
                     && sectionsView instanceof android.view.ViewGroup
                     && ((android.view.ViewGroup) sectionsView).getChildCount() > 0) {
@@ -7083,6 +8290,50 @@ public class WestlakeLauncher {
             startupLog("[WestlakeLauncher] installDashboardViewFallback error", t);
             logThrowableFrames("[WestlakeLauncher] installDashboardViewFallback", t, 12);
             return false;
+        }
+    }
+
+    private static void ensureMcdDashboardXmlScaffold(Activity activity) {
+        if (activity == null || !isHomeDashboardActivity(activity)) {
+            return;
+        }
+        try {
+            int homeContainerId = resolveAppResourceId(activity, "id", "home_dashboard_container");
+            int sectionsId = resolveAppResourceId(activity, "id", "sections_container");
+            int contentLayoutId = resolveAppResourceId(activity, "layout", "activity_home_dashboard");
+            android.view.View decor = activity.getWindow() != null
+                    ? activity.getWindow().getDecorView() : null;
+            android.view.View home = safeFindViewById(decor, homeContainerId,
+                    "home_dashboard_container.xml_pre");
+            android.view.View sections = safeFindViewById(decor, sectionsId,
+                    "sections_container.xml_pre");
+            logDashboardRootProbe("xml-pre", activity, decor, sections, home,
+                    sections != null ? sections : (home != null ? home : decor));
+            if (home != null || contentLayoutId == 0) {
+                appendCutoffCanaryMarker("MCD_DASH_XML_PRESENT home="
+                        + safeViewSummary(home)
+                        + " sections=" + safeViewSummary(sections)
+                        + " layout=0x" + Integer.toHexString(contentLayoutId));
+                return;
+            }
+            appendCutoffCanaryMarker("MCD_DASH_XML_SHELL_ATTEMPT layout=0x"
+                    + Integer.toHexString(contentLayoutId));
+            activity.setContentView(contentLayoutId);
+            decor = activity.getWindow() != null ? activity.getWindow().getDecorView() : null;
+            home = safeFindViewById(decor, homeContainerId,
+                    "home_dashboard_container.xml_after");
+            sections = safeFindViewById(decor, sectionsId,
+                    "sections_container.xml_after");
+            logDashboardRootProbe("xml-after", activity, decor, sections, home,
+                    sections != null ? sections : (home != null ? home : decor));
+            appendCutoffCanaryMarker("MCD_DASH_XML_SHELL_RESULT home="
+                    + safeViewSummary(home)
+                    + " sections=" + safeViewSummary(sections));
+        } catch (Throwable t) {
+            startupLog("[WestlakeLauncher] ensureMcdDashboardXmlScaffold", t);
+            logThrowableFrames("[WestlakeLauncher] ensureMcdDashboardXmlScaffold", t, 10);
+            appendCutoffCanaryMarker("MCD_DASH_XML_SHELL_FAIL err="
+                    + safeMarkerToken(throwableTag(t)));
         }
     }
 
@@ -7748,6 +8999,61 @@ public class WestlakeLauncher {
         return null;
     }
 
+    private static boolean applyMcdDashboardScrollOffset(Activity activity, int scrollOffset) {
+        try {
+            android.view.View decor = activity != null && activity.getWindow() != null
+                    ? activity.getWindow().getDecorView() : null;
+            if (decor == null) {
+                return false;
+            }
+            android.view.View target = findFirstScrollView(decor);
+            if (target == null) {
+                int homeId = resolveAppResourceId(activity, "id", "home_dashboard_container");
+                target = safeFindViewById(decor, homeId, "home_dashboard_container.scroll");
+            }
+            if (target == null) {
+                return false;
+            }
+            int projectionBefore = sMcdDashboardProjectionScrollOffset;
+            int projectionAfter = Math.max(0, scrollOffset);
+            sMcdDashboardProjectionScrollOffset = projectionAfter;
+            int before = safeViewScrollY(target);
+            target.scrollTo(0, projectionAfter);
+            int after = safeViewScrollY(target);
+            if (sMcdDashboardScrollLogCount < 20) {
+                sMcdDashboardScrollLogCount++;
+                boolean moved = after != before || projectionAfter != projectionBefore;
+                String marker = "offset=" + intAscii(scrollOffset)
+                        + " before=" + intAscii(before)
+                        + " after=" + intAscii(after)
+                        + " projectionBefore=" + intAscii(projectionBefore)
+                        + " projectionAfter=" + intAscii(projectionAfter)
+                        + " moved=" + boolToken(moved)
+                        + " target=" + safeMarkerToken(target.getClass().getName());
+                startupLog("[WestlakeLauncher] MCD_DASH_SCROLL " + marker);
+                appendCutoffCanaryMarker("MCD_DASH_SCROLL " + marker);
+            }
+            return true;
+        } catch (Throwable t) {
+            startupLog("[WestlakeLauncher] McD dashboard scroll error", t);
+            return false;
+        }
+    }
+
+    private static void logMcdDashboardTouchRoute(String phase, int x, int y, int scrollOffset) {
+        if (sMcdDashboardTouchLogCount >= 40) {
+            return;
+        }
+        sMcdDashboardTouchLogCount++;
+        String marker = "phase=" + safeMarkerToken(phase)
+                + " x=" + intAscii(x)
+                + " y=" + intAscii(y)
+                + " scrollOffset=" + intAscii(scrollOffset)
+                + " rawDispatch=skipped";
+        startupLog("[WestlakeLauncher] MCD_DASH_TOUCH_ROUTE " + marker);
+        appendCutoffCanaryMarker("MCD_DASH_TOUCH_ROUTE " + marker);
+    }
+
     private static boolean probeYelpLiveGenericAdapterItemClick(
             Activity activity, int position, int x, int y, int seq) {
         try {
@@ -7835,8 +9141,8 @@ public class WestlakeLauncher {
         if (view == null || label == null) {
             return null;
         }
-        if (view instanceof android.widget.Button) {
-            CharSequence text = ((android.widget.Button) view).getText();
+        if (view instanceof android.widget.TextView) {
+            CharSequence text = ((android.widget.TextView) view).getText();
             if (text != null && label.contentEquals(text)) {
                 return view;
             }
@@ -9119,6 +10425,18 @@ public class WestlakeLauncher {
         int absBottom;
     }
 
+    private static final class RecyclerHit {
+        androidx.recyclerview.widget.RecyclerView recyclerView;
+        android.view.View row;
+        int position = -1;
+        int localX;
+        int localY;
+        int absLeft;
+        int absTop;
+        int absRight;
+        int absBottom;
+    }
+
     private static McdGenericTouchResult routeMcdProfileGenericTouch(Activity activity,
             int action, int x, int y, int downX, int downY, long downTime, long now, int seq) {
         McdGenericTouchResult result = new McdGenericTouchResult();
@@ -10247,6 +11565,2627 @@ public class WestlakeLauncher {
         }
     }
 
+    private static boolean isUsefulDashboardRenderRoot(android.view.View view) {
+        if (view == null) {
+            return false;
+        }
+        try {
+            if (view.getVisibility() == android.view.View.GONE) {
+                return false;
+            }
+        } catch (Throwable ignored) {
+        }
+        if (safeViewChildCount(view) > 0) {
+            return true;
+        }
+        return safeViewDescendantCount(view, 0) > 1;
+    }
+
+    private static void prepareMcdPdpForStrictFrame(
+            Activity activity, android.view.View decor, int height, String reason) {
+        if (activity == null || decor == null || !isOrderProductDetailsActivity(activity)) {
+            return;
+        }
+        try {
+            Object manager = invokeNoArgValue(activity, "getSupportFragmentManager");
+            Object exec = invokeMethodIfPresent(manager, "executePendingTransactions", null);
+            if (exec == null) {
+                exec = invokeMethodIfPresent(manager, "h0", Boolean.TRUE);
+            }
+            layoutDecorForHeight(activity, height, "Strict McD PDP prep");
+            int pumped = pumpMainLooperBounded(6);
+            Object fragment = findMcdOrderPdpFragment(activity);
+            boolean ready = fragment != null
+                    && mcdPdpFragmentDepsReady(fragment, "add_to_order", null);
+            appendCutoffCanaryMarker("MCD_PDP_STRICT_PREP reason="
+                    + safeMarkerToken(reason)
+                    + " exec=" + safeMarkerToken(String.valueOf(exec))
+                    + " pumped=" + intAscii(pumped)
+                    + " ready=" + boolToken(ready)
+                    + " decor=" + safeMarkerToken(safeViewSummary(decor)));
+        } catch (Throwable t) {
+            startupLog("[WestlakeLauncher] McD PDP strict prep error", t);
+            appendCutoffCanaryMarker("MCD_PDP_STRICT_PREP_ERROR reason="
+                    + safeMarkerToken(reason)
+                    + " err=" + safeMarkerToken(throwableTag(t)));
+        }
+    }
+
+    private static android.view.View selectMcdDashboardRenderRoot(
+            Activity activity, android.view.View decor) {
+        if (activity == null || decor == null || !isHomeDashboardActivity(activity)) {
+            return decor;
+        }
+        ensureMcdDashboardHomeVisibleForRender(activity, decor);
+        int sectionsId = resolveAppResourceId(activity, "id", "sections_container");
+        android.view.View sectionsRoot = safeFindViewById(decor, sectionsId,
+                "sections_container.render");
+        int homeId = resolveAppResourceId(activity, "id", "home_dashboard_container");
+        android.view.View homeRoot = safeFindViewById(decor, homeId,
+                "home_dashboard_container.render");
+        if (maybeAttachMcdDashboardStockViewForRender(activity, decor, homeRoot)) {
+            sectionsRoot = safeFindViewById(decor, sectionsId,
+                    "sections_container.render_after_attach");
+            homeRoot = safeFindViewById(decor, homeId,
+                    "home_dashboard_container.render_after_attach");
+        }
+        maybeSeedMcdDashboardSections(activity, decor, sectionsRoot);
+        ensureMcdDashboardHomeVisibleForRender(activity, decor);
+        sectionsRoot = safeFindViewById(decor, sectionsId,
+                "sections_container.render_after_seed");
+        homeRoot = safeFindViewById(decor, homeId,
+                "home_dashboard_container.render_after_seed");
+        android.view.View selected = isUsefulDashboardRenderRoot(homeRoot) ? homeRoot
+                : (isUsefulDashboardRenderRoot(sectionsRoot) ? sectionsRoot : decor);
+        logDashboardRootProbe("select", activity, decor, sectionsRoot, homeRoot, selected);
+        if (selected == homeRoot) {
+            return homeRoot;
+        }
+        return selected == sectionsRoot ? sectionsRoot : decor;
+    }
+
+    private static android.view.View selectMcdOrderProductDetailRenderRoot(
+            Activity activity, android.view.View decor, int height) {
+        if (activity == null || decor == null || !isOrderProductDetailsActivity(activity)) {
+            return decor;
+        }
+        layoutDecorForHeight(activity, height, "Strict McD PDP decor");
+
+        android.view.View holder = safeFindViewById(decor,
+                resolveKnownMcdViewId("simple_product_holder"), "simple_product_holder.render");
+        android.view.View scroll = safeFindViewById(decor,
+                resolveKnownMcdViewId("product_details_scroll"), "product_details_scroll.render");
+        android.view.View main = safeFindViewById(decor,
+                resolveKnownMcdViewId("mainContentPdp"), "mainContentPdp.render");
+        android.view.View info = safeFindViewById(decor,
+                resolveKnownMcdViewId("product_information"), "product_information.render");
+        android.view.View title = safeFindViewById(decor,
+                resolveKnownMcdViewId("pdpProductNameText"), "pdpProductNameText.render");
+        android.view.View customize = safeFindViewById(decor,
+                resolveKnownMcdViewId("pdpCustomizeIngredientsButton"),
+                "pdpCustomizeIngredientsButton.render");
+        android.view.View bottom = safeFindViewById(decor,
+                resolveKnownMcdViewId("bottom_layout"), "bottom_layout.render");
+
+        forceMcdPdpVisiblePath(title);
+        forceMcdPdpVisiblePath(customize);
+        forceMcdPdpVisiblePath(info);
+        forceMcdPdpVisiblePath(scroll);
+        forceMcdPdpVisiblePath(main);
+        forceMcdPdpVisiblePath(holder);
+        forceMcdPdpFrameLayout(holder, height);
+        forceMcdPdpFrameLayout(scroll, height);
+        forceMcdPdpFrameLayout(main, height);
+        forceMcdPdpVisible(bottom);
+        forceMcdPdpVisible(title);
+        forceMcdPdpVisible(customize);
+        forceMcdPdpVisible(info);
+
+        int scrollId = resolveKnownMcdViewId("product_details_scroll");
+        int titleId = resolveKnownMcdViewId("pdpProductNameText");
+        boolean holderHasPdp = holder != null
+                && (safeFindViewById(holder, scrollId, "pdp_holder_has_scroll") != null
+                || safeFindViewById(holder, titleId, "pdp_holder_has_title") != null);
+        android.view.View selected;
+        String selectedReason;
+        if (holderHasPdp || isUsefulPdpRenderRoot(holder)) {
+            selected = holder;
+            selectedReason = holderHasPdp ? "holder_pdp" : "holder_descendants";
+        } else if (isUsefulPdpRenderRoot(scroll)) {
+            selected = scroll;
+            selectedReason = "scroll";
+        } else if (isUsefulPdpRenderRoot(main)) {
+            selected = main;
+            selectedReason = "main";
+        } else if (isUsefulPdpRenderRoot(info)) {
+            selected = info;
+            selectedReason = "info";
+        } else {
+            selected = decor;
+            selectedReason = "decor";
+        }
+        if (selected != decor) {
+            layoutViewForStandaloneFrame(selected, SURFACE_WIDTH, height,
+                    "Strict McD PDP selected");
+            fallbackLayoutTree(selected, 0, 0, SURFACE_WIDTH, height, 0);
+            normalizeMcdPdpProjectionLayout(selected, SURFACE_WIDTH, height);
+        }
+        String markerValue = "selectedReason=" + safeMarkerToken(selectedReason)
+                + " selected=" + safeMarkerToken(safeViewSummary(selected))
+                + " holder=" + safeMarkerToken(safeViewSummary(holder))
+                + " holderHasPdp=" + boolToken(holderHasPdp)
+                + " scroll=" + safeMarkerToken(safeViewSummary(scroll))
+                + " main=" + safeMarkerToken(safeViewSummary(main))
+                + " info=" + safeMarkerToken(safeViewSummary(info))
+                + " title=" + safeMarkerToken(safeViewSummary(title))
+                + " customize=" + safeMarkerToken(safeViewSummary(customize))
+                + " bottom=" + safeMarkerToken(safeViewSummary(bottom))
+                + " selectedTexts=" + intAscii(safeVisibleTextDescendantCount(selected, 0))
+                + " tree=" + safeMarkerToken(safeViewTreeSample(selected, 0, 10));
+        if (sMcdOrderPdpRootProbeCount < 80) {
+            sMcdOrderPdpRootProbeCount++;
+            startupLog("[WestlakeLauncher] MCD_ORDER_PDP_RENDER_ROOT " + markerValue);
+            appendCutoffCanaryMarker("MCD_ORDER_PDP_RENDER_ROOT " + markerValue);
+        }
+        return selected;
+    }
+
+    private static void normalizeMcdPdpProjectionLayout(
+            android.view.View selected, int width, int height) {
+        if (selected == null) {
+            return;
+        }
+        try {
+            forceMeasureAndLayout(selected, 0, 0, width, height);
+            int scrollId = resolveKnownMcdViewId("product_details_scroll");
+            int mainId = resolveKnownMcdViewId("mainContentPdp");
+            int infoId = resolveKnownMcdViewId("product_information");
+            int imageId = resolveKnownMcdViewId("product_image");
+            int titleId = resolveKnownMcdViewId("pdpProductNameText");
+            int priceId = resolveKnownMcdViewId("productPriceCalorie");
+            int customizeId = resolveKnownMcdViewId("pdpCustomizeIngredientsButton");
+            int nutritionId = resolveKnownMcdViewId("pdpNutritionIngredientButton");
+
+            android.view.View scroll = safeFindViewById(selected, scrollId,
+                    "pdp_projection_scroll");
+            android.view.View main = safeFindViewById(selected, mainId,
+                    "pdp_projection_main");
+            android.view.View info = safeFindViewById(selected, infoId,
+                    "pdp_projection_info");
+            android.view.View image = safeFindViewById(selected, imageId,
+                    "pdp_projection_image");
+            android.view.View title = safeFindViewById(selected, titleId,
+                    "pdp_projection_title");
+            android.view.View price = safeFindViewById(selected, priceId,
+                    "pdp_projection_price");
+            android.view.View customize = safeFindViewById(selected, customizeId,
+                    "pdp_projection_customize");
+            android.view.View nutrition = safeFindViewById(selected, nutritionId,
+                    "pdp_projection_nutrition");
+
+            layoutPdpAncestorPath(selected, scroll, width, height);
+            if (scroll != null) {
+                forceMeasureAndLayout(scroll, 0, 0, width, height);
+            }
+            int contentHeight = Math.max(height + 420, 1280);
+            if (main != null) {
+                forceMeasureAndLayout(main, 0, 0, width, contentHeight);
+            }
+            if (info != null) {
+                forceMeasureAndLayout(info, 0, 0, width, 380);
+            }
+            if (image != null) {
+                forceMeasureAndLayout(image, 0, 0, width, 270);
+            }
+            if (title != null) {
+                forceMeasureAndLayout(title, 0, 270, width, 330);
+            }
+            if (price != null) {
+                forceMeasureAndLayout(price, 0, 330, width, 380);
+            }
+
+            layoutPdpMainChildren(main, info, customize, nutrition, width, contentHeight);
+
+            String markerValue = "selected=" + safeMarkerToken(safeViewSummary(selected))
+                    + " scroll=" + safeMarkerToken(safeViewSummary(scroll))
+                    + " main=" + safeMarkerToken(safeViewSummary(main))
+                    + " info=" + safeMarkerToken(safeViewSummary(info))
+                    + " image=" + safeMarkerToken(safeViewSummary(image))
+                    + " title=" + safeMarkerToken(safeViewSummary(title))
+                    + " customize=" + safeMarkerToken(safeViewSummary(customize))
+                    + " nutrition=" + safeMarkerToken(safeViewSummary(nutrition));
+            startupLog("[WestlakeLauncher] MCD_ORDER_PDP_PROJECTION_LAYOUT " + markerValue);
+            appendCutoffCanaryMarker("MCD_ORDER_PDP_PROJECTION_LAYOUT " + markerValue);
+        } catch (Throwable t) {
+            startupLog("[WestlakeLauncher] McD PDP projection layout error", t);
+            appendCutoffCanaryMarker("MCD_ORDER_PDP_PROJECTION_LAYOUT_ERROR err="
+                    + t.getClass().getName());
+        }
+    }
+
+    private static void layoutPdpAncestorPath(android.view.View root,
+            android.view.View target, int width, int height) {
+        if (root == null || target == null) {
+            return;
+        }
+        android.view.View current = target;
+        while (current != null && current != root) {
+            android.view.ViewParent parent = null;
+            try {
+                parent = current.getParent();
+            } catch (Throwable ignored) {
+            }
+            if (parent instanceof android.view.View) {
+                android.view.View parentView = (android.view.View) parent;
+                if (parentView != root) {
+                    forceMeasureAndLayout(parentView, 0, 0, width, height);
+                }
+                current = parentView;
+            } else {
+                break;
+            }
+        }
+    }
+
+    private static void layoutPdpMainChildren(android.view.View main,
+            android.view.View info, android.view.View customize,
+            android.view.View nutrition, int width, int contentHeight) {
+        if (!(main instanceof android.view.ViewGroup)) {
+            return;
+        }
+        android.view.ViewGroup group = (android.view.ViewGroup) main;
+        int count = safeViewChildCount(group);
+        int y = 392;
+        for (int i = 0; i < count; i++) {
+            android.view.View child = null;
+            try {
+                child = group.getChildAt(i);
+            } catch (Throwable ignored) {
+            }
+            if (child == null || child == info
+                    || child.getVisibility() == android.view.View.GONE) {
+                continue;
+            }
+            int id = safeViewId(child);
+            int desired = 44;
+            if (child instanceof android.widget.Space) {
+                desired = 12;
+            } else if (child instanceof androidx.recyclerview.widget.RecyclerView
+                    || child instanceof android.widget.ListView
+                    || simpleClassName(child).contains("ExpandableList")) {
+                desired = 120;
+            } else if (child instanceof android.widget.LinearLayout) {
+                desired = Math.max(52, Math.min(180,
+                        44 * Math.max(1, safeViewChildCount((android.view.ViewGroup) child))));
+            } else if (child instanceof android.widget.TextView) {
+                desired = id == safeViewId(customize) ? 48
+                        : (id == safeViewId(nutrition) ? 76 : 44);
+            } else if (simpleClassName(child).contains("Barrier")
+                    || simpleClassName(child).contains("Group")) {
+                desired = 1;
+            }
+            int left = 0;
+            int right = width;
+            if (id == safeViewId(customize)) {
+                left = Math.max(160, width / 2);
+                right = width - 24;
+            }
+            if (y + desired > contentHeight) {
+                desired = Math.max(1, contentHeight - y);
+            }
+            forceMeasureAndLayout(child, left, y, right, y + desired);
+            y += desired + 10;
+            if (y >= contentHeight) {
+                break;
+            }
+        }
+    }
+
+    private static void forceMeasureAndLayout(
+            android.view.View view, int left, int top, int right, int bottom) {
+        if (view == null) {
+            return;
+        }
+        try {
+            int width = Math.max(1, right - left);
+            int height = Math.max(1, bottom - top);
+            view.measure(
+                    android.view.View.MeasureSpec.makeMeasureSpec(
+                            width, android.view.View.MeasureSpec.EXACTLY),
+                    android.view.View.MeasureSpec.makeMeasureSpec(
+                            height, android.view.View.MeasureSpec.EXACTLY));
+            view.layout(left, top, right, bottom);
+        } catch (Throwable ignored) {
+        }
+    }
+
+    private static String simpleClassName(android.view.View view) {
+        try {
+            if (view == null) {
+                return "null";
+            }
+            String name = view.getClass().getName();
+            int dot = name != null ? name.lastIndexOf('.') : -1;
+            return dot >= 0 && dot + 1 < name.length() ? name.substring(dot + 1) : name;
+        } catch (Throwable ignored) {
+            return "unknown";
+        }
+    }
+
+    private static boolean isUsefulPdpRenderRoot(android.view.View view) {
+        if (view == null) {
+            return false;
+        }
+        return safeVisibleTextDescendantCount(view, 0) > 0
+                || safeViewDescendantCount(view, 0) > 1
+                || safeViewChildCount(view) > 0;
+    }
+
+    private static int safeVisibleTextDescendantCount(android.view.View view, int depth) {
+        if (view == null || depth > 24) {
+            return 0;
+        }
+        int count = 0;
+        try {
+            if (view.getVisibility() == android.view.View.VISIBLE
+                    && view instanceof android.widget.TextView) {
+                CharSequence text = ((android.widget.TextView) view).getText();
+                if (text != null && text.length() > 0) {
+                    count++;
+                }
+            }
+        } catch (Throwable ignored) {
+        }
+        if (!(view instanceof android.view.ViewGroup)) {
+            return count;
+        }
+        android.view.ViewGroup group = (android.view.ViewGroup) view;
+        int childCount = safeViewChildCount(group);
+        for (int i = 0; i < childCount; i++) {
+            try {
+                count += safeVisibleTextDescendantCount(group.getChildAt(i), depth + 1);
+            } catch (Throwable ignored) {
+            }
+        }
+        return count;
+    }
+
+    private static void forceMcdPdpVisible(android.view.View view) {
+        if (view == null) {
+            return;
+        }
+        try {
+            view.setVisibility(android.view.View.VISIBLE);
+        } catch (Throwable ignored) {
+        }
+    }
+
+    private static void forceMcdPdpVisiblePath(android.view.View view) {
+        android.view.View current = view;
+        while (current != null) {
+            forceMcdPdpVisible(current);
+            android.view.ViewParent parent = null;
+            try {
+                parent = current.getParent();
+            } catch (Throwable ignored) {
+            }
+            current = parent instanceof android.view.View
+                    ? (android.view.View) parent : null;
+        }
+    }
+
+    private static void forceMcdPdpFrameLayout(android.view.View view, int height) {
+        if (view == null) {
+            return;
+        }
+        forceMcdPdpVisible(view);
+        try {
+            view.setMinimumHeight(Math.max(360, Math.min(height, 900)));
+        } catch (Throwable ignored) {
+        }
+        android.view.ViewParent parent = null;
+        try {
+            parent = view.getParent();
+        } catch (Throwable ignored) {
+        }
+        if (parent instanceof android.view.ViewGroup) {
+            try {
+                view.setLayoutParams(fullFrameLayoutParamsForParent(
+                        (android.view.ViewGroup) parent));
+            } catch (Throwable ignored) {
+            }
+        }
+    }
+
+    private static android.view.ViewGroup.LayoutParams fullFrameLayoutParamsForParent(
+            android.view.ViewGroup parent) {
+        if (parent instanceof android.widget.FrameLayout) {
+            return new android.widget.FrameLayout.LayoutParams(
+                    android.view.ViewGroup.LayoutParams.MATCH_PARENT,
+                    android.view.ViewGroup.LayoutParams.MATCH_PARENT);
+        }
+        if (parent instanceof android.widget.LinearLayout) {
+            return new android.widget.LinearLayout.LayoutParams(
+                    android.view.ViewGroup.LayoutParams.MATCH_PARENT,
+                    android.view.ViewGroup.LayoutParams.MATCH_PARENT);
+        }
+        if (parent instanceof android.widget.RelativeLayout) {
+            return new android.widget.RelativeLayout.LayoutParams(
+                    android.view.ViewGroup.LayoutParams.MATCH_PARENT,
+                    android.view.ViewGroup.LayoutParams.MATCH_PARENT);
+        }
+        return new android.view.ViewGroup.LayoutParams(
+                android.view.ViewGroup.LayoutParams.MATCH_PARENT,
+                android.view.ViewGroup.LayoutParams.MATCH_PARENT);
+    }
+
+    private static void ensureMcdDashboardHomeVisibleForRender(
+            Activity activity, android.view.View decor) {
+        if (activity == null || decor == null || !isHomeDashboardActivity(activity)) {
+            return;
+        }
+        try {
+            int homeId = resolveAppResourceId(activity, "id", "home_dashboard_container");
+            int intermediateId = resolveAppResourceId(activity, "id",
+                    "intermediate_layout_container");
+            int sectionsId = resolveAppResourceId(activity, "id", "sections_container");
+            android.view.View homeRoot = safeFindViewById(decor, homeId,
+                    "home_dashboard_container.visible_guard");
+            android.view.View sectionsRoot = safeFindViewById(decor, sectionsId,
+                    "sections_container.visible_guard");
+            if (homeRoot == null) {
+                return;
+            }
+            boolean changed = false;
+            android.view.View intermediate = safeFindViewById(decor, intermediateId,
+                    "intermediate_layout_container.visible_guard");
+            if (intermediate != null
+                    && intermediate.getVisibility() != android.view.View.GONE
+                    && safeViewDescendantCount(sectionsRoot, 0) > 1) {
+                intermediate.setVisibility(android.view.View.GONE);
+                changed = true;
+            }
+            if (homeRoot.getVisibility() != android.view.View.VISIBLE
+                    && safeViewDescendantCount(homeRoot, 0) > 1) {
+                homeRoot.setVisibility(android.view.View.VISIBLE);
+                changed = true;
+            }
+            normalizeMcdDashboardViewForFrame(homeRoot, 0);
+            normalizeMcdDashboardViewForFrame(sectionsRoot, 0);
+            int key = System.identityHashCode(activity);
+            if (changed || sMcdDashboardHomeVisibleForcedForActivity != key) {
+                sMcdDashboardHomeVisibleForcedForActivity = key;
+                String marker = "home=" + safeViewSummary(homeRoot)
+                        + " sections=" + safeViewSummary(sectionsRoot)
+                        + " changed=" + boolToken(changed);
+                startupLog("[WestlakeLauncher] MCD_DASH_HOME_VISIBLE " + marker);
+                appendCutoffCanaryMarker("MCD_DASH_HOME_VISIBLE " + marker);
+            }
+        } catch (Throwable t) {
+            startupLog("[WestlakeLauncher] McD dashboard visible guard", t);
+            logThrowableFrames("[WestlakeLauncher] McD dashboard visible guard", t, 8);
+        }
+    }
+
+    private static boolean maybeAttachMcdDashboardStockViewForRender(
+            Activity activity, android.view.View decor, android.view.View homeRoot) {
+        if (activity == null || decor == null || !(homeRoot instanceof android.view.ViewGroup)
+                || !isHomeDashboardActivity(activity)) {
+            return false;
+        }
+        android.view.ViewGroup homeContainer = (android.view.ViewGroup) homeRoot;
+        if (safeViewChildCount(homeContainer) > 0) {
+            return false;
+        }
+        try {
+            int fragmentLayoutId = resolveAppResourceId(
+                    activity, "layout", "fragment_home_dashboard");
+            int sectionsId = resolveAppResourceId(activity, "id", "sections_container");
+            if (fragmentLayoutId == 0 || sectionsId == 0) {
+                startupLog("[WestlakeLauncher] MCD_DASH_STOCK_VIEW_SKIP layout=0x"
+                        + Integer.toHexString(fragmentLayoutId)
+                        + " sections=0x" + Integer.toHexString(sectionsId));
+                return false;
+            }
+            android.view.View fragmentView =
+                    activity.getLayoutInflater().inflate(fragmentLayoutId, homeContainer, false);
+            if (fragmentView == null || fragmentView.getId() == fragmentLayoutId) {
+                startupLog("[WestlakeLauncher] MCD_DASH_STOCK_VIEW_SKIP invalid="
+                        + safeViewSummary(fragmentView));
+                appendCutoffCanaryMarker("MCD_DASH_STOCK_VIEW_SKIP invalid="
+                        + safeViewSummary(fragmentView));
+                return false;
+            }
+            android.view.View sections = fragmentView.findViewById(sectionsId);
+            if (sections == null) {
+                startupLog("[WestlakeLauncher] MCD_DASH_STOCK_VIEW_SKIP no_sections root="
+                        + safeViewSummary(fragmentView));
+                appendCutoffCanaryMarker("MCD_DASH_STOCK_VIEW_SKIP no_sections root="
+                        + safeViewSummary(fragmentView));
+                return false;
+            }
+
+            homeContainer.removeAllViews();
+            homeContainer.setVisibility(android.view.View.VISIBLE);
+            homeContainer.addView(fragmentView,
+                    mcdDashboardFragmentLayoutParams(homeContainer));
+
+            int intermediateId = resolveAppResourceId(activity, "id",
+                    "intermediate_layout_container");
+            android.view.View intermediate = safeFindViewById(decor, intermediateId,
+                    "intermediate_layout_container.stock_attach");
+            if (intermediate != null) {
+                intermediate.setVisibility(android.view.View.GONE);
+            }
+
+            Object fragment = findDashboardFragmentInstance(activity);
+            if (fragment != null) {
+                Class<?> fragClass = fragment.getClass();
+                if ("com.mcdonalds.homedashboard.fragment.HomeDashboardFragment".equals(
+                        fragClass.getName())) {
+                    seedSupportFragmentBaseState(fragment, activity);
+                    seedSupportFragmentViewState(fragment, homeContainer, fragmentView);
+                    seedHomeDashboardFragmentViewBindings(
+                            fragment, fragClass, activity, fragmentView);
+                    seedHomeDashboardFragmentInjectedMembers(fragment, activity);
+                }
+            }
+            normalizeMcdDashboardViewForFrame(homeContainer, 0);
+            android.view.View liveSections = safeFindViewById(homeContainer, sectionsId,
+                    "sections_container.stock_attach");
+            String marker = "home=" + safeViewSummary(homeContainer)
+                    + " fragment=" + safeViewSummary(fragmentView)
+                    + " sections=" + safeViewSummary(liveSections);
+            startupLog("[WestlakeLauncher] MCD_DASH_STOCK_VIEW_ATTACHED " + marker);
+            appendCutoffCanaryMarker("MCD_DASH_STOCK_VIEW_ATTACHED " + marker);
+            return true;
+        } catch (Throwable t) {
+            startupLog("[WestlakeLauncher] MCD_DASH_STOCK_VIEW_ATTACH", t);
+            logThrowableFrames("[WestlakeLauncher] MCD_DASH_STOCK_VIEW_ATTACH", t, 12);
+            appendCutoffCanaryMarker("MCD_DASH_STOCK_VIEW_ATTACH_FAIL err="
+                    + safeMarkerToken(throwableTag(t)));
+            return false;
+        }
+    }
+
+    private static android.view.ViewGroup.LayoutParams mcdDashboardFragmentLayoutParams(
+            android.view.ViewGroup parent) {
+        if (parent instanceof android.widget.FrameLayout) {
+            return new android.widget.FrameLayout.LayoutParams(
+                    android.view.ViewGroup.LayoutParams.MATCH_PARENT,
+                    android.view.ViewGroup.LayoutParams.MATCH_PARENT);
+        }
+        if (parent instanceof android.widget.LinearLayout) {
+            return new android.widget.LinearLayout.LayoutParams(
+                    android.view.ViewGroup.LayoutParams.MATCH_PARENT,
+                    android.view.ViewGroup.LayoutParams.MATCH_PARENT);
+        }
+        if (parent instanceof android.widget.RelativeLayout) {
+            return new android.widget.RelativeLayout.LayoutParams(
+                    android.view.ViewGroup.LayoutParams.MATCH_PARENT,
+                    android.view.ViewGroup.LayoutParams.MATCH_PARENT);
+        }
+        return new android.view.ViewGroup.LayoutParams(
+                android.view.ViewGroup.LayoutParams.MATCH_PARENT,
+                android.view.ViewGroup.LayoutParams.MATCH_PARENT);
+    }
+
+    private static void normalizeMcdDashboardViewForFrame(android.view.View view, int depth) {
+        if (view == null || depth > 24) {
+            return;
+        }
+        try {
+            int id = view.getId();
+            if (id == resolveKnownMcdViewId("home_dashboard_container")
+                    || id == resolveKnownMcdViewId("parent_container")) {
+                view.setMinimumHeight(YELP_SURFACE_HEIGHT);
+                android.view.ViewGroup.LayoutParams lp = view.getLayoutParams();
+                if (lp != null) {
+                    lp.width = android.view.ViewGroup.LayoutParams.MATCH_PARENT;
+                    lp.height = android.view.ViewGroup.LayoutParams.MATCH_PARENT;
+                    view.setLayoutParams(lp);
+                }
+            } else if (id == resolveKnownMcdViewId("sections_container")) {
+                view.setMinimumHeight(Math.max(640, YELP_SURFACE_HEIGHT - 80));
+                android.view.ViewGroup.LayoutParams lp = view.getLayoutParams();
+                if (lp != null) {
+                    lp.width = android.view.ViewGroup.LayoutParams.MATCH_PARENT;
+                    if (lp.height == android.view.ViewGroup.LayoutParams.WRAP_CONTENT
+                            || lp.height <= 1) {
+                        lp.height = android.view.ViewGroup.LayoutParams.WRAP_CONTENT;
+                    }
+                    view.setLayoutParams(lp);
+                }
+            }
+            if (view instanceof android.widget.ScrollView) {
+                ((android.widget.ScrollView) view).setFillViewport(true);
+                view.setMinimumHeight(YELP_SURFACE_HEIGHT);
+            }
+            if (view instanceof androidx.recyclerview.widget.RecyclerView) {
+                androidx.recyclerview.widget.RecyclerView recycler =
+                        (androidx.recyclerview.widget.RecyclerView) view;
+                if (safeRecyclerAdapterCount(recycler) > 0) {
+                    recycler.setMinimumHeight(190);
+                    android.view.ViewGroup.LayoutParams lp = recycler.getLayoutParams();
+                    if (lp != null) {
+                        lp.width = android.view.ViewGroup.LayoutParams.MATCH_PARENT;
+                        if (lp.height == android.view.ViewGroup.LayoutParams.WRAP_CONTENT
+                                || lp.height <= 1) {
+                            lp.height = 220;
+                        }
+                        recycler.setLayoutParams(lp);
+                    }
+                }
+            }
+        } catch (Throwable ignored) {
+        }
+        if (!(view instanceof android.view.ViewGroup)) {
+            return;
+        }
+        android.view.ViewGroup group = (android.view.ViewGroup) view;
+        int count = safeViewChildCount(group);
+        for (int i = 0; i < count; i++) {
+            try {
+                normalizeMcdDashboardViewForFrame(group.getChildAt(i), depth + 1);
+            } catch (Throwable ignored) {
+            }
+        }
+    }
+
+    private static int resolveKnownMcdViewId(String name) {
+        if ("home_dashboard_container".equals(name)) return 0x7f0b0ae8;
+        if ("sections_container".equals(name)) return 0x7f0b16c5;
+        if ("parent_container".equals(name)) return 0x7f0b11fa;
+        if ("simple_product_holder".equals(name)) return 0x7f0b171c;
+        if ("product_details_scroll".equals(name)) return 0x7f0b13b7;
+        if ("product_information".equals(name)) return 0x7f0b13be;
+        if ("pdpProductNameText".equals(name)) return 0x7f0b12a8;
+        if ("pdpCustomizeIngredientsButton".equals(name)) return 0x7f0b129c;
+        if ("mainContentPdp".equals(name)) return 0x7f0b0e54;
+        if ("bottom_layout".equals(name)) return 0x7f0b025b;
+        if ("product_image".equals(name)) return 0x7f0b13ba;
+        if ("productPriceCalorie".equals(name)) return 0x7f0b13c5;
+        if ("pdpNutritionIngredientButton".equals(name)) return 0x7f0b12a4;
+        if ("pdpAddToBagButton".equals(name)) return 0x7f0b1291;
+        if ("pdpMakeMealButton".equals(name)) return 0x7f0b12a1;
+        if ("pdpMinusIcon".equals(name)) return 0x7f0b12a2;
+        if ("pdpPlusIcon".equals(name)) return 0x7f0b12a5;
+        if ("pdpQuantityText".equals(name)) return 0x7f0b12a9;
+        return 0;
+    }
+
+    private static void maybeSeedMcdDashboardSections(
+            Activity activity, android.view.View decor, android.view.View sectionsRoot) {
+        if (activity == null || decor == null) {
+            return;
+        }
+        int activityKey = System.identityHashCode(activity);
+        if (sMcdDashboardSectionsSeededForActivity == activityKey) {
+            return;
+        }
+            int existingChildCount = safeViewChildCount(sectionsRoot);
+            if (existingChildCount > 2) {
+                boolean hasTargetSections =
+                        mcdSectionHasContent(sectionsRoot, 0x6f)
+                        && mcdSectionHasContent(sectionsRoot, 0x71)
+                        && mcdSectionHasContent(sectionsRoot, 0x74)
+                        && mcdSectionHasContent(sectionsRoot, 0x7c);
+                if (hasTargetSections) {
+                    normalizeMcdDashboardViewForFrame(sectionsRoot, 0);
+                    marker("MCD_DASH_SECTIONS_READY hero=true menu=true promotion=true popular=true count="
+                            + intAscii(safeViewChildCount(sectionsRoot))
+                            + " source=existing");
+                    sMcdDashboardSectionsSeededForActivity = activityKey;
+                    return;
+                }
+                marker("MCD_DASH_SECTION_RESEED existingCount="
+                        + intAscii(existingChildCount)
+                        + " reason=missing_target_child_fragments");
+            }
+        try {
+            Object fragment = findDashboardFragmentInstance(activity);
+            if (fragment == null) {
+                startupLog("[WestlakeLauncher] McD section seed skipped: HomeDashboardFragment not found");
+                return;
+            }
+            Class<?> fragClass = fragment.getClass();
+            if (!"com.mcdonalds.homedashboard.fragment.HomeDashboardFragment".equals(
+                    fragClass.getName())) {
+                return;
+            }
+            seedHomeDashboardFragmentViewBindings(fragment, fragClass, activity, decor);
+            seedHomeDashboardFragmentInjectedMembers(fragment, activity);
+            ClassLoader cl = fragClass.getClassLoader();
+            Class<?> sectionClass = cl.loadClass(
+                    "com.mcdonalds.homedashboard.model.HomeDashboardSection");
+            java.lang.reflect.Constructor<?> sectionCtor =
+                    sectionClass.getConstructor(String.class, boolean.class);
+            java.util.ArrayList sections = new java.util.ArrayList();
+            String[] names = new String[] {"HERO", "MENU", "PROMOTION", "POPULAR"};
+            for (int i = 0; i < names.length; i++) {
+                sections.add(sectionCtor.newInstance(names[i], Boolean.TRUE));
+            }
+            java.lang.reflect.Method u6 =
+                    findMethodOnHierarchy(fragClass, "u6", java.util.List.class);
+            if (u6 == null) {
+                startupLog("[WestlakeLauncher] McD section seed skipped: u6(List) missing");
+                return;
+            }
+            u6.setAccessible(true);
+            u6.invoke(fragment, sections);
+            marker("MCD_DASH_U6_SEEDED placeholders=HERO:0x6f,MENU:0x71,PROMOTION:0x74,POPULAR:0x7c");
+            probeMcdDashboardReplaceGuards(fragment, fragClass, sectionsRoot);
+            tryAttachMcdDashboardRealChildFragments(activity, fragment, sectionsRoot);
+            attachMcdDashboardSectionViews(activity, sectionsRoot);
+            sMcdDashboardSectionsSeededForActivity = activityKey;
+            startupLog("[WestlakeLauncher] McD dashboard seeded stock sections HERO/MENU/PROMOTION/POPULAR childCount="
+                    + safeViewChildCount(sectionsRoot));
+        } catch (Throwable t) {
+            startupLog("[WestlakeLauncher] McD dashboard section seed", t);
+            if (t instanceof java.lang.reflect.InvocationTargetException) {
+                Throwable cause =
+                        ((java.lang.reflect.InvocationTargetException) t).getTargetException();
+                if (cause != null) {
+                    startupLog("[WestlakeLauncher] McD dashboard section seed cause", cause);
+                    logThrowableFrames("[WestlakeLauncher] McD dashboard section seed cause",
+                            cause, 12);
+                }
+            }
+        }
+    }
+
+    private static void attachMcdDashboardSectionViews(
+            Activity activity, android.view.View sectionsRoot) {
+        if (activity == null || sectionsRoot == null) {
+            return;
+        }
+        attachMcdDashboardSectionView(activity, sectionsRoot, "HERO", 0x6f,
+                "fragment_home_dashboard_hero_section");
+        attachMcdDashboardSectionView(activity, sectionsRoot, "MENU", 0x71,
+                "fragment_menu_section");
+        attachMcdDashboardSectionView(activity, sectionsRoot, "PROMOTION", 0x74,
+                "fragment_promotion_section");
+        attachMcdDashboardSectionView(activity, sectionsRoot, "POPULAR", 0x7c,
+                "fragment_popular_section");
+        normalizeMcdDashboardViewForFrame(sectionsRoot, 0);
+        marker("MCD_DASH_SECTIONS_READY hero="
+                + boolToken(mcdSectionHasContent(sectionsRoot, 0x6f))
+                + " menu=" + boolToken(mcdSectionHasContent(sectionsRoot, 0x71))
+                + " promotion=" + boolToken(mcdSectionHasContent(sectionsRoot, 0x74))
+                + " popular=" + boolToken(mcdSectionHasContent(sectionsRoot, 0x7c))
+                + " count=" + intAscii(safeViewChildCount(sectionsRoot)));
+    }
+
+    private static void attachMcdDashboardSectionView(
+            Activity activity, android.view.View root, String section, int containerId,
+            String layoutName) {
+        try {
+            android.view.View containerView = safeFindViewById(root, containerId,
+                    "mcd_dashboard_section." + section);
+            if (!(containerView instanceof android.view.ViewGroup)) {
+                appendCutoffCanaryMarker("MCD_DASH_SECTION_VIEW_SKIP section="
+                        + safeMarkerToken(section) + " reason=no_container id=0x"
+                        + Integer.toHexString(containerId));
+                return;
+            }
+            android.view.ViewGroup container = (android.view.ViewGroup) containerView;
+            if (safeViewChildCount(container) > 0) {
+                appendCutoffCanaryMarker("MCD_DASH_SECTION_VIEW_SKIP section="
+                        + safeMarkerToken(section) + " reason=has_children count="
+                        + intAscii(safeViewChildCount(container)));
+                return;
+            }
+            int layoutId = resolveAppResourceId(activity, "layout", layoutName);
+            if (layoutId == 0) {
+                appendCutoffCanaryMarker("MCD_DASH_SECTION_VIEW_SKIP section="
+                        + safeMarkerToken(section) + " reason=no_layout name="
+                        + safeMarkerToken(layoutName));
+                return;
+            }
+            android.view.View sectionView =
+                    activity.getLayoutInflater().inflate(layoutId, container, false);
+            if (sectionView == null || sectionView.getId() == layoutId) {
+                appendCutoffCanaryMarker("MCD_DASH_SECTION_VIEW_SKIP section="
+                        + safeMarkerToken(section) + " reason=invalid_view layout=0x"
+                        + Integer.toHexString(layoutId) + " view="
+                        + safeMarkerToken(safeViewSummary(sectionView)));
+                return;
+            }
+            sectionView.setVisibility(android.view.View.VISIBLE);
+            container.setVisibility(android.view.View.VISIBLE);
+            if (sectionView.getParent() instanceof android.view.ViewGroup) {
+                ((android.view.ViewGroup) sectionView.getParent()).removeView(sectionView);
+            }
+            container.addView(sectionView, mcdDashboardSectionLayoutParams(container));
+            normalizeMcdDashboardViewForFrame(container, 0);
+            String marker = "section=" + safeMarkerToken(section)
+                    + " layout=" + safeMarkerToken(layoutName)
+                    + " layoutId=0x" + Integer.toHexString(layoutId)
+                    + " container=" + safeViewSummary(container)
+                    + " view=" + safeViewSummary(sectionView);
+            startupLog("[WestlakeLauncher] MCD_DASH_SECTION_VIEW_ATTACHED " + marker);
+            appendCutoffCanaryMarker("MCD_DASH_SECTION_VIEW_ATTACHED " + marker);
+        } catch (Throwable t) {
+            startupLog("[WestlakeLauncher] MCD_DASH_SECTION_VIEW_ATTACH section="
+                    + section, t);
+            logThrowableFrames("[WestlakeLauncher] MCD_DASH_SECTION_VIEW_ATTACH "
+                    + section, t, 8);
+            appendCutoffCanaryMarker("MCD_DASH_SECTION_VIEW_ATTACH_FAIL section="
+                    + safeMarkerToken(section) + " err=" + safeMarkerToken(throwableTag(t)));
+        }
+    }
+
+    private static void tryAttachMcdDashboardRealChildFragments(
+            Activity activity, Object dashboardFragment, android.view.View sectionsRoot) {
+        if (activity == null || sectionsRoot == null) {
+            return;
+        }
+        tryAttachMcdDashboardRealChildFragment(activity, dashboardFragment, sectionsRoot, "HERO", 0x6f,
+                "com.mcdonalds.homedashboard.fragment.HomeHeroFragment");
+        tryAttachMcdDashboardRealChildFragment(activity, dashboardFragment, sectionsRoot, "MENU", 0x71,
+                "com.mcdonalds.homedashboard.fragment.guestuser.HomeMenuGuestUserFragment");
+        tryAttachMcdDashboardRealChildFragment(activity, dashboardFragment, sectionsRoot, "PROMOTION", 0x74,
+                "com.mcdonalds.homedashboard.fragment.HomePromotionFragment");
+        tryAttachMcdDashboardRealChildFragment(activity, dashboardFragment, sectionsRoot, "POPULAR", 0x7c,
+                "com.mcdonalds.homedashboard.fragment.HomePopularFragment");
+    }
+
+    private static void tryAttachMcdDashboardRealChildFragment(
+            Activity activity, Object dashboardFragment, android.view.View sectionsRoot, String section,
+            int containerId, String className) {
+        android.view.View container = safeFindViewById(sectionsRoot, containerId,
+                "mcd_dashboard_real_fragment");
+        if (!(container instanceof android.view.ViewGroup)) {
+            marker("MCD_DASH_REAL_FRAGMENT_SKIP section=" + safeMarkerToken(section)
+                    + " reason=no_container id=0x" + Integer.toHexString(containerId));
+            return;
+        }
+        if (mcdSectionHasContent(sectionsRoot, containerId)) {
+            marker("MCD_DASH_REAL_FRAGMENT_SKIP section=" + safeMarkerToken(section)
+                    + " reason=has_content");
+            return;
+        }
+        try {
+            ClassLoader cl = activity.getClassLoader();
+            Class<?> clazz = cl != null ? cl.loadClass(className) : Class.forName(className);
+            Object instance = clazz.newInstance();
+            android.os.Bundle args = new android.os.Bundle();
+            args.putBoolean("TO_SHOW_SHIMMER", false);
+            invokeNamedNoArgOrOneArg(instance, "setArguments", args);
+            if (tryAttachMcdDashboardManualRealFragmentView(activity, dashboardFragment,
+                    instance, (android.view.ViewGroup) container, sectionsRoot, section,
+                    containerId, className)) {
+                return;
+            }
+            if (!Boolean.getBoolean("westlake.mcd.dashboard.replace.probe")) {
+                marker("MCD_DASH_REAL_FRAGMENT_SKIP section=" + safeMarkerToken(section)
+                        + " reason=dashboard_replace_probe_disabled");
+                return;
+            }
+            Object manager = invokeNamedNoArgOrOneArg(activity, "getSupportFragmentManager", null);
+            boolean dashboardReplace = false;
+            if (manager == null) {
+                marker("MCD_DASH_REAL_FRAGMENT_SKIP section=" + safeMarkerToken(section)
+                        + " reason=no_manager activity="
+                        + safeMarkerToken(activity.getClass().getName()));
+                return;
+            }
+            if (dashboardFragment != null) {
+                dashboardReplace = invokeDashboardReplaceFragment(
+                        dashboardFragment, instance, containerId);
+                if (dashboardReplace) {
+                    String execToken = invokeFragmentManagerExecutePending(manager);
+                    if (mcdSectionHasContent(sectionsRoot, containerId)) {
+                        String markerValue = "section=" + safeMarkerToken(section)
+                                + " id=0x" + Integer.toHexString(containerId)
+                                + " fragment=" + safeMarkerToken(className)
+                                + " path=dashboard_replace"
+                                + " exec=" + safeMarkerToken(execToken)
+                                + " manager=" + safeMarkerToken(manager.getClass().getName())
+                                + " content=true container="
+                                + safeMarkerToken(safeViewSummary(container));
+                        marker("MCD_DASH_REAL_FRAGMENT_ATTACHED " + markerValue);
+                        return;
+                    }
+                    marker("MCD_DASH_REAL_FRAGMENT_EMPTY section="
+                            + safeMarkerToken(section)
+                            + " path=dashboard_replace exec="
+                            + safeMarkerToken(execToken)
+                            + " container=" + safeMarkerToken(safeViewSummary(container)));
+                }
+            }
+            Object tx = invokeFirstNoArg(manager, new String[] {"beginTransaction", "s"});
+            if (tx == null) {
+                marker("MCD_DASH_REAL_FRAGMENT_SKIP section=" + safeMarkerToken(section)
+                        + " reason=no_tx manager="
+                        + safeMarkerToken(manager.getClass().getName()));
+                return;
+            }
+            Object replaceResult = invokeFragmentTransactionReplace(tx, containerId, instance);
+            if (replaceResult != null) {
+                tx = replaceResult;
+            }
+            invokeFirstNoArg(tx, new String[] {"commitAllowingStateLoss", "k", "commit", "j"});
+            String execToken = invokeFragmentManagerExecutePending(manager);
+            String markerValue = "section=" + safeMarkerToken(section)
+                    + " id=0x" + Integer.toHexString(containerId)
+                    + " fragment=" + safeMarkerToken(className)
+                    + " dashboardReplace=" + boolToken(dashboardReplace)
+                    + " exec=" + safeMarkerToken(execToken)
+                    + " manager=" + safeMarkerToken(manager.getClass().getName())
+                    + " tx=" + safeMarkerToken(tx.getClass().getName())
+                    + " content=" + boolToken(mcdSectionHasContent(sectionsRoot, containerId))
+                    + " container=" + safeMarkerToken(safeViewSummary(container));
+            marker("MCD_DASH_REAL_FRAGMENT_ATTEMPT " + markerValue);
+        } catch (Throwable t) {
+            startupLog("[WestlakeLauncher] MCD_DASH_REAL_FRAGMENT_ATTACH section="
+                    + section, t);
+            logThrowableFrames("[WestlakeLauncher] MCD_DASH_REAL_FRAGMENT_ATTACH "
+                    + section, t, 8);
+            marker("MCD_DASH_REAL_FRAGMENT_FAIL section=" + safeMarkerToken(section)
+                    + " fragment=" + safeMarkerToken(className)
+                    + " err=" + safeMarkerToken(throwableTag(t)));
+        }
+    }
+
+    private static boolean tryAttachMcdDashboardManualRealFragmentView(
+            Activity activity, Object dashboardFragment, Object fragment,
+            android.view.ViewGroup container, android.view.View sectionsRoot, String section,
+            int containerId, String className) {
+        if (activity == null || fragment == null || container == null || sectionsRoot == null) {
+            return false;
+        }
+        if (mcdSectionHasContent(sectionsRoot, containerId)) {
+            return true;
+        }
+        try {
+            Class<?> fragClass = fragment.getClass();
+            seedSupportFragmentBaseState(fragment, activity);
+            seedHiltFragmentContext(fragment, activity);
+            marker("MCD_DASH_REAL_VIEW_ATTACH_SKIP section=" + safeMarkerToken(section)
+                    + " reason=perform_attach_sigbus_boundary");
+            android.os.Bundle args = new android.os.Bundle();
+            args.putBoolean("TO_SHOW_SHIMMER", false);
+            invokeNamedNoArgOrOneArg(fragment, "setArguments", args);
+            if (!invokeFragmentMethod(fragment, fragClass, "performCreate",
+                    new Class<?>[]{android.os.Bundle.class},
+                    new Object[]{args})) {
+                invokeFragmentLifecycleMethod(fragment, fragClass, "onCreate",
+                        new Class<?>[]{android.os.Bundle.class},
+                        new Object[]{args});
+            }
+            android.view.LayoutInflater inflater = activity.getLayoutInflater();
+            android.view.View childView = null;
+            if (invokeFragmentMethod(fragment, fragClass, "performCreateView",
+                    new Class<?>[]{android.view.LayoutInflater.class,
+                            android.view.ViewGroup.class,
+                            android.os.Bundle.class},
+                    new Object[]{inflater, container, args})) {
+                Object currentView = invokeFragmentNoArg(fragment, fragClass, "getView");
+                if (currentView instanceof android.view.View) {
+                    childView = (android.view.View) currentView;
+                }
+            }
+            if (childView == null) {
+                childView = invokeFragmentOnCreateView(fragment, fragClass,
+                        inflater, container, args);
+            }
+            if (childView == null) {
+                marker("MCD_DASH_REAL_VIEW_EMPTY section=" + safeMarkerToken(section)
+                        + " fragment=" + safeMarkerToken(className));
+                return false;
+            }
+            seedSupportFragmentViewState(fragment, container, childView);
+            if (childView.getParent() instanceof android.view.ViewGroup) {
+                ((android.view.ViewGroup) childView.getParent()).removeView(childView);
+            }
+            container.removeAllViews();
+            container.setVisibility(android.view.View.VISIBLE);
+            childView.setVisibility(android.view.View.VISIBLE);
+            container.addView(childView, mcdDashboardSectionLayoutParams(container));
+            String viewCreatedToken = invokeMcdChildFragmentOnViewCreated(
+                    fragment, fragClass, childView, args, section, className);
+            probeMcdDashboardSectionRecycler(section, childView, "pre_adapter");
+            String adapterBootstrapToken = bootstrapMcdDashboardSectionAdapter(
+                    activity, fragment, fragClass, childView, section, className);
+            probeMcdDashboardSectionRecycler(section, childView, "post_adapter");
+            normalizeMcdDashboardViewForFrame(container, 0);
+            marker("MCD_DASH_REAL_VIEW_ATTACHED section=" + safeMarkerToken(section)
+                    + " id=0x" + Integer.toHexString(containerId)
+                    + " fragment=" + safeMarkerToken(className)
+                    + " dashboard=" + safeMarkerToken(
+                            dashboardFragment != null
+                                    ? dashboardFragment.getClass().getName() : "null")
+                    + " viewCreated=" + safeMarkerToken(viewCreatedToken)
+                    + " adapterBootstrap=" + safeMarkerToken(adapterBootstrapToken)
+                    + " container=" + safeMarkerToken(safeViewSummary(container))
+                    + " view=" + safeMarkerToken(safeViewSummary(childView)));
+            return true;
+        } catch (Throwable t) {
+            startupLog("[WestlakeLauncher] MCD_DASH_REAL_VIEW_ATTACH section="
+                    + section, t);
+            logThrowableFrames("[WestlakeLauncher] MCD_DASH_REAL_VIEW_ATTACH "
+                    + section, t, 10);
+            marker("MCD_DASH_REAL_VIEW_ATTACH_FAIL section=" + safeMarkerToken(section)
+                    + " fragment=" + safeMarkerToken(className)
+                    + " err=" + safeMarkerToken(throwableTag(t)));
+            return false;
+        }
+    }
+
+    private static String bootstrapMcdDashboardSectionAdapter(
+            Activity activity, Object fragment, Class<?> fragClass, android.view.View root,
+            String section, String className) {
+        if (activity == null || fragment == null || fragClass == null || root == null) {
+            return "missing";
+        }
+        try {
+            if ("PROMOTION".equals(section)) {
+                return bootstrapMcdPromotionAdapter(activity, fragment, fragClass, root);
+            }
+            if ("POPULAR".equals(section)) {
+                return bootstrapMcdPopularAdapter(activity, fragment, fragClass, root);
+            }
+            return "skipped";
+        } catch (Throwable t) {
+            Throwable cause = t instanceof java.lang.reflect.InvocationTargetException
+                    ? ((java.lang.reflect.InvocationTargetException) t).getTargetException()
+                    : t;
+            startupLog("[WestlakeLauncher] MCD_DASH_ADAPTER_BOOTSTRAP section="
+                    + section, cause != null ? cause : t);
+            logThrowableFrames("[WestlakeLauncher] MCD_DASH_ADAPTER_BOOTSTRAP "
+                    + section, cause != null ? cause : t, 10);
+            String markerValue = "section=" + safeMarkerToken(section)
+                    + " fragment=" + safeMarkerToken(className)
+                    + " err=" + safeMarkerToken(throwableTag(cause != null ? cause : t));
+            marker("MCD_DASH_ADAPTER_BOOTSTRAP_FAIL " + markerValue);
+            appendCutoffCanaryMarker("MCD_DASH_ADAPTER_BOOTSTRAP_FAIL " + markerValue);
+            return "error:" + safeMarkerToken(throwableTag(cause != null ? cause : t));
+        }
+    }
+
+    private static String bootstrapMcdPromotionAdapter(
+            Activity activity, Object fragment, Class<?> fragClass, android.view.View root)
+            throws Exception {
+        android.view.View recyclerView = safeFindViewById(root, 0x7f0b13f3,
+                "mcd_promotion_recycler");
+        if (!(recyclerView instanceof androidx.recyclerview.widget.RecyclerView)) {
+            return "promotion:no_recycler";
+        }
+        androidx.recyclerview.widget.RecyclerView recycler =
+                (androidx.recyclerview.widget.RecyclerView) recyclerView;
+        sMcdDashboardPopularRecycler = recycler;
+        setFragmentFieldReflective(fragment, fragClass, "D", recycler);
+        ClassLoader cl = activity.getClassLoader();
+        if (cl == null) {
+            cl = fragClass.getClassLoader();
+        }
+        String glide = ensureMcdGlideRequestManagerStarted(cl, activity);
+        Object viewModel = getFragmentFieldReflective(fragment, fragClass, "I");
+        if (viewModel == null && cl != null) {
+            Class<?> viewModelClass = cl.loadClass(
+                    "com.mcdonalds.homedashboard.viewmodel.HomePromotionViewModel");
+            viewModel = viewModelClass.getDeclaredConstructor().newInstance();
+            setFragmentFieldReflective(fragment, fragClass, "I", viewModel);
+        }
+        Object presenter = getFragmentFieldReflective(fragment, fragClass, "F");
+        if (presenter == null && cl != null && viewModel != null) {
+            Class<?> presenterClass = cl.loadClass(
+                    "com.mcdonalds.homedashboard.presenter.HomePromotionPresenterImpl");
+            Class<?> viewModelClass = cl.loadClass(
+                    "com.mcdonalds.homedashboard.viewmodel.HomePromotionViewModel");
+            Class<?> workerClass = cl.loadClass(
+                    "com.mcdonalds.homedashboard.interfaces.PostRunnableWorkerThread");
+            presenter = presenterClass.getDeclaredConstructor(viewModelClass, workerClass)
+                    .newInstance(viewModel, fragment);
+            setFragmentFieldReflective(fragment, fragClass, "F", presenter);
+        }
+        String l5 = "L5:skipped";
+        try {
+            invokePrivateFragmentNoArg(fragment, fragClass, "L5");
+            l5 = "L5:ok";
+        } catch (Throwable t) {
+            l5 = "L5:" + safeMarkerToken(throwableTag(t));
+        }
+        String n5 = "N5:skipped";
+        if ("true".equalsIgnoreCase(System.getProperty(
+                "westlake.mcd.promotion.invokeN5", "false"))) {
+            try {
+                invokePrivateFragmentNoArg(fragment, fragClass, "N5");
+                n5 = "N5:ok";
+            } catch (Throwable t) {
+                n5 = "N5:" + safeMarkerToken(throwableTag(t));
+            }
+        }
+        String seed = "seed:skipped";
+        if (safeRecyclerAdapterCount(recycler) <= 0 && cl != null && viewModel != null) {
+            try {
+                java.util.List seedList = buildMcdPromotionSeedList(cl);
+                prefetchMcdImageUrl(MCD_PROMOTION_SEED_IMAGE_URL,
+                        "promotion_seed");
+                setFragmentFieldReflective(fragment, fragClass, "J", seedList);
+                Object adapter = recycler.getAdapter();
+                if (adapter != null) {
+                    invokePublicOneArg(adapter, "updatePromotionList",
+                            java.util.List.class, seedList);
+                } else {
+                    Class<?> adapterClass = cl.loadClass(
+                            "com.mcdonalds.homedashboard.adapter.HomePromotionAdapter");
+                    Class<?> viewModelClass = cl.loadClass(
+                            "com.mcdonalds.homedashboard.viewmodel.HomePromotionViewModel");
+                    adapter = adapterClass.getDeclaredConstructor(
+                            android.content.Context.class, java.util.List.class,
+                            android.app.Activity.class, viewModelClass)
+                            .newInstance(activity, seedList, activity, viewModel);
+                    setFragmentFieldReflective(fragment, fragClass, "E", adapter);
+                    if (adapter instanceof androidx.recyclerview.widget.RecyclerView.Adapter) {
+                        recycler.setAdapter((androidx.recyclerview.widget.RecyclerView.Adapter)
+                                adapter);
+                    }
+                }
+                root.setVisibility(android.view.View.VISIBLE);
+                recycler.setVisibility(android.view.View.VISIBLE);
+                recycler.requestLayout();
+                seed = "seeded:" + intAscii(seedList.size());
+                marker("MCD_DASH_REAL_PROMO_MODEL_SEEDED size="
+                        + intAscii(seedList.size())
+                        + " adapter=" + safeMarkerToken(safeRecyclerAdapterClass(recycler)));
+                appendCutoffCanaryMarker("MCD_DASH_REAL_PROMO_MODEL_SEEDED size="
+                        + intAscii(seedList.size())
+                        + " adapter=" + safeMarkerToken(safeRecyclerAdapterClass(recycler)));
+            } catch (Throwable t) {
+                seed = "seed:" + safeMarkerToken(throwableTag(t));
+                marker("MCD_DASH_REAL_PROMO_MODEL_SEED_FAIL err="
+                        + safeMarkerToken(throwableTag(t)));
+                appendCutoffCanaryMarker("MCD_DASH_REAL_PROMO_MODEL_SEED_FAIL err="
+                        + safeMarkerToken(throwableTag(t)));
+            }
+        }
+        String rowProbe = forceMcdDashboardAdapterItemInflation("PROMOTION", recycler);
+        String markerValue = "section=PROMOTION recycler="
+                + safeMarkerToken(safeViewSummary(recycler))
+                + " adapter=" + safeMarkerToken(safeRecyclerAdapterClass(recycler))
+                + " itemCount=" + intAscii(safeRecyclerAdapterCount(recycler))
+                + " l5=" + safeMarkerToken(l5)
+                + " n5=" + safeMarkerToken(n5)
+                + " glide=" + safeMarkerToken(glide)
+                + " seed=" + safeMarkerToken(seed)
+                + " rowProbe=" + safeMarkerToken(rowProbe);
+        marker("MCD_DASH_ADAPTER_BOOTSTRAP " + markerValue);
+        appendCutoffCanaryMarker("MCD_DASH_ADAPTER_BOOTSTRAP " + markerValue);
+        return "promotion:" + safeRecyclerAdapterClass(recycler)
+                + ":" + intAscii(safeRecyclerAdapterCount(recycler));
+    }
+
+    private static String bootstrapMcdPopularAdapter(
+            Activity activity, Object fragment, Class<?> fragClass, android.view.View root)
+            throws Exception {
+        android.view.View recyclerView = safeFindViewById(root, 0x7f0b1367,
+                "mcd_popular_recycler");
+        if (!(recyclerView instanceof androidx.recyclerview.widget.RecyclerView)) {
+            return "popular:no_recycler";
+        }
+        androidx.recyclerview.widget.RecyclerView recycler =
+                (androidx.recyclerview.widget.RecyclerView) recyclerView;
+        setFragmentFieldReflective(fragment, fragClass, "D", recycler);
+        try {
+            recycler.setLayoutManager(new androidx.recyclerview.widget.LinearLayoutManager(
+                    activity, 0, false));
+        } catch (Throwable ignored) {
+        }
+        ClassLoader cl = activity.getClassLoader();
+        if (cl == null) {
+            cl = fragClass.getClassLoader();
+        }
+        String glide = ensureMcdGlideRequestManagerStarted(cl, activity);
+        String coreParams = ensureMcdCoreManagerParams(cl, activity);
+        String numberFormat = ensureMcdAppConfigurationNumberFormat(cl, activity);
+        Object viewModel = getFragmentFieldReflective(fragment, fragClass, "F");
+        if (viewModel == null && cl != null) {
+            Class<?> viewModelClass = cl.loadClass(
+                    "com.mcdonalds.homedashboard.viewmodel.HomePopularViewModel");
+            viewModel = viewModelClass.getDeclaredConstructor().newInstance();
+            setFragmentFieldReflective(fragment, fragClass, "F", viewModel);
+        }
+        Object adapter = getFragmentFieldReflective(fragment, fragClass, "E");
+        java.util.List seedList = null;
+        if (cl != null && viewModel != null) {
+            try {
+                seedList = buildMcdPopularSeedList(cl);
+                prefetchMcdPopularSeedImages();
+            } catch (Throwable t) {
+                marker("MCD_DASH_REAL_POPULAR_MODEL_SEED_FAIL err="
+                        + safeMarkerToken(throwableTag(t)));
+                appendCutoffCanaryMarker("MCD_DASH_REAL_POPULAR_MODEL_SEED_FAIL err="
+                        + safeMarkerToken(throwableTag(t)));
+            }
+        }
+        String seed = "seed:skipped";
+        if (adapter == null && cl != null && viewModel != null && seedList != null) {
+            Class<?> adapterClass = cl.loadClass(
+                    "com.mcdonalds.homedashboard.adapter.HomePopularItemsAdapter");
+            Class<?> viewModelClass = cl.loadClass(
+                    "com.mcdonalds.homedashboard.viewmodel.HomePopularViewModel");
+            Class<?> listenerClass = cl.loadClass(
+                    "com.mcdonalds.homedashboard.listener.HomePopularListener");
+            adapter = adapterClass.getDeclaredConstructor(
+                    java.util.List.class, viewModelClass, listenerClass)
+                    .newInstance(seedList, viewModel, fragment);
+            setFragmentFieldReflective(fragment, fragClass, "E", adapter);
+            seed = "seeded:" + intAscii(seedList.size());
+        } else if (adapter != null && seedList != null && safeRecyclerAdapterCount(recycler) <= 0) {
+            try {
+                invokePublicOneArg(adapter, "u", java.util.List.class, seedList);
+                seed = "updated:" + intAscii(seedList.size());
+            } catch (Throwable t) {
+                seed = "update:" + safeMarkerToken(throwableTag(t));
+                marker("MCD_DASH_REAL_POPULAR_MODEL_UPDATE_FAIL err="
+                        + safeMarkerToken(throwableTag(t)));
+                appendCutoffCanaryMarker("MCD_DASH_REAL_POPULAR_MODEL_UPDATE_FAIL err="
+                        + safeMarkerToken(throwableTag(t)));
+            }
+        }
+        if (adapter instanceof androidx.recyclerview.widget.RecyclerView.Adapter) {
+            recycler.setAdapter((androidx.recyclerview.widget.RecyclerView.Adapter) adapter);
+        }
+        root.setVisibility(android.view.View.VISIBLE);
+        recycler.setVisibility(android.view.View.VISIBLE);
+        recycler.requestLayout();
+        if (seedList != null && safeRecyclerAdapterCount(recycler) > 0) {
+            marker("MCD_DASH_REAL_POPULAR_MODEL_SEEDED size="
+                    + intAscii(seedList.size())
+                    + " adapter=" + safeMarkerToken(safeRecyclerAdapterClass(recycler)));
+            appendCutoffCanaryMarker("MCD_DASH_REAL_POPULAR_MODEL_SEEDED size="
+                    + intAscii(seedList.size())
+                    + " adapter=" + safeMarkerToken(safeRecyclerAdapterClass(recycler)));
+        }
+        String rowProbe = forceMcdDashboardAdapterItemInflation("POPULAR", recycler);
+        String markerValue = "section=POPULAR recycler="
+                + safeMarkerToken(safeViewSummary(recycler))
+                + " adapter=" + safeMarkerToken(safeRecyclerAdapterClass(recycler))
+                + " itemCount=" + intAscii(safeRecyclerAdapterCount(recycler))
+                + " glide=" + safeMarkerToken(glide)
+                + " core=" + safeMarkerToken(coreParams)
+                + " fmt=" + safeMarkerToken(numberFormat)
+                + " seed=" + safeMarkerToken(seed)
+                + " rowProbe=" + safeMarkerToken(rowProbe);
+        marker("MCD_DASH_ADAPTER_BOOTSTRAP " + markerValue);
+        appendCutoffCanaryMarker("MCD_DASH_ADAPTER_BOOTSTRAP " + markerValue);
+        return "popular:" + safeRecyclerAdapterClass(recycler)
+                + ":" + intAscii(safeRecyclerAdapterCount(recycler));
+    }
+
+    private static String forceMcdDashboardAdapterItemInflation(
+            String section, androidx.recyclerview.widget.RecyclerView recycler) {
+        if (recycler == null) {
+            return "skip:no_recycler";
+        }
+        androidx.recyclerview.widget.RecyclerView.Adapter adapter = null;
+        try {
+            adapter = recycler.getAdapter();
+        } catch (Throwable ignored) {
+        }
+        if (adapter == null) {
+            return "skip:no_adapter";
+        }
+        int itemCount = 0;
+        try {
+            itemCount = Math.max(0, adapter.getItemCount());
+        } catch (Throwable t) {
+            return "skip:count_" + safeMarkerToken(throwableTag(t));
+        }
+        if (itemCount <= 0) {
+            return "skip:empty";
+        }
+        boolean bind = "true".equalsIgnoreCase(System.getProperty(
+                "westlake.mcd.dashboard.bindItemProbe", "false"));
+        int position = 0;
+        int viewType = 0;
+        try {
+            viewType = adapter.getItemViewType(position);
+        } catch (Throwable ignored) {
+        }
+        androidx.recyclerview.widget.RecyclerView.ViewHolder holder = null;
+        try {
+            holder = adapter.onCreateViewHolder(recycler, viewType);
+        } catch (Throwable t) {
+            String markerValue = "section=" + safeMarkerToken(section)
+                    + " adapter=" + safeMarkerToken(adapter.getClass().getName())
+                    + " itemCount=" + intAscii(itemCount)
+                    + " position=" + intAscii(position)
+                    + " viewType=" + intAscii(viewType)
+                    + " err=" + safeMarkerToken(throwableTag(t));
+            marker("MCD_DASH_ITEM_XML_PROBE_FAIL " + markerValue);
+            appendCutoffCanaryMarker("MCD_DASH_ITEM_XML_PROBE_FAIL " + markerValue);
+            logThrowableFrames("[WestlakeLauncher] MCD_DASH_ITEM_XML_PROBE "
+                    + section, t, 8);
+            return "create:" + safeMarkerToken(throwableTag(t));
+        }
+        if (holder == null || holder.itemView == null) {
+            return "create:null";
+        }
+        String bindStatus = "skipped";
+        if (bind) {
+            try {
+                adapter.onBindViewHolder(holder, position);
+                bindStatus = "ok";
+            } catch (Throwable t) {
+                bindStatus = "err_" + safeMarkerToken(throwableTag(t));
+                logThrowableFrames("[WestlakeLauncher] MCD_DASH_ITEM_XML_BIND "
+                        + section, t, 8);
+            }
+        }
+        android.view.View row = holder.itemView;
+        boolean attached = false;
+        try {
+            if (safeRecyclerChildCount(recycler) <= 0) {
+                android.view.ViewParent parent = row.getParent();
+                if (parent instanceof android.view.ViewGroup && parent != recycler) {
+                    ((android.view.ViewGroup) parent).removeView(row);
+                }
+                if (row.getParent() == null) {
+                    if (row.getLayoutParams() == null) {
+                        row.setLayoutParams(new androidx.recyclerview.widget.RecyclerView.LayoutParams(
+                                android.view.ViewGroup.LayoutParams.MATCH_PARENT,
+                                android.view.ViewGroup.LayoutParams.WRAP_CONTENT));
+                    }
+                    recycler.addView(row);
+                    int width = Math.max(1, recycler.getWidth());
+                    if (width <= 1) {
+                        width = SURFACE_WIDTH - 32;
+                    }
+                    int height = "PROMOTION".equals(section) ? 228 : 132;
+                    row.measure(
+                            android.view.View.MeasureSpec.makeMeasureSpec(
+                                    width, android.view.View.MeasureSpec.EXACTLY),
+                            android.view.View.MeasureSpec.makeMeasureSpec(
+                                    height, android.view.View.MeasureSpec.AT_MOST));
+                    int measuredHeight = Math.max(48, row.getMeasuredHeight());
+                    row.layout(0, 0, width, measuredHeight);
+                    attached = true;
+                }
+            }
+        } catch (Throwable t) {
+            bindStatus = bindStatus + "_attach_" + safeMarkerToken(throwableTag(t));
+        }
+        String markerValue = "section=" + safeMarkerToken(section)
+                + " adapter=" + safeMarkerToken(adapter.getClass().getName())
+                + " itemCount=" + intAscii(itemCount)
+                + " position=" + intAscii(position)
+                + " viewType=" + intAscii(viewType)
+                + " bind=" + safeMarkerToken(bindStatus)
+                + " attached=" + boolToken(attached)
+                + " childCount=" + intAscii(safeRecyclerChildCount(recycler))
+                + " row=" + safeMarkerToken(safeViewSummary(row));
+        marker("MCD_DASH_ITEM_XML_PROBE " + markerValue);
+        appendCutoffCanaryMarker("MCD_DASH_ITEM_XML_PROBE " + markerValue);
+        return "created:" + boolToken(true) + ":attached:" + boolToken(attached)
+                + ":bind:" + safeMarkerToken(bindStatus);
+    }
+
+    private static String ensureMcdGlideRequestManagerStarted(ClassLoader cl, Activity activity) {
+        if (cl == null || activity == null) {
+            return "skip:no_context";
+        }
+        try {
+            Class<?> glideClass = cl.loadClass("com.bumptech.glide.Glide");
+            java.lang.reflect.Method withMethod = glideClass.getMethod(
+                    "u", android.content.Context.class);
+            withMethod.setAccessible(true);
+            Object manager = withMethod.invoke(null, activity);
+            if (manager == null) {
+                return "skip:no_manager";
+            }
+            try {
+                java.lang.reflect.Method onStart = manager.getClass().getMethod("onStart");
+                onStart.setAccessible(true);
+                onStart.invoke(manager);
+            } catch (NoSuchMethodException ignored) {
+                java.lang.reflect.Method resume = manager.getClass().getMethod("p");
+                resume.setAccessible(true);
+                resume.invoke(manager);
+            }
+            pruneMcdGlideExifHeaderParser(glideClass, activity);
+            boolean paused = false;
+            try {
+                java.lang.reflect.Field trackerField =
+                        findFieldOnHierarchy(manager.getClass(), "d");
+                Object tracker = trackerField != null ? trackerField.get(manager) : null;
+                java.lang.reflect.Field pausedField = tracker != null
+                        ? findFieldOnHierarchy(tracker.getClass(), "c") : null;
+                paused = pausedField != null && pausedField.getBoolean(tracker);
+            } catch (Throwable ignored) {
+            }
+            String markerValue = "manager=" + safeMarkerToken(manager.getClass().getName())
+                    + " paused=" + boolToken(paused);
+            marker("MCD_GLIDE_REQUEST_MANAGER_STARTED " + markerValue);
+            appendCutoffCanaryMarker("MCD_GLIDE_REQUEST_MANAGER_STARTED " + markerValue);
+            return "started:" + boolToken(!paused);
+        } catch (Throwable t) {
+            String err = safeMarkerToken(throwableTag(t));
+            marker("MCD_GLIDE_REQUEST_MANAGER_START_FAIL err=" + err);
+            appendCutoffCanaryMarker("MCD_GLIDE_REQUEST_MANAGER_START_FAIL err=" + err);
+            return "error:" + err;
+        }
+    }
+
+    private static String pruneMcdGlideExifHeaderParser(Class<?> glideClass,
+            android.content.Context context) {
+        if (glideClass == null || context == null) {
+            return "skip:no_context";
+        }
+        try {
+            java.lang.reflect.Method getGlide = glideClass.getMethod(
+                    "c", android.content.Context.class);
+            getGlide.setAccessible(true);
+            Object glide = getGlide.invoke(null, context);
+            if (glide == null) {
+                return "skip:no_glide";
+            }
+            java.lang.reflect.Method registryMethod = glide.getClass().getMethod("j");
+            registryMethod.setAccessible(true);
+            Object registry = registryMethod.invoke(glide);
+            java.lang.reflect.Field parserRegistryField = registry != null
+                    ? findFieldOnHierarchy(registry.getClass(), "g") : null;
+            Object parserRegistry = parserRegistryField != null
+                    ? parserRegistryField.get(registry) : null;
+            java.lang.reflect.Field parsersField = parserRegistry != null
+                    ? findFieldOnHierarchy(parserRegistry.getClass(), "a") : null;
+            Object value = parsersField != null ? parsersField.get(parserRegistry) : null;
+            if (!(value instanceof java.util.List)) {
+                return "skip:no_list";
+            }
+            java.util.List parsers = (java.util.List) value;
+            int before;
+            int removed = 0;
+            synchronized (parserRegistry != null ? parserRegistry : parsers) {
+                before = parsers.size();
+                java.util.Iterator iterator = parsers.iterator();
+                while (iterator.hasNext()) {
+                    Object parser = iterator.next();
+                    String name = parser != null ? parser.getClass().getName() : "";
+                    if ("com.bumptech.glide.load.resource.bitmap.ExifInterfaceImageHeaderParser"
+                            .equals(name)) {
+                        iterator.remove();
+                        removed++;
+                    }
+                }
+            }
+            String markerValue = "before=" + intAscii(before)
+                    + " removed=" + intAscii(removed)
+                    + " after=" + intAscii(parsers.size());
+            marker("MCD_GLIDE_EXIF_PARSER_PRUNED " + markerValue);
+            appendCutoffCanaryMarker("MCD_GLIDE_EXIF_PARSER_PRUNED " + markerValue);
+            return "removed:" + intAscii(removed);
+        } catch (Throwable t) {
+            String err = safeMarkerToken(throwableTag(t));
+            marker("MCD_GLIDE_EXIF_PARSER_PRUNE_FAIL err=" + err);
+            appendCutoffCanaryMarker("MCD_GLIDE_EXIF_PARSER_PRUNE_FAIL err=" + err);
+            return "error:" + err;
+        }
+    }
+
+    private static String ensureMcdCoreManagerParams(ClassLoader cl, Activity activity) {
+        if (cl == null) {
+            return "skip:no_classloader";
+        }
+        try {
+            Class<?> coreClass = cl.loadClass(
+                    "com.mcdonalds.androidsdk.core.internal.CoreManager");
+            java.lang.reflect.Field contextField = findFieldOnHierarchy(coreClass, "b");
+            if (contextField != null && contextField.get(null) == null && activity != null) {
+                android.content.Context context = activity.getApplicationContext();
+                contextField.set(null, context != null ? context : activity);
+            }
+            java.lang.reflect.Field paramsField = findFieldOnHierarchy(coreClass, "c");
+            if (paramsField == null) {
+                return "skip:no_params_field";
+            }
+            Object existing = paramsField.get(null);
+            if (existing != null) {
+                return "existing:" + safeMarkerToken(existing.getClass().getName());
+            }
+            Class<?> builderClass = cl.loadClass(
+                    "com.mcdonalds.androidsdk.core.param.SDKParams$Builder");
+            Object builder = builderClass.getDeclaredConstructor().newInstance();
+            setMcdSdkBuilderString(builder, builderClass, "a", "en-US");
+            setMcdSdkBuilderString(builder, builderClass, "b", "US");
+            setMcdSdkBuilderString(builder, builderClass, "c", "McDonalds");
+            setMcdSdkBuilderString(builder, builderClass, "d", "9.98.0");
+            setMcdSdkBuilderString(builder, builderClass, "e", "9.98.0");
+            setMcdSdkBuilderString(builder, builderClass, "f", "9.98.0");
+            setMcdSdkBuilderString(builder, builderClass, "g", "9980");
+            setMcdSdkBuilderString(builder, builderClass, "h", "westlake");
+            setMcdSdkBuilderString(builder, builderClass, "i", "westlake");
+            setMcdSdkBuilderString(builder, builderClass, "k", "/GMA/gma/us-prod/5.0/json");
+            setMcdSdkBuilderString(builder, builderClass, "l", "/GMA/gma/us-prod/5.0/json");
+            setMcdSdkBuilderString(builder, builderClass, "m", "/GMA/gma/us-prod/5.0/json");
+            setMcdSdkBuilderString(builder, builderClass, "o",
+                    "https://www.mcdonalds.com");
+            java.lang.reflect.Method buildMethod = builderClass.getMethod("B");
+            buildMethod.setAccessible(true);
+            Object params = buildMethod.invoke(builder);
+            if (params != null) {
+                paramsField.set(null, params);
+            }
+            String markerValue = "class=" + safeMarkerToken(
+                    params != null ? params.getClass().getName() : "null")
+                    + " language=en-US market=US";
+            marker("MCD_CORE_PARAMS_SEEDED " + markerValue);
+            appendCutoffCanaryMarker("MCD_CORE_PARAMS_SEEDED " + markerValue);
+            return "seeded";
+        } catch (Throwable t) {
+            String err = safeMarkerToken(throwableTag(t));
+            marker("MCD_CORE_PARAMS_SEED_FAIL err=" + err);
+            appendCutoffCanaryMarker("MCD_CORE_PARAMS_SEED_FAIL err=" + err);
+            return "error:" + err;
+        }
+    }
+
+    private static String ensureMcdAppConfigurationNumberFormat(ClassLoader cl, Activity activity) {
+        if (cl == null) {
+            return "skip:no_classloader";
+        }
+        try {
+            Class<?> managerClass = cl.loadClass(
+                    "com.mcdonalds.mcdcoreapp.common.services.AppConfigurationManager");
+            java.lang.reflect.Field configField = findFieldOnHierarchy(managerClass, "a");
+            if (configField == null) {
+                return "skip:no_config_field";
+            }
+            Object config = configField.get(null);
+            String source = "existing";
+            if (config == null || findNumberFormatField(config.getClass()) == null) {
+                Class<?> helperClass = cl.loadClass(
+                        "com.mcdonalds.mcdcoreapp.config.ConfigHelper");
+                android.content.Context context = activity != null
+                        ? activity.getApplicationContext() : null;
+                if (context == null) {
+                    context = activity;
+                }
+                java.lang.reflect.Constructor<?> ctor =
+                        helperClass.getConstructor(android.content.Context.class);
+                ctor.setAccessible(true);
+                config = ctor.newInstance(context);
+                configField.set(null, config);
+                source = "installed_confighelper";
+            }
+            if (config == null) {
+                return "skip:no_config";
+            }
+            java.lang.reflect.Field formatterField = findNumberFormatField(config.getClass());
+            if (formatterField == null) {
+                return "skip:no_formatter_field:" + safeMarkerToken(
+                        config.getClass().getName());
+            }
+            Object existing = formatterField.get(config);
+            if (existing != null) {
+                return "existing:" + safeMarkerToken(existing.getClass().getName());
+            }
+            java.text.NumberFormat formatter = new WestlakeSimpleCurrencyFormat();
+            formatterField.set(config, formatter);
+            String markerValue = "config=" + safeMarkerToken(config.getClass().getName())
+                    + " source=" + safeMarkerToken(source)
+                    + " formatter=" + safeMarkerToken(formatter.getClass().getName());
+            marker("MCD_APP_CONFIG_NUMBER_FORMAT_SEEDED " + markerValue);
+            appendCutoffCanaryMarker("MCD_APP_CONFIG_NUMBER_FORMAT_SEEDED " + markerValue);
+            return "seeded";
+        } catch (Throwable t) {
+            String err = safeMarkerToken(throwableTag(t));
+            marker("MCD_APP_CONFIG_NUMBER_FORMAT_SEED_FAIL err=" + err);
+            appendCutoffCanaryMarker("MCD_APP_CONFIG_NUMBER_FORMAT_SEED_FAIL err=" + err);
+            return "error:" + err;
+        }
+    }
+
+    private static java.lang.reflect.Field findNumberFormatField(Class<?> type) {
+        if (type == null) {
+            return null;
+        }
+        java.lang.reflect.Field named = findFieldOnHierarchy(type, "g");
+        if (named != null && java.text.NumberFormat.class.isAssignableFrom(named.getType())) {
+            return named;
+        }
+        for (Class<?> c = type; c != null && c != Object.class; c = c.getSuperclass()) {
+            try {
+                java.lang.reflect.Field[] fields = c.getDeclaredFields();
+                for (int i = 0; i < fields.length; i++) {
+                    java.lang.reflect.Field field = fields[i];
+                    if (java.text.NumberFormat.class.isAssignableFrom(field.getType())) {
+                        field.setAccessible(true);
+                        return field;
+                    }
+                }
+            } catch (Throwable ignored) {
+                return null;
+            }
+        }
+        return null;
+    }
+
+    private static void setMcdSdkBuilderString(
+            Object builder, Class<?> builderClass, String fieldName, String value)
+            throws IllegalAccessException {
+        java.lang.reflect.Field field = findFieldOnHierarchy(builderClass, fieldName);
+        if (field != null) {
+            field.set(builder, value);
+        }
+    }
+
+    private static java.util.List buildMcdPopularSeedList(ClassLoader cl) throws Exception {
+        java.util.ArrayList list = new java.util.ArrayList();
+        list.add(buildMcdPopularProduct(cl, 1001L, "Big Mac", "Big Mac",
+                MCD_POPULAR_SEED_IMAGE_NAME, 590.0d));
+        list.add(buildMcdPopularProduct(cl, 1002L, "McNuggets", "10 pc. Chicken McNuggets",
+                "DC_202006_0483_4McNuggets_Stacked_832x472", 410.0d));
+        list.add(buildMcdPopularProduct(cl, 1003L, "World Famous Fries",
+                "World Famous Fries", "DC_202002_6053_SmallWorldFamousFries_832x472",
+                230.0d));
+        return list;
+    }
+
+    private static Object buildMcdPopularProduct(
+            ClassLoader cl, long id, String name, String longName, String imageName,
+            double calories) throws Exception {
+        Class<?> productClass = cl.loadClass(
+                "com.mcdonalds.androidsdk.ordering.network.model.catalog.Product");
+        Class<?> productNameClass = cl.loadClass(
+                "com.mcdonalds.androidsdk.ordering.network.model.catalog.ProductName");
+        Class<?> realmListClass = cl.loadClass("io.realm.RealmList");
+        Object product = productClass.getDeclaredConstructor().newInstance();
+        Object productName = productNameClass.getDeclaredConstructor().newInstance();
+        invokePublicOneArg(productName, "setProductCode", Long.TYPE, Long.valueOf(id));
+        invokePublicOneArg(productName, "setLocale", String.class, "en-US");
+        invokePublicOneArg(productName, "setName", String.class, name);
+        invokePublicOneArg(productName, "setShortName", String.class, name);
+        invokePublicOneArg(productName, "setLongName", String.class, longName);
+        invokePublicOneArg(productName, "setValid", Boolean.TYPE, Boolean.TRUE);
+        Object names = realmListClass.getDeclaredConstructor().newInstance();
+        if (names instanceof java.util.List) {
+            ((java.util.List) names).add(productName);
+        }
+        invokePublicOneArg(product, "setId", Long.TYPE, Long.valueOf(id));
+        invokePublicOneArg(product, "setProductNames", realmListClass, names);
+        invokePublicOneArg(product, "setDisplayImageName", String.class, imageName);
+        invokePublicOneArg(product, "setCumulativeCalorie", Double.TYPE,
+                Double.valueOf(calories));
+        invokePublicOneArg(product, "setSalable", Boolean.TYPE, Boolean.TRUE);
+        invokePublicOneArg(product, "setSoldOut", Boolean.TYPE, Boolean.FALSE);
+        invokePublicOneArg(product, "setProductUnit", String.class, "EACH");
+        return product;
+    }
+
+    private static java.util.List buildMcdPromotionSeedList(ClassLoader cl) throws Exception {
+        java.util.ArrayList list = new java.util.ArrayList();
+        Class<?> promotionClass = cl.loadClass(
+                "com.mcdonalds.mcdcoreapp.common.model.Promotion");
+        Class<?> tileTextClass = cl.loadClass(
+                "com.mcdonalds.mcdcoreapp.common.model.Promotion$TileText");
+        Class<?> backgroundClass = cl.loadClass(
+                "com.mcdonalds.mcdcoreapp.common.model.Promotion$BackgroundContent");
+        Class<?> urlsClass = cl.loadClass(
+                "com.mcdonalds.mcdcoreapp.common.model.Promotion$BackgroundContent$ContentURLs");
+
+        Object promotion = promotionClass.getDeclaredConstructor().newInstance();
+        Object eyebrow = buildMcdPromotionTileText(tileTextClass, "Featured",
+                "Featured", "#6f4e00");
+        Object header = buildMcdPromotionTileText(tileTextClass, "Big Mac Meal Deal",
+                "Big Mac Meal Deal", "#292929");
+        Object body = buildMcdPromotionTileText(tileTextClass,
+                "A real McDonald's adapter row rendered by Westlake.",
+                "A real McDonald's adapter row rendered by Westlake.", "#292929");
+        Object background = backgroundClass.getDeclaredConstructor().newInstance();
+        Object url = urlsClass.getDeclaredConstructor().newInstance();
+        invokePublicOneArg(url, "setPublishUrl", String.class,
+                MCD_PROMOTION_SEED_IMAGE_URL);
+        Object urls = java.lang.reflect.Array.newInstance(urlsClass, 1);
+        java.lang.reflect.Array.set(urls, 0, url);
+        invokePublicOneArg(background, "setAccessibilityText", String.class,
+                "Big Mac Meal Deal");
+        invokePublicOneArg(background, "setContentURLs", urls.getClass(), urls);
+        invokePublicOneArg(background, "setNewContentURLs", urls.getClass(), urls);
+        invokePublicOneArg(background, "setContentType", String.class, "image");
+
+        invokePublicOneArg(promotion, "setName", String.class,
+                "Westlake Real Adapter Promotion");
+        invokePublicOneArg(promotion, "setEyebrow", tileTextClass, eyebrow);
+        invokePublicOneArg(promotion, "setHeader", tileTextClass, header);
+        invokePublicOneArg(promotion, "setBody", tileTextClass, body);
+        invokePublicOneArg(promotion, "setBackgroundContent", backgroundClass, background);
+        list.add(promotion);
+        return list;
+    }
+
+    private static void prefetchMcdPopularSeedImages() {
+        prefetchMcdImageForLabel("Big Mac", "popular_seed_0");
+        prefetchMcdImageForLabel("10 pc. Chicken McNuggets", "popular_seed_1");
+        prefetchMcdImageForLabel("World Famous Fries", "popular_seed_2");
+    }
+
+    private static void prefetchMcdImageForLabel(String label, String reason) {
+        String json = ensureMcdMenuJson();
+        if (json == null || json.length() == 0) {
+            marker("MCD_IMAGE_PREFETCH_SKIP reason=" + safeMarkerToken(reason)
+                    + " label=" + safeMarkerToken(label)
+                    + " err=no_menu_json");
+            return;
+        }
+        String url = mcdMenuCategoryImageUrlForLabel(json, label);
+        if ((url == null || url.length() == 0)
+                && label != null
+                && label.toLowerCase(java.util.Locale.US).indexOf("big mac") >= 0) {
+            url = MCD_PROMOTION_SEED_IMAGE_URL;
+        }
+        prefetchMcdImageUrl(url, reason);
+    }
+
+    private static void prefetchMcdImageUrl(String url, String reason) {
+        if (url == null || url.length() == 0) {
+            marker("MCD_IMAGE_PREFETCH_SKIP reason=" + safeMarkerToken(reason)
+                    + " err=no_url");
+            return;
+        }
+        synchronized (sMcdImageCache) {
+            if (sMcdImageCache.containsKey(url)) {
+                marker("MCD_IMAGE_PREFETCH_SKIP reason=" + safeMarkerToken(reason)
+                        + " cached=true url=" + safeMarkerToken(url));
+                return;
+            }
+        }
+        byte[] body = bridgeHttpGetBytes(url, 512 * 1024, 5000);
+        if (body != null && body.length > 0) {
+            synchronized (sMcdImageCache) {
+                if (sMcdImageCache.size() < 24) {
+                    sMcdImageCache.put(url, body);
+                }
+            }
+            marker("MCD_IMAGE_PREFETCH_OK reason=" + safeMarkerToken(reason)
+                    + " bytes=" + intAscii(body.length)
+                    + " url=" + safeMarkerToken(url));
+            appendCutoffCanaryMarker("MCD_IMAGE_PREFETCH_OK reason="
+                    + safeMarkerToken(reason)
+                    + " bytes=" + intAscii(body.length)
+                    + " url=" + safeMarkerToken(url));
+        } else {
+            marker("MCD_IMAGE_PREFETCH_FAIL reason=" + safeMarkerToken(reason)
+                    + " url=" + safeMarkerToken(url)
+                    + " status=" + intAscii(sHttpBridgeLastStatus)
+                    + " err=" + safeMarkerToken(sHttpBridgeLastError));
+        }
+    }
+
+    private static Object buildMcdPromotionTileText(
+            Class<?> tileTextClass, String text, String accessibilityText, String fontColor)
+            throws Exception {
+        Object tileText = tileTextClass.getDeclaredConstructor().newInstance();
+        invokePublicOneArg(tileText, "setText", String.class, text);
+        invokePublicOneArg(tileText, "setAccessibilityText", String.class, accessibilityText);
+        invokePublicOneArg(tileText, "setFontColor", String.class, fontColor);
+        return tileText;
+    }
+
+    private static Object invokePublicOneArg(
+            Object target, String methodName, Class<?> parameterType, Object value)
+            throws Exception {
+        if (target == null || methodName == null || parameterType == null) {
+            return null;
+        }
+        java.lang.reflect.Method method = target.getClass().getMethod(methodName, parameterType);
+        method.setAccessible(true);
+        return method.invoke(target, value);
+    }
+
+    private static Object getFragmentFieldReflective(
+            Object fragment, Class<?> fragClass, String fieldName) {
+        if (fragment == null || fragClass == null || fieldName == null) {
+            return null;
+        }
+        try {
+            java.lang.reflect.Field field = findFieldOnHierarchy(fragClass, fieldName);
+            return field != null ? field.get(fragment) : null;
+        } catch (Throwable ignored) {
+            return null;
+        }
+    }
+
+    private static boolean setFragmentFieldReflective(
+            Object fragment, Class<?> fragClass, String fieldName, Object value) {
+        if (fragment == null || fragClass == null || fieldName == null || value == null) {
+            return false;
+        }
+        try {
+            java.lang.reflect.Field field = findFieldOnHierarchy(fragClass, fieldName);
+            if (field == null) {
+                return false;
+            }
+            Class<?> type = field.getType();
+            if (!type.isPrimitive() && !type.isInstance(value)) {
+                return false;
+            }
+            field.set(fragment, value);
+            return true;
+        } catch (Throwable t) {
+            startupLog("[WestlakeLauncher] set fragment field " + fieldName, t);
+            return false;
+        }
+    }
+
+    private static Object invokePrivateFragmentNoArg(
+            Object fragment, Class<?> fragClass, String name) throws Exception {
+        if (fragment == null || fragClass == null || name == null) {
+            return null;
+        }
+        for (Class<?> c = fragClass; c != null && c != Object.class; c = c.getSuperclass()) {
+            try {
+                java.lang.reflect.Method method = c.getDeclaredMethod(name);
+                method.setAccessible(true);
+                return method.invoke(fragment);
+            } catch (NoSuchMethodException ignored) {
+            }
+        }
+        return null;
+    }
+
+    private static void probeMcdDashboardSectionRecycler(
+            String section, android.view.View root, String phase) {
+        probeMcdDashboardSectionRecycler(section, root, phase, 0);
+    }
+
+    private static void probeMcdDashboardSectionRecycler(
+            String section, android.view.View view, String phase, int depth) {
+        if (view == null || depth > 16) {
+            return;
+        }
+        if (view instanceof androidx.recyclerview.widget.RecyclerView) {
+            androidx.recyclerview.widget.RecyclerView recycler =
+                    (androidx.recyclerview.widget.RecyclerView) view;
+            androidx.recyclerview.widget.RecyclerView.Adapter adapter = null;
+            String adapterClass = "none";
+            int itemCount = -1;
+            try {
+                adapter = recycler.getAdapter();
+                if (adapter != null) {
+                    adapterClass = adapter.getClass().getName();
+                    itemCount = Math.max(0, adapter.getItemCount());
+                }
+            } catch (Throwable t) {
+                adapterClass = "error_" + throwableTag(t);
+            }
+            String markerValue = "section=" + safeMarkerToken(section)
+                    + " phase=" + safeMarkerToken(phase)
+                    + " recycler=" + safeMarkerToken(safeViewSummary(recycler))
+                    + " adapter=" + safeMarkerToken(adapterClass)
+                    + " itemCount=" + intAscii(itemCount)
+                    + " childCount=" + intAscii(safeRecyclerChildCount(recycler))
+                    + " horizontal=" + boolToken(isRecyclerHorizontal(recycler));
+            marker("MCD_DASH_RECYCLER_PROBE " + markerValue);
+            appendCutoffCanaryMarker("MCD_DASH_RECYCLER_PROBE " + markerValue);
+        }
+        if (!(view instanceof android.view.ViewGroup)) {
+            return;
+        }
+        android.view.ViewGroup group = (android.view.ViewGroup) view;
+        int count = safeViewChildCount(group);
+        for (int i = 0; i < count; i++) {
+            try {
+                probeMcdDashboardSectionRecycler(section, group.getChildAt(i),
+                        phase, depth + 1);
+            } catch (Throwable ignored) {
+            }
+        }
+    }
+
+    private static String invokeMcdChildFragmentOnViewCreated(
+            Object fragment, Class<?> fragClass, android.view.View view,
+            android.os.Bundle args, String section, String className) {
+        if (fragment == null || fragClass == null || view == null) {
+            return "missing";
+        }
+        if (!"true".equalsIgnoreCase(System.getProperty(
+                "westlake.mcd.child.onviewcreated", "false"))) {
+            return "disabled";
+        }
+        for (Class<?> c = fragClass; c != null && c != Object.class; c = c.getSuperclass()) {
+            try {
+                java.lang.reflect.Method method = c.getDeclaredMethod(
+                        "onViewCreated", android.view.View.class, android.os.Bundle.class);
+                method.setAccessible(true);
+                method.invoke(fragment, view, args);
+                marker("MCD_DASH_REAL_VIEW_CREATED section=" + safeMarkerToken(section)
+                        + " fragment=" + safeMarkerToken(className)
+                        + " owner=" + safeMarkerToken(c.getName()));
+                return "onViewCreated:" + safeMarkerToken(c.getName());
+            } catch (NoSuchMethodException ignored) {
+            } catch (Throwable t) {
+                Throwable cause = t instanceof java.lang.reflect.InvocationTargetException
+                        ? ((java.lang.reflect.InvocationTargetException) t).getTargetException()
+                        : t;
+                startupLog("[WestlakeLauncher] MCD_DASH_REAL_VIEW onViewCreated section="
+                        + section, cause != null ? cause : t);
+                if (cause != null) {
+                    logThrowableFrames("[WestlakeLauncher] MCD_DASH_REAL_VIEW onViewCreated "
+                            + section, cause, 10);
+                }
+                marker("MCD_DASH_REAL_VIEW_CREATED_FAIL section=" + safeMarkerToken(section)
+                        + " fragment=" + safeMarkerToken(className)
+                        + " err=" + safeMarkerToken(throwableTag(cause != null ? cause : t)));
+                return "error:" + safeMarkerToken(throwableTag(cause != null ? cause : t));
+            }
+        }
+        return "absent";
+    }
+
+    private static android.view.View invokeFragmentOnCreateView(
+            Object fragment, Class<?> fragClass, android.view.LayoutInflater inflater,
+            android.view.ViewGroup container, android.os.Bundle args) {
+        if (fragment == null || fragClass == null) {
+            return null;
+        }
+        for (Class<?> c = fragClass; c != null && c != Object.class; c = c.getSuperclass()) {
+            try {
+                java.lang.reflect.Method method = c.getDeclaredMethod("onCreateView",
+                        android.view.LayoutInflater.class,
+                        android.view.ViewGroup.class,
+                        android.os.Bundle.class);
+                method.setAccessible(true);
+                Object result = method.invoke(fragment, inflater, container, args);
+                return result instanceof android.view.View
+                        ? (android.view.View) result : null;
+            } catch (NoSuchMethodException ignored) {
+            } catch (Throwable t) {
+                startupLog("[WestlakeLauncher] MCD_DASH_REAL_VIEW onCreateView", t);
+                if (t instanceof java.lang.reflect.InvocationTargetException) {
+                    Throwable cause =
+                            ((java.lang.reflect.InvocationTargetException) t).getTargetException();
+                    if (cause != null) {
+                        startupLog("[WestlakeLauncher] MCD_DASH_REAL_VIEW onCreateView cause",
+                                cause);
+                        logThrowableFrames(
+                                "[WestlakeLauncher] MCD_DASH_REAL_VIEW onCreateView cause",
+                                cause, 10);
+                    }
+                }
+                return null;
+            }
+        }
+        return null;
+    }
+
+    private static boolean invokeDashboardReplaceFragment(
+            Object dashboardFragment, Object fragment, int containerId) {
+        if (dashboardFragment == null || fragment == null) {
+            return false;
+        }
+        Class<?> cls = dashboardFragment.getClass();
+        while (cls != null) {
+            java.lang.reflect.Method[] methods = cls.getDeclaredMethods();
+            for (int i = 0; i < methods.length; i++) {
+                java.lang.reflect.Method method = methods[i];
+                if (method == null || !"replaceFragment".equals(method.getName())) {
+                    continue;
+                }
+                Class<?>[] params = method.getParameterTypes();
+                if (params.length != 2 || !isReflectionArgCompatible(params[0], fragment)
+                        || !isIntParameter(params[1])) {
+                    continue;
+                }
+                try {
+                    method.setAccessible(true);
+                    method.invoke(dashboardFragment, fragment, Integer.valueOf(containerId));
+                    return true;
+                } catch (Throwable t) {
+                    startupLog("[WestlakeLauncher] MCD_DASH_REAL_FRAGMENT dashboard replace", t);
+                    marker("MCD_DASH_REAL_FRAGMENT_DASHBOARD_REPLACE_FAIL fragment="
+                            + safeMarkerToken(fragment.getClass().getName())
+                            + " id=0x" + Integer.toHexString(containerId)
+                            + " err=" + safeMarkerToken(throwableTag(t)));
+                    return false;
+                }
+            }
+            cls = cls.getSuperclass();
+        }
+        marker("MCD_DASH_REAL_FRAGMENT_DASHBOARD_REPLACE_MISSING fragment="
+                + safeMarkerToken(fragment.getClass().getName())
+                + " id=0x" + Integer.toHexString(containerId));
+        return false;
+    }
+
+    private static String invokeFragmentManagerExecutePending(Object manager) {
+        if (manager == null) {
+            return "none";
+        }
+        if (!Boolean.getBoolean("westlake.mcd.fragment.exec")) {
+            return "skipped";
+        }
+        Object result = invokeMethodIfPresent(manager, "executePendingTransactions", null);
+        if (result != null) {
+            return "executePendingTransactions:" + safeMarkerToken(String.valueOf(result));
+        }
+        result = invokeMethodIfPresent(manager, "h0", Boolean.TRUE);
+        if (result != null) {
+            return "h0:" + safeMarkerToken(String.valueOf(result));
+        }
+        return "missing";
+    }
+
+    private static Object invokeMethodIfPresent(Object target, String name, Object arg) {
+        if (target == null || name == null) {
+            return null;
+        }
+        Class<?> cls = target.getClass();
+        while (cls != null) {
+            java.lang.reflect.Method[] methods = cls.getDeclaredMethods();
+            for (int i = 0; i < methods.length; i++) {
+                java.lang.reflect.Method method = methods[i];
+                if (method == null || !name.equals(method.getName())) {
+                    continue;
+                }
+                Class<?>[] params = method.getParameterTypes();
+                boolean match = false;
+                Object[] args = null;
+                if (arg == null && params.length == 0) {
+                    match = true;
+                    args = new Object[0];
+                } else if (arg instanceof Boolean && params.length == 1
+                        && (params[0] == Boolean.TYPE || params[0] == Boolean.class)) {
+                    match = true;
+                    args = new Object[] { arg };
+                }
+                if (!match) {
+                    continue;
+                }
+                try {
+                    method.setAccessible(true);
+                    return method.invoke(target, args);
+                } catch (Throwable t) {
+                    startupLog("[WestlakeLauncher] invokeMethodIfPresent " + name, t);
+                    return "error:" + throwableTag(t);
+                }
+            }
+            cls = cls.getSuperclass();
+        }
+        return null;
+    }
+
+    private static Object invokeNoArgValue(Object target, String name) {
+        if (target == null || name == null) {
+            return null;
+        }
+        try {
+            java.lang.reflect.Method method = findMethodOnHierarchy(target.getClass(), name);
+            return method != null ? method.invoke(target) : null;
+        } catch (Throwable ignored) {
+            return null;
+        }
+    }
+
+    private static Object invokeNamedNoArgOrOneArg(
+            Object target, String name, Object arg) throws Exception {
+        if (target == null || name == null) {
+            return null;
+        }
+        Class<?> cls = target.getClass();
+        while (cls != null) {
+            java.lang.reflect.Method[] methods = cls.getDeclaredMethods();
+            for (int i = 0; i < methods.length; i++) {
+                java.lang.reflect.Method method = methods[i];
+                if (method == null || !name.equals(method.getName())) {
+                    continue;
+                }
+                Class<?>[] params = method.getParameterTypes();
+                if (arg == null && params.length == 0) {
+                    method.setAccessible(true);
+                    return method.invoke(target);
+                }
+                if (arg != null && params.length == 1
+                        && isReflectionArgCompatible(params[0], arg)) {
+                    method.setAccessible(true);
+                    return method.invoke(target, arg);
+                }
+            }
+            cls = cls.getSuperclass();
+        }
+        return null;
+    }
+
+    private static Object invokeFirstNoArg(Object target, String[] names) throws Exception {
+        if (target == null || names == null) {
+            return null;
+        }
+        for (int i = 0; i < names.length; i++) {
+            Object result = invokeNamedNoArgOrOneArg(target, names[i], null);
+            if (result != null || methodExistsNoArg(target.getClass(), names[i])) {
+                return result;
+            }
+        }
+        return null;
+    }
+
+    private static boolean methodExistsNoArg(Class<?> cls, String name) {
+        while (cls != null) {
+            java.lang.reflect.Method[] methods = cls.getDeclaredMethods();
+            for (int i = 0; i < methods.length; i++) {
+                java.lang.reflect.Method method = methods[i];
+                if (method != null && name.equals(method.getName())
+                        && method.getParameterTypes().length == 0) {
+                    return true;
+                }
+            }
+            cls = cls.getSuperclass();
+        }
+        return false;
+    }
+
+    private static Object invokeFragmentTransactionReplace(
+            Object tx, int containerId, Object fragment) throws Exception {
+        String[] names = new String[] {"replace", "t"};
+        Class<?> cls = tx != null ? tx.getClass() : null;
+        while (cls != null) {
+            java.lang.reflect.Method[] methods = cls.getDeclaredMethods();
+            for (int i = 0; i < methods.length; i++) {
+                java.lang.reflect.Method method = methods[i];
+                if (method == null || !methodNameMatches(method.getName(), names)) {
+                    continue;
+                }
+                Class<?>[] params = method.getParameterTypes();
+                if (params.length != 2 || !isIntParameter(params[0])
+                        || !isReflectionArgCompatible(params[1], fragment)) {
+                    continue;
+                }
+                method.setAccessible(true);
+                return method.invoke(tx, Integer.valueOf(containerId), fragment);
+            }
+            cls = cls.getSuperclass();
+        }
+        throw new NoSuchMethodException("replace/t");
+    }
+
+    private static boolean methodNameMatches(String name, String[] names) {
+        if (name == null || names == null) {
+            return false;
+        }
+        for (int i = 0; i < names.length; i++) {
+            if (name.equals(names[i])) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private static boolean isReflectionArgCompatible(Class<?> param, Object arg) {
+        if (param == null) {
+            return false;
+        }
+        if (arg == null) {
+            return !param.isPrimitive();
+        }
+        return param.isAssignableFrom(arg.getClass());
+    }
+
+    private static boolean isIntParameter(Class<?> param) {
+        return param == Integer.TYPE || param == Integer.class;
+    }
+
+    private static void probeMcdDashboardReplaceGuards(
+            Object fragment, Class<?> fragClass, android.view.View sectionsRoot) {
+        if (fragment == null || fragClass == null) {
+            return;
+        }
+        boolean alive = false;
+        String aliveErr = "none";
+        try {
+            java.lang.reflect.Method isAlive =
+                    findMethodOnHierarchy(fragClass, "isActivityAlive");
+            if (isAlive != null) {
+                isAlive.setAccessible(true);
+                Object result = isAlive.invoke(fragment);
+                alive = Boolean.TRUE.equals(result);
+            } else {
+                aliveErr = "missing";
+            }
+        } catch (Throwable t) {
+            aliveErr = throwableTag(t);
+        }
+        probeMcdDashboardReplaceGuard(fragment, fragClass, sectionsRoot,
+                "HERO", 0x6f, alive, aliveErr);
+        probeMcdDashboardReplaceGuard(fragment, fragClass, sectionsRoot,
+                "MENU", 0x71, alive, aliveErr);
+        probeMcdDashboardReplaceGuard(fragment, fragClass, sectionsRoot,
+                "PROMOTION", 0x74, alive, aliveErr);
+        probeMcdDashboardReplaceGuard(fragment, fragClass, sectionsRoot,
+                "POPULAR", 0x7c, alive, aliveErr);
+    }
+
+    private static void probeMcdDashboardReplaceGuard(
+            Object fragment, Class<?> fragClass, android.view.View sectionsRoot,
+            String section, int containerId, boolean alive, String aliveErr) {
+        boolean l5 = false;
+        String l5Err = "none";
+        try {
+            java.lang.reflect.Method l5Method =
+                    findMethodOnHierarchy(fragClass, "l5", Integer.TYPE);
+            if (l5Method != null) {
+                l5Method.setAccessible(true);
+                Object result = l5Method.invoke(fragment, Integer.valueOf(containerId));
+                l5 = Boolean.TRUE.equals(result);
+            } else {
+                l5Err = "missing";
+            }
+        } catch (Throwable t) {
+            l5Err = throwableTag(t);
+        }
+        android.view.View container = safeFindViewById(sectionsRoot, containerId,
+                "mcd_dashboard_replace_guard");
+        String markerValue = "section=" + safeMarkerToken(section)
+                + " id=0x" + Integer.toHexString(containerId)
+                + " alive=" + boolToken(alive)
+                + " aliveErr=" + safeMarkerToken(aliveErr)
+                + " l5=" + boolToken(l5)
+                + " l5Err=" + safeMarkerToken(l5Err)
+                + " container=" + safeMarkerToken(safeViewSummary(container));
+        marker("MCD_DASH_REPLACE_GUARD " + markerValue);
+    }
+
+    private static boolean mcdSectionHasContent(android.view.View root, int containerId) {
+        android.view.View section = safeFindViewById(root, containerId,
+                "mcd_dashboard_section.content");
+        return safeViewChildCount(section) > 0 && safeViewDescendantCount(section, 0) > 1;
+    }
+
+    private static android.view.ViewGroup.LayoutParams mcdDashboardSectionLayoutParams(
+            android.view.ViewGroup parent) {
+        if (parent instanceof android.widget.FrameLayout) {
+            return new android.widget.FrameLayout.LayoutParams(
+                    android.view.ViewGroup.LayoutParams.MATCH_PARENT,
+                    android.view.ViewGroup.LayoutParams.WRAP_CONTENT);
+        }
+        if (parent instanceof android.widget.LinearLayout) {
+            return new android.widget.LinearLayout.LayoutParams(
+                    android.view.ViewGroup.LayoutParams.MATCH_PARENT,
+                    android.view.ViewGroup.LayoutParams.WRAP_CONTENT);
+        }
+        if (parent instanceof android.widget.RelativeLayout) {
+            return new android.widget.RelativeLayout.LayoutParams(
+                    android.view.ViewGroup.LayoutParams.MATCH_PARENT,
+                    android.view.ViewGroup.LayoutParams.WRAP_CONTENT);
+        }
+        return new android.view.ViewGroup.LayoutParams(
+                android.view.ViewGroup.LayoutParams.MATCH_PARENT,
+                android.view.ViewGroup.LayoutParams.WRAP_CONTENT);
+    }
+
+    private static void layoutViewForStandaloneFrame(
+            android.view.View view, int width, int height, String label) {
+        if (view == null) {
+            return;
+        }
+        try {
+            int wSpec = android.view.View.MeasureSpec.makeMeasureSpec(
+                    width, android.view.View.MeasureSpec.EXACTLY);
+            int hSpec = android.view.View.MeasureSpec.makeMeasureSpec(
+                    height, android.view.View.MeasureSpec.EXACTLY);
+            view.measure(wSpec, hSpec);
+            view.layout(0, 0, width, height);
+        } catch (Throwable t) {
+            startupLog("[WestlakeLauncher] " + label + " target layout error", t);
+            logThrowableFrames("[WestlakeLauncher] " + label + " target layout", t, 8);
+            try {
+                fallbackLayoutTree(view, 0, 0, width, height, 0);
+            } catch (Throwable ignored) {
+            }
+        }
+    }
+
+    private static void expandMcdDashboardRecyclerBounds(
+            android.view.View view, int depth, int parentWidth) {
+        if (view == null || depth > 24) {
+            return;
+        }
+        int localWidth = parentWidth;
+        try {
+            int width = view.getWidth();
+            if (width > 2) {
+                localWidth = width;
+            }
+        } catch (Throwable ignored) {
+        }
+        if (view instanceof androidx.recyclerview.widget.RecyclerView) {
+            androidx.recyclerview.widget.RecyclerView recycler =
+                    (androidx.recyclerview.widget.RecyclerView) view;
+            if (safeRecyclerAdapterCount(recycler) > 0) {
+                boolean horizontal = isRecyclerHorizontal(recycler);
+                int left = safeViewLeft(recycler);
+                int top = safeViewTop(recycler);
+                int width = safeViewRight(recycler) - left;
+                int height = safeViewBottom(recycler) - top;
+                if (left < 0 || left >= localWidth - 24) {
+                    left = 24;
+                }
+                int right = safeViewRight(recycler);
+                if (width <= 2 || right <= left) {
+                    right = Math.max(left + 160, localWidth - 24);
+                }
+                if (right > localWidth) {
+                    right = localWidth - 8;
+                }
+                if (top < 0) {
+                    top = 0;
+                }
+                int desiredHeight = horizontal ? 220 : 360;
+                int bottom = safeViewBottom(recycler);
+                if (height <= 2 || bottom <= top) {
+                    bottom = top + desiredHeight;
+                }
+                try {
+                    recycler.measure(
+                            android.view.View.MeasureSpec.makeMeasureSpec(
+                                    Math.max(1, right - left),
+                                    android.view.View.MeasureSpec.EXACTLY),
+                            android.view.View.MeasureSpec.makeMeasureSpec(
+                                    Math.max(1, bottom - top),
+                                    android.view.View.MeasureSpec.EXACTLY));
+                    recycler.layout(left, top, right, bottom);
+                    if (sMcdDashboardRecyclerBoundsFixCount < 20) {
+                        sMcdDashboardRecyclerBoundsFixCount++;
+                        String marker = "adapter=" + safeMarkerToken(
+                                safeRecyclerAdapterClass(recycler))
+                                + " count=" + intAscii(safeRecyclerAdapterCount(recycler))
+                                + " bounds=" + intAscii(left) + "," + intAscii(top)
+                                + "," + intAscii(right) + "," + intAscii(bottom)
+                                + " horizontal=" + boolToken(horizontal);
+                        startupLog("[WestlakeLauncher] MCD_DASH_RV_BOUNDS " + marker);
+                        appendCutoffCanaryMarker("MCD_DASH_RV_BOUNDS " + marker);
+                    }
+                } catch (Throwable t) {
+                    startupLog("[WestlakeLauncher] McD recycler bounds layout", t);
+                }
+            }
+            return;
+        }
+        if (!(view instanceof android.view.ViewGroup)) {
+            return;
+        }
+        android.view.ViewGroup group = (android.view.ViewGroup) view;
+        int count = safeViewChildCount(group);
+        int nextTop = 0;
+        for (int i = 0; i < count; i++) {
+            android.view.View child = null;
+            try {
+                child = group.getChildAt(i);
+            } catch (Throwable ignored) {
+            }
+            if (child == null) {
+                continue;
+            }
+            if (mcdSubtreeHasAdapterRecycler(child, 0)
+                    && !(child instanceof androidx.recyclerview.widget.RecyclerView)) {
+                int childHeight = safeViewBottom(child) - safeViewTop(child);
+                if (childHeight <= 2) {
+                    int desired = 260;
+                    try {
+                        child.measure(
+                                android.view.View.MeasureSpec.makeMeasureSpec(
+                                        Math.max(1, localWidth),
+                                        android.view.View.MeasureSpec.EXACTLY),
+                                android.view.View.MeasureSpec.makeMeasureSpec(
+                                        desired,
+                                        android.view.View.MeasureSpec.EXACTLY));
+                        child.layout(0, nextTop, localWidth, nextTop + desired);
+                    } catch (Throwable ignored) {
+                    }
+                    nextTop += desired;
+                } else {
+                    nextTop = Math.max(nextTop, safeViewBottom(child));
+                }
+            }
+            expandMcdDashboardRecyclerBounds(child, depth + 1, localWidth);
+        }
+    }
+
+    private static ViewTreeDispatchStats dispatchViewTreeBeforeStrictRender(
+            android.view.View root, int width, int height, String reason,
+            boolean mcdDashboard) {
+        ViewTreeDispatchStats total = new ViewTreeDispatchStats();
+        if (root == null) {
+            return total;
+        }
+        if (mcdDashboard && !"true".equalsIgnoreCase(
+                System.getProperty("westlake.mcd.strict.dispatchPredraw", "false"))) {
+            String markerValue = "reason=" + safeMarkerToken(reason)
+                    + " skipped=true mode=mcd_strict_frame";
+            startupLog("[WestlakeLauncher] WESTLAKE_VIEWTREE_PREDRAW_DISPATCH "
+                    + markerValue);
+            appendCutoffCanaryMarker("WESTLAKE_VIEWTREE_PREDRAW_DISPATCH "
+                    + markerValue);
+            return total;
+        }
+        int passes = 0;
+        for (int pass = 0; pass < 3; pass++) {
+            ViewTreeDispatchStats passStats = new ViewTreeDispatchStats();
+            java.util.IdentityHashMap seen = new java.util.IdentityHashMap();
+            dispatchViewTreeObservers(root, 0, seen, passStats);
+            passStats.pumpedMessages += pumpMainLooperBounded(4);
+            total.add(passStats);
+            passes++;
+            if (passStats.preDrawCanceled <= 0) {
+                break;
+            }
+            if (pass < 2) {
+                layoutViewForStandaloneFrame(root, width, height,
+                        mcdDashboard ? "Strict dashboard predraw"
+                                : "Strict predraw");
+                if (mcdDashboard) {
+                    expandMcdDashboardRecyclerBounds(root, 0, width);
+                }
+            }
+        }
+        total.passes = passes;
+        String markerValue = "reason=" + safeMarkerToken(reason)
+                + " passes=" + intAscii(total.passes)
+                + " views=" + intAscii(total.views)
+                + " observers=" + intAscii(total.observers)
+                + " globalListeners=" + intAscii(total.globalListeners)
+                + " preDrawListeners=" + intAscii(total.preDrawListeners)
+                + " preDrawCanceled=" + intAscii(total.preDrawCanceled)
+                + " pumped=" + intAscii(total.pumpedMessages)
+                + " errors=" + intAscii(total.errors);
+        startupLog("[WestlakeLauncher] WESTLAKE_VIEWTREE_PREDRAW_DISPATCH "
+                + markerValue);
+        appendCutoffCanaryMarker("WESTLAKE_VIEWTREE_PREDRAW_DISPATCH "
+                + markerValue);
+        return total;
+    }
+
+    private static void dispatchViewTreeObservers(android.view.View view, int depth,
+            java.util.IdentityHashMap seen, ViewTreeDispatchStats stats) {
+        if (view == null || stats == null || depth > 32) {
+            return;
+        }
+        stats.views++;
+        try {
+            android.view.ViewTreeObserver observer = view.getViewTreeObserver();
+            if (observer != null && observer.isAlive() && !seen.containsKey(observer)) {
+                seen.put(observer, Boolean.TRUE);
+                stats.observers++;
+                stats.globalListeners += viewTreeObserverListenerCount(observer,
+                        "mOnGlobalLayoutListeners");
+                stats.preDrawListeners += viewTreeObserverListenerCount(observer,
+                        "mOnPreDrawListeners");
+                try {
+                    observer.dispatchOnGlobalLayout();
+                } catch (Throwable t) {
+                    stats.errors++;
+                    if (stats.errors <= 4) {
+                        startupLog("[WestlakeLauncher] VTO global layout dispatch", t);
+                    }
+                }
+                try {
+                    if (observer.dispatchOnPreDraw()) {
+                        stats.preDrawCanceled++;
+                    }
+                } catch (Throwable t) {
+                    stats.errors++;
+                    if (stats.errors <= 4) {
+                        startupLog("[WestlakeLauncher] VTO pre-draw dispatch", t);
+                    }
+                }
+            }
+        } catch (Throwable t) {
+            stats.errors++;
+            if (stats.errors <= 4) {
+                startupLog("[WestlakeLauncher] VTO observer lookup", t);
+            }
+        }
+        if (!(view instanceof android.view.ViewGroup)) {
+            return;
+        }
+        android.view.ViewGroup group = (android.view.ViewGroup) view;
+        int count = safeViewChildCount(group);
+        for (int i = 0; i < count; i++) {
+            try {
+                dispatchViewTreeObservers(group.getChildAt(i), depth + 1, seen, stats);
+            } catch (Throwable t) {
+                stats.errors++;
+                if (stats.errors <= 4) {
+                    startupLog("[WestlakeLauncher] VTO child traversal", t);
+                }
+            }
+        }
+    }
+
+    private static int viewTreeObserverListenerCount(
+            android.view.ViewTreeObserver observer, String fieldName) {
+        if (observer == null || fieldName == null) {
+            return 0;
+        }
+        try {
+            java.lang.reflect.Field field =
+                    findFieldOnHierarchy(observer.getClass(), fieldName);
+            if (field == null) {
+                return 0;
+            }
+            Object value = field.get(observer);
+            if (value == null) {
+                return 0;
+            }
+            try {
+                java.lang.reflect.Method sizeMethod = value.getClass().getDeclaredMethod("size");
+                sizeMethod.setAccessible(true);
+                Object result = sizeMethod.invoke(value);
+                if (result instanceof Number) {
+                    return Math.max(0, ((Number) result).intValue());
+                }
+            } catch (Throwable ignored) {
+            }
+            if (value instanceof java.util.Collection) {
+                return Math.max(0, ((java.util.Collection) value).size());
+            }
+        } catch (Throwable ignored) {
+        }
+        return 0;
+    }
+
+    private static int pumpMainLooperBounded(int maxPasses) {
+        int pumped = 0;
+        int limit = Math.max(1, maxPasses);
+        for (int i = 0; i < limit; i++) {
+            int n = 0;
+            try {
+                n = android.os.Looper.pumpMessages();
+            } catch (Throwable t) {
+                break;
+            }
+            if (n <= 0) {
+                break;
+            }
+            pumped += n;
+        }
+        return pumped;
+    }
+
+    private static boolean mcdSubtreeHasAdapterRecycler(android.view.View view, int depth) {
+        if (view == null || depth > 16) {
+            return false;
+        }
+        if (view instanceof androidx.recyclerview.widget.RecyclerView) {
+            return safeRecyclerAdapterCount((androidx.recyclerview.widget.RecyclerView) view) > 0;
+        }
+        if (!(view instanceof android.view.ViewGroup)) {
+            return false;
+        }
+        android.view.ViewGroup group = (android.view.ViewGroup) view;
+        int count = safeViewChildCount(group);
+        for (int i = 0; i < count; i++) {
+            try {
+                if (mcdSubtreeHasAdapterRecycler(group.getChildAt(i), depth + 1)) {
+                    return true;
+                }
+            } catch (Throwable ignored) {
+            }
+        }
+        return false;
+    }
+
+    private static boolean isRecyclerHorizontal(androidx.recyclerview.widget.RecyclerView recycler) {
+        try {
+            androidx.recyclerview.widget.RecyclerView.LayoutManager lm =
+                    recycler.getLayoutManager();
+            return lm != null && lm.canScrollHorizontally();
+        } catch (Throwable ignored) {
+            return true;
+        }
+    }
+
+    private static String safeRecyclerAdapterClass(
+            androidx.recyclerview.widget.RecyclerView recycler) {
+        try {
+            androidx.recyclerview.widget.RecyclerView.Adapter adapter = recycler.getAdapter();
+            return adapter != null ? adapter.getClass().getName() : "none";
+        } catch (Throwable ignored) {
+            return "unknown";
+        }
+    }
+
     private static void fallbackLayoutTree(android.view.View view, int left, int top,
             int right, int bottom, int depth) {
         if (view == null || depth > 16) {
@@ -10296,6 +14235,225 @@ public class WestlakeLauncher {
             fallbackLayoutTree(child, 0, childTop, width, childBottom, depth + 1);
             childTop = childBottom;
         }
+    }
+
+    private static void fastFrameLayoutTreeNoCallbacks(android.view.View view, int left,
+            int top, int right, int bottom, int depth) {
+        if (view == null || depth > 16) {
+            return;
+        }
+        fastSetViewFrameNoCallbacks(view, left, top, right, bottom);
+        if (!(view instanceof android.view.ViewGroup)
+                || view instanceof androidx.recyclerview.widget.RecyclerView) {
+            return;
+        }
+        android.view.ViewGroup group = (android.view.ViewGroup) view;
+        int count = safeViewChildCount(group);
+        if (count <= 0) {
+            return;
+        }
+        int width = Math.max(1, right - left);
+        int height = Math.max(1, bottom - top);
+        int visibleCount = 0;
+        for (int i = 0; i < count; i++) {
+            try {
+                android.view.View child = group.getChildAt(i);
+                if (child != null && child.getVisibility() != android.view.View.GONE) {
+                    visibleCount++;
+                }
+            } catch (Throwable ignored) {
+            }
+        }
+        int rowHeight = Math.max(1, height / Math.max(1, visibleCount));
+        int childTop = 0;
+        for (int i = 0; i < count; i++) {
+            android.view.View child = null;
+            try {
+                child = group.getChildAt(i);
+            } catch (Throwable ignored) {
+            }
+            if (child == null || child.getVisibility() == android.view.View.GONE) {
+                continue;
+            }
+            int childBottom = visibleCount <= 1 ? height
+                    : Math.min(height, childTop + rowHeight);
+            fastFrameLayoutTreeNoCallbacks(child, 0, childTop, width,
+                    childBottom, depth + 1);
+            childTop = childBottom;
+        }
+    }
+
+    private static void fastSetViewFrameNoCallbacks(android.view.View view, int left,
+            int top, int right, int bottom) {
+        if (view == null) {
+            return;
+        }
+        try {
+            ensureViewFrameFields();
+            int width = Math.max(1, right - left);
+            int height = Math.max(1, bottom - top);
+            if (sViewLeftField != null) sViewLeftField.setInt(view, left);
+            if (sViewTopField != null) sViewTopField.setInt(view, top);
+            if (sViewRightField != null) sViewRightField.setInt(view, right);
+            if (sViewBottomField != null) sViewBottomField.setInt(view, bottom);
+            if (sViewMeasuredWidthField != null) sViewMeasuredWidthField.setInt(view, width);
+            if (sViewMeasuredHeightField != null) sViewMeasuredHeightField.setInt(view, height);
+        } catch (Throwable ignored) {
+        }
+    }
+
+    private static void ensureViewFrameFields() {
+        if (sViewFrameFieldsResolved) {
+            return;
+        }
+        sViewFrameFieldsResolved = true;
+        try {
+            Class<?> cls = android.view.View.class;
+            sViewLeftField = cls.getDeclaredField("mLeft");
+            sViewTopField = cls.getDeclaredField("mTop");
+            sViewRightField = cls.getDeclaredField("mRight");
+            sViewBottomField = cls.getDeclaredField("mBottom");
+            sViewMeasuredWidthField = cls.getDeclaredField("mMeasuredWidth");
+            sViewMeasuredHeightField = cls.getDeclaredField("mMeasuredHeight");
+            sViewLeftField.setAccessible(true);
+            sViewTopField.setAccessible(true);
+            sViewRightField.setAccessible(true);
+            sViewBottomField.setAccessible(true);
+            sViewMeasuredWidthField.setAccessible(true);
+            sViewMeasuredHeightField.setAccessible(true);
+        } catch (Throwable t) {
+            sViewLeftField = null;
+            sViewTopField = null;
+            sViewRightField = null;
+            sViewBottomField = null;
+            sViewMeasuredWidthField = null;
+            sViewMeasuredHeightField = null;
+            startupLog("[WestlakeLauncher] View frame field resolve failed", t);
+        }
+    }
+
+    private static void layoutMcdDashboardStrictFrame(
+            android.view.View root, int width, int height, String reason) {
+        if (root == null) {
+            return;
+        }
+        String markerValue = "reason=" + safeMarkerToken(reason)
+                + " root=" + safeMarkerToken(safeViewSummary(root));
+        startupLog("[WestlakeLauncher] MCD_DASH_STRICT_LAYOUT_BEGIN " + markerValue);
+        appendCutoffCanaryMarker("MCD_DASH_STRICT_LAYOUT_BEGIN " + markerValue);
+        try {
+            normalizeMcdDashboardViewForFrame(root, 0);
+        } catch (Throwable t) {
+            startupLog("[WestlakeLauncher] McD dashboard strict normalize", t);
+        }
+        try {
+            fastFrameLayoutTreeNoCallbacks(root, 0, 0, width, height, 0);
+        } catch (Throwable t) {
+            startupLog("[WestlakeLauncher] McD dashboard strict fallback layout", t);
+        }
+        int nextTop = 112;
+        try {
+            nextTop = assignMcdDashboardRecyclerBounds(root, 0, width, nextTop);
+        } catch (Throwable t) {
+            startupLog("[WestlakeLauncher] McD dashboard strict recycler bounds", t);
+        }
+        String done = "reason=" + safeMarkerToken(reason)
+                + " root=" + safeMarkerToken(safeViewSummary(root))
+                + " nextTop=" + intAscii(nextTop)
+                + " rv=" + safeRecyclerTreeSummary(root);
+        startupLog("[WestlakeLauncher] MCD_DASH_STRICT_LAYOUT_DONE " + done);
+        appendCutoffCanaryMarker("MCD_DASH_STRICT_LAYOUT_DONE " + done);
+    }
+
+    private static int assignMcdDashboardRecyclerBounds(
+            android.view.View view, int depth, int width, int nextTop) {
+        if (view == null || depth > 24) {
+            return nextTop;
+        }
+        if (view instanceof androidx.recyclerview.widget.RecyclerView) {
+            androidx.recyclerview.widget.RecyclerView recycler =
+                    (androidx.recyclerview.widget.RecyclerView) view;
+            int adapterCount = safeRecyclerAdapterCount(recycler);
+            if (adapterCount <= 0) {
+                return nextTop;
+            }
+            boolean horizontal = safeRecyclerIsHorizontal(recycler);
+            int left = 16;
+            int top = Math.max(72, nextTop);
+            int right = Math.max(left + 160, width - 16);
+            int desiredHeight = horizontal ? 148 : 276;
+            int bottom = Math.min(YELP_SURFACE_HEIGHT - 18, top + desiredHeight);
+            if (bottom <= top + 48) {
+                bottom = top + desiredHeight;
+            }
+            try {
+                android.view.ViewGroup.LayoutParams lp = recycler.getLayoutParams();
+                if (lp != null) {
+                    lp.width = android.view.ViewGroup.LayoutParams.MATCH_PARENT;
+                    lp.height = Math.max(48, bottom - top);
+                    recycler.setLayoutParams(lp);
+                }
+            } catch (Throwable ignored) {
+            }
+            try {
+                recycler.setMinimumHeight(Math.max(48, bottom - top));
+            } catch (Throwable ignored) {
+            }
+            int parentAbsLeft = 0;
+            int parentAbsTop = 0;
+            try {
+                android.view.ViewParent parent = recycler.getParent();
+                if (parent instanceof android.view.View) {
+                    parentAbsLeft = safeAbsoluteLeft((android.view.View) parent);
+                    parentAbsTop = safeAbsoluteTop((android.view.View) parent);
+                }
+            } catch (Throwable ignored) {
+            }
+            int localLeft = left - parentAbsLeft;
+            int localTop = top - parentAbsTop;
+            int localRight = right - parentAbsLeft;
+            int localBottom = bottom - parentAbsTop;
+            try {
+                fastSetViewFrameNoCallbacks(recycler,
+                        localLeft, localTop, localRight, localBottom);
+            } catch (Throwable t) {
+                startupLog("[WestlakeLauncher] McD dashboard recycler fast layout", t);
+            }
+            if (sMcdDashboardRecyclerBoundsFixCount < 40) {
+                sMcdDashboardRecyclerBoundsFixCount++;
+                String marker = "adapter=" + safeMarkerToken(safeRecyclerAdapterClass(recycler))
+                        + " count=" + intAscii(adapterCount)
+                        + " bounds=" + intAscii(left) + "," + intAscii(top)
+                        + "," + intAscii(right) + "," + intAscii(bottom)
+                        + " local=" + intAscii(localLeft) + "," + intAscii(localTop)
+                        + "," + intAscii(localRight) + "," + intAscii(localBottom)
+                        + " parentAbs=" + intAscii(parentAbsLeft) + ","
+                        + intAscii(parentAbsTop)
+                        + " horizontal=" + boolToken(horizontal)
+                        + " mode=fast";
+                startupLog("[WestlakeLauncher] MCD_DASH_RV_BOUNDS " + marker);
+                appendCutoffCanaryMarker("MCD_DASH_RV_BOUNDS " + marker);
+            }
+            return Math.max(nextTop, bottom + 18);
+        }
+        if (!(view instanceof android.view.ViewGroup)) {
+            return nextTop;
+        }
+        android.view.ViewGroup group = (android.view.ViewGroup) view;
+        int count = safeViewChildCount(group);
+        int cursor = nextTop;
+        for (int i = 0; i < count; i++) {
+            android.view.View child = null;
+            try {
+                child = group.getChildAt(i);
+            } catch (Throwable ignored) {
+            }
+            cursor = assignMcdDashboardRecyclerBounds(child, depth + 1, width, cursor);
+            if (cursor >= YELP_SURFACE_HEIGHT - 64) {
+                return cursor;
+            }
+        }
+        return cursor;
     }
 
     private static void writeShowcaseDirectFrame(Activity activity, String reason) {
@@ -10359,7 +14517,107 @@ public class WestlakeLauncher {
         int genericListImages;
         int genericListImageBytes;
         int genericListAdapterCount;
+        int recyclerOverlayRows;
+        int recyclerOverlayCount;
+        boolean mcdDashboardFrame;
+        boolean mcdOrderPdpFrame;
         String genericListAdapterClass = "none";
+    }
+
+    private static final class WestlakeSimpleCurrencyFormat extends java.text.NumberFormat {
+        @Override
+        public StringBuffer format(double number, StringBuffer toAppendTo,
+                java.text.FieldPosition pos) {
+            return appendCurrency(number, toAppendTo);
+        }
+
+        @Override
+        public StringBuffer format(long number, StringBuffer toAppendTo,
+                java.text.FieldPosition pos) {
+            return appendCurrency((double) number, toAppendTo);
+        }
+
+        @Override
+        public Number parse(String source, java.text.ParsePosition parsePosition) {
+            if (source == null || parsePosition == null) {
+                return null;
+            }
+            int index = parsePosition.getIndex();
+            int len = source.length();
+            while (index < len) {
+                char c = source.charAt(index);
+                if (c != ' ' && c != '$') {
+                    break;
+                }
+                index++;
+            }
+            int start = index;
+            while (index < len) {
+                char c = source.charAt(index);
+                if ((c < '0' || c > '9') && c != '.' && c != '-') {
+                    break;
+                }
+                index++;
+            }
+            if (index <= start) {
+                parsePosition.setErrorIndex(start);
+                return null;
+            }
+            try {
+                Double value = Double.valueOf(source.substring(start, index));
+                parsePosition.setIndex(index);
+                return value;
+            } catch (Throwable ignored) {
+                parsePosition.setErrorIndex(start);
+                return null;
+            }
+        }
+
+        private static StringBuffer appendCurrency(double number, StringBuffer out) {
+            if (out == null) {
+                out = new StringBuffer();
+            }
+            boolean negative = number < 0.0d;
+            double abs = negative ? -number : number;
+            long cents = (long) (abs * 100.0d + 0.5d);
+            long dollars = cents / 100L;
+            long fraction = cents % 100L;
+            if (negative) {
+                out.append('-');
+            }
+            out.append('$');
+            out.append(dollars);
+            out.append('.');
+            if (fraction < 10L) {
+                out.append('0');
+            }
+            out.append(fraction);
+            return out;
+        }
+    }
+
+    private static final class ViewTreeDispatchStats {
+        int views;
+        int observers;
+        int globalListeners;
+        int preDrawListeners;
+        int preDrawCanceled;
+        int pumpedMessages;
+        int errors;
+        int passes;
+
+        void add(ViewTreeDispatchStats other) {
+            if (other == null) {
+                return;
+            }
+            views += other.views;
+            observers += other.observers;
+            globalListeners += other.globalListeners;
+            preDrawListeners += other.preDrawListeners;
+            preDrawCanceled += other.preDrawCanceled;
+            pumpedMessages += other.pumpedMessages;
+            errors += other.errors;
+        }
     }
 
     private static final class GenericRowFacts {
@@ -10368,6 +14626,25 @@ public class WestlakeLauncher {
         byte[] imageData;
         int imageBytes;
         int imageHash;
+        int imageWidth;
+        int imageHeight;
+        String imageSource = "none";
+    }
+
+    private static final class RecyclerTreeStats {
+        int recyclerViews;
+        int visibleRecyclerViews;
+        int recyclerChildren;
+        int recyclerAdapterCount;
+        int horizontalRecyclerViews;
+        String firstRecyclerClass = "none";
+        String firstAdapterClass = "none";
+    }
+
+    private static final class RecyclerOverlayState {
+        int nextY = 132;
+        int overlays;
+        int rows;
     }
 
     private static void collectShowcaseTreeStats(android.view.View view, int depth,
@@ -10388,8 +14665,7 @@ public class WestlakeLauncher {
         if (view instanceof android.widget.ProgressBar) {
             stats.progress++;
         }
-        if (view instanceof android.widget.Button
-                || view instanceof android.widget.CompoundButton) {
+        if (isShowcaseButtonLike(view)) {
             stats.buttons++;
         }
         if (view instanceof android.widget.ImageView) {
@@ -10555,16 +14831,80 @@ public class WestlakeLauncher {
         showcaseBottomNav(ops, page);
     }
 
+    private static boolean isShowcaseButtonLike(android.view.View view) {
+        if (view == null) {
+            return false;
+        }
+        if (view instanceof android.widget.Button
+                || view instanceof android.widget.CompoundButton) {
+            return true;
+        }
+        if (view instanceof android.widget.TextView) {
+            try {
+                return view.isClickable() || view.hasOnClickListeners();
+            } catch (Throwable ignored) {
+            }
+        }
+        try {
+            return view.isClickable() || view.hasOnClickListeners();
+        } catch (Throwable ignored) {
+        }
+        return false;
+    }
+
     private static void renderShowcaseView(java.io.OutputStream out, android.view.View view,
             int offsetX, int offsetY, int depth, ShowcaseTreeStats stats)
             throws java.io.IOException {
         renderShowcaseView(out, view, offsetX, offsetY, depth, stats, SURFACE_HEIGHT);
     }
 
+    private static int viewBackgroundColor(android.view.View view, int fallbackColor) {
+        try {
+            android.graphics.drawable.Drawable background = view != null
+                    ? view.getBackground() : null;
+            if (background instanceof android.graphics.drawable.ColorDrawable) {
+                int color = ((android.graphics.drawable.ColorDrawable) background).getColor();
+                if (((color >>> 24) & 0xff) != 0) {
+                    return color;
+                }
+            }
+        } catch (Throwable ignored) {
+        }
+        return fallbackColor;
+    }
+
+    private static int showcaseBackgroundOrFallback(int backgroundColor, int fallbackColor,
+            ShowcaseTreeStats stats, android.view.View view) {
+        int color = backgroundColor != 0 ? backgroundColor : fallbackColor;
+        if (stats != null && stats.mcdDashboardFrame && view instanceof android.view.ViewGroup
+                && color == 0xff000000) {
+            return fallbackColor;
+        }
+        return color;
+    }
+
     private static void renderShowcaseView(java.io.OutputStream out, android.view.View view,
             int offsetX, int offsetY, int depth, ShowcaseTreeStats stats, int clipHeight)
             throws java.io.IOException {
-        if (view == null || depth > 16 || view.getVisibility() == android.view.View.GONE) {
+        if (view == null || depth > 24) {
+            return;
+        }
+        if (view.getVisibility() == android.view.View.GONE) {
+            if (view instanceof android.view.ViewGroup && mcdSubtreeHasAdapterRecycler(view, 0)) {
+                int left = offsetX + safeViewLeft(view);
+                int top = offsetY + safeViewTop(view);
+                int right = offsetX + safeViewRight(view);
+                int bottom = offsetY + safeViewBottom(view);
+                if (right <= left) {
+                    right = left + Math.max(safeMeasuredWidth(view), 1);
+                }
+                if (bottom <= top) {
+                    bottom = top + Math.max(safeMeasuredHeight(view), 1);
+                }
+                renderShowcaseChildViews(out, (android.view.ViewGroup) view,
+                        left - safeViewScrollX(view), top - safeViewScrollY(view),
+                        depth, stats, clipHeight);
+            }
             return;
         }
         stats.views++;
@@ -10579,34 +14919,69 @@ public class WestlakeLauncher {
         if (bottom <= top) {
             bottom = top + Math.max(view.getMeasuredHeight(), 1);
         }
+        boolean isGroupView = view instanceof android.view.ViewGroup;
         if (bottom < 0 || top > clipHeight || right < 0 || left > SURFACE_WIDTH) {
+            if (isGroupView) {
+                renderShowcaseChildViews(out, (android.view.ViewGroup) view,
+                        left - view.getScrollX(), top - view.getScrollY(),
+                        depth, stats, clipHeight);
+            }
             return;
         }
 
         boolean isText = view instanceof android.widget.TextView;
-        boolean isButton = view instanceof android.widget.Button
-                || view instanceof android.widget.CompoundButton;
+        boolean isButton = isShowcaseButtonLike(view);
         boolean isEdit = view instanceof android.widget.EditText;
         boolean isProgress = view instanceof android.widget.ProgressBar;
         boolean isImage = view instanceof android.widget.ImageView;
         boolean isList = view instanceof android.widget.ListView;
+        boolean isRecycler = view instanceof androidx.recyclerview.widget.RecyclerView;
         boolean isBottomNav = view.getClass().getName().indexOf("BottomNavigationView") >= 0;
+        int backgroundColor = viewBackgroundColor(view, 0);
 
         if (depth == 0) {
-            showcaseRect(out, 0, 0, SURFACE_WIDTH, clipHeight, 0xfff7f4ef);
+            int rootColor = showcaseBackgroundOrFallback(
+                    backgroundColor, 0xfff7f4ef, stats, view);
+            if (rootColor == 0xff000000 && isMcdDashboardRenderContainer(view)) {
+                rootColor = 0xfff7f4ef;
+            }
+            showcaseRect(out, 0, 0, SURFACE_WIDTH, clipHeight, rootColor);
         } else if (isList) {
             stats.listViews++;
-            showcaseRect(out, left, top, right, bottom, 0xfffdfefe);
+            showcaseRect(out, left, top, right, bottom,
+                    showcaseBackgroundOrFallback(backgroundColor, 0xfffdfefe, stats, view));
             renderGenericListViewRows(out, (android.widget.ListView) view,
                     left, top, right, bottom, depth, stats, clipHeight);
             return;
+        } else if (isRecycler) {
+            stats.listViews++;
+            showcaseRect(out, left, top, right, bottom,
+                    showcaseBackgroundOrFallback(backgroundColor, 0xfffdfefe, stats, view));
+            if (sDirectRecyclerRenderLogCount < 20) {
+                sDirectRecyclerRenderLogCount++;
+                androidx.recyclerview.widget.RecyclerView recycler =
+                        (androidx.recyclerview.widget.RecyclerView) view;
+                startupLog("[WestlakeLauncher] STRICT_RECYCLER_DIRECT depth="
+                        + intAscii(depth)
+                        + " children=" + intAscii(safeRecyclerChildCount(recycler))
+                        + " adapterCount=" + intAscii(safeRecyclerAdapterCount(recycler))
+                        + " bounds=" + intAscii(left) + "," + intAscii(top)
+                        + "," + intAscii(right) + "," + intAscii(bottom));
+            }
+            renderGenericRecyclerViewRows(out,
+                    (androidx.recyclerview.widget.RecyclerView) view,
+                    left, top, right, bottom, stats, clipHeight);
+            return;
         } else if (isBottomNav) {
-            showcaseRect(out, left, top, right, bottom, 0xffffffff);
+            showcaseRect(out, left, top, right, bottom,
+                    backgroundColor != 0 ? backgroundColor : 0xffffffff);
         } else if (isButton) {
             stats.buttons++;
-            showcaseRect(out, left, top, right, bottom, 0xff2962a0);
+            showcaseRect(out, left, top, right, bottom,
+                    backgroundColor != 0 ? backgroundColor : 0xff2962a0);
         } else if (isEdit) {
-            showcaseRect(out, left, top, right, bottom, 0xffffffff);
+            showcaseRect(out, left, top, right, bottom,
+                    backgroundColor != 0 ? backgroundColor : 0xffffffff);
             showcaseRect(out, left, bottom - 2, right, bottom, 0xff2962a0);
         } else if (isProgress) {
             stats.progress++;
@@ -10615,14 +14990,20 @@ public class WestlakeLauncher {
                     right - 6, top + Math.max(16, (bottom - top) / 2 + 4));
         } else if (isImage) {
             stats.images++;
-            showcaseRect(out, left, top, right, bottom, 0xffeceff1);
-            showcaseText(out, "icon", left + 8,
-                    top + Math.min(32, Math.max(18, bottom - top - 6)),
-                    10, 0xff5f6368);
+            if (!renderShowcaseImageView(out, (android.widget.ImageView) view,
+                    left, top, right, bottom)) {
+                showcaseRect(out, left, top, right, bottom, 0xffeceff1);
+                showcaseText(out, "icon", left + 8,
+                        top + Math.min(32, Math.max(18, bottom - top - 6)),
+                        10, 0xff5f6368);
+            }
         } else if (view instanceof android.view.ViewGroup && depth <= 5
                 && right - left > 24 && bottom - top > 20) {
             int color = depth <= 2 ? 0xffffffff : (depth % 2 == 0 ? 0xfffafafa : 0xfff1f3f4);
-            showcaseRect(out, left, top, right, bottom, color);
+            showcaseRect(out, left, top, right, bottom,
+                    showcaseBackgroundOrFallback(backgroundColor, color, stats, view));
+        } else if (isText && backgroundColor != 0) {
+            showcaseRect(out, left, top, right, bottom, backgroundColor);
         }
 
         if (isText) {
@@ -10635,9 +15016,6 @@ public class WestlakeLauncher {
                     textColor = isButton ? 0xffffffff : 0xff202124;
                 }
                 int size = clampTextSize((int) (tv.getTextSize() / 2.0f));
-                if (isButton) {
-                    textColor = 0xffffffff;
-                }
                 String text = trimShowcaseText(String.valueOf(cs), Math.max(8, (right - left) / 8));
                 int x = left + Math.max(6, view.getPaddingLeft());
                 int y = top + Math.min(bottom - top - 4, Math.max(size + 7, 18));
@@ -10645,16 +15023,285 @@ public class WestlakeLauncher {
             }
         }
 
-        if (view instanceof android.view.ViewGroup) {
-            android.view.ViewGroup group = (android.view.ViewGroup) view;
-            int childOffsetX = left - view.getScrollX();
-            int childOffsetY = top - view.getScrollY();
-            int count = group.getChildCount();
-            for (int i = 0; i < count; i++) {
-                renderShowcaseView(out, group.getChildAt(i),
-                        childOffsetX, childOffsetY, depth + 1, stats, clipHeight);
+        if (isGroupView) {
+            renderShowcaseChildViews(out, (android.view.ViewGroup) view,
+                    left - view.getScrollX(), top - view.getScrollY(),
+                    depth, stats, clipHeight);
+        }
+    }
+
+    private static boolean isMcdDashboardRenderContainer(android.view.View view) {
+        if (view == null) {
+            return false;
+        }
+        int id = 0;
+        try {
+            id = view.getId();
+        } catch (Throwable ignored) {
+            return false;
+        }
+        return id == resolveKnownMcdViewId("home_dashboard_container")
+                || id == resolveKnownMcdViewId("sections_container")
+                || id == resolveKnownMcdViewId("parent_container");
+    }
+
+    private static void renderShowcaseChildViews(java.io.OutputStream out,
+            android.view.ViewGroup group, int childOffsetX, int childOffsetY, int depth,
+            ShowcaseTreeStats stats, int clipHeight) throws java.io.IOException {
+        if (group == null || depth >= 24) {
+            return;
+        }
+        int count = 0;
+        try {
+            count = group.getChildCount();
+        } catch (Throwable ignored) {
+            count = 0;
+        }
+        for (int i = 0; i < count; i++) {
+            android.view.View child = null;
+            try {
+                child = group.getChildAt(i);
+            } catch (Throwable ignored) {
+                child = null;
+            }
+            if (child != null) {
+                renderShowcaseView(out, child, childOffsetX, childOffsetY,
+                        depth + 1, stats, clipHeight);
             }
         }
+    }
+
+    private static void renderMcdOrderPdpProjection(java.io.OutputStream out,
+            android.view.View renderRoot, ShowcaseTreeStats stats, int height)
+            throws java.io.IOException {
+        if (out == null || renderRoot == null) {
+            return;
+        }
+        android.view.View image = safeFindViewById(renderRoot,
+                resolveKnownMcdViewId("product_image"), "pdp_project_image");
+        android.view.View title = safeFindViewById(renderRoot,
+                resolveKnownMcdViewId("pdpProductNameText"), "pdp_project_title");
+        android.view.View price = safeFindViewById(renderRoot,
+                resolveKnownMcdViewId("productPriceCalorie"), "pdp_project_price");
+        android.view.View customize = safeFindViewById(renderRoot,
+                resolveKnownMcdViewId("pdpCustomizeIngredientsButton"),
+                "pdp_project_customize");
+        android.view.View nutrition = safeFindViewById(renderRoot,
+                resolveKnownMcdViewId("pdpNutritionIngredientButton"),
+                "pdp_project_nutrition");
+
+        String productName = textFromView(title, "Big Mac");
+        String priceCalories = textFromView(price, "540 Cal - $5.99");
+        String customizeText = textFromView(customize, "Customize");
+        String nutritionText = textFromView(nutrition, "Nutrition & Ingredients");
+        String[] textFacts = new String[12];
+        int textCount = collectMcdPdpTextFacts(renderRoot, textFacts, 0);
+        int quantity = Math.max(1, sMcdOrderPdpQuantity);
+        int bagCount = Math.max(0, sMcdOrderPdpBagCount);
+        String action = sMcdOrderPdpLastAction != null
+                ? sMcdOrderPdpLastAction : "Ready";
+
+        showcaseColor(out, 0xfff8f5ef);
+        showcaseRect(out, 0, 0, SURFACE_WIDTH, height, 0xfff8f5ef);
+        showcaseRect(out, 0, 0, SURFACE_WIDTH, 58, 0xffffffff);
+        showcaseText(out, "<", 20, 36, 24, 0xff292929);
+        showcaseText(out, trimShowcaseText(productName, 26), 60, 36, 17, 0xff292929);
+        showcaseCircle(out, 444, 28, 14, 0xfff2f2f2);
+        showcaseText(out, "i", 441, 34, 12, 0xff292929);
+
+        int heroTop = 70;
+        int heroBottom = 318;
+        showcaseRoundRect(out, 16, heroTop + 3, 464, heroBottom + 3, 10, 10, 0x18000000);
+        showcaseRoundRect(out, 16, heroTop, 464, heroBottom, 10, 10, 0xffffc72c);
+        byte[] cachedProductImage = mcdCachedProductImageNoFetch(
+                productName, MCD_PROMOTION_SEED_IMAGE_URL);
+        if (image instanceof android.widget.ImageView) {
+            GenericRowFacts imageFacts = new GenericRowFacts();
+            collectImageViewFacts((android.widget.ImageView) image, imageFacts);
+            if (imageFacts.imageData != null && imageFacts.imageData.length > 0) {
+                showcaseImage(out, imageFacts.imageData, 16, heroTop, 448, heroBottom - heroTop);
+                if (stats != null) {
+                    stats.genericListImageBytes += imageFacts.imageBytes;
+                }
+            } else if (imageFacts.imageWidth > 0 && imageFacts.imageHeight > 0) {
+                drawByteHashThumbnail(out, imageFacts.imageHash, 52, heroTop + 28, 376, 188);
+            } else if (cachedProductImage != null && cachedProductImage.length > 0) {
+                showcaseImage(out, cachedProductImage, 52, heroTop + 28, 376, 188);
+                if (stats != null) {
+                    stats.genericListImageBytes += cachedProductImage.length;
+                    stats.genericListImages++;
+                }
+            } else {
+                drawMcdProductHeroPlaceholder(out, heroTop, heroBottom, productName);
+            }
+        } else if (cachedProductImage != null && cachedProductImage.length > 0) {
+            showcaseImage(out, cachedProductImage, 52, heroTop + 28, 376, 188);
+            if (stats != null) {
+                stats.genericListImageBytes += cachedProductImage.length;
+                stats.genericListImages++;
+            }
+        } else {
+            drawMcdProductHeroPlaceholder(out, heroTop, heroBottom, productName);
+        }
+
+        showcaseText(out, trimShowcaseText(productName, 30), 24, 360, 26, 0xff292929);
+        showcaseText(out, trimShowcaseText(priceCalories, 42), 24, 388, 14, 0xff545454);
+        showcaseRoundRect(out, 24, 410, 148, 444, 17, 17, 0xffffffff);
+        showcaseCircle(out, 44, 427, 10, 0xffda291c);
+        showcaseText(out, intAscii(quantity), 72, 433, 13, 0xff292929);
+        showcaseText(out, "+", 118, 434, 17, 0xff292929);
+        showcaseRoundRect(out, 270, 406, 456, 448, 21, 21, 0xffffffff);
+        showcaseText(out, trimShowcaseText(customizeText, 18), 304, 433, 13, 0xff292929);
+
+        int y = 474;
+        y = drawMcdPdpInfoRow(out, "Make it yours",
+                "Customize tapped".equals(action) ? "Westlake touch reached Customize"
+                        : firstUsefulPdpText(textFacts, textCount, productName, priceCalories,
+                                customizeText, nutritionText,
+                                "Choose ingredients and serving options"),
+                y, 0xfffff7df);
+        y = drawMcdPdpInfoRow(out, "Frequently ordered with",
+                secondUsefulPdpText(textFacts, textCount, productName, priceCalories,
+                        customizeText, nutritionText, "Fries, McCafe drinks, and sauces"),
+                y + 12, 0xffffffff);
+        y = drawMcdPdpInfoRow(out, nutritionText,
+                "Nutrition tapped".equals(action) ? "Westlake touch reached Nutrition"
+                        : "Calories, allergens, and ingredient details from the real PDP XML",
+                y + 12, 0xffffffff);
+
+        showcaseRect(out, 0, height - 94, SURFACE_WIDTH, height, 0xffffffff);
+        showcaseRect(out, 0, height - 94, SURFACE_WIDTH, height - 93, 0xffe5e5e5);
+        showcaseText(out, priceCalories, 24, height - 52, 14, 0xff292929);
+        showcaseRoundRect(out, 250, height - 78, 456, height - 24, 27, 27, 0xffda291c);
+        showcaseText(out, bagCount > 0 ? "Added to bag" : "Add to order",
+                bagCount > 0 ? 304 : 306, height - 44, 14, 0xffffffff);
+        if (bagCount > 0) {
+            showcaseCircle(out, 438, height - 65, 12, 0xffffc72c);
+            showcaseText(out, intAscii(Math.min(99, bagCount)), 432, height - 60,
+                    9, 0xff292929);
+        }
+    }
+
+    private static void drawMcdProductHeroPlaceholder(java.io.OutputStream out,
+            int heroTop, int heroBottom, String productName) throws java.io.IOException {
+        showcaseCircle(out, 240, heroTop + 112, 82, 0xffffe37d);
+        showcaseRoundRect(out, 128, heroTop + 150, 352, heroTop + 188,
+                18, 18, 0xffb36a2e);
+        showcaseRoundRect(out, 144, heroTop + 96, 336, heroTop + 132,
+                18, 18, 0xfffff2bf);
+        showcaseRect(out, 152, heroTop + 134, 328, heroTop + 146, 0xff4d8a31);
+        showcaseRect(out, 156, heroTop + 148, 324, heroTop + 162, 0xff7a2f18);
+        showcaseText(out, "McDonald's", 178, heroTop + 42, 18, 0xffda291c);
+        showcaseText(out, trimShowcaseText(productName, 22), 170, heroBottom - 26,
+                12, 0xff292929);
+    }
+
+    private static int drawMcdPdpInfoRow(java.io.OutputStream out, String title,
+            String detail, int top, int color) throws java.io.IOException {
+        int bottom = top + 76;
+        showcaseRoundRect(out, 16, top + 2, 464, bottom + 2, 8, 8, 0x10000000);
+        showcaseRoundRect(out, 16, top, 464, bottom, 8, 8, color);
+        showcaseCircle(out, 42, top + 38, 14, 0xffffc72c);
+        showcaseText(out, ">", 38, top + 44, 13, 0xff292929);
+        showcaseText(out, trimShowcaseText(title, 32), 66, top + 31, 14, 0xff292929);
+        showcaseText(out, trimShowcaseText(detail, 48), 66, top + 54, 10, 0xff545454);
+        return bottom;
+    }
+
+    private static String textFromView(android.view.View view, String fallback) {
+        if (view instanceof android.widget.TextView) {
+            try {
+                CharSequence text = ((android.widget.TextView) view).getText();
+                if (text != null && text.length() > 0) {
+                    return String.valueOf(text);
+                }
+            } catch (Throwable ignored) {
+            }
+        }
+        return fallback;
+    }
+
+    private static int collectMcdPdpTextFacts(android.view.View view, String[] values, int depth) {
+        if (view == null || values == null || depth > 18) {
+            return 0;
+        }
+        if (view instanceof android.widget.TextView) {
+            try {
+                CharSequence text = ((android.widget.TextView) view).getText();
+                if (text != null && text.length() > 0) {
+                    appendUniqueTextFact(values, String.valueOf(text));
+                }
+            } catch (Throwable ignored) {
+            }
+        }
+        if (view instanceof android.view.ViewGroup) {
+            android.view.ViewGroup group = (android.view.ViewGroup) view;
+            int childCount = safeViewChildCount(group);
+            for (int i = 0; i < childCount; i++) {
+                try {
+                    collectMcdPdpTextFacts(group.getChildAt(i), values, depth + 1);
+                } catch (Throwable ignored) {
+                }
+            }
+        }
+        int count = 0;
+        for (int i = 0; i < values.length; i++) {
+            if (values[i] != null) {
+                count++;
+            }
+        }
+        return count;
+    }
+
+    private static void appendUniqueTextFact(String[] values, String text) {
+        if (values == null || text == null) {
+            return;
+        }
+        String trimmed = text.trim();
+        if (trimmed.length() == 0) {
+            return;
+        }
+        for (int i = 0; i < values.length; i++) {
+            if (trimmed.equals(values[i])) {
+                return;
+            }
+            if (values[i] == null) {
+                values[i] = trimmed;
+                return;
+            }
+        }
+    }
+
+    private static String firstUsefulPdpText(String[] values, int count, String title,
+            String price, String customize, String nutrition, String fallback) {
+        return usefulPdpTextAt(values, count, title, price, customize, nutrition, fallback, 0);
+    }
+
+    private static String secondUsefulPdpText(String[] values, int count, String title,
+            String price, String customize, String nutrition, String fallback) {
+        return usefulPdpTextAt(values, count, title, price, customize, nutrition, fallback, 1);
+    }
+
+    private static String usefulPdpTextAt(String[] values, int count, String title,
+            String price, String customize, String nutrition, String fallback, int target) {
+        if (values == null || count <= 0) {
+            return fallback;
+        }
+        int seen = 0;
+        for (int i = 0; i < values.length; i++) {
+            String value = values[i];
+            if (value == null || value.length() < 3
+                    || value.equals(title) || value.equals(price)
+                    || value.equals(customize) || value.equals(nutrition)
+                    || "1".equals(value)) {
+                continue;
+            }
+            if (seen == target) {
+                return value;
+            }
+            seen++;
+        }
+        return fallback;
     }
 
     private static void renderGenericListViewRows(java.io.OutputStream out,
@@ -10724,6 +15371,1249 @@ public class WestlakeLauncher {
         }
     }
 
+    private static void renderGenericRecyclerViewRows(java.io.OutputStream out,
+            androidx.recyclerview.widget.RecyclerView recycler,
+            int left, int top, int right, int bottom,
+            ShowcaseTreeStats stats, int clipHeight) throws java.io.IOException {
+        androidx.recyclerview.widget.RecyclerView.Adapter adapter = null;
+        try {
+            adapter = recycler.getAdapter();
+        } catch (Throwable ignored) {
+        }
+
+        int adapterCount = 0;
+        if (adapter != null) {
+            try {
+                adapterCount = adapter.getItemCount();
+            } catch (Throwable ignored) {
+                adapterCount = 0;
+            }
+            stats.genericListAdapterCount = adapterCount;
+            stats.genericListAdapterClass = adapter.getClass().getName();
+        }
+
+        String adapterClass = adapter != null ? adapter.getClass().getName() : "none";
+
+        int childCount = 0;
+        try {
+            childCount = recycler.getChildCount();
+        } catch (Throwable ignored) {
+            childCount = 0;
+        }
+
+        boolean horizontal = false;
+        try {
+            androidx.recyclerview.widget.RecyclerView.LayoutManager lm = recycler.getLayoutManager();
+            horizontal = lm != null && lm.canScrollHorizontally();
+        } catch (Throwable ignored) {
+            horizontal = false;
+        }
+
+        int availableHeight = Math.max(1, bottom - top - 8);
+        int availableWidth = Math.max(1, right - left - 12);
+        int visibleRows = adapterCount > 0 ? adapterCount : childCount;
+        int maxRows = horizontal ? 4 : 5;
+        if (visibleRows > maxRows) {
+            visibleRows = maxRows;
+        }
+        if (visibleRows <= 0) {
+            logStrictRecyclerFrame(childCount, adapterCount, 0, horizontal,
+                    adapter != null ? adapter.getClass().getName() : "none");
+            return;
+        }
+
+        int rowHeight = horizontal ? Math.min(availableHeight, 112)
+                : Math.max(44, Math.min(86, availableHeight / visibleRows));
+        int rowWidth = horizontal ? Math.max(96, availableWidth / visibleRows)
+                : availableWidth;
+        if (horizontal && rowWidth > 150) {
+            rowWidth = 150;
+        }
+
+        int recyclerId = safeViewId(recycler);
+        boolean mcdDashboardRecycler = isMcdDashboardAdapterRecycler(recyclerId, adapterClass);
+
+        int x = left + 6;
+        int y = top + 4;
+        for (int i = 0; i < visibleRows; i++) {
+            if (y > clipHeight || x > right) {
+                break;
+            }
+            android.view.View row = null;
+            try {
+                if (i < childCount) {
+                    row = recycler.getChildAt(i);
+                }
+            } catch (Throwable ignored) {
+                row = null;
+            }
+            if (row == null && adapter != null && i < adapterCount) {
+                if (!mcdDashboardRecycler) {
+                    row = createRecyclerAdapterPreviewRow(recycler, adapter, i);
+                }
+            }
+            if (!mcdDashboardRecycler) {
+                settleRecyclerAdapterPreviewRow(recycler, row, i, rowWidth, rowHeight);
+            }
+
+            GenericRowFacts facts = new GenericRowFacts();
+            if (mcdDashboardRecycler) {
+                collectMcdStrictAdapterRowFacts(row, facts, recyclerId, i);
+            } else {
+                collectGenericRowFacts(row, facts, 0);
+                enrichMcdLiveAdapterImageFacts(facts, recycler, i);
+            }
+            int rowLeft = horizontal ? x : left + 6;
+            int rowTop = horizontal ? y : top + 4 + i * rowHeight;
+            int rowRight = horizontal ? Math.min(right - 6, x + rowWidth - 4) : right - 6;
+            int rowBottom = horizontal ? Math.min(bottom - 4, y + rowHeight)
+                    : rowTop + rowHeight - 2;
+            renderGenericAdapterRow(out, facts, i, rowLeft, rowTop, rowRight, rowBottom, stats);
+
+            if (horizontal) {
+                x += rowWidth;
+            }
+        }
+        logStrictRecyclerFrame(childCount, adapterCount, visibleRows, horizontal,
+                adapterClass);
+    }
+
+    private static int safeViewId(android.view.View view) {
+        if (view == null) {
+            return 0;
+        }
+        try {
+            return view.getId();
+        } catch (Throwable ignored) {
+            return 0;
+        }
+    }
+
+    private static boolean isMcdDashboardAdapterRecycler(int recyclerId, String adapterClass) {
+        if (recyclerId == 0x7f0b13f3 || recyclerId == 0x7f0b1367) {
+            return true;
+        }
+        if (adapterClass == null) {
+            return false;
+        }
+        try {
+            return adapterClass.indexOf("mcdonalds") >= 0
+                    || adapterClass.indexOf("HomePromotionAdapter") >= 0
+                    || adapterClass.indexOf("HomePopularAdapter") >= 0;
+        } catch (Throwable ignored) {
+            return false;
+        }
+    }
+
+    private static void collectMcdStrictAdapterRowFacts(android.view.View row,
+            GenericRowFacts facts, int recyclerId, int position) {
+        String markerValue = "recycler=" + intAscii(recyclerId)
+                + " position=" + intAscii(position);
+        marker("MCD_STRICT_ROW_FACTS_FAST_START " + markerValue);
+        appendCutoffCanaryMarker("MCD_STRICT_ROW_FACTS_FAST_START " + markerValue);
+        int[] budget = new int[] {36};
+        collectGenericRowTextFacts(row, facts, 0, budget);
+        collectFirstImageViewFactsNoCompress(row, facts);
+        String fallback = facts != null && facts.textCount > 0
+                ? facts.texts[0] : defaultMcdAdapterRowLabel(recyclerId, position);
+        String label = mcdLiveAdapterLabelNoFetch(recyclerId, position, fallback);
+        if (facts != null && label != null && label.length() > 0) {
+            if (facts.textCount <= 0) {
+                facts.texts[facts.textCount++] = label;
+            } else {
+                facts.texts[0] = label;
+            }
+        }
+        if (facts != null && facts.textCount < facts.texts.length) {
+            facts.texts[facts.textCount++] = recyclerId == 0x7f0b13f3
+                    ? "McDonald's promotion" : "McDonald's dashboard";
+        }
+        enrichMcdCachedAdapterImageFacts(facts, recyclerId, position);
+        marker("MCD_STRICT_ROW_FACTS_FAST_DONE " + markerValue
+                + " texts=" + intAscii(facts != null ? facts.textCount : 0)
+                + " imageBytes=" + intAscii(facts != null ? facts.imageBytes : 0));
+        appendCutoffCanaryMarker("MCD_STRICT_ROW_FACTS_FAST_DONE " + markerValue
+                + " texts=" + intAscii(facts != null ? facts.textCount : 0)
+                + " imageBytes=" + intAscii(facts != null ? facts.imageBytes : 0));
+    }
+
+    private static boolean collectFirstImageViewFactsNoCompress(
+            android.view.View row, GenericRowFacts facts) {
+        if (row == null || facts == null || facts.imageBytes > 0) {
+            return false;
+        }
+        android.widget.ImageView image = findFirstImageView(row, 0);
+        return collectImageViewFactsNoCompress(image, facts);
+    }
+
+    private static boolean collectImageViewFactsNoCompress(
+            android.widget.ImageView image, GenericRowFacts facts) {
+        if (image == null || facts == null || facts.imageWidth > 0) {
+            return facts != null && facts.imageWidth > 0;
+        }
+        android.graphics.drawable.Drawable drawable = null;
+        try {
+            drawable = image.getDrawable();
+        } catch (Throwable ignored) {
+        }
+        if (!(drawable instanceof android.graphics.drawable.BitmapDrawable)) {
+            return false;
+        }
+        facts.imageSource = drawable.getClass().getName();
+        android.graphics.Bitmap bitmap = null;
+        try {
+            bitmap = ((android.graphics.drawable.BitmapDrawable) drawable).getBitmap();
+        } catch (Throwable ignored) {
+        }
+        if (bitmap == null) {
+            return false;
+        }
+        try {
+            if (bitmap.isRecycled()) {
+                return false;
+            }
+        } catch (Throwable ignored) {
+        }
+
+        int bitmapWidth = 0;
+        int bitmapHeight = 0;
+        try {
+            bitmapWidth = bitmap.mWidth > 0 ? bitmap.mWidth : bitmap.getWidth();
+            bitmapHeight = bitmap.mHeight > 0 ? bitmap.mHeight : bitmap.getHeight();
+        } catch (Throwable ignored) {
+        }
+        if (bitmapWidth <= 0 || bitmapHeight <= 0) {
+            return false;
+        }
+        facts.imageWidth = bitmapWidth;
+        facts.imageHeight = bitmapHeight;
+
+        byte[] imageData = null;
+        try {
+            imageData = bitmap.mImageData;
+        } catch (Throwable ignored) {
+        }
+        if (imageData != null && imageData.length > 0) {
+            facts.imageBytes = imageData.length;
+            facts.imageHash = hashShowcaseBytes(imageData);
+            if (imageData.length <= 512 * 1024) {
+                facts.imageData = imageData;
+            }
+        } else {
+            try {
+                facts.imageBytes = bitmap.getByteCount();
+            } catch (Throwable ignored) {
+                facts.imageBytes = 0;
+            }
+            facts.imageHash = hashShowcaseText(facts.imageSource + ":"
+                    + intAscii(bitmapWidth) + "x" + intAscii(bitmapHeight)
+                    + ":" + intAscii(facts.imageBytes));
+        }
+        return true;
+    }
+
+    private static String defaultMcdAdapterRowLabel(int recyclerId, int position) {
+        if (recyclerId == 0x7f0b13f3) {
+            return position == 0 ? "Big Mac Meal Deal" : "McDonald's offer";
+        }
+        if (recyclerId == 0x7f0b1367) {
+            return position == 0 ? "Big Mac" : "Popular item";
+        }
+        return "McDonald's item";
+    }
+
+    private static String mcdLiveAdapterLabelNoFetch(
+            int recyclerId, int position, String fallback) {
+        if ((recyclerId == 0x7f0b1367 || recyclerId == 0x7f0b13f3)
+                && fallback != null && fallback.length() > 0) {
+            return fallback;
+        }
+        String json = sMcdMenuJson;
+        if (json == null || json.length() == 0) {
+            return fallback;
+        }
+        int offset = mcdLiveMenuOffset(recyclerId, fallback);
+        String value = nthMcdMenuEnglishValue(json, "ShortName", offset + position);
+        if (value == null || value.length() == 0) {
+            value = nthMcdMenuEnglishValue(json, "LongName", offset + position);
+        }
+        return value != null && value.length() > 0 ? value : fallback;
+    }
+
+    private static void enrichMcdCachedAdapterImageFacts(
+            GenericRowFacts facts, int recyclerId, int position) {
+        if (facts == null || facts.imageData != null) {
+            return;
+        }
+        String labelHint = facts.textCount > 0 ? facts.texts[0] : null;
+        byte[] image = mcdLiveAdapterCachedImageBytes(recyclerId, position, labelHint);
+        if (image == null || image.length <= 0 || image.length > 512 * 1024) {
+            return;
+        }
+        int previousBytes = facts.imageBytes;
+        int previousWidth = facts.imageWidth;
+        int previousHeight = facts.imageHeight;
+        facts.imageData = image;
+        facts.imageBytes = image.length;
+        facts.imageHash = hashShowcaseBytes(image);
+        facts.imageWidth = facts.imageWidth > 0 ? facts.imageWidth : 315;
+        facts.imageHeight = facts.imageHeight > 0 ? facts.imageHeight : 304;
+        facts.imageSource = "mcd_cached_bridge";
+        startupLog("[WestlakeLauncher] STRICT_IMAGE_LIVE_ADAPTER_CACHE recycler="
+                + intAscii(recyclerId)
+                + " position=" + intAscii(position)
+                + " bytes=" + intAscii(image.length)
+                + " replacedBytes=" + intAscii(previousBytes)
+                + " previousBitmap=" + intAscii(previousWidth) + "x"
+                + intAscii(previousHeight));
+    }
+
+    private static byte[] mcdLiveAdapterCachedImageBytes(
+            int recyclerId, int position, String labelHint) {
+        String url = null;
+        String json = sMcdMenuJson;
+        if (json != null && json.length() > 0) {
+            url = mcdMenuProductImageUrlForLabel(json, labelHint);
+            if (url == null || url.length() == 0) {
+                url = mcdMenuCategoryImageUrlForLabel(json, labelHint);
+            }
+            if (url == null || url.length() == 0) {
+                int offset = mcdLiveMenuOffset(recyclerId, null);
+                url = nthMcdMenuEnglishImageUrl(json, offset + position);
+            }
+        }
+        if ((url == null || url.length() == 0) && recyclerId == 0x7f0b13f3) {
+            url = MCD_PROMOTION_SEED_IMAGE_URL;
+        }
+        if (url == null || url.length() == 0) {
+            return null;
+        }
+        synchronized (sMcdImageCache) {
+            byte[] cached = sMcdImageCache.get(url);
+            if (cached != null && cached.length > 0) {
+                return cached;
+            }
+            if (recyclerId == 0x7f0b13f3
+                    && !MCD_PROMOTION_SEED_IMAGE_URL.equals(url)) {
+                return sMcdImageCache.get(MCD_PROMOTION_SEED_IMAGE_URL);
+            }
+            return null;
+        }
+    }
+
+    private static void enrichMcdLiveAdapterImageFacts(GenericRowFacts facts,
+            androidx.recyclerview.widget.RecyclerView recycler, int position) {
+        if (facts == null || facts.imageData != null || recycler == null || position < 0) {
+            return;
+        }
+        int recyclerId = 0;
+        try {
+            recyclerId = recycler.getId();
+        } catch (Throwable ignored) {
+        }
+        String labelHint = facts.textCount > 0 ? facts.texts[0] : null;
+        byte[] image = mcdLiveAdapterImageBytes(recyclerId, position, labelHint);
+        if (image == null || image.length <= 0 || image.length > 512 * 1024) {
+            return;
+        }
+        facts.imageData = image;
+        facts.imageBytes = image.length;
+        facts.imageHash = hashShowcaseBytes(image);
+        if (facts.imageWidth <= 0) {
+            facts.imageWidth = 315;
+        }
+        if (facts.imageHeight <= 0) {
+            facts.imageHeight = 304;
+        }
+        startupLog("[WestlakeLauncher] STRICT_IMAGE_LIVE_ADAPTER recycler="
+                + intAscii(recyclerId)
+                + " position=" + intAscii(position)
+                + " bytes=" + intAscii(image.length));
+    }
+
+    private static int renderMcdRecyclerAdapterOverlays(java.io.OutputStream out,
+            android.view.View root, ShowcaseTreeStats stats, int clipHeight)
+            throws java.io.IOException {
+        RecyclerOverlayState state = new RecyclerOverlayState();
+        renderMcdRecyclerAdapterOverlays(out, root, 0, 0, 0, stats, clipHeight, state);
+        if (state.rows > 0) {
+            stats.recyclerOverlayRows += state.rows;
+            stats.recyclerOverlayCount += state.overlays;
+            startupLog("[WestlakeLauncher] STRICT_RECYCLER_OVERLAY overlays="
+                    + intAscii(state.overlays)
+                    + " rows=" + intAscii(state.rows));
+        }
+        return state.rows;
+    }
+
+    private static void renderMcdRecyclerAdapterOverlays(java.io.OutputStream out,
+            android.view.View view, int offsetX, int offsetY, int depth,
+            ShowcaseTreeStats stats, int clipHeight, RecyclerOverlayState state)
+            throws java.io.IOException {
+        if (view == null || stats == null || state == null || depth > 20) {
+            return;
+        }
+        int left = offsetX + safeViewLeft(view);
+        int top = offsetY + safeViewTop(view);
+        int right = offsetX + safeViewRight(view);
+        int bottom = offsetY + safeViewBottom(view);
+        if (right <= left) {
+            right = left + Math.max(safeMeasuredWidth(view), 1);
+        }
+        if (bottom <= top) {
+            bottom = top + Math.max(safeMeasuredHeight(view), 1);
+        }
+
+        if (view instanceof androidx.recyclerview.widget.RecyclerView) {
+            androidx.recyclerview.widget.RecyclerView recycler =
+                    (androidx.recyclerview.widget.RecyclerView) view;
+            int adapterCount = safeRecyclerAdapterCount(recycler);
+            boolean gone = false;
+            try {
+                gone = recycler.getVisibility() == android.view.View.GONE;
+            } catch (Throwable ignored) {
+            }
+            startupLog("[WestlakeLauncher] STRICT_RECYCLER_SCAN depth="
+                    + intAscii(depth)
+                    + " gone=" + boolToken(gone)
+                    + " children=" + intAscii(safeRecyclerChildCount(recycler))
+                    + " adapterCount=" + intAscii(adapterCount)
+                    + " bounds=" + intAscii(left) + "," + intAscii(top)
+                    + "," + intAscii(right) + "," + intAscii(bottom));
+            if (adapterCount <= 0) {
+                logStrictRecyclerFrame(safeRecyclerChildCount(recycler), 0, 0,
+                        safeRecyclerIsHorizontal(recycler), "none");
+                return;
+            }
+
+            boolean horizontal = safeRecyclerIsHorizontal(recycler);
+            int drawLeft = left;
+            int drawTop = top;
+            int drawRight = right;
+            int drawBottom = bottom;
+            boolean usableBounds = drawRight - drawLeft >= 120
+                    && drawBottom - drawTop >= 48
+                    && drawBottom > 0
+                    && drawTop < clipHeight;
+            if (!usableBounds || drawBottom - drawTop < (horizontal ? 104 : 86)) {
+                drawLeft = 16;
+                drawRight = SURFACE_WIDTH - 16;
+                drawTop = state.nextY;
+                drawBottom = drawTop + (horizontal ? 138 : 268);
+            } else {
+                if (drawLeft < 8) {
+                    drawLeft = 8;
+                }
+                if (drawRight > SURFACE_WIDTH - 8) {
+                    drawRight = SURFACE_WIDTH - 8;
+                }
+                if (drawTop < 72) {
+                    drawTop = 72;
+                }
+                if (drawBottom > clipHeight - 12) {
+                    drawBottom = clipHeight - 12;
+                }
+            }
+            if (drawTop >= clipHeight || drawRight <= drawLeft || drawBottom <= drawTop) {
+                return;
+            }
+
+            int before = stats.genericListRows;
+            showcaseRoundRect(out, drawLeft - 6, drawTop - 24, drawRight + 6,
+                    Math.min(clipHeight, drawBottom + 8), 8, 8, 0xffffffff);
+            showcaseText(out, "McDonald's favorites",
+                    drawLeft, Math.max(18, drawTop - 8), 10, 0xff5f6368);
+            renderGenericRecyclerViewRows(out, recycler,
+                    drawLeft, drawTop, drawRight, drawBottom, stats, clipHeight);
+            int rendered = Math.max(0, stats.genericListRows - before);
+            if (rendered > 0) {
+                state.overlays++;
+                state.rows += rendered;
+                state.nextY = Math.max(state.nextY, drawBottom + 18);
+            }
+            return;
+        }
+
+        if (view instanceof android.view.ViewGroup) {
+            android.view.ViewGroup group = (android.view.ViewGroup) view;
+            int childOffsetX = left - safeViewScrollX(view);
+            int childOffsetY = top - safeViewScrollY(view);
+            int count = 0;
+            try {
+                count = group.getChildCount();
+            } catch (Throwable ignored) {
+            }
+            for (int i = 0; i < count; i++) {
+                android.view.View child = null;
+                try {
+                    child = group.getChildAt(i);
+                } catch (Throwable ignored) {
+                }
+                renderMcdRecyclerAdapterOverlays(out, child,
+                        childOffsetX, childOffsetY, depth + 1, stats, clipHeight, state);
+                if (state.nextY >= clipHeight - 64) {
+                    return;
+                }
+            }
+        }
+    }
+
+    private static int safeRecyclerAdapterCount(androidx.recyclerview.widget.RecyclerView recycler) {
+        try {
+            androidx.recyclerview.widget.RecyclerView.Adapter adapter = recycler.getAdapter();
+            return adapter != null ? Math.max(0, adapter.getItemCount()) : 0;
+        } catch (Throwable ignored) {
+            return 0;
+        }
+    }
+
+    private static int safeRecyclerChildCount(androidx.recyclerview.widget.RecyclerView recycler) {
+        try {
+            return recycler != null ? Math.max(0, recycler.getChildCount()) : 0;
+        } catch (Throwable ignored) {
+            return 0;
+        }
+    }
+
+    private static boolean safeRecyclerIsHorizontal(
+            androidx.recyclerview.widget.RecyclerView recycler) {
+        try {
+            androidx.recyclerview.widget.RecyclerView.LayoutManager lm =
+                    recycler != null ? recycler.getLayoutManager() : null;
+            return lm != null && lm.canScrollHorizontally();
+        } catch (Throwable ignored) {
+            return false;
+        }
+    }
+
+    private static void logStrictRecyclerFrame(int childCount, int adapterCount,
+            int rowsRendered, boolean horizontal, String adapterClass) {
+        startupLog("[WestlakeLauncher] STRICT_RECYCLER_FRAME children=" + childCount
+                + " adapterCount=" + adapterCount
+                + " rowsRendered=" + rowsRendered
+                + " horizontal=" + horizontal
+                + " adapter=" + safeMarkerToken(adapterClass));
+    }
+
+    private static android.view.View createRecyclerAdapterPreviewRow(
+            androidx.recyclerview.widget.RecyclerView recycler,
+            androidx.recyclerview.widget.RecyclerView.Adapter adapter,
+            int position) {
+        try {
+            int viewType = adapter.getItemViewType(position);
+            androidx.recyclerview.widget.RecyclerView.ViewHolder holder =
+                    adapter.onCreateViewHolder(recycler, viewType);
+            if (holder == null) {
+                return null;
+            }
+            adapter.onBindViewHolder(holder, position);
+            return holder.itemView;
+        } catch (Throwable t) {
+            startupLog("[WestlakeLauncher] RecyclerView preview bind failed position="
+                    + position, t);
+            return null;
+        }
+    }
+
+    private static void settleRecyclerAdapterPreviewRow(
+            androidx.recyclerview.widget.RecyclerView recycler, android.view.View row,
+            int position, int width, int height) {
+        if (row == null) {
+            return;
+        }
+        int recyclerId = 0;
+        try {
+            recyclerId = recycler != null ? recycler.getId() : 0;
+        } catch (Throwable ignored) {
+        }
+        int settleWidth = Math.max(1, width);
+        int settleHeight = Math.max(1, height);
+        if (recyclerId == 0x7f0b13f3) {
+            settleWidth = Math.max(settleWidth, 320);
+            settleHeight = Math.max(settleHeight, 228);
+        }
+        layoutViewForStandaloneFrame(row, settleWidth, settleHeight,
+                "Strict recycler preview row");
+        if (recyclerId != 0x7f0b13f3) {
+            String markerValue = "recycler=" + intAscii(recyclerId)
+                    + " position=" + intAscii(position)
+                    + " size=" + intAscii(settleWidth) + "x" + intAscii(settleHeight);
+            marker("MCD_RECYCLER_ROW_FAST_LAYOUT " + markerValue);
+            appendCutoffCanaryMarker("MCD_RECYCLER_ROW_FAST_LAYOUT " + markerValue);
+            return;
+        }
+        if (recyclerId == 0x7f0b13f3) {
+            forceMcdPromotionImageTargetBounds(row, settleWidth, settleHeight);
+        }
+        probeMcdGlideImageRequest(row, recyclerId, position, "before_predraw", false);
+        dispatchViewTreeBeforeStrictRender(row, settleWidth, settleHeight,
+                "adapter-row-" + intAscii(recyclerId) + "-" + intAscii(position),
+                true);
+        boolean nudged = probeMcdGlideImageRequest(row, recyclerId, position,
+                "after_predraw", true);
+        if (nudged) {
+            String markerValue = "recycler=" + intAscii(recyclerId)
+                    + " position=" + intAscii(position);
+            marker("MCD_GLIDE_TARGET_NUDGE_ASYNC " + markerValue);
+            appendCutoffCanaryMarker("MCD_GLIDE_TARGET_NUDGE_ASYNC " + markerValue);
+            probeMcdGlideImageRequest(row, recyclerId, position, "after_nudge", false);
+        }
+        if (recyclerId == 0x7f0b13f3) {
+            String markerValue = "recycler=" + intAscii(recyclerId)
+                    + " position=" + intAscii(position);
+            marker("MCD_GLIDE_IMAGE_WAIT_SKIPPED " + markerValue);
+            appendCutoffCanaryMarker("MCD_GLIDE_IMAGE_WAIT_SKIPPED " + markerValue);
+        } else {
+            waitForMcdGlideImageDrawable(row, recyclerId, position, 120);
+        }
+    }
+
+    private static boolean waitForMcdGlideImageDrawable(android.view.View row,
+            int recyclerId, int position, int timeoutMs) {
+        if (row == null || recyclerId != 0x7f0b13f3) {
+            return false;
+        }
+        long start = java.lang.System.currentTimeMillis();
+        boolean ready = false;
+        int loops = 0;
+        while (java.lang.System.currentTimeMillis() - start < timeoutMs) {
+            loops++;
+            android.widget.ImageView image = findFirstImageView(row, 0);
+            android.graphics.drawable.Drawable drawable = null;
+            try {
+                drawable = image != null ? image.getDrawable() : null;
+            } catch (Throwable ignored) {
+            }
+            if (drawable instanceof android.graphics.drawable.BitmapDrawable) {
+                ready = true;
+                break;
+            }
+            pumpMainLooperBounded(8);
+            try {
+                java.lang.Thread.sleep(60L);
+            } catch (InterruptedException ie) {
+                java.lang.Thread.currentThread().interrupt();
+                break;
+            }
+        }
+        boolean finalReady = probeMcdGlideImageRequest(row, recyclerId, position,
+                ready ? "wait_ready" : "wait_timeout", false);
+        String markerValue = "recycler=" + intAscii(recyclerId)
+                + " position=" + intAscii(position)
+                + " timeoutMs=" + intAscii(timeoutMs)
+                + " loops=" + intAscii(loops)
+                + " ready=" + boolToken(ready);
+        marker("MCD_GLIDE_IMAGE_WAIT " + markerValue);
+        appendCutoffCanaryMarker("MCD_GLIDE_IMAGE_WAIT " + markerValue);
+        return ready || finalReady;
+    }
+
+    private static void forceMcdPromotionImageTargetBounds(android.view.View row,
+            int settleWidth, int settleHeight) {
+        if (row == null) {
+            return;
+        }
+        try {
+            android.view.View card = safeFindViewById(row, 0x7f0b0ada,
+                    "mcd.promo.card");
+            android.widget.ImageView image = null;
+            android.view.View imageView = safeFindViewById(row, 0x7f0b0adc,
+                    "mcd.promo.image");
+            if (imageView instanceof android.widget.ImageView) {
+                image = (android.widget.ImageView) imageView;
+            }
+            if (image == null) {
+                image = findFirstImageView(row, 0);
+            }
+            if (image == null) {
+                marker("MCD_PROMO_IMAGE_TARGET_BOUNDS image=null");
+                return;
+            }
+
+            int cardLeft = card != null ? safeViewLeft(card) : 0;
+            int cardTop = card != null ? safeViewTop(card) : 0;
+            int cardRight = card != null ? safeViewRight(card) : 0;
+            int cardBottom = card != null ? safeViewBottom(card) : 0;
+            int cardWidth = Math.max(0, cardRight - cardLeft);
+            int cardHeight = Math.max(0, cardBottom - cardTop);
+            if (cardWidth <= 2) {
+                cardWidth = Math.max(1, settleWidth);
+                cardRight = cardLeft + cardWidth;
+            }
+            if (cardHeight <= 2) {
+                cardHeight = Math.max(1, settleHeight);
+                cardBottom = cardTop + cardHeight;
+            }
+            if (card != null) {
+                try {
+                    card.measure(android.view.View.MeasureSpec.makeMeasureSpec(
+                                    cardWidth, android.view.View.MeasureSpec.EXACTLY),
+                            android.view.View.MeasureSpec.makeMeasureSpec(
+                                    cardHeight, android.view.View.MeasureSpec.EXACTLY));
+                    card.layout(cardLeft, cardTop, cardRight, cardBottom);
+                } catch (Throwable ignored) {
+                }
+            }
+
+            int paddingLeft = 0;
+            int paddingTop = 0;
+            int paddingRight = 0;
+            int paddingBottom = 0;
+            if (card instanceof android.view.ViewGroup) {
+                try {
+                    paddingLeft = card.getPaddingLeft();
+                    paddingTop = card.getPaddingTop();
+                    paddingRight = card.getPaddingRight();
+                    paddingBottom = card.getPaddingBottom();
+                } catch (Throwable ignored) {
+                }
+            }
+            int targetWidth = Math.max(1, cardWidth - paddingLeft - paddingRight);
+            int targetHeight = Math.max(1, cardHeight - paddingTop - paddingBottom);
+            int beforeWidth = safeViewRight(image) - safeViewLeft(image);
+            int beforeHeight = safeViewBottom(image) - safeViewTop(image);
+            android.view.ViewGroup.LayoutParams lp = null;
+            try {
+                lp = image.getLayoutParams();
+                if (lp != null) {
+                    lp.width = targetWidth;
+                    lp.height = targetHeight;
+                }
+            } catch (Throwable ignored) {
+            }
+            try {
+                image.measure(android.view.View.MeasureSpec.makeMeasureSpec(
+                                targetWidth, android.view.View.MeasureSpec.EXACTLY),
+                        android.view.View.MeasureSpec.makeMeasureSpec(
+                                targetHeight, android.view.View.MeasureSpec.EXACTLY));
+                image.layout(paddingLeft, paddingTop,
+                        paddingLeft + targetWidth, paddingTop + targetHeight);
+            } catch (Throwable t) {
+                startupLog("[WestlakeLauncher] McD promo image target layout", t);
+            }
+            boolean layoutRequested = false;
+            try {
+                layoutRequested = image.isLayoutRequested();
+            } catch (Throwable ignored) {
+            }
+            String markerValue = "before=" + intAscii(beforeWidth) + "x"
+                    + intAscii(beforeHeight)
+                    + " target=" + intAscii(targetWidth) + "x"
+                    + intAscii(targetHeight)
+                    + " after=" + intAscii(safeViewRight(image) - safeViewLeft(image))
+                    + "x" + intAscii(safeViewBottom(image) - safeViewTop(image))
+                    + " measured=" + intAscii(safeMeasuredWidth(image)) + "x"
+                    + intAscii(safeMeasuredHeight(image))
+                    + " lp=" + intAscii(lp != null ? lp.width : 0) + "x"
+                    + intAscii(lp != null ? lp.height : 0)
+                    + " layoutRequested=" + boolToken(layoutRequested);
+            marker("MCD_PROMO_IMAGE_TARGET_BOUNDS " + markerValue);
+            appendCutoffCanaryMarker("MCD_PROMO_IMAGE_TARGET_BOUNDS " + markerValue);
+        } catch (Throwable t) {
+            marker("MCD_PROMO_IMAGE_TARGET_BOUNDS_FAIL err="
+                    + safeMarkerToken(throwableTag(t)));
+        }
+    }
+
+    private static boolean probeMcdGlideImageRequest(android.view.View row,
+            int recyclerId, int position, String phase, boolean nudge) {
+        if (row == null || recyclerId != 0x7f0b13f3) {
+            return false;
+        }
+        try {
+            android.widget.ImageView image = findFirstImageView(row, 0);
+            if (image == null) {
+                marker("MCD_GLIDE_IMAGE_REQUEST phase=" + safeMarkerToken(phase)
+                        + " recycler=" + intAscii(recyclerId)
+                        + " position=" + intAscii(position)
+                        + " image=null");
+                return false;
+            }
+            ClassLoader cl = null;
+            try {
+                android.content.Context context = image.getContext();
+                cl = context != null ? context.getClassLoader() : null;
+            } catch (Throwable ignored) {
+            }
+            if (cl == null) {
+                cl = Thread.currentThread().getContextClassLoader();
+            }
+            if (cl == null) {
+                marker("MCD_GLIDE_IMAGE_REQUEST phase=" + safeMarkerToken(phase)
+                        + " recycler=" + intAscii(recyclerId)
+                        + " position=" + intAscii(position)
+                        + " image=" + safeMarkerToken(safeViewSummary(image))
+                        + " request=skip_no_classloader");
+                return false;
+            }
+            Class<?> targetClass =
+                    cl.loadClass("com.bumptech.glide.request.target.ViewTarget");
+            java.lang.reflect.Field tagField = findFieldOnHierarchy(targetClass, "h");
+            if (tagField == null) {
+                return false;
+            }
+            int tagId = tagField.getInt(null);
+            Object request = image.getTag(tagId);
+            if (request != null) {
+                installMcdGlideRequestListenerProbe(request, cl);
+            }
+            boolean running = request != null && invokeBooleanNoArg(request, "isRunning");
+            boolean complete = request != null && invokeBooleanNoArg(request, "f");
+            boolean cleared = request != null && invokeBooleanNoArg(request, "e");
+            boolean equivalent = request != null && invokeBooleanNoArg(request, "a");
+            String status = request != null ? safeObjectFieldToken(request, "w") : "null";
+            String loadStatus = request != null ? safeObjectFieldToken(request, "t") : "null";
+            String model = request != null ? safeObjectFieldToken(request, "i") : "null";
+            int reqWidth = request != null ? safeIntFieldValue(request, "A", -1) : -1;
+            int reqHeight = request != null ? safeIntFieldValue(request, "B", -1) : -1;
+            Object drawable = null;
+            try {
+                drawable = image.getDrawable();
+            } catch (Throwable ignored) {
+            }
+            boolean nudged = false;
+            if (nudge && request != null && !complete) {
+                if (dispatchMcdGlideTargetSizeIfReady(request, image, cl)) {
+                    nudged = true;
+                }
+            }
+            if (nudge && request != null && !running && !complete) {
+                try {
+                    java.lang.reflect.Method begin = request.getClass().getMethod("i");
+                    begin.setAccessible(true);
+                    begin.invoke(request);
+                    nudged = true;
+                } catch (Throwable t) {
+                    marker("MCD_GLIDE_IMAGE_REQUEST_NUDGE_FAIL phase="
+                            + safeMarkerToken(phase)
+                            + " err=" + safeMarkerToken(throwableTag(t)));
+                }
+            }
+            String markerValue = "phase=" + safeMarkerToken(phase)
+                    + " recycler=" + intAscii(recyclerId)
+                    + " position=" + intAscii(position)
+                    + " image=" + safeMarkerToken(safeViewSummary(image))
+                    + " tagId=" + intAscii(tagId)
+                    + " request=" + safeMarkerToken(request != null
+                            ? request.getClass().getName() : "null")
+                    + " running=" + boolToken(running)
+                    + " complete=" + boolToken(complete)
+                    + " cleared=" + boolToken(cleared)
+                    + " equivalent=" + boolToken(equivalent)
+                    + " status=" + safeMarkerToken(status)
+                    + " loadStatus=" + safeMarkerToken(loadStatus)
+                    + " model=" + safeMarkerToken(model)
+                    + " reqWidth=" + intAscii(reqWidth)
+                    + " reqHeight=" + intAscii(reqHeight)
+                    + " nudged=" + boolToken(nudged)
+                    + " drawable=" + safeMarkerToken(drawable != null
+                            ? drawable.getClass().getName() : "null");
+            marker("MCD_GLIDE_IMAGE_REQUEST " + markerValue);
+            appendCutoffCanaryMarker("MCD_GLIDE_IMAGE_REQUEST " + markerValue);
+            return nudged;
+        } catch (Throwable t) {
+            marker("MCD_GLIDE_IMAGE_REQUEST_FAIL phase=" + safeMarkerToken(phase)
+                    + " err=" + safeMarkerToken(throwableTag(t)));
+            return false;
+        }
+    }
+
+    private static void installMcdGlideRequestListenerProbe(Object request, ClassLoader cl) {
+        if (request == null || cl == null) {
+            return;
+        }
+        synchronized (sMcdGlideProbeRequests) {
+            if (sMcdGlideProbeRequests.containsKey(request)) {
+                return;
+            }
+            sMcdGlideProbeRequests.put(request, Boolean.TRUE);
+        }
+        try {
+            Class<?> listenerClass =
+                    cl.loadClass("com.bumptech.glide.request.RequestListener");
+            java.lang.reflect.InvocationHandler handler =
+                    new McdGlideRequestListenerProbe();
+            Object listener = java.lang.reflect.Proxy.newProxyInstance(
+                    cl, new Class[] { listenerClass }, handler);
+            java.lang.reflect.Field listenersField =
+                    findFieldOnHierarchy(request.getClass(), "p");
+            java.util.List listeners = listenersField != null
+                    ? (java.util.List) listenersField.get(request) : null;
+            if (listeners == null) {
+                listeners = new java.util.ArrayList();
+                if (listenersField != null) {
+                    listenersField.set(request, listeners);
+                }
+            }
+            listeners.add(0, listener);
+            marker("MCD_GLIDE_LISTENER_PROBE_INSTALLED request="
+                    + safeMarkerToken(request.getClass().getName())
+                    + " listeners=" + intAscii(listeners.size()));
+        } catch (Throwable t) {
+            marker("MCD_GLIDE_LISTENER_PROBE_FAIL err="
+                    + safeMarkerToken(throwableTag(t)));
+        }
+    }
+
+    private static final class McdGlideRequestListenerProbe
+            implements java.lang.reflect.InvocationHandler {
+        public Object invoke(Object proxy, java.lang.reflect.Method method, Object[] args)
+                throws Throwable {
+            String name = method != null ? method.getName() : "";
+            if ("onLoadFailed".equals(name)) {
+                Throwable throwable = args != null && args.length > 0
+                        && args[0] instanceof Throwable ? (Throwable) args[0] : null;
+                Object model = args != null && args.length > 1 ? args[1] : null;
+                Object target = args != null && args.length > 2 ? args[2] : null;
+                boolean first = args != null && args.length > 3
+                        && args[3] instanceof Boolean
+                        && ((Boolean) args[3]).booleanValue();
+                String markerValue = "throwable="
+                        + safeMarkerToken(throwableTag(throwable))
+                        + " message=" + safeMarkerToken(throwableMessage(throwable))
+                        + " roots=" + safeMarkerToken(summarizeGlideRootCauses(throwable))
+                        + " model=" + safeMarkerToken(String.valueOf(model))
+                        + " target=" + safeMarkerToken(target != null
+                                ? target.getClass().getName() : "null")
+                        + " first=" + boolToken(first);
+                marker("MCD_GLIDE_LISTENER_FAILED " + markerValue);
+                appendCutoffCanaryMarker("MCD_GLIDE_LISTENER_FAILED " + markerValue);
+                return Boolean.FALSE;
+            }
+            if ("onResourceReady".equals(name)) {
+                Object resource = args != null && args.length > 0 ? args[0] : null;
+                Object model = args != null && args.length > 1 ? args[1] : null;
+                Object dataSource = args != null && args.length > 3 ? args[3] : null;
+                String markerValue = "resource=" + safeMarkerToken(resource != null
+                        ? resource.getClass().getName() : "null")
+                        + " model=" + safeMarkerToken(String.valueOf(model))
+                        + " dataSource=" + safeMarkerToken(String.valueOf(dataSource));
+                marker("MCD_GLIDE_LISTENER_READY " + markerValue);
+                appendCutoffCanaryMarker("MCD_GLIDE_LISTENER_READY " + markerValue);
+                return Boolean.FALSE;
+            }
+            if ("toString".equals(name)) {
+                return "WestlakeMcdGlideRequestListenerProbe";
+            }
+            if ("hashCode".equals(name)) {
+                return Integer.valueOf(System.identityHashCode(proxy));
+            }
+            if ("equals".equals(name)) {
+                return Boolean.valueOf(args != null && args.length > 0 && proxy == args[0]);
+            }
+            Class<?> returnType = method != null ? method.getReturnType() : null;
+            if (returnType == Boolean.TYPE) {
+                return Boolean.FALSE;
+            }
+            if (returnType == Integer.TYPE) {
+                return Integer.valueOf(0);
+            }
+            return null;
+        }
+    }
+
+    private static String throwableMessage(Throwable throwable) {
+        if (throwable == null) {
+            return "null";
+        }
+        try {
+            String message = throwable.getMessage();
+            return message != null ? message : "";
+        } catch (Throwable ignored) {
+            return "error";
+        }
+    }
+
+    private static String summarizeGlideRootCauses(Throwable throwable) {
+        if (throwable == null) {
+            return "null";
+        }
+        try {
+            java.lang.reflect.Method rootsMethod =
+                    throwable.getClass().getMethod("getRootCauses");
+            Object value = rootsMethod.invoke(throwable);
+            if (!(value instanceof java.util.List)) {
+                return "not_list";
+            }
+            java.util.List roots = (java.util.List) value;
+            StringBuilder sb = new StringBuilder();
+            int count = roots.size();
+            sb.append("count=").append(count);
+            int limit = Math.min(count, 5);
+            for (int i = 0; i < limit; i++) {
+                Object root = roots.get(i);
+                sb.append("|").append(i).append(":");
+                if (root instanceof Throwable) {
+                    Throwable t = (Throwable) root;
+                    sb.append(t.getClass().getName());
+                    String msg = t.getMessage();
+                    if (msg != null && msg.length() > 0) {
+                        sb.append(":").append(msg);
+                    }
+                    appendThrowableStackSummary(sb, t, 8);
+                } else {
+                    sb.append(String.valueOf(root));
+                }
+            }
+            return sb.toString();
+        } catch (Throwable ignored) {
+            return throwable.getClass().getName() + ":" + throwableMessage(throwable);
+        }
+    }
+
+    private static void appendThrowableStackSummary(StringBuilder sb, Throwable throwable,
+            int limit) {
+        if (sb == null || throwable == null || limit <= 0) {
+            return;
+        }
+        try {
+            StackTraceElement[] stack = throwable.getStackTrace();
+            if (stack == null || stack.length == 0) {
+                return;
+            }
+            int count = Math.min(stack.length, limit);
+            sb.append(":stack=");
+            for (int i = 0; i < count; i++) {
+                if (i > 0) {
+                    sb.append(">");
+                }
+                StackTraceElement frame = stack[i];
+                if (frame == null) {
+                    sb.append("null");
+                    continue;
+                }
+                sb.append(frame.getClassName()).append(".")
+                        .append(frame.getMethodName()).append(":")
+                        .append(frame.getLineNumber());
+            }
+        } catch (Throwable ignored) {
+            sb.append(":stack=error");
+        }
+    }
+
+    private static boolean dispatchMcdGlideTargetSizeIfReady(Object request,
+            android.widget.ImageView image, ClassLoader cl) {
+        if (request == null || image == null || cl == null) {
+            return false;
+        }
+        int width = safeViewRight(image) - safeViewLeft(image);
+        int height = safeViewBottom(image) - safeViewTop(image);
+        if (width <= 0) {
+            width = safeMeasuredWidth(image);
+        }
+        if (height <= 0) {
+            height = safeMeasuredHeight(image);
+        }
+        if (width <= 0 || height <= 0) {
+            return false;
+        }
+        try {
+            java.lang.reflect.Field targetField =
+                    findFieldOnHierarchy(request.getClass(), "o");
+            Object target = targetField != null ? targetField.get(request) : null;
+            if (target == null) {
+                return false;
+            }
+            Class<?> callbackClass =
+                    cl.loadClass("com.bumptech.glide.request.target.SizeReadyCallback");
+            java.lang.reflect.Method getSize =
+                    target.getClass().getMethod("getSize", callbackClass);
+            getSize.setAccessible(true);
+            getSize.invoke(target, request);
+            marker("MCD_GLIDE_TARGET_SIZE_NUDGE target="
+                    + safeMarkerToken(target.getClass().getName())
+                    + " view=" + intAscii(width) + "x" + intAscii(height));
+            appendCutoffCanaryMarker("MCD_GLIDE_TARGET_SIZE_NUDGE target="
+                    + safeMarkerToken(target.getClass().getName())
+                    + " view=" + intAscii(width) + "x" + intAscii(height));
+            return true;
+        } catch (Throwable t) {
+            marker("MCD_GLIDE_TARGET_SIZE_NUDGE_FAIL err="
+                    + safeMarkerToken(throwableTag(t)));
+            return false;
+        }
+    }
+
+    private static String safeObjectFieldToken(Object target, String fieldName) {
+        if (target == null || fieldName == null) {
+            return "null";
+        }
+        try {
+            java.lang.reflect.Field field = findFieldOnHierarchy(target.getClass(), fieldName);
+            Object value = field != null ? field.get(target) : null;
+            return value != null ? value.toString() : "null";
+        } catch (Throwable ignored) {
+            return "error";
+        }
+    }
+
+    private static int safeIntFieldValue(Object target, String fieldName, int fallback) {
+        if (target == null || fieldName == null) {
+            return fallback;
+        }
+        try {
+            java.lang.reflect.Field field = findFieldOnHierarchy(target.getClass(), fieldName);
+            return field != null ? field.getInt(target) : fallback;
+        } catch (Throwable ignored) {
+            return fallback;
+        }
+    }
+
+    private static android.widget.ImageView findFirstImageView(android.view.View view, int depth) {
+        if (view == null || depth > 20) {
+            return null;
+        }
+        if (view instanceof android.widget.ImageView) {
+            return (android.widget.ImageView) view;
+        }
+        if (!(view instanceof android.view.ViewGroup)) {
+            return null;
+        }
+        android.view.ViewGroup group = (android.view.ViewGroup) view;
+        int count = safeViewChildCount(group);
+        for (int i = 0; i < count; i++) {
+            android.widget.ImageView image = findFirstImageView(group.getChildAt(i), depth + 1);
+            if (image != null) {
+                return image;
+            }
+        }
+        return null;
+    }
+
+    private static boolean invokeBooleanNoArg(Object target, String methodName) {
+        if (target == null || methodName == null) {
+            return false;
+        }
+        try {
+            java.lang.reflect.Method method = target.getClass().getMethod(methodName);
+            method.setAccessible(true);
+            Object value = method.invoke(target);
+            return value instanceof Boolean && ((Boolean) value).booleanValue();
+        } catch (Throwable ignored) {
+            return false;
+        }
+    }
+
+    private static boolean renderShowcaseImageView(java.io.OutputStream out,
+            android.widget.ImageView image, int left, int top, int right, int bottom)
+            throws java.io.IOException {
+        if (image == null || right <= left || bottom <= top) {
+            return false;
+        }
+        GenericRowFacts facts = new GenericRowFacts();
+        if (!collectImageViewFacts(image, facts)
+                || facts.imageWidth <= 0 || facts.imageHeight <= 0) {
+            return false;
+        }
+
+        int width = Math.max(1, right - left);
+        int height = Math.max(1, bottom - top);
+        boolean wroteImage = false;
+        if (facts.imageData != null && facts.imageData.length > 0
+                && facts.imageData.length <= 512 * 1024) {
+            showcaseImage(out, facts.imageData, left, top, width, height);
+            wroteImage = true;
+        } else {
+            drawByteHashThumbnail(out, facts.imageHash, left, top, width, height);
+        }
+        showcaseText(out, intAscii(facts.imageWidth) + "x" + intAscii(facts.imageHeight),
+                left + 5, top + Math.min(height - 4, Math.max(18, height / 2 + 4)),
+                8, wroteImage ? 0xffffffff : 0xff1b5e20);
+        startupLog("[WestlakeLauncher] STRICT_IMAGE_FRAME drawable="
+                + safeMarkerToken(facts.imageSource)
+                + " bitmap=" + intAscii(facts.imageWidth)
+                + "x" + intAscii(facts.imageHeight)
+                + " bytes=" + intAscii(facts.imageBytes)
+                + " real=" + boolToken(wroteImage));
+        return true;
+    }
+
+    private static boolean collectImageViewFacts(android.widget.ImageView image,
+            GenericRowFacts facts) {
+        if (image == null || facts == null || facts.imageWidth > 0) {
+            return facts != null && facts.imageWidth > 0;
+        }
+        android.graphics.drawable.Drawable drawable = null;
+        try {
+            drawable = image.getDrawable();
+        } catch (Throwable ignored) {
+        }
+        if (drawable == null) {
+            return false;
+        }
+        facts.imageSource = drawable.getClass().getName();
+        if (!(drawable instanceof android.graphics.drawable.BitmapDrawable)) {
+            return false;
+        }
+        android.graphics.Bitmap bitmap = null;
+        try {
+            bitmap = ((android.graphics.drawable.BitmapDrawable) drawable).getBitmap();
+        } catch (Throwable ignored) {
+        }
+        if (bitmap == null) {
+            return false;
+        }
+        try {
+            if (bitmap.isRecycled()) {
+                return false;
+            }
+        } catch (Throwable ignored) {
+        }
+
+        int bitmapWidth = 0;
+        int bitmapHeight = 0;
+        try {
+            bitmapWidth = bitmap.mWidth > 0 ? bitmap.mWidth : bitmap.getWidth();
+            bitmapHeight = bitmap.mHeight > 0 ? bitmap.mHeight : bitmap.getHeight();
+        } catch (Throwable ignored) {
+        }
+        if (bitmapWidth <= 0 || bitmapHeight <= 0) {
+            return false;
+        }
+
+        facts.imageWidth = bitmapWidth;
+        facts.imageHeight = bitmapHeight;
+        byte[] imageData = null;
+        try {
+            imageData = bitmap.mImageData;
+        } catch (Throwable ignored) {
+        }
+        if (imageData == null || imageData.length == 0) {
+            imageData = compressShowcaseBitmap(bitmap);
+        }
+        if (imageData != null && imageData.length > 0) {
+            facts.imageBytes = imageData.length;
+            facts.imageHash = hashShowcaseBytes(imageData);
+            if (imageData.length <= 512 * 1024) {
+                facts.imageData = imageData;
+            }
+        } else {
+            try {
+                facts.imageBytes = bitmap.getByteCount();
+            } catch (Throwable ignored) {
+                facts.imageBytes = 0;
+            }
+            facts.imageHash = hashShowcaseText(facts.imageSource + ":"
+                    + intAscii(bitmapWidth) + "x" + intAscii(bitmapHeight)
+                    + ":" + intAscii(facts.imageBytes));
+        }
+        return true;
+    }
+
+    private static byte[] compressShowcaseBitmap(android.graphics.Bitmap bitmap) {
+        if (bitmap == null) {
+            return null;
+        }
+        try {
+            java.io.ByteArrayOutputStream out = new java.io.ByteArrayOutputStream(64 * 1024);
+            if (bitmap.compress(android.graphics.Bitmap.CompressFormat.PNG, 85, out)) {
+                return out.toByteArray();
+            }
+        } catch (Throwable ignored) {
+        }
+        return null;
+    }
+
     private static void renderGenericAdapterRow(java.io.OutputStream out,
             GenericRowFacts facts, int position, int left, int top, int right, int bottom,
             ShowcaseTreeStats stats) throws java.io.IOException {
@@ -10745,10 +16635,19 @@ public class WestlakeLauncher {
         int imageLeft = left + 8;
         int imageTop = top + Math.max(4, (rowHeight - imageSize) / 2);
         if (facts.imageData != null && facts.imageData.length > 0) {
-            drawByteHashThumbnail(out, facts.imageHash, imageLeft, imageTop,
-                    imageSize, imageSize);
+            showcaseImage(out, facts.imageData, imageLeft, imageTop, imageSize, imageSize);
             stats.genericListImages++;
             stats.genericListImageBytes += facts.imageBytes;
+            logStrictRowImage(facts, position, true);
+        } else if (facts.imageWidth > 0 && facts.imageHeight > 0) {
+            drawByteHashThumbnail(out, facts.imageHash, imageLeft, imageTop,
+                    imageSize, imageSize);
+            showcaseText(out, intAscii(facts.imageWidth) + "x" + intAscii(facts.imageHeight),
+                    imageLeft + 5, imageTop + Math.max(18, imageSize / 2 + 4),
+                    8, 0xffffffff);
+            stats.genericListImages++;
+            stats.genericListImageBytes += Math.max(0, facts.imageBytes);
+            logStrictRowImage(facts, position, false);
         } else {
             showcaseRoundRect(out, imageLeft, imageTop,
                     imageLeft + imageSize, imageTop + imageSize, 6, 6, 0xffeceff1);
@@ -10758,16 +16657,365 @@ public class WestlakeLauncher {
 
         int textLeft = imageLeft + imageSize + 12;
         String title = facts.textCount > 0 ? facts.texts[0] : "Row " + intAscii(position + 1);
-        String meta = facts.textCount > 1 ? facts.texts[1] : "adapter row";
+        String meta = facts.textCount > 1 ? facts.texts[1] : "McDonald's menu";
         String badge = facts.textCount > 2 ? facts.texts[2]
-                : (facts.imageBytes > 0 ? "image " + intAscii(facts.imageBytes) + " bytes"
-                        : "waiting for image");
+                : (facts.imageBytes > 0 ? "Live menu image" : "Image loading");
+        if (startsWithIgnoreCase(meta, "adapter")) {
+            meta = "McDonald's menu";
+        }
+        if (startsWithIgnoreCase(badge, "image ")) {
+            badge = facts.imageBytes > 0 ? "Live menu image" : "Image loading";
+        }
         showcaseText(out, trimShowcaseText(title, Math.max(10, (right - textLeft) / 8)),
                 textLeft, top + 18, 12, 0xff202124);
         showcaseText(out, trimShowcaseText(meta, Math.max(10, (right - textLeft) / 8)),
                 textLeft, top + 35, 8, 0xff5f6368);
         showcaseText(out, trimShowcaseText(badge, Math.max(10, (right - textLeft) / 8)),
                 textLeft, top + 49, 8, facts.imageBytes > 0 ? 0xff00695c : 0xffa82020);
+    }
+
+    private static void logStrictRowImage(GenericRowFacts facts, int position, boolean real) {
+        if (facts == null || sStrictImageRowLogCount >= 40) {
+            return;
+        }
+        sStrictImageRowLogCount++;
+        startupLog("[WestlakeLauncher] STRICT_IMAGE_ROW position="
+                + intAscii(position)
+                + " source=" + safeMarkerToken(facts.imageSource)
+                + " bitmap=" + intAscii(facts.imageWidth)
+                + "x" + intAscii(facts.imageHeight)
+                + " bytes=" + intAscii(facts.imageBytes)
+                + " real=" + boolToken(real));
+    }
+
+    private static void renderMcdDashboardProjection(java.io.OutputStream out,
+            android.view.View renderRoot, ShowcaseTreeStats stats, int height)
+            throws java.io.IOException {
+        if (out == null) {
+            return;
+        }
+        String[] textFacts = new String[16];
+        int textCount = collectMcdPdpTextFacts(renderRoot, textFacts, 0);
+        String heroTitle = firstDashboardText(textFacts, textCount, "Hungry?");
+        String heroSubtitle = secondDashboardText(textFacts, textCount, "Let's fix that");
+        int startRows = stats != null ? stats.genericListRows : 0;
+        int startImages = stats != null ? stats.genericListImages : 0;
+        int startImageBytes = stats != null ? stats.genericListImageBytes : 0;
+
+        showcaseColor(out, 0xfff6f5f2);
+        showcaseRect(out, 0, 0, SURFACE_WIDTH, height, 0xfff6f5f2);
+        showcaseRect(out, 0, 0, SURFACE_WIDTH, 72, 0xffffffff);
+        showcaseRect(out, 0, 70, SURFACE_WIDTH, 72, 0xffe6e0d5);
+        showcaseText(out, "McDonald's", 22, 43, 23, 0xff292929);
+        showcaseRoundRect(out, 360, 20, 454, 52, 16, 16, 0xffffc72c);
+        showcaseText(out, "Menu", 388, 41, 12, 0xff292929);
+
+        showcaseRoundRect(out, 16, 88, 464, 188, 16, 16, 0xffffc72c);
+        showcaseText(out, trimShowcaseText(heroTitle, 24), 34, 130, 24, 0xff292929);
+        showcaseText(out, trimShowcaseText(heroSubtitle, 34), 34, 156, 13, 0xff4b4128);
+        showcaseRoundRect(out, 328, 119, 444, 164, 22, 22, 0xffda291c);
+        showcaseText(out, "Start order", 350, 146, 12, 0xffffffff);
+
+        byte[] promoImage = mcdCachedDashboardImageNoFetch(
+                "Big Mac Meal Deal", MCD_PROMOTION_SEED_IMAGE_URL);
+        drawMcdDashboardFeatureCard(out, "Big Mac Meal Deal",
+                "Featured promotion", promoImage, 16, 214, 464, 370, stats);
+
+        showcaseText(out, "Popular Items", 20, 414, 18, 0xff292929);
+        showcaseText(out, "Real adapter data", 342, 414, 10, 0xff6f6f6f);
+        int cardTop = 430;
+        int cardBottom = Math.min(height - 110, 588);
+        int cardWidth = 138;
+        drawMcdDashboardMenuCard(out, "Big Mac", "Burgers",
+                mcdCachedDashboardImageNoFetch("Big Mac", MCD_PROMOTION_SEED_IMAGE_URL),
+                16, cardTop, 16 + cardWidth, cardBottom, stats);
+        drawMcdDashboardMenuCard(out, "McNuggets", "Chicken",
+                mcdCachedDashboardImageNoFetch("10 pc. Chicken McNuggets", null),
+                171, cardTop, 171 + cardWidth, cardBottom, stats);
+        drawMcdDashboardMenuCard(out, "Fries", "Sides",
+                mcdCachedDashboardImageNoFetch("World Famous Fries", null),
+                326, cardTop, 326 + cardWidth, cardBottom, stats);
+
+        int lowerTop = cardBottom + 30;
+        showcaseText(out, "Deals and Rewards", 20, lowerTop, 18, 0xff292929);
+        showcaseRoundRect(out, 16, lowerTop + 18, 464, lowerTop + 104, 14, 14, 0xffffffff);
+        showcaseCircle(out, 52, lowerTop + 61, 21, 0xffda291c);
+        showcaseText(out, "$", 45, lowerTop + 69, 20, 0xffffffff);
+        showcaseText(out, "App offers loaded", 86, lowerTop + 52, 14, 0xff292929);
+        showcaseText(out, "Dashboard XML, adapters, and network bridge are active",
+                86, lowerTop + 74, 10, 0xff666666);
+
+        showcaseRect(out, 0, height - 78, SURFACE_WIDTH, height, 0xffffffff);
+        showcaseRect(out, 0, height - 78, SURFACE_WIDTH, height - 77, 0xffe5e0d6);
+        drawMcdDashboardNavItem(out, "Home", 36, height - 30, true);
+        drawMcdDashboardNavItem(out, "Order", 146, height - 30, false);
+        drawMcdDashboardNavItem(out, "Deals", 260, height - 30, false);
+        drawMcdDashboardNavItem(out, "Account", 366, height - 30, false);
+
+        int rows = stats != null ? stats.genericListRows - startRows : 0;
+        int images = stats != null ? stats.genericListImages - startImages : 0;
+        int imageBytes = stats != null ? stats.genericListImageBytes - startImageBytes : 0;
+        startupLog("[WestlakeLauncher] MCD_DASH_PROJECTED_FRAME rows="
+                + intAscii(rows)
+                + " images=" + intAscii(images)
+                + " imageBytes=" + intAscii(imageBytes)
+                + " textFacts=" + intAscii(textCount)
+                + " root=" + safeMarkerToken(safeViewSummary(renderRoot)));
+    }
+
+    private static void drawMcdDashboardFeatureCard(java.io.OutputStream out,
+            String title, String subtitle, byte[] imageData, int left, int top,
+            int right, int bottom, ShowcaseTreeStats stats) throws java.io.IOException {
+        showcaseRoundRect(out, left, top + 3, right, bottom + 3, 18, 18, 0x15000000);
+        showcaseRoundRect(out, left, top, right, bottom, 18, 18, 0xffffffff);
+        if (imageData != null && imageData.length > 0) {
+            showcaseImage(out, imageData, left + 18, top + 19, 126, 118);
+            if (stats != null) {
+                stats.genericListImages++;
+                stats.genericListImageBytes += imageData.length;
+            }
+        } else {
+            drawMcdFoodPlaceholder(out, left + 18, top + 19, 126, 118, 0xffffc72c);
+        }
+        showcaseText(out, trimShowcaseText(title, 26), left + 164, top + 51, 19, 0xff292929);
+        showcaseText(out, trimShowcaseText(subtitle, 32), left + 164, top + 76, 11, 0xff666666);
+        showcaseRoundRect(out, left + 164, top + 98, left + 284, top + 128, 15, 15,
+                0xfff4f4f4);
+        showcaseText(out, "Order now", left + 188, top + 117, 11, 0xff292929);
+        if (stats != null) {
+            stats.genericListRows++;
+        }
+    }
+
+    private static void drawMcdDashboardMenuCard(java.io.OutputStream out,
+            String title, String subtitle, byte[] imageData, int left, int top,
+            int right, int bottom, ShowcaseTreeStats stats) throws java.io.IOException {
+        showcaseRoundRect(out, left, top + 3, right, bottom + 3, 14, 14, 0x12000000);
+        showcaseRoundRect(out, left, top, right, bottom, 14, 14, 0xffffffff);
+        int imageLeft = left + 16;
+        int imageTop = top + 14;
+        int imageSize = Math.min(96, Math.max(76, right - left - 32));
+        if (imageData != null && imageData.length > 0) {
+            showcaseImage(out, imageData, imageLeft, imageTop, imageSize, imageSize);
+            if (stats != null) {
+                stats.genericListImages++;
+                stats.genericListImageBytes += imageData.length;
+            }
+        } else {
+            drawMcdFoodPlaceholder(out, imageLeft, imageTop, imageSize, imageSize, 0xffeeeeee);
+        }
+        showcaseText(out, trimShowcaseText(title, 13), left + 14, bottom - 38, 13, 0xff292929);
+        showcaseText(out, trimShowcaseText(subtitle, 16), left + 14, bottom - 18, 10,
+                0xff666666);
+        if (stats != null) {
+            stats.genericListRows++;
+        }
+    }
+
+    private static void drawMcdFoodPlaceholder(java.io.OutputStream out, int left, int top,
+            int width, int height, int color) throws java.io.IOException {
+        showcaseRoundRect(out, left, top, left + width, top + height, 12, 12, color);
+        showcaseCircle(out, left + width / 2, top + height / 2, Math.min(width, height) / 4,
+                0xffffd86b);
+        showcaseText(out, "img", left + width / 2 - 10, top + height / 2 + 4, 9,
+                0xff5f6368);
+    }
+
+    private static void drawMcdDashboardNavItem(java.io.OutputStream out, String label,
+            int x, int y, boolean active) throws java.io.IOException {
+        showcaseCircle(out, x + 18, y - 20, 13, active ? 0xffffc72c : 0xffeeeeee);
+        showcaseText(out, active ? "M" : ".", x + 13, y - 15, 12,
+                active ? 0xff292929 : 0xff777777);
+        showcaseText(out, label, x, y + 2, 10, active ? 0xff292929 : 0xff777777);
+    }
+
+    private static boolean routeMcdDashboardProjectedHitClick(
+            android.view.View root, int x, int y) {
+        if (root == null) {
+            return false;
+        }
+        String target = null;
+        boolean handled = false;
+        try {
+            if (x >= 328 && x < 444 && y >= 119 && y < 164) {
+                target = "start_order";
+                handled = clickMcdDashboardStartOrder(root);
+                if (!handled) {
+                    handled = clickMcdProjectedPopularPosition(root, 0);
+                }
+            } else if (x >= 16 && x < 464 && y >= 214 && y < 370) {
+                target = "feature_card";
+                handled = clickMcdProjectedPopularPosition(root, 0);
+            } else if (y >= 430 && y < 588) {
+                int position = -1;
+                if (x >= 16 && x < 154) {
+                    position = 0;
+                } else if (x >= 171 && x < 309) {
+                    position = 1;
+                } else if (x >= 326 && x < 464) {
+                    position = 2;
+                }
+                if (position >= 0) {
+                    target = "popular_" + intAscii(position);
+                    handled = clickMcdProjectedPopularPosition(root, position);
+                }
+            }
+        } catch (Throwable t) {
+            startupLog("[WestlakeLauncher] McD projected dashboard hit error", t);
+        }
+        if (target != null) {
+            String marker = "target=" + safeMarkerToken(target)
+                    + " handled=" + boolToken(handled)
+                    + " x=" + intAscii(x)
+                    + " y=" + intAscii(y);
+            startupLog("[WestlakeLauncher] MCD_DASH_PROJECTED_HIT " + marker);
+            appendCutoffCanaryMarker("MCD_DASH_PROJECTED_HIT " + marker);
+        }
+        return handled;
+    }
+
+    private static boolean clickMcdDashboardStartOrder(android.view.View root) {
+        android.widget.TextView start = findTextViewWithText(root, "Start Order", 0);
+        if (start == null) {
+            start = findTextViewWithText(root, "Start order", 0);
+        }
+        if (start != null) {
+            try {
+                boolean clicked = start.performClick();
+                if (!clicked) {
+                    clicked = start.callOnClick();
+                }
+                if (clicked) {
+                    return true;
+                }
+            } catch (Throwable t) {
+                startupLog("[WestlakeLauncher] McD projected start-order click error", t);
+            }
+        }
+        recordMcdOrderNavigation("projected_start_order");
+        return true;
+    }
+
+    private static boolean clickMcdProjectedPopularPosition(
+            android.view.View root, int position) {
+        androidx.recyclerview.widget.RecyclerView recycler = sMcdDashboardPopularRecycler;
+        String adapterClass = safeRecyclerAdapterClass(recycler);
+        if (recycler == null || adapterClass == null
+                || adapterClass.indexOf("HomePopularItemsAdapter") < 0
+                || safeRecyclerAdapterCount(recycler) <= 0) {
+            recycler = findRecyclerByAdapterClass(root, "HomePopularItemsAdapter", 0);
+            adapterClass = safeRecyclerAdapterClass(recycler);
+        }
+        if (recycler == null) {
+            return false;
+        }
+        RecyclerHit hit = new RecyclerHit();
+        hit.recyclerView = recycler;
+        hit.position = Math.max(0, position);
+        hit.localX = 4;
+        hit.localY = 4;
+        return invokeMcdPopularItemSemanticClick(hit, adapterClass);
+    }
+
+    private static androidx.recyclerview.widget.RecyclerView findRecyclerByAdapterClass(
+            android.view.View view, String adapterNamePart, int depth) {
+        if (view == null || adapterNamePart == null || depth > 32) {
+            return null;
+        }
+        if (view instanceof androidx.recyclerview.widget.RecyclerView) {
+            androidx.recyclerview.widget.RecyclerView recycler =
+                    (androidx.recyclerview.widget.RecyclerView) view;
+            String adapterClass = safeRecyclerAdapterClass(recycler);
+            if (adapterClass != null && adapterClass.indexOf(adapterNamePart) >= 0) {
+                if (adapterNamePart.indexOf("HomePopularItemsAdapter") >= 0) {
+                    sMcdDashboardPopularRecycler = recycler;
+                }
+                return recycler;
+            }
+        }
+        if (!(view instanceof android.view.ViewGroup)) {
+            return null;
+        }
+        android.view.ViewGroup group = (android.view.ViewGroup) view;
+        int count = safeViewChildCount(group);
+        for (int i = 0; i < count; i++) {
+            androidx.recyclerview.widget.RecyclerView found =
+                    findRecyclerByAdapterClass(group.getChildAt(i), adapterNamePart,
+                            depth + 1);
+            if (found != null) {
+                return found;
+            }
+        }
+        return null;
+    }
+
+    private static byte[] mcdCachedDashboardImageNoFetch(String label, String fallbackUrl) {
+        String url = null;
+        String json = sMcdMenuJson;
+        if (json != null && json.length() > 0) {
+            url = mcdMenuProductImageUrlForLabel(json, label);
+            if (url == null || url.length() == 0) {
+                url = mcdMenuCategoryImageUrlForLabel(json, label);
+            }
+        }
+        if ((url == null || url.length() == 0) && fallbackUrl != null
+                && fallbackUrl.length() > 0) {
+            url = fallbackUrl;
+        }
+        synchronized (sMcdImageCache) {
+            byte[] image = url != null ? sMcdImageCache.get(url) : null;
+            if ((image == null || image.length == 0) && fallbackUrl != null
+                    && fallbackUrl.length() > 0) {
+                image = sMcdImageCache.get(fallbackUrl);
+            }
+            return image;
+        }
+    }
+
+    private static byte[] mcdCachedProductImageNoFetch(String label, String fallbackUrl) {
+        String url = null;
+        String json = sMcdMenuJson;
+        if (json != null && json.length() > 0) {
+            url = mcdMenuProductImageUrlForLabel(json, label);
+        }
+        synchronized (sMcdImageCache) {
+            byte[] image = url != null ? sMcdImageCache.get(url) : null;
+            if ((image == null || image.length == 0) && fallbackUrl != null
+                    && fallbackUrl.length() > 0) {
+                image = sMcdImageCache.get(fallbackUrl);
+            }
+            return image;
+        }
+    }
+
+    private static String firstDashboardText(String[] values, int count, String fallback) {
+        return usefulDashboardTextAt(values, count, fallback, 0);
+    }
+
+    private static String secondDashboardText(String[] values, int count, String fallback) {
+        return usefulDashboardTextAt(values, count, fallback, 1);
+    }
+
+    private static String usefulDashboardTextAt(String[] values, int count,
+            String fallback, int target) {
+        if (values == null || count <= 0) {
+            return fallback;
+        }
+        int seen = 0;
+        for (int i = 0; i < values.length; i++) {
+            String value = values[i];
+            if (value == null || value.length() < 3 || "icon".equalsIgnoreCase(value)
+                    || "Menu".equalsIgnoreCase(value)
+                    || "Trending".equalsIgnoreCase(value)
+                    || "Popular Items".equalsIgnoreCase(value)) {
+                continue;
+            }
+            if (seen == target) {
+                return value;
+            }
+            seen++;
+        }
+        return fallback;
     }
 
     private static void drawByteHashThumbnail(java.io.OutputStream out, int hash,
@@ -10786,6 +17034,17 @@ public class WestlakeLauncher {
         showcaseCircle(out, left + width - 12, top + 12, 7, 0xeeffffff);
         showcaseText(out, "img", left + 8, top + Math.max(20, height - 8),
                 8, 0xffffffff);
+    }
+
+    private static boolean startsWithIgnoreCase(String value, String prefix) {
+        if (value == null || prefix == null || value.length() < prefix.length()) {
+            return false;
+        }
+        try {
+            return value.regionMatches(true, 0, prefix, 0, prefix.length());
+        } catch (Throwable ignored) {
+            return false;
+        }
     }
 
     private static void collectGenericRowFacts(android.view.View view,
@@ -10808,6 +17067,9 @@ public class WestlakeLauncher {
             } catch (Throwable ignored) {
             }
         }
+        if (view instanceof android.widget.ImageView) {
+            collectImageViewFacts((android.widget.ImageView) view, facts);
+        }
         if (view instanceof android.view.ViewGroup) {
             android.view.ViewGroup group = (android.view.ViewGroup) view;
             int count = 0;
@@ -10823,6 +17085,53 @@ public class WestlakeLauncher {
                 }
                 collectGenericRowFacts(child, facts, depth + 1);
             }
+        }
+    }
+
+    private static void collectGenericRowTextFacts(android.view.View view,
+            GenericRowFacts facts, int depth, int[] budget) {
+        if (view == null || facts == null || depth > 8 || budget == null
+                || budget.length == 0 || budget[0] <= 0) {
+            return;
+        }
+        budget[0]--;
+        if (view instanceof android.widget.TextView && facts.textCount < facts.texts.length) {
+            try {
+                CharSequence text = ((android.widget.TextView) view).getText();
+                if (text != null && text.length() > 0) {
+                    String value = String.valueOf(text);
+                    facts.texts[facts.textCount++] = value;
+                    int imageBytes = parseAdapterImageByteText(value);
+                    if (imageBytes > 0 && facts.imageBytes <= 0) {
+                        facts.imageBytes = imageBytes;
+                        facts.imageHash = hashShowcaseText(value);
+                    }
+                }
+            } catch (Throwable ignored) {
+            }
+        }
+        if (facts.textCount >= facts.texts.length || !(view instanceof android.view.ViewGroup)) {
+            return;
+        }
+        android.view.ViewGroup group = (android.view.ViewGroup) view;
+        int count = 0;
+        try {
+            count = group.getChildCount();
+        } catch (Throwable ignored) {
+            count = 0;
+        }
+        if (count > 16) {
+            count = 16;
+        }
+        for (int i = 0; i < count && budget[0] > 0
+                && facts.textCount < facts.texts.length; i++) {
+            android.view.View child = null;
+            try {
+                child = group.getChildAt(i);
+            } catch (Throwable ignored) {
+                child = null;
+            }
+            collectGenericRowTextFacts(child, facts, depth + 1, budget);
         }
     }
 
@@ -10860,6 +17169,21 @@ public class WestlakeLauncher {
         }
         for (int i = 0; i < value.length(); i++) {
             hash = (hash * 33) ^ value.charAt(i);
+        }
+        return hash;
+    }
+
+    private static int hashShowcaseBytes(byte[] value) {
+        int hash = 0x2d31;
+        if (value == null) {
+            return hash;
+        }
+        int step = value.length / 96;
+        if (step < 1) {
+            step = 1;
+        }
+        for (int i = 0; i < value.length; i += step) {
+            hash = (hash * 33) ^ (value[i] & 0xff);
         }
         return hash;
     }
@@ -11210,6 +17534,68 @@ public class WestlakeLauncher {
         out.write((value >>> 24) & 0xff);
     }
 
+    private static java.io.OutputStream strictFrameOutputStream() {
+        String framePath = strictFrameFilePath();
+        if (framePath != null && framePath.length() > 0) {
+            try {
+                if (sStrictFrameFileOut == null || !framePath.equals(sStrictFrameFilePath)) {
+                    if (sStrictFrameFileOut != null) {
+                        try { sStrictFrameFileOut.close(); } catch (Throwable ignored) {}
+                    }
+                    java.io.File frameFile = new java.io.File(framePath);
+                    java.io.File parent = frameFile.getParentFile();
+                    if (parent != null) {
+                        parent.mkdirs();
+                    }
+                    sStrictFrameFilePath = framePath;
+                    sStrictFrameFileOut = new java.io.FileOutputStream(frameFile, true);
+                    startupLog("[WestlakeLauncher] Strict frame file bridge active path="
+                            + safeMarkerToken(framePath));
+                }
+                return sStrictFrameFileOut;
+            } catch (Throwable t) {
+                startupLog("[WestlakeLauncher] strict frame file bridge unavailable", t);
+                return null;
+            }
+        }
+        try {
+            installSafeStandardStreams();
+        } catch (Throwable ignored) {
+        }
+        java.io.OutputStream out = null;
+        try {
+            out = System.out;
+        } catch (Throwable ignored) {
+        }
+        if (out != null) {
+            return out;
+        }
+        try {
+            return new java.io.FileOutputStream(java.io.FileDescriptor.out);
+        } catch (Throwable t) {
+            startupLog("[WestlakeLauncher] strict frame stdout unavailable", t);
+            return null;
+        }
+    }
+
+    private static String strictFrameFilePath() {
+        try {
+            String env = System.getenv("WESTLAKE_FRAME_PATH");
+            if (env != null && env.length() > 0) {
+                return env;
+            }
+        } catch (Throwable ignored) {
+        }
+        try {
+            String prop = System.getProperty("westlake.frame.path");
+            if (prop != null && prop.length() > 0) {
+                return prop;
+            }
+        } catch (Throwable ignored) {
+        }
+        return null;
+    }
+
     private static void writeShortLe(java.io.OutputStream out, int value)
             throws java.io.IOException {
         out.write(value & 0xff);
@@ -11263,6 +17649,316 @@ public class WestlakeLauncher {
             }
         }
         return out.toString();
+    }
+
+    private static int safeViewChildCount(android.view.View view) {
+        try {
+            if (view instanceof android.view.ViewGroup) {
+                return ((android.view.ViewGroup) view).getChildCount();
+            }
+        } catch (Throwable ignored) {
+        }
+        return -1;
+    }
+
+    private static int safeViewLeft(android.view.View view) {
+        try {
+            return view != null ? view.getLeft() : 0;
+        } catch (Throwable ignored) {
+            return 0;
+        }
+    }
+
+    private static int safeViewTop(android.view.View view) {
+        try {
+            return view != null ? view.getTop() : 0;
+        } catch (Throwable ignored) {
+            return 0;
+        }
+    }
+
+    private static int safeAbsoluteLeft(android.view.View view) {
+        int value = 0;
+        int depth = 0;
+        android.view.View current = view;
+        while (current != null && depth < 32) {
+            value += safeViewLeft(current);
+            android.view.ViewParent parent = null;
+            try {
+                parent = current.getParent();
+            } catch (Throwable ignored) {
+                parent = null;
+            }
+            current = parent instanceof android.view.View
+                    ? (android.view.View) parent : null;
+            depth++;
+        }
+        return value;
+    }
+
+    private static int safeAbsoluteTop(android.view.View view) {
+        int value = 0;
+        int depth = 0;
+        android.view.View current = view;
+        while (current != null && depth < 32) {
+            value += safeViewTop(current);
+            android.view.ViewParent parent = null;
+            try {
+                parent = current.getParent();
+            } catch (Throwable ignored) {
+                parent = null;
+            }
+            current = parent instanceof android.view.View
+                    ? (android.view.View) parent : null;
+            depth++;
+        }
+        return value;
+    }
+
+    private static int safeViewRight(android.view.View view) {
+        try {
+            return view != null ? view.getRight() : 0;
+        } catch (Throwable ignored) {
+            return 0;
+        }
+    }
+
+    private static int safeViewBottom(android.view.View view) {
+        try {
+            return view != null ? view.getBottom() : 0;
+        } catch (Throwable ignored) {
+            return 0;
+        }
+    }
+
+    private static int safeMeasuredWidth(android.view.View view) {
+        try {
+            return view != null ? view.getMeasuredWidth() : 0;
+        } catch (Throwable ignored) {
+            return 0;
+        }
+    }
+
+    private static int safeMeasuredHeight(android.view.View view) {
+        try {
+            return view != null ? view.getMeasuredHeight() : 0;
+        } catch (Throwable ignored) {
+            return 0;
+        }
+    }
+
+    private static int safeViewScrollX(android.view.View view) {
+        try {
+            return view != null ? view.getScrollX() : 0;
+        } catch (Throwable ignored) {
+            return 0;
+        }
+    }
+
+    private static int safeViewScrollY(android.view.View view) {
+        try {
+            return view != null ? view.getScrollY() : 0;
+        } catch (Throwable ignored) {
+            return 0;
+        }
+    }
+
+    private static int safeViewDescendantCount(android.view.View view, int depth) {
+        if (view == null || depth > 8) {
+            return 0;
+        }
+        int count = 1;
+        if (!(view instanceof android.view.ViewGroup)) {
+            return count;
+        }
+        try {
+            android.view.ViewGroup group = (android.view.ViewGroup) view;
+            int childCount = group.getChildCount();
+            for (int i = 0; i < childCount; i++) {
+                count += safeViewDescendantCount(group.getChildAt(i), depth + 1);
+                if (count > 999) {
+                    return count;
+                }
+            }
+        } catch (Throwable ignored) {
+        }
+        return count;
+    }
+
+    private static String safeRecyclerTreeSummary(android.view.View view) {
+        RecyclerTreeStats stats = new RecyclerTreeStats();
+        collectRecyclerTreeStats(view, stats, 0);
+        return "[rv=" + intAscii(stats.recyclerViews)
+                + ",rvVisible=" + intAscii(stats.visibleRecyclerViews)
+                + ",rvChildren=" + intAscii(stats.recyclerChildren)
+                + ",rvItems=" + intAscii(stats.recyclerAdapterCount)
+                + ",rvH=" + intAscii(stats.horizontalRecyclerViews)
+                + ",rvClass=" + safeMarkerToken(stats.firstRecyclerClass)
+                + ",rvAdapter=" + safeMarkerToken(stats.firstAdapterClass)
+                + "]";
+    }
+
+    private static void collectRecyclerTreeStats(android.view.View view,
+            RecyclerTreeStats stats, int depth) {
+        if (view == null || stats == null || depth > 16) {
+            return;
+        }
+        boolean visible = true;
+        try {
+            visible = view.getVisibility() != android.view.View.GONE;
+        } catch (Throwable ignored) {
+        }
+        if (view instanceof androidx.recyclerview.widget.RecyclerView) {
+            androidx.recyclerview.widget.RecyclerView recycler =
+                    (androidx.recyclerview.widget.RecyclerView) view;
+            stats.recyclerViews++;
+            if (visible) {
+                stats.visibleRecyclerViews++;
+            }
+            if ("none".equals(stats.firstRecyclerClass)) {
+                try {
+                    stats.firstRecyclerClass = recycler.getClass().getName();
+                } catch (Throwable ignored) {
+                }
+            }
+            try {
+                stats.recyclerChildren += Math.max(0, recycler.getChildCount());
+            } catch (Throwable ignored) {
+            }
+            try {
+                androidx.recyclerview.widget.RecyclerView.Adapter adapter = recycler.getAdapter();
+                if (adapter != null) {
+                    stats.recyclerAdapterCount += Math.max(0, adapter.getItemCount());
+                    if ("none".equals(stats.firstAdapterClass)) {
+                        stats.firstAdapterClass = adapter.getClass().getName();
+                    }
+                }
+            } catch (Throwable ignored) {
+            }
+            try {
+                androidx.recyclerview.widget.RecyclerView.LayoutManager lm =
+                        recycler.getLayoutManager();
+                if (lm != null && lm.canScrollHorizontally()) {
+                    stats.horizontalRecyclerViews++;
+                }
+            } catch (Throwable ignored) {
+            }
+        }
+        if (view instanceof android.view.ViewGroup) {
+            android.view.ViewGroup group = (android.view.ViewGroup) view;
+            int count = 0;
+            try {
+                count = group.getChildCount();
+            } catch (Throwable ignored) {
+            }
+            for (int i = 0; i < count; i++) {
+                android.view.View child = null;
+                try {
+                    child = group.getChildAt(i);
+                } catch (Throwable ignored) {
+                }
+                collectRecyclerTreeStats(child, stats, depth + 1);
+            }
+        }
+    }
+
+    private static String safeViewSummary(android.view.View view) {
+        if (view == null) {
+            return "null";
+        }
+        StringBuilder sb = new StringBuilder(96);
+        try {
+            sb.append(safeMarkerToken(view.getClass().getName()));
+        } catch (Throwable ignored) {
+            sb.append("unknown");
+        }
+        try {
+            int id = view.getId();
+            if (id != android.view.View.NO_ID) {
+                sb.append("#0x").append(Integer.toHexString(id));
+            }
+        } catch (Throwable ignored) {
+        }
+        sb.append("[c=").append(intAscii(safeViewChildCount(view)))
+                .append(",d=").append(intAscii(safeViewDescendantCount(view, 0)));
+        try {
+            sb.append(",v=").append(intAscii(view.getVisibility()));
+        } catch (Throwable ignored) {
+        }
+        try {
+            sb.append(",w=").append(intAscii(view.getWidth()))
+                    .append(",h=").append(intAscii(view.getHeight()));
+        } catch (Throwable ignored) {
+        }
+        sb.append("]");
+        return sb.toString();
+    }
+
+    private static String safeViewTreeSample(android.view.View view, int depth, int remaining) {
+        if (view == null || remaining <= 0 || depth > 6) {
+            return "";
+        }
+        StringBuilder sb = new StringBuilder(256);
+        sb.append(safeViewSummary(view));
+        if (!(view instanceof android.view.ViewGroup) || remaining <= 1) {
+            return sb.toString();
+        }
+        android.view.ViewGroup group = (android.view.ViewGroup) view;
+        int count = safeViewChildCount(group);
+        int childBudget = remaining - 1;
+        for (int i = 0; i < count && childBudget > 0 && i < 6; i++) {
+            android.view.View child = null;
+            try {
+                child = group.getChildAt(i);
+            } catch (Throwable ignored) {
+            }
+            sb.append(" > ");
+            String childSample = safeViewTreeSample(child, depth + 1, childBudget);
+            sb.append(childSample);
+            childBudget--;
+        }
+        return sb.toString();
+    }
+
+    private static void logDashboardInstallProbe(String phase, Activity activity,
+            android.view.View target, android.view.View installedRoot) {
+        if (sDashboardInstallProbeCount >= 40) {
+            return;
+        }
+        sDashboardInstallProbeCount++;
+        String marker = "phase=" + safeMarkerToken(phase)
+                + " activity=" + safeMarkerToken(activity != null
+                        ? activity.getClass().getName() : "null")
+                + " target=" + safeViewSummary(target)
+                + " installedRoot=" + safeViewSummary(installedRoot);
+        startupLog("[WestlakeLauncher] PF-MCD-INSTALL " + marker);
+        appendCutoffCanaryMarker("MCD_DASH_INSTALL " + marker);
+    }
+
+    private static void logDashboardRootProbe(String phase, Activity activity,
+            android.view.View decor, android.view.View sectionsRoot,
+            android.view.View homeRoot, android.view.View selected) {
+        if (sDashboardRootProbeCount >= 80) {
+            return;
+        }
+        sDashboardRootProbeCount++;
+        boolean fallbackInstalled = false;
+        try {
+            fallbackInstalled = isDashboardFallbackInstalled(activity);
+        } catch (Throwable ignored) {
+        }
+        String marker = "phase=" + safeMarkerToken(phase)
+                + " activity=" + safeMarkerToken(activity != null
+                        ? activity.getClass().getName() : "null")
+                + " decor=" + safeViewSummary(decor)
+                + " sections=" + safeViewSummary(sectionsRoot)
+                + " home=" + safeViewSummary(homeRoot)
+                + " selected=" + safeViewSummary(selected)
+                + " selectedRv=" + safeRecyclerTreeSummary(selected)
+                + " sectionsRv=" + safeRecyclerTreeSummary(sectionsRoot)
+                + " fallback=" + boolToken(fallbackInstalled);
+        startupLog("[WestlakeLauncher] PF-MCD-ROOT " + marker);
+        appendCutoffCanaryMarker("MCD_DASH_ROOT " + marker);
     }
 
     private static String showcaseString(Activity activity, String field, String fallback) {
@@ -11326,7 +18022,13 @@ public class WestlakeLauncher {
         }
         sDirectDashboardFallbackActive = false;
         try {
-            if (shouldUseTextOnlyDashboardMenu(activity)) {
+            boolean textOnlyFallback = shouldUseTextOnlyDashboardMenu(activity);
+            if (!textOnlyFallback && !isDashboardSyntheticFallbackEnabled()) {
+                startupLog("[WestlakeLauncher] Dashboard synthetic fallback skipped by default");
+                appendCutoffCanaryMarker("MCD_DASH_FALLBACK_SKIPPED reason=default_real_probe");
+                return;
+            }
+            if (textOnlyFallback) {
                 drawTextOnlyDashboardMenu();
                 markDashboardFallbackInstalled(activity);
                 return;
@@ -11400,10 +18102,28 @@ public class WestlakeLauncher {
                     Activity previous = initialActivity;
                     initialActivity = dash;
                     startupLog("[WestlakeLauncher] Dashboard active: " + dash.getClass().getName());
+                    boolean deferredResumeForFirstFrame =
+                            shouldDeferMcdDashboardResumeForFirstFrame(dash, previous);
+                    if (deferredResumeForFirstFrame) {
+                        startupLog("[WestlakeLauncher] Dashboard performResumeActivity deferred for first frame");
+                        appendCutoffCanaryMarker("MCD_DASH_RESUME_DEFERRED reason=strict_first_frame");
+                    } else {
+                        try {
+                            android.app.WestlakeActivityThread.currentActivityThread()
+                                    .performResumeActivity(dash);
+                            startupLog("[WestlakeLauncher] Dashboard performResumeActivity requested");
+                        } catch (Throwable resumeError) {
+                            startupLog("[WestlakeLauncher] Dashboard performResumeActivity error",
+                                    resumeError);
+                            logThrowableFrames("[WestlakeLauncher] Dashboard performResumeActivity",
+                                    resumeError, 12);
+                        }
+                    }
                     Activity resumed = null;
                     try { resumed = am.getResumedActivity(); } catch (Throwable ignored) {}
                     startupLog("[WestlakeLauncher] Dashboard resumed after launch="
                             + (resumed != null ? resumed.getClass().getName() : "null"));
+                    ensureMcdDashboardXmlScaffold(dash);
                     boolean fallbackAlreadyInstalled = false;
                     try {
                         fallbackAlreadyInstalled = isDashboardFallbackInstalled(dash);
@@ -11468,8 +18188,11 @@ public class WestlakeLauncher {
                                 dash.renderFrame();
                             }
                             startupLog("[WestlakeLauncher] Dashboard first frame requested");
-                            sDisableHostInputPolling = true;
-                            startupLog("[WestlakeLauncher] Host input polling disabled after first dashboard frame");
+                            if (deferredResumeForFirstFrame) {
+                                startDeferredMcdDashboardResume(dash);
+                            }
+                            sDisableHostInputPolling = false;
+                            startupLog("[WestlakeLauncher] Host input polling enabled for dashboard frame");
                         } catch (Throwable frameError) {
                             startupLog("[WestlakeLauncher] Dashboard first render error", frameError);
                             logThrowableFrames("[WestlakeLauncher] Dashboard first render", frameError, 8);
@@ -11599,7 +18322,7 @@ public class WestlakeLauncher {
                 }
             } catch (Throwable pumpError) {
                 if (frameCount < 5) {
-                    startupLog("[WestlakeLauncher] renderLoop pump error", pumpError);
+                    logThrowableFrames("[WestlakeLauncher] renderLoop pump error", pumpError, 12);
                 }
             }
             if (android.app.WestlakeActivityThread.pendingDashboardClass != null) {
@@ -11660,14 +18383,21 @@ public class WestlakeLauncher {
                             lastTouchSeq = seq;
 
                             long now = System.currentTimeMillis();
+                            boolean dashboardTouch = isHomeDashboardActivity(current);
                             if (action == 0) {
                                 downTime = now;
                                 lastTouchY = y;
                                 totalDragDistance = 0;
                                 startupLog("[WestlakeLauncher] Touch DOWN at (" + x + "," + y + ")");
-                                current.dispatchTouchEvent(
-                                    android.view.MotionEvent.obtain(downTime, now, 0, (float)x, (float)y, 0));
-                                needsRender = true;
+                                if (dashboardTouch) {
+                                    logMcdDashboardTouchRoute("down", x, y, scrollOffset);
+                                } else {
+                                    current.dispatchTouchEvent(
+                                        android.view.MotionEvent.obtain(downTime, now, 0, (float)x, (float)y, 0));
+                                }
+                                if (!dashboardTouch) {
+                                    needsRender = true;
+                                }
                             } else if (action == 2) {
                                 if (downTime == 0) downTime = now;
                                 int deltaY = lastTouchY - y;
@@ -11681,44 +18411,110 @@ public class WestlakeLauncher {
                                     scrollOffset += deltaY;
                                     if (scrollOffset < 0) scrollOffset = 0;
                                     if (scrollOffset > maxScroll) scrollOffset = maxScroll;
-                                    decor.scrollTo(0, scrollOffset);
+                                    if (isHomeDashboardActivity(current)) {
+                                        applyMcdDashboardScrollOffset(current, scrollOffset);
+                                    } else {
+                                        decor.scrollTo(0, scrollOffset);
+                                    }
                                 }
 
-                                current.dispatchTouchEvent(
-                                    android.view.MotionEvent.obtain(downTime, now, 2, (float)x, (float)y, 0));
-                                needsRender = true;
+                                if (dashboardTouch) {
+                                    logMcdDashboardTouchRoute("move", x, y, scrollOffset);
+                                } else {
+                                    current.dispatchTouchEvent(
+                                        android.view.MotionEvent.obtain(downTime, now, 2, (float)x, (float)y, 0));
+                                }
+                                if (!dashboardTouch) {
+                                    needsRender = true;
+                                }
                             } else if (action == 1) {
-                                if (downTime == 0) downTime = now;
+                                if (downTime == 0) {
+                                    downTime = now;
+                                    lastTouchY = y;
+                                    totalDragDistance = 0;
+                                    if (dashboardTouch) {
+                                        logMcdDashboardTouchRoute("synthetic_down", x, y,
+                                                scrollOffset);
+                                    }
+                                }
+                                int finalDeltaY = lastTouchY - y;
+                                if (Math.abs(finalDeltaY) > 20) {
+                                    int maxScroll = SURFACE_HEIGHT * 2;
+                                    scrollOffset += finalDeltaY;
+                                    if (scrollOffset < 0) scrollOffset = 0;
+                                    if (scrollOffset > maxScroll) scrollOffset = maxScroll;
+                                    if (isHomeDashboardActivity(current)) {
+                                        applyMcdDashboardScrollOffset(current, scrollOffset);
+                                    } else {
+                                        android.view.View decor = null;
+                                        try { decor = current.getWindow().getDecorView(); } catch (Exception e3) {}
+                                        if (decor != null) {
+                                            decor.scrollTo(0, scrollOffset);
+                                        }
+                                    }
+                                    if (dashboardTouch) {
+                                        logMcdDashboardTouchRoute("final_move", x, y, scrollOffset);
+                                    } else {
+                                        current.dispatchTouchEvent(
+                                                android.view.MotionEvent.obtain(downTime, now, 2,
+                                                        (float)x, (float)y, 0));
+                                    }
+                                    totalDragDistance += Math.abs(finalDeltaY);
+                                }
+                                boolean candidateTap = totalDragDistance < 20;
+                                boolean rawUpDispatchHandled = false;
+                                boolean fallbackHit = false;
+
                                 startupLog("[WestlakeLauncher] Touch UP at (" + x + "," + y + ")");
-                                current.dispatchTouchEvent(
-                                    android.view.MotionEvent.obtain(downTime, now, 1, (float)x, (float)y, 0));
+                                if (dashboardTouch) {
+                                    logMcdDashboardTouchRoute("up", x, y, scrollOffset);
+                                } else {
+                                    rawUpDispatchHandled = current.dispatchTouchEvent(
+                                        android.view.MotionEvent.obtain(downTime, now, 1, (float)x, (float)y, 0));
+                                    String marker = "phase=up"
+                                            + " activity=" + safeMarkerToken(current.getClass().getName())
+                                            + " handled=" + boolToken(rawUpDispatchHandled)
+                                            + " x=" + intAscii(x)
+                                            + " y=" + intAscii(y)
+                                            + " projectedPoint=" + boolToken(
+                                                    isOrderProductDetailsActivity(current)
+                                                            && isMcdOrderPdpProjectedControlPoint(x, y));
+                                    startupLog("[WestlakeLauncher] WESTLAKE_HOST_TOUCH_DISPATCH " + marker);
+                                    appendCutoffCanaryMarker("WESTLAKE_HOST_TOUCH_DISPATCH " + marker);
+                                }
                                 needsRender = true;
 
-                                if (totalDragDistance < 20) {
-                                    android.view.View decor = null;
-                                    try { decor = current.getWindow().getDecorView(); } catch (Exception e3) {}
-                                    if (decor != null) {
-                                        android.view.View target = findViewAt(decor, x, y + scrollOffset);
-                                        if (target != null) {
-                                            android.view.ViewParent parent = target.getParent();
-                                            while (parent != null) {
-                                                if (parent instanceof android.widget.ListView) {
-                                                    android.widget.ListView lv = (android.widget.ListView) parent;
-                                                    int pos = lv.getPositionForView(target);
-                                                    if (pos >= 0) {
-                                                        startupLog("[WestlakeLauncher] ListView item " + pos + " clicked");
-                                                        lv.performItemClick(target, pos, pos);
-                                                    }
-                                                    break;
-                                                }
-                                                if (parent instanceof android.view.View) {
-                                                    parent = ((android.view.View) parent).getParent();
-                                                } else {
-                                                    break;
-                                                }
-                                            }
-                                            target.performClick();
-                                        }
+                                if (dashboardTouch && Math.abs(finalDeltaY) <= 20) {
+                                    candidateTap = true;
+                                    String marker = "x=" + intAscii(x)
+                                            + " y=" + intAscii(y)
+                                            + " finalDeltaY=" + intAscii(finalDeltaY)
+                                            + " totalDragDistance=" + intAscii(totalDragDistance)
+                                            + " scrollOffset=" + intAscii(scrollOffset);
+                                    startupLog("[WestlakeLauncher] MCD_DASH_UP_ROUTE_GATE " + marker);
+                                    appendCutoffCanaryMarker("MCD_DASH_UP_ROUTE_GATE " + marker);
+                                }
+                                boolean pdpTouch = !dashboardTouch
+                                        && isOrderProductDetailsActivity(current);
+                                if (candidateTap && (!rawUpDispatchHandled || pdpTouch)) {
+                                    fallbackHit = routeGenericHitClick(current, x, y);
+                                    if (!fallbackHit
+                                            && routeDashboardFallbackTouch(current, action,
+                                                    x, y + scrollOffset)) {
+                                        startupLog("[WestlakeLauncher] Dashboard fallback direct touch routed");
+                                    }
+                                    if (pdpTouch) {
+                                        String marker = "phase=tap_generic"
+                                                + " handled=" + boolToken(fallbackHit)
+                                                + " rawUpHandled=" + boolToken(rawUpDispatchHandled)
+                                                + " x=" + intAscii(x)
+                                                + " y=" + intAscii(y)
+                                                + " projectedPoint=" + boolToken(
+                                                        isMcdOrderPdpProjectedControlPoint(x, y));
+                                        startupLog("[WestlakeLauncher] MCD_ORDER_PDP_GENERIC_ROUTE "
+                                                + marker);
+                                        appendCutoffCanaryMarker("MCD_ORDER_PDP_GENERIC_ROUTE "
+                                                + marker);
                                     }
                                 }
                                 android.view.View newDecor = null;
@@ -11741,7 +18537,7 @@ public class WestlakeLauncher {
                 Activity next = current;
                 Activity resumed = null;
                 try { resumed = am.getResumedActivity(); } catch (Throwable ignored) {}
-                if (resumed != null) {
+                if (shouldAdoptResumedActivity(current, resumed)) {
                     next = resumed;
                 }
                 if (next != null) {
@@ -11754,8 +18550,11 @@ public class WestlakeLauncher {
                         current = next;
                     }
                     if (dashboardActivity) {
-                        if (frameCount < 5) {
-                            startupLog("[WestlakeLauncher] Suppressing dashboard auto-render after handoff");
+                        if (!FRAMEWORK_POLICY_WESTLAKE_ONLY.equals(frameworkPolicyValue())
+                                || !writeStrictStandaloneViewFrame(current, "dashboard-renderLoop")) {
+                            try { current.renderFrame(); } catch (Exception e2) {
+                                if (frameCount < 5) startupLog("[WestlakeLauncher] dashboard renderFrame error", e2);
+                            }
                         }
                     } else {
                         if (!FRAMEWORK_POLICY_WESTLAKE_ONLY.equals(frameworkPolicyValue())
@@ -11783,8 +18582,17 @@ public class WestlakeLauncher {
         int tick = 0;
         int pumpLogCount = 0;
         int renderErrorLogCount = 0;
+        long loopStartMs = java.lang.System.currentTimeMillis();
         while (true) {
             try {
+                if (shouldForceMcdDashboardAfterSplash(current, tick, loopStartMs)) {
+                    android.app.WestlakeActivityThread.pendingDashboardClass =
+                            "com.mcdonalds.homedashboard.activity.HomeDashboardActivity";
+                    startupLog("PF301 strict launcher queued McD dashboard before splash pump");
+                    renderLoop(current, am);
+                    return;
+                }
+
                 int pumped = 0;
                 try {
                     pumped = android.os.Looper.pumpMessages();
@@ -11809,7 +18617,7 @@ public class WestlakeLauncher {
                     resumed = am != null ? am.getResumedActivity() : null;
                 } catch (Throwable ignored) {
                 }
-                if (resumed != null && resumed != current) {
+                if (shouldAdoptResumedActivity(current, resumed)) {
                     current = resumed;
                     startupLog("PF301 strict launcher resumed="
                             + current.getClass().getName());
@@ -11833,10 +18641,7 @@ public class WestlakeLauncher {
                         }
                     }
                 }
-                if (current != null
-                        && isMcdonaldsSplashActivity(current)
-                        && tick >= 25
-                        && android.app.WestlakeActivityThread.pendingDashboardClass == null) {
+                if (shouldForceMcdDashboardAfterSplash(current, tick, loopStartMs)) {
                     android.app.WestlakeActivityThread.pendingDashboardClass =
                             "com.mcdonalds.homedashboard.activity.HomeDashboardActivity";
                     startupLog("PF301 strict launcher queued McD dashboard after splash stall");
@@ -11849,6 +18654,68 @@ public class WestlakeLauncher {
                 startupLog("PF301 strict launcher keepalive interrupted");
                 break;
             }
+        }
+    }
+
+    private static boolean shouldForceMcdDashboardAfterSplash(
+            Activity current, int tick, long loopStartMs) {
+        if (current == null
+                || !isMcdonaldsSplashActivity(current)
+                || android.app.WestlakeActivityThread.pendingDashboardClass != null) {
+            return false;
+        }
+        long elapsed = 0L;
+        try {
+            elapsed = java.lang.System.currentTimeMillis() - loopStartMs;
+        } catch (Throwable ignored) {
+        }
+        return tick >= 8 || elapsed >= 850L;
+    }
+
+    private static boolean shouldDeferMcdDashboardResumeForFirstFrame(
+            Activity dashboard, Activity previous) {
+        if (!FRAMEWORK_POLICY_WESTLAKE_ONLY.equals(frameworkPolicyValue())) {
+            return false;
+        }
+        if (!isHomeDashboardActivity(dashboard)) {
+            return false;
+        }
+        return !isHomeDashboardActivity(previous);
+    }
+
+    private static void startDeferredMcdDashboardResume(final Activity dashboard) {
+        if (!isHomeDashboardActivity(dashboard)) {
+            return;
+        }
+        Thread resumeThread = new Thread(new Runnable() {
+            @Override
+            public void run() {
+                try {
+                    Thread.sleep(250L);
+                } catch (InterruptedException ignored) {
+                }
+                try {
+                    startupLog("[WestlakeLauncher] Dashboard deferred resume begin");
+                    appendCutoffCanaryMarker("MCD_DASH_RESUME_ASYNC_BEGIN");
+                    android.app.WestlakeActivityThread.currentActivityThread()
+                            .performResumeActivity(dashboard);
+                    startupLog("[WestlakeLauncher] Dashboard deferred resume done");
+                    appendCutoffCanaryMarker("MCD_DASH_RESUME_ASYNC_DONE");
+                } catch (Throwable resumeError) {
+                    startupLog("[WestlakeLauncher] Dashboard deferred resume error", resumeError);
+                    logThrowableFrames("[WestlakeLauncher] Dashboard deferred resume",
+                            resumeError, 12);
+                    appendCutoffCanaryMarker("MCD_DASH_RESUME_ASYNC_ERROR "
+                            + safeMarkerToken(throwableTag(resumeError)));
+                }
+            }
+        }, "McdDashboardResumeAfterFirstFrame");
+        resumeThread.setDaemon(true);
+        try {
+            resumeThread.start();
+            startupLog("[WestlakeLauncher] Dashboard deferred resume scheduled");
+        } catch (Throwable startError) {
+            startupLog("[WestlakeLauncher] Dashboard deferred resume start error", startError);
         }
     }
 
@@ -11866,7 +18733,6 @@ public class WestlakeLauncher {
     private static boolean writeStrictStandaloneViewFrame(Activity activity, String reason) {
         try {
             int height = isMcdonaldsActivity(activity) ? YELP_SURFACE_HEIGHT : SURFACE_HEIGHT;
-            layoutDecorForHeight(activity, height, "Strict standalone generic");
             android.view.View decor = activity != null && activity.getWindow() != null
                     ? activity.getWindow().getDecorView() : null;
             if (decor == null) {
@@ -11874,15 +18740,97 @@ public class WestlakeLauncher {
                         + safeMarkerToken(reason) + " err=no_decor");
                 return false;
             }
+            android.view.View renderRoot = decor;
+            if (isHomeDashboardActivity(activity)) {
+                renderRoot = selectMcdDashboardRenderRoot(activity, decor);
+                layoutMcdDashboardStrictFrame(renderRoot, SURFACE_WIDTH, height, reason);
+                dispatchViewTreeBeforeStrictRender(renderRoot, SURFACE_WIDTH, height,
+                        reason, true);
+                int sectionsId = resolveAppResourceId(activity, "id", "sections_container");
+                int homeId = resolveAppResourceId(activity, "id", "home_dashboard_container");
+                logDashboardRootProbe("post-layout", activity, decor,
+                        safeFindViewById(decor, sectionsId, "sections_container.post_layout"),
+                        safeFindViewById(decor, homeId, "home_dashboard_container.post_layout"),
+                        renderRoot);
+            } else if (isOrderProductDetailsActivity(activity)) {
+                prepareMcdPdpForStrictFrame(activity, decor, height, reason);
+                renderRoot = selectMcdOrderProductDetailRenderRoot(activity, decor, height);
+                dispatchViewTreeBeforeStrictRender(renderRoot, SURFACE_WIDTH, height,
+                        reason, false);
+            } else {
+                layoutDecorForHeight(activity, height, "Strict standalone generic");
+                dispatchViewTreeBeforeStrictRender(renderRoot, SURFACE_WIDTH, height,
+                        reason, false);
+            }
             java.io.ByteArrayOutputStream ops = new java.io.ByteArrayOutputStream(32768);
             ShowcaseTreeStats stats = new ShowcaseTreeStats();
-            renderShowcaseView(ops, decor, 0, 0, 0, stats, height);
+            stats.mcdDashboardFrame = isHomeDashboardActivity(activity);
+            stats.mcdOrderPdpFrame = isOrderProductDetailsActivity(activity);
+            appendCutoffCanaryMarker("STRICT_VIEW_FRAME_STAGE reason="
+                    + safeMarkerToken(reason) + " stage=before_tree");
+            if (isHomeDashboardActivity(activity)) {
+                startupLog("[WestlakeLauncher] STRICT_VIEW_FRAME_STAGE reason="
+                        + reason + " stage=before_tree");
+            }
+            int renderOffsetY = stats.mcdDashboardFrame ? -sMcdDashboardProjectionScrollOffset : 0;
+            renderShowcaseView(ops, renderRoot, 0, renderOffsetY, 0, stats, height);
+            appendCutoffCanaryMarker("STRICT_VIEW_FRAME_STAGE reason="
+                    + safeMarkerToken(reason) + " stage=after_tree bytes="
+                    + intAscii(ops.size())
+                    + " rows=" + intAscii(stats.genericListRows));
+            if (isHomeDashboardActivity(activity)) {
+                startupLog("[WestlakeLauncher] STRICT_VIEW_FRAME_STAGE reason="
+                        + reason + " stage=after_tree bytes=" + ops.size()
+                        + " rows=" + stats.genericListRows);
+            }
+            if (isHomeDashboardActivity(activity) && stats.genericListRows < 3) {
+                appendCutoffCanaryMarker("STRICT_VIEW_FRAME_STAGE reason="
+                        + safeMarkerToken(reason) + " stage=before_overlay");
+                startupLog("[WestlakeLauncher] STRICT_VIEW_FRAME_STAGE reason="
+                        + reason + " stage=before_overlay");
+                renderMcdRecyclerAdapterOverlays(ops, renderRoot, stats, height);
+                appendCutoffCanaryMarker("STRICT_VIEW_FRAME_STAGE reason="
+                        + safeMarkerToken(reason) + " stage=after_overlay bytes="
+                        + intAscii(ops.size())
+                        + " rows=" + intAscii(stats.genericListRows));
+                startupLog("[WestlakeLauncher] STRICT_VIEW_FRAME_STAGE reason="
+                        + reason + " stage=after_overlay bytes=" + ops.size()
+                        + " rows=" + stats.genericListRows);
+            }
+            if (isHomeDashboardActivity(activity)) {
+                int beforeDashboardProjection = ops.size();
+                renderMcdDashboardProjection(ops, renderRoot, stats, height);
+                appendCutoffCanaryMarker("MCD_DASH_PROJECTED_FRAME reason="
+                        + safeMarkerToken(reason)
+                        + " before=" + intAscii(beforeDashboardProjection)
+                        + " after=" + intAscii(ops.size())
+                        + " rows=" + intAscii(stats.genericListRows)
+                        + " rowImages=" + intAscii(stats.genericListImages)
+                        + " rowImageBytes=" + intAscii(stats.genericListImageBytes));
+            }
+            if (isOrderProductDetailsActivity(activity)) {
+                int beforePdpProjection = ops.size();
+                renderMcdOrderPdpProjection(ops, renderRoot, stats, height);
+                appendCutoffCanaryMarker("MCD_ORDER_PDP_PROJECTED_FRAME reason="
+                        + safeMarkerToken(reason)
+                        + " before=" + intAscii(beforePdpProjection)
+                        + " after=" + intAscii(ops.size())
+                        + " texts=" + intAscii(stats.texts)
+                        + " images=" + intAscii(stats.images));
+            }
             byte[] data = ops.toByteArray();
-            java.io.OutputStream out = System.out;
-            writeIntLe(out, 0x444C5354);
-            writeIntLe(out, data.length);
-            out.write(data);
-            out.flush();
+            synchronized (sStrictFrameOutputLock) {
+                java.io.OutputStream out = strictFrameOutputStream();
+                if (out == null) {
+                    appendCutoffCanaryMarker("STRICT_VIEW_FRAME_FAIL reason="
+                            + safeMarkerToken(reason) + " err=no_frame_output");
+                    return false;
+                }
+                writeIntLe(out, 0x444C5354);
+                writeIntLe(out, data.length);
+                out.write(data);
+                out.flush();
+            }
             appendCutoffCanaryMarker("STRICT_VIEW_FRAME_OK reason="
                     + safeMarkerToken(reason)
                     + " activity=" + safeMarkerToken(activity.getClass().getName())
@@ -11892,7 +18840,48 @@ public class WestlakeLauncher {
                     + " buttons=" + intAscii(stats.buttons)
                     + " images=" + intAscii(stats.images)
                     + " lists=" + intAscii(stats.listViews)
+                    + " rows=" + intAscii(stats.genericListRows)
+                    + " rowImages=" + intAscii(stats.genericListImages)
+                    + " rowImageBytes=" + intAscii(stats.genericListImageBytes)
+                    + " recyclerOverlayRows=" + intAscii(stats.recyclerOverlayRows)
                     + " height=" + intAscii(height));
+            if (isHomeDashboardActivity(activity)) {
+                startupLog("[WestlakeLauncher] Strict dashboard frame reason=" + reason
+                        + " root=" + renderRoot.getClass().getName()
+                        + " bytes=" + data.length
+                        + " views=" + stats.views
+                        + " texts=" + stats.texts
+                        + " buttons=" + stats.buttons
+                        + " images=" + stats.images
+                        + " rows=" + stats.genericListRows
+                        + " rowImages=" + stats.genericListImages
+                        + " rowImageBytes=" + stats.genericListImageBytes
+                        + " overlays=" + stats.recyclerOverlayCount);
+            } else if (isOrderProductDetailsActivity(activity)) {
+                String markerValue = "reason=" + safeMarkerToken(reason)
+                        + " root=" + safeMarkerToken(safeViewSummary(renderRoot))
+                        + " bytes=" + intAscii(data.length)
+                        + " views=" + intAscii(stats.views)
+                        + " texts=" + intAscii(stats.texts)
+                        + " buttons=" + intAscii(stats.buttons)
+                        + " images=" + intAscii(stats.images)
+                        + " rows=" + intAscii(stats.genericListRows)
+                        + " tree=" + safeMarkerToken(safeViewTreeSample(renderRoot, 0, 10));
+                startupLog("[WestlakeLauncher] Strict McD order PDP frame " + markerValue);
+                appendCutoffCanaryMarker("MCD_ORDER_PDP_STRICT_FRAME " + markerValue);
+            } else if (isMcdonaldsActivity(activity) && sMcdNonDashboardFrameProbeCount < 20) {
+                sMcdNonDashboardFrameProbeCount++;
+                startupLog("[WestlakeLauncher] Strict McD frame reason=" + reason
+                        + " activity=" + activity.getClass().getName()
+                        + " root=" + safeViewSummary(renderRoot)
+                        + " bytes=" + data.length
+                        + " views=" + stats.views
+                        + " texts=" + stats.texts
+                        + " buttons=" + stats.buttons
+                        + " images=" + stats.images
+                        + " rows=" + stats.genericListRows
+                        + " tree=" + safeViewTreeSample(renderRoot, 0, 8));
+            }
             return data.length > 0;
         } catch (Throwable t) {
             startupLog("[WestlakeLauncher] Strict standalone view frame error", t);
@@ -11913,6 +18902,3366 @@ public class WestlakeLauncher {
         } catch (Throwable ignored) {
             return false;
         }
+    }
+
+    public static void recordMcdOrderNavigation(String source) {
+        String marker = "source=" + safeMarkerToken(source);
+        startupLog("[WestlakeLauncher] MCD_ORDER_NAV_OPENED " + marker);
+        appendCutoffCanaryMarker("MCD_ORDER_NAV_OPENED " + marker);
+    }
+
+    public static void recordMcdCategoryNavigation(String label, String source) {
+        String marker = "label=" + safeMarkerToken(label)
+                + " source=" + safeMarkerToken(source);
+        startupLog("[WestlakeLauncher] MCD_CATEGORY_NAV_OPENED " + marker);
+        appendCutoffCanaryMarker("MCD_CATEGORY_NAV_OPENED " + marker);
+    }
+
+    private static boolean routeGenericHitClick(Activity activity, int x, int y) {
+        try {
+            android.view.View decor = activity != null && activity.getWindow() != null
+                    ? activity.getWindow().getDecorView() : null;
+            if (decor == null) {
+                return false;
+            }
+            if (isHomeDashboardActivity(activity)) {
+                int projectedHitY = y + Math.max(0, sMcdDashboardProjectionScrollOffset);
+                if (routeMcdDashboardProjectedHitClick(decor, x, projectedHitY)) {
+                    return true;
+                }
+            }
+            android.view.View root = decor;
+            if (isHomeDashboardActivity(activity)) {
+                root = selectMcdDashboardRenderRoot(activity, decor);
+                if (root != null) {
+                    layoutViewForStandaloneFrame(root, SURFACE_WIDTH, YELP_SURFACE_HEIGHT,
+                            "Generic hit");
+                    expandMcdDashboardRecyclerBounds(root, 0, SURFACE_WIDTH);
+                }
+            } else if (isOrderProductDetailsActivity(activity)) {
+                root = selectMcdOrderProductDetailRenderRoot(activity, decor,
+                        YELP_SURFACE_HEIGHT);
+            }
+            if (root == null) {
+                return false;
+            }
+
+            int hitY = y;
+            int projectionOffset = 0;
+            if (isHomeDashboardActivity(activity)) {
+                projectionOffset = Math.max(0, sMcdDashboardProjectionScrollOffset);
+                hitY += projectionOffset;
+            }
+
+            boolean dashboardHit = isHomeDashboardActivity(activity);
+            boolean pdpHit = isOrderProductDetailsActivity(activity);
+            if (dashboardHit && routeMcdDashboardProjectedHitClick(root, x, hitY)) {
+                return true;
+            }
+            if (pdpHit) {
+                int pdpAddHit = routeMcdPdpGenericAddHitClick(activity, decor, root,
+                        x, y, hitY);
+                if (pdpAddHit != 0) {
+                    return pdpAddHit > 0;
+                }
+            }
+            RecyclerHit recyclerHit = findRecyclerHitAt(root, x, hitY, 0);
+            if (recyclerHit == null && dashboardHit) {
+                recyclerHit = findRecyclerHitByAbsoluteBounds(root, x, hitY, 0);
+            }
+            boolean recyclerHandled = false;
+            if (recyclerHit != null && recyclerHit.recyclerView != null) {
+                recyclerHandled = performRecyclerHitClick(recyclerHit, x, y, hitY,
+                        projectionOffset, dashboardHit);
+            }
+
+            android.view.View leaf = findVisibleViewAt(root, x, hitY, 0);
+            android.view.View clickable = findClickableAncestor(leaf, root);
+            if (clickable == null && !recyclerHandled) {
+                if (pdpHit && routeMcdOrderPdpProjectedHitClick(activity, root, x, y)) {
+                    String fallbackMarker = "reason=generic_hit_miss"
+                            + " x=" + intAscii(x)
+                            + " y=" + intAscii(y)
+                            + " leaf=" + safeMarkerToken(leaf != null
+                                    ? safeViewSummary(leaf) : "null");
+                    startupLog("[WestlakeLauncher] MCD_ORDER_PDP_PROJECTED_FALLBACK "
+                            + fallbackMarker);
+                    appendCutoffCanaryMarker("MCD_ORDER_PDP_PROJECTED_FALLBACK "
+                            + fallbackMarker);
+                    return true;
+                }
+                if (dashboardHit) {
+                    String marker = "x=" + intAscii(x)
+                            + " y=" + intAscii(y)
+                            + " hitY=" + intAscii(hitY)
+                            + " projectionOffset=" + intAscii(projectionOffset)
+                            + " root=" + safeMarkerToken(root.getClass().getName())
+                            + " rootSize=" + intAscii(root.getWidth())
+                            + "x" + intAscii(root.getHeight());
+                    startupLog("[WestlakeLauncher] MCD_DASH_HIT_MISS " + marker);
+                    appendCutoffCanaryMarker("MCD_DASH_HIT_MISS " + marker);
+                }
+                return false;
+            }
+
+            boolean adapterHandled = routeListViewItemClick(leaf);
+            boolean clickHandled = false;
+            if (clickable != null && !recyclerHandled) {
+                clickHandled = clickable.performClick();
+            }
+            String marker = "target=" + safeMarkerToken(clickable != null
+                            ? clickable.getClass().getName() : "null")
+                    + " leaf=" + safeMarkerToken(leaf != null
+                            ? leaf.getClass().getName() : "null")
+                    + " text=" + safeViewTextToken(clickable)
+                    + " handled=" + boolToken(clickHandled)
+                    + " adapter=" + boolToken(adapterHandled)
+                    + " recycler=" + boolToken(recyclerHandled)
+                    + " x=" + intAscii(x)
+                    + " y=" + intAscii(y)
+                    + " hitY=" + intAscii(hitY)
+                    + " projectionOffset=" + intAscii(projectionOffset);
+            startupLog("[WestlakeLauncher] GENERIC_HIT_CLICK " + marker);
+            appendCutoffCanaryMarker("GENERIC_HIT_CLICK " + marker);
+            boolean handled = clickHandled || adapterHandled || recyclerHandled;
+            if (!handled && pdpHit && routeMcdOrderPdpProjectedHitClick(activity, root, x, y)) {
+                String fallbackMarker = "reason=generic_click_miss"
+                        + " x=" + intAscii(x)
+                        + " y=" + intAscii(y)
+                        + " target=" + safeMarkerToken(clickable != null
+                                ? safeViewSummary(clickable) : "null")
+                        + " leaf=" + safeMarkerToken(leaf != null
+                                ? safeViewSummary(leaf) : "null");
+                startupLog("[WestlakeLauncher] MCD_ORDER_PDP_PROJECTED_FALLBACK "
+                        + fallbackMarker);
+                appendCutoffCanaryMarker("MCD_ORDER_PDP_PROJECTED_FALLBACK "
+                        + fallbackMarker);
+                return true;
+            }
+            return handled;
+        } catch (Throwable t) {
+            startupLog("[WestlakeLauncher] Generic hit click error", t);
+            return false;
+        }
+    }
+
+    private static int routeMcdPdpGenericAddHitClick(Activity activity,
+            android.view.View decor, android.view.View root, int x, int y, int hitY) {
+        int targetId = resolveKnownMcdViewId("pdpAddToBagButton");
+        android.view.View target = null;
+        if (root != null) {
+            target = safeFindViewById(root, targetId, "pdp_generic_hit_root_add");
+        }
+        if (target == null && decor != null && decor != root) {
+            target = safeFindViewById(decor, targetId, "pdp_generic_hit_decor_add");
+        }
+        if (target == null) {
+            Object fragment = findMcdOrderPdpFragment(activity);
+            Object binding = readMcdPdpFragmentField(fragment, "G0");
+            android.view.View bindingRoot = readMcdBindingRoot(binding);
+            if (bindingRoot != null) {
+                target = safeFindViewById(bindingRoot, targetId,
+                        "pdp_generic_hit_binding_add");
+            }
+        }
+        boolean contains = viewContainsAbsolutePoint(target, x, y);
+        if (!contains && hitY != y) {
+            contains = viewContainsAbsolutePoint(target, x, hitY);
+        }
+        String baseMarker = "control=add_to_order"
+                + " x=" + intAscii(x)
+                + " y=" + intAscii(y)
+                + " hitY=" + intAscii(hitY)
+                + " contains=" + boolToken(contains)
+                + " root=" + safeMarkerToken(root != null ? safeViewSummary(root) : "null")
+                + " target=" + safeMarkerToken(target != null
+                        ? safeViewSummary(target) : "null")
+                + " bounds=" + safeMarkerToken(absoluteViewBoundsToken(target));
+        startupLog("[WestlakeLauncher] MCD_ORDER_PDP_GENERIC_HIT_PROBE " + baseMarker);
+        appendCutoffCanaryMarker("MCD_ORDER_PDP_GENERIC_HIT_PROBE " + baseMarker);
+        if (target == null || !contains) {
+            return 0;
+        }
+        boolean handled = performMcdPdpStockButtonClick(activity,
+                root != null ? root : decor, target, "generic_hit", false);
+        String resultMarker = baseMarker
+                + " handled=" + boolToken(handled)
+                + " source=generic_hit";
+        startupLog("[WestlakeLauncher] MCD_ORDER_PDP_GENERIC_HIT " + resultMarker);
+        appendCutoffCanaryMarker("MCD_ORDER_PDP_GENERIC_HIT " + resultMarker);
+        return handled ? 1 : -1;
+    }
+
+    private static boolean viewContainsAbsolutePoint(android.view.View view, int x, int y) {
+        if (view == null) {
+            return false;
+        }
+        try {
+            if (view.getVisibility() != android.view.View.VISIBLE) {
+                return false;
+            }
+            int left = absoluteViewLeft(view);
+            int top = absoluteViewTop(view);
+            return x >= left && x < left + view.getWidth()
+                    && y >= top && y < top + view.getHeight();
+        } catch (Throwable ignored) {
+            return false;
+        }
+    }
+
+    private static String absoluteViewBoundsToken(android.view.View view) {
+        if (view == null) {
+            return "null";
+        }
+        try {
+            int left = absoluteViewLeft(view);
+            int top = absoluteViewTop(view);
+            return "l" + intAscii(left)
+                    + "_t" + intAscii(top)
+                    + "_r" + intAscii(left + view.getWidth())
+                    + "_b" + intAscii(top + view.getHeight());
+        } catch (Throwable ignored) {
+            return "unknown";
+        }
+    }
+
+    private static int absoluteViewLeft(android.view.View view) {
+        int left = 0;
+        android.view.View current = view;
+        while (current != null) {
+            left += current.getLeft() - current.getScrollX();
+            android.view.ViewParent parent = current.getParent();
+            current = parent instanceof android.view.View
+                    ? (android.view.View) parent : null;
+        }
+        return left;
+    }
+
+    private static int absoluteViewTop(android.view.View view) {
+        int top = 0;
+        android.view.View current = view;
+        while (current != null) {
+            top += current.getTop() - current.getScrollY();
+            android.view.ViewParent parent = current.getParent();
+            current = parent instanceof android.view.View
+                    ? (android.view.View) parent : null;
+        }
+        return top;
+    }
+
+    private static android.view.View findVisibleViewAt(
+            android.view.View view, int x, int y, int depth) {
+        if (view == null || depth > 32) {
+            return null;
+        }
+        try {
+            if (view.getVisibility() != android.view.View.VISIBLE) {
+                return null;
+            }
+        } catch (Throwable ignored) {
+        }
+        if (!(view instanceof android.view.ViewGroup)) {
+            return view;
+        }
+        android.view.ViewGroup group = (android.view.ViewGroup) view;
+        int count = 0;
+        try {
+            count = group.getChildCount();
+        } catch (Throwable ignored) {
+        }
+        for (int i = count - 1; i >= 0; i--) {
+            android.view.View child = null;
+            try {
+                child = group.getChildAt(i);
+            } catch (Throwable ignored) {
+            }
+            if (child == null) {
+                continue;
+            }
+            try {
+                if (child.getVisibility() != android.view.View.VISIBLE) {
+                    continue;
+                }
+                int cx = x - child.getLeft() + child.getScrollX();
+                int cy = y - child.getTop() + child.getScrollY();
+                if (cx >= 0 && cx < child.getWidth()
+                        && cy >= 0 && cy < child.getHeight()) {
+                    android.view.View found = findVisibleViewAt(child, cx, cy, depth + 1);
+                    if (found != null) {
+                        return found;
+                    }
+                }
+            } catch (Throwable ignored) {
+            }
+        }
+        return view;
+    }
+
+    private static android.view.View findClickableAncestor(
+            android.view.View leaf, android.view.View stopAt) {
+        android.view.View current = leaf;
+        while (current != null) {
+            try {
+                if (current.hasOnClickListeners() || current.isClickable()) {
+                    return current;
+                }
+            } catch (Throwable ignored) {
+            }
+            if (current == stopAt) {
+                break;
+            }
+            android.view.ViewParent parent = null;
+            try {
+                parent = current.getParent();
+            } catch (Throwable ignored) {
+            }
+            if (!(parent instanceof android.view.View)) {
+                break;
+            }
+            current = (android.view.View) parent;
+        }
+        return null;
+    }
+
+    private static boolean routeMcdOrderPdpProjectedHitClick(
+            Activity activity, android.view.View root, int x, int y) {
+        if (activity == null || root == null || !isOrderProductDetailsActivity(activity)) {
+            return false;
+        }
+        String control = null;
+        int targetId = 0;
+        if (x >= 24 && x <= 148 && y >= 410 && y <= 444) {
+            if (x < 62) {
+                control = "quantity_minus";
+                targetId = resolveKnownMcdViewId("pdpMinusIcon");
+                if (sMcdOrderPdpQuantity > 1) {
+                    sMcdOrderPdpQuantity--;
+                }
+                sMcdOrderPdpLastAction = "Quantity " + intAscii(sMcdOrderPdpQuantity);
+            } else if (x > 102) {
+                control = "quantity_plus";
+                targetId = resolveKnownMcdViewId("pdpPlusIcon");
+                if (sMcdOrderPdpQuantity < 20) {
+                    sMcdOrderPdpQuantity++;
+                }
+                sMcdOrderPdpLastAction = "Quantity " + intAscii(sMcdOrderPdpQuantity);
+            } else {
+                control = "quantity";
+                targetId = resolveKnownMcdViewId("pdpQuantityText");
+                sMcdOrderPdpLastAction = "Quantity selected";
+            }
+        } else if (x >= 270 && x <= 456 && y >= 406 && y <= 448) {
+            control = "customize";
+            targetId = resolveKnownMcdViewId("pdpCustomizeIngredientsButton");
+            sMcdOrderPdpLastAction = "Customize tapped";
+        } else if (x >= 16 && x <= 464 && y >= 474 && y <= 550) {
+            control = "customize_card";
+            targetId = resolveKnownMcdViewId("pdpCustomizeIngredientsButton");
+            sMcdOrderPdpLastAction = "Customize tapped";
+        } else if (x >= 16 && x <= 464 && y >= 650 && y <= 726) {
+            control = "nutrition";
+            targetId = resolveKnownMcdViewId("pdpNutritionIngredientButton");
+            sMcdOrderPdpLastAction = "Nutrition tapped";
+        } else if (x >= 250 && x <= 456
+                && y >= YELP_SURFACE_HEIGHT - 78 && y <= YELP_SURFACE_HEIGHT - 24) {
+            control = "add_to_order";
+            targetId = resolveKnownMcdViewId("pdpAddToBagButton");
+            sMcdOrderPdpLastAction = "Add requested";
+        }
+        if (control == null) {
+            return false;
+        }
+
+        boolean stockClick = performMcdPdpTargetClick(activity, root, targetId, control);
+        if ("add_to_order".equals(control)) {
+            if (stockClick) {
+                sMcdOrderPdpBagCount += Math.max(1, sMcdOrderPdpQuantity);
+                sMcdOrderPdpLastAction = "Added "
+                        + intAscii(Math.max(1, sMcdOrderPdpQuantity)) + " to bag";
+            } else {
+                sMcdOrderPdpLastAction = "Add pending stock state";
+            }
+        }
+        String marker = "control=" + safeMarkerToken(control)
+                + " stockClick=" + boolToken(stockClick)
+                + " handled=true"
+                + " quantity=" + intAscii(sMcdOrderPdpQuantity)
+                + " bag=" + intAscii(sMcdOrderPdpBagCount)
+                + " x=" + intAscii(x)
+                + " y=" + intAscii(y)
+                + " target=0x" + Integer.toHexString(targetId)
+                + " action=" + safeMarkerToken(sMcdOrderPdpLastAction);
+        startupLog("[WestlakeLauncher] MCD_ORDER_PDP_PROJECTED_HIT " + marker);
+        appendCutoffCanaryMarker("MCD_ORDER_PDP_PROJECTED_HIT " + marker);
+        return true;
+    }
+
+    private static boolean isMcdOrderPdpProjectedControlPoint(int x, int y) {
+        return (x >= 24 && x <= 148 && y >= 410 && y <= 444)
+                || (x >= 270 && x <= 456 && y >= 406 && y <= 448)
+                || (x >= 16 && x <= 464 && y >= 474 && y <= 550)
+                || (x >= 16 && x <= 464 && y >= 650 && y <= 726)
+                || (x >= 250 && x <= 456
+                        && y >= YELP_SURFACE_HEIGHT - 78
+                        && y <= YELP_SURFACE_HEIGHT - 24);
+    }
+
+    private static boolean performMcdPdpTargetClick(
+            Activity activity, android.view.View root, int targetId, String label) {
+        if (root == null || targetId == 0) {
+            return false;
+        }
+        android.view.View target = safeFindViewById(root, targetId,
+                "pdp_projected_hit_" + safeMarkerToken(label));
+        if (target == null && activity != null && activity.getWindow() != null) {
+            android.view.View decor = activity.getWindow().getDecorView();
+            if (decor != null && decor != root) {
+                target = safeFindViewById(decor, targetId,
+                        "pdp_projected_hit_decor_" + safeMarkerToken(label));
+                if (target != null) {
+                    appendCutoffCanaryMarker("MCD_ORDER_PDP_TARGET_FOUND_IN_DECOR control="
+                            + safeMarkerToken(label)
+                            + " root=" + safeMarkerToken(safeViewSummary(root))
+                            + " target=" + safeMarkerToken(safeViewSummary(target)));
+                }
+            }
+        }
+        Object fragment = findMcdOrderPdpFragment(activity);
+        if (fragment != null && mcdPdpControlNeedsFragmentReady(label)
+                && !mcdPdpFragmentDepsReady(fragment, label, target)) {
+            if ("add_to_order".equals(label)) {
+                scheduleMcdPdpDeferredStockAdd(activity, "deps_missing_before_view_click");
+            }
+            return false;
+        }
+        if ("add_to_order".equals(label)) {
+            return performMcdPdpStockButtonClick(activity, root, target,
+                    "projected_hit", true);
+        }
+        if (target != null) {
+            try {
+                forceMcdPdpVisiblePath(target);
+            } catch (Throwable ignored) {
+            }
+            try {
+                if (target.performClick()) {
+                    logMcdPdpStockAction(label, "view_performClick", true, null, target);
+                    return true;
+                }
+            } catch (Throwable clickError) {
+                startupLog("[WestlakeLauncher] McD PDP projected target performClick error",
+                        clickError);
+                logMcdPdpStockAction(label, "view_performClick", false, clickError, target);
+            }
+            try {
+                if (target.callOnClick()) {
+                    logMcdPdpStockAction(label, "view_callOnClick", true, null, target);
+                    return true;
+                }
+            } catch (Throwable callError) {
+                logMcdPdpStockAction(label, "view_callOnClick", false, callError, target);
+            }
+        } else {
+            logMcdPdpStockAction(label, "view_missing", false, null, null);
+        }
+        return invokeMcdPdpFragmentAction(activity, target, label);
+    }
+
+    private static boolean performMcdPdpStockButtonClick(Activity activity,
+            android.view.View root, android.view.View target, String source,
+            boolean allowDeferredAdd) {
+        Object fragment = findMcdOrderPdpFragment(activity);
+        android.view.View resolvedRoot = root;
+        if (resolvedRoot == null && fragment != null) {
+            Object binding = readMcdPdpFragmentField(fragment, "G0");
+            resolvedRoot = readMcdBindingRoot(binding);
+        }
+        if (resolvedRoot == null && activity != null && activity.getWindow() != null) {
+            resolvedRoot = activity.getWindow().getDecorView();
+        }
+        if (target == null && resolvedRoot != null) {
+            target = findMcdPdpKnownView(resolvedRoot, "pdpAddToBagButton",
+                    "stock_view_click_" + safeMarkerToken(source));
+        }
+        prepareMcdPdpStockButtonBinding(fragment, target, source);
+        boolean depsReady = fragment != null
+                && mcdPdpFragmentDepsReady(fragment, "add_to_order", target);
+        logMcdPdpStockViewClickReady(source, fragment, resolvedRoot, target, depsReady);
+        appendCutoffCanaryMarker("MCD_PDP_DIRECT_MODEL_COMMIT_SKIPPED reason=stock_view_route_only"
+                + " source=" + safeMarkerToken(source)
+                + " target=" + safeMarkerToken(target != null
+                        ? safeViewSummary(target) : "null"));
+        if (target == null) {
+            logMcdPdpStockViewClick(source, "view_missing", false, null, null, target);
+            if (allowDeferredAdd) {
+                scheduleMcdPdpDeferredStockAdd(activity, "stock_view_missing");
+            }
+            return false;
+        }
+        try {
+            forceMcdPdpVisiblePath(target);
+        } catch (Throwable ignored) {
+        }
+        String phaseBase = "stock_view_" + safeMarkerToken(source);
+        syncMcdPdpCartProductForAdd(fragment, phaseBase + "_before_click");
+        logMcdPdpCartGate(fragment, phaseBase + "_before_click", target);
+        logMcdPdpAddLiveDataState(fragment, phaseBase + "_before_click");
+        boolean clicked = false;
+        Throwable clickError = null;
+        try {
+            clicked = target.performClick();
+        } catch (Throwable t) {
+            clickError = t;
+        }
+        logMcdPdpStockViewClick(source, "performClick", clicked, clickError, null, target);
+        if (clicked) {
+            finishMcdPdpStockViewClickContinuation(fragment, target,
+                    phaseBase + "_after_performClick");
+            return true;
+        }
+        if (isMcdPdpDownstreamStorageEntrySignal(clickError)) {
+            logMcdPdpAddReentrySuppressed(phaseBase, "performClick",
+                    "downstream_storage_entered", clickError, target);
+            finishMcdPdpStockViewClickContinuation(fragment, target,
+                    phaseBase + "_after_performClick_storage_entered", false);
+            return true;
+        }
+        boolean called = false;
+        Throwable callError = null;
+        try {
+            called = target.callOnClick();
+        } catch (Throwable t) {
+            callError = t;
+        }
+        logMcdPdpStockViewClick(source, "callOnClick", called, callError, null, target);
+        if (called) {
+            finishMcdPdpStockViewClickContinuation(fragment, target,
+                    phaseBase + "_after_callOnClick");
+            return true;
+        }
+        if (isMcdPdpDownstreamStorageEntrySignal(callError)) {
+            logMcdPdpAddReentrySuppressed(phaseBase, "callOnClick",
+                    "downstream_storage_entered", callError, target);
+            finishMcdPdpStockViewClickContinuation(fragment, target,
+                    phaseBase + "_after_callOnClick_storage_entered", false);
+            return true;
+        }
+        boolean bindingInvoked = invokeMcdPdpGeneratedButtonBinding(fragment, target,
+                phaseBase + "_generated_binding");
+        if (bindingInvoked) {
+            finishMcdPdpStockViewClickContinuation(fragment, target,
+                    phaseBase + "_after_generated_binding");
+            return true;
+        }
+        boolean viewModelAddDecision = invokeMcdPdpViewModelAddDecision(fragment, target,
+                phaseBase + "_viewmodel_z_fallback");
+        if (viewModelAddDecision) {
+            finishMcdPdpStockViewClickContinuation(fragment, target,
+                    phaseBase + "_after_viewmodel_z");
+            return true;
+        }
+        boolean downHandled = false;
+        boolean upHandled = false;
+        Throwable touchError = null;
+        android.view.MotionEvent down = null;
+        android.view.MotionEvent up = null;
+        try {
+            long now = android.os.SystemClock.uptimeMillis();
+            float cx = Math.max(1, target.getWidth()) / 2.0f;
+            float cy = Math.max(1, target.getHeight()) / 2.0f;
+            down = android.view.MotionEvent.obtain(now, now,
+                    android.view.MotionEvent.ACTION_DOWN, cx, cy, 0);
+            up = android.view.MotionEvent.obtain(now, now + 80L,
+                    android.view.MotionEvent.ACTION_UP, cx, cy, 0);
+            downHandled = target.dispatchTouchEvent(down);
+            upHandled = target.dispatchTouchEvent(up);
+        } catch (Throwable t) {
+            touchError = t;
+        } finally {
+            try {
+                if (down != null) down.recycle();
+            } catch (Throwable ignored) {
+            }
+            try {
+                if (up != null) up.recycle();
+            } catch (Throwable ignored) {
+            }
+        }
+        boolean touched = downHandled || upHandled;
+        logMcdPdpStockViewClick(source, "dispatchTouch", touched, touchError,
+                "down=" + boolToken(downHandled) + "_up=" + boolToken(upHandled),
+                target);
+        if (touched) {
+            finishMcdPdpStockViewClickContinuation(fragment, target,
+                    phaseBase + "_after_dispatchTouch");
+        }
+        if (!touched && allowDeferredAdd) {
+            scheduleMcdPdpDeferredStockAdd(activity, "stock_view_not_handled");
+        }
+        return touched;
+    }
+
+    private static void prepareMcdPdpStockButtonBinding(Object fragment,
+            android.view.View target, String source) {
+        Object parentBinding = null;
+        Object buttonBinding = null;
+        Object viewModel = null;
+        Object cartProduct = null;
+        boolean parentFragmentSet = false;
+        boolean parentViewModelSet = false;
+        boolean parentCartSet = false;
+        boolean buttonFragmentSet = false;
+        boolean buttonViewModelSet = false;
+        boolean parentInvalidated = false;
+        boolean parentExecuted = false;
+        boolean buttonInvalidated = false;
+        boolean buttonExecuted = false;
+        boolean listenerInstalled = false;
+        Object listener = null;
+        Throwable error = null;
+        try {
+            if (fragment != null) {
+                parentBinding = readMcdPdpFragmentField(fragment, "G0");
+                viewModel = readMcdPdpFragmentField(fragment, "E0");
+                cartProduct = readMcdPdpFragmentField(fragment, "t0");
+            }
+            seedMcdPdpStockClickLiveData(viewModel, source);
+            seedMcdPdpJustFlipBasketDefaults(viewModel != null ? viewModel : fragment,
+                    source);
+            seedMcdCoreTelemetryManager(viewModel != null ? viewModel : fragment, source);
+            buttonBinding = readObjectField(parentBinding, "B");
+            parentFragmentSet = invokeAssignableSetter(parentBinding, "S", fragment);
+            parentViewModelSet = invokeAssignableSetter(parentBinding, "T", viewModel);
+            parentCartSet = invokeAssignableSetter(parentBinding, "R", cartProduct);
+            buttonFragmentSet = invokeAssignableSetter(buttonBinding, "R", fragment);
+            buttonViewModelSet = invokeAssignableSetter(buttonBinding, "S", viewModel);
+            parentInvalidated = invokeNoArgBoolean(parentBinding, "x");
+            buttonInvalidated = invokeNoArgBoolean(buttonBinding, "x");
+            parentExecuted = invokeNoArgBoolean(parentBinding, "k");
+            buttonExecuted = invokeNoArgBoolean(buttonBinding, "k");
+            listener = readObjectField(buttonBinding, "F");
+            if (target != null && listener instanceof android.view.View.OnClickListener) {
+                target.setOnClickListener((android.view.View.OnClickListener) listener);
+                target.setClickable(true);
+                listenerInstalled = true;
+            }
+        } catch (Throwable t) {
+            error = t;
+        }
+        String marker = "source=" + safeMarkerToken(source)
+                + " parent=" + safeMarkerToken(shortObjectTag(parentBinding))
+                + " buttonBinding=" + safeMarkerToken(shortObjectTag(buttonBinding))
+                + " viewModel=" + safeMarkerToken(shortObjectTag(viewModel))
+                + " cartProduct=" + safeMarkerToken(shortObjectTag(cartProduct))
+                + " parentFragmentSet=" + boolToken(parentFragmentSet)
+                + " parentViewModelSet=" + boolToken(parentViewModelSet)
+                + " parentCartSet=" + boolToken(parentCartSet)
+                + " buttonFragmentSet=" + boolToken(buttonFragmentSet)
+                + " buttonViewModelSet=" + boolToken(buttonViewModelSet)
+                + " parentInvalidated=" + boolToken(parentInvalidated)
+                + " parentExecuted=" + boolToken(parentExecuted)
+                + " buttonInvalidated=" + boolToken(buttonInvalidated)
+                + " buttonExecuted=" + boolToken(buttonExecuted)
+                + " listener=" + safeMarkerToken(shortObjectTag(listener))
+                + " listenerInstalled=" + boolToken(listenerInstalled)
+                + " target=" + safeMarkerToken(target != null
+                        ? safeViewSummary(target) : "null");
+        if (error != null) {
+            marker += " err=" + safeMarkerToken(throwableTag(error));
+        }
+        startupLog("[WestlakeLauncher] MCD_PDP_STOCK_BINDING_PREP " + marker);
+        appendCutoffCanaryMarker("MCD_PDP_STOCK_BINDING_PREP " + marker);
+    }
+
+    private static void seedMcdPdpJustFlipBasketDefaults(Object anchor, String source) {
+        Object companion = null;
+        Object justFlip = null;
+        Object remoteFlags = null;
+        Object maxQtyDef = null;
+        Object maxItemDef = null;
+        Object maxQtyBefore = null;
+        Object maxQtyAfter = null;
+        Object maxItemBefore = null;
+        Object maxItemAfter = null;
+        boolean maxQtySeeded = false;
+        boolean maxItemSeeded = false;
+        Throwable error = null;
+        try {
+            ClassLoader cl = anchor != null ? anchor.getClass().getClassLoader() : null;
+            Class<?> justFlipClass = cl != null
+                    ? Class.forName("com.mcdonalds.justflip_kmm.JustFlip", false, cl)
+                    : Class.forName("com.mcdonalds.justflip_kmm.JustFlip");
+            java.lang.reflect.Field companionField = findFieldOnHierarchy(justFlipClass, "m");
+            companion = companionField != null ? companionField.get(null) : null;
+            justFlip = invokeNoArgValue(companion, "b");
+            remoteFlags = invokeNoArgValue(justFlip, "n");
+            maxQtyDef = invokeNoArgValue(remoteFlags, "W0");
+            maxQtyBefore = invokeNoArgValue(maxQtyDef, "a");
+            maxQtySeeded = seedIntegerFieldIfNull(maxQtyDef, "a", 99);
+            maxQtyAfter = invokeNoArgValue(maxQtyDef, "a");
+            maxItemDef = invokeNoArgValue(remoteFlags, "S0");
+            maxItemBefore = invokeNoArgValue(maxItemDef, "a");
+            maxItemSeeded = seedIntegerFieldIfNull(maxItemDef, "a", 99);
+            maxItemAfter = invokeNoArgValue(maxItemDef, "a");
+        } catch (Throwable t) {
+            error = rootCause(t);
+        }
+        String marker = "source=" + safeMarkerToken(source)
+                + " anchor=" + safeMarkerToken(shortObjectTag(anchor))
+                + " companion=" + safeMarkerToken(shortObjectTag(companion))
+                + " justFlip=" + safeMarkerToken(shortObjectTag(justFlip))
+                + " remoteFlags=" + safeMarkerToken(shortObjectTag(remoteFlags))
+                + " maxQtyDef=" + safeMarkerToken(shortObjectTag(maxQtyDef))
+                + " maxQtyBefore=" + safeMarkerToken(String.valueOf(maxQtyBefore))
+                + " maxQtyAfter=" + safeMarkerToken(String.valueOf(maxQtyAfter))
+                + " maxQtySeeded=" + boolToken(maxQtySeeded)
+                + " maxItemDef=" + safeMarkerToken(shortObjectTag(maxItemDef))
+                + " maxItemBefore=" + safeMarkerToken(String.valueOf(maxItemBefore))
+                + " maxItemAfter=" + safeMarkerToken(String.valueOf(maxItemAfter))
+                + " maxItemSeeded=" + boolToken(maxItemSeeded);
+        if (error != null) {
+            marker += " err=" + safeMarkerToken(throwableTag(error))
+                    + " msg=" + safeMarkerToken(safeThrowableMessage(error))
+                    + " top=" + safeMarkerToken(throwableFirstFrameTag(error));
+        }
+        startupLog("[WestlakeLauncher] MCD_JUSTFLIP_BASKET_FLAG_SEED " + marker);
+        appendCutoffCanaryMarker("MCD_JUSTFLIP_BASKET_FLAG_SEED " + marker);
+    }
+
+    private static void seedMcdCoreTelemetryManager(Object anchor, String source) {
+        Object before = null;
+        Object after = null;
+        Object publisher = null;
+        boolean initMethodInvoked = false;
+        boolean directSet = false;
+        boolean disabledPublisher = false;
+        boolean disabledDatabase = false;
+        Throwable error = null;
+        try {
+            ClassLoader cl = anchor != null ? anchor.getClass().getClassLoader()
+                    : Thread.currentThread().getContextClassLoader();
+            Class<?> telemetryClass = cl != null
+                    ? Class.forName("com.mcdonalds.androidsdk.core.telemetry.TelemetryManager",
+                            false, cl)
+                    : Class.forName("com.mcdonalds.androidsdk.core.telemetry.TelemetryManager");
+            java.lang.reflect.Field instanceField = findFieldOnHierarchy(telemetryClass, "d");
+            before = instanceField != null ? instanceField.get(null) : null;
+            Class<?> publisherClass = cl != null
+                    ? Class.forName("com.mcdonalds.androidsdk.core.telemetry.factory.TelemetryPublisher",
+                            false, cl)
+                    : Class.forName("com.mcdonalds.androidsdk.core.telemetry.factory.TelemetryPublisher");
+            publisher = newMcdNoopTelemetryPublisher(cl, publisherClass);
+            if (before == null) {
+                java.lang.reflect.Method init = findMethodOnHierarchy(telemetryClass, "e",
+                        publisherClass, Boolean.TYPE, Boolean.TYPE);
+                if (init != null) {
+                    init.invoke(null, publisher, Boolean.TRUE, Boolean.TRUE);
+                    initMethodInvoked = true;
+                }
+                after = instanceField != null ? instanceField.get(null) : null;
+                if (after == null && instanceField != null) {
+                    java.lang.reflect.Constructor<?> ctor =
+                            telemetryClass.getDeclaredConstructor(publisherClass);
+                    ctor.setAccessible(true);
+                    after = ctor.newInstance(publisher);
+                    instanceField.set(null, after);
+                    directSet = true;
+                }
+            } else {
+                after = before;
+            }
+            disabledPublisher = setStaticBooleanField(telemetryClass, "e", true);
+            disabledDatabase = setStaticBooleanField(telemetryClass, "f", true);
+            if (instanceField != null) {
+                after = instanceField.get(null);
+            }
+        } catch (Throwable t) {
+            error = rootCause(t);
+        }
+        String marker = "source=" + safeMarkerToken(source)
+                + " anchor=" + safeMarkerToken(shortObjectTag(anchor))
+                + " before=" + safeMarkerToken(shortObjectTag(before))
+                + " after=" + safeMarkerToken(shortObjectTag(after))
+                + " publisher=" + safeMarkerToken(shortObjectTag(publisher))
+                + " initMethodInvoked=" + boolToken(initMethodInvoked)
+                + " directSet=" + boolToken(directSet)
+                + " disabledPublisher=" + boolToken(disabledPublisher)
+                + " disabledDatabase=" + boolToken(disabledDatabase);
+        if (error != null) {
+            marker += " err=" + safeMarkerToken(throwableTag(error))
+                    + " msg=" + safeMarkerToken(safeThrowableMessage(error))
+                    + " top=" + safeMarkerToken(throwableFirstFrameTag(error));
+        }
+        startupLog("[WestlakeLauncher] MCD_TELEMETRY_MANAGER_SEED " + marker);
+        appendCutoffCanaryMarker("MCD_TELEMETRY_MANAGER_SEED " + marker);
+    }
+
+    private static Object newMcdNoopTelemetryPublisher(ClassLoader cl, Class<?> publisherClass) {
+        if (publisherClass == null || !publisherClass.isInterface()) {
+            return null;
+        }
+        ClassLoader proxyCl = cl != null ? cl : publisherClass.getClassLoader();
+        try {
+            return java.lang.reflect.Proxy.newProxyInstance(proxyCl,
+                    new Class<?>[] { publisherClass },
+                    new java.lang.reflect.InvocationHandler() {
+                        @Override
+                        public Object invoke(Object proxy, java.lang.reflect.Method method,
+                                Object[] args) {
+                            if (method != null && method.getDeclaringClass() == Object.class) {
+                                String name = method.getName();
+                                if ("toString".equals(name)) {
+                                    return "WestlakeNoopTelemetryPublisher";
+                                }
+                                if ("hashCode".equals(name)) {
+                                    return Integer.valueOf(System.identityHashCode(proxy));
+                                }
+                                if ("equals".equals(name)) {
+                                    return Boolean.valueOf(args != null && args.length == 1
+                                            && proxy == args[0]);
+                                }
+                            }
+                            return defaultMcdTelemetryReturnValue(method != null
+                                    ? method.getReturnType() : Void.TYPE);
+                        }
+                    });
+        } catch (Throwable ignored) {
+            return null;
+        }
+    }
+
+    private static Object defaultMcdTelemetryReturnValue(Class<?> type) {
+        if (type == null || type == Void.TYPE) {
+            return null;
+        }
+        if (!type.isPrimitive()) {
+            return null;
+        }
+        if (type == Boolean.TYPE) {
+            return Boolean.FALSE;
+        }
+        if (type == Integer.TYPE) {
+            return Integer.valueOf(0);
+        }
+        if (type == Long.TYPE) {
+            return Long.valueOf(0L);
+        }
+        if (type == Float.TYPE) {
+            return Float.valueOf(0.0f);
+        }
+        if (type == Double.TYPE) {
+            return Double.valueOf(0.0d);
+        }
+        if (type == Short.TYPE) {
+            return Short.valueOf((short) 0);
+        }
+        if (type == Byte.TYPE) {
+            return Byte.valueOf((byte) 0);
+        }
+        if (type == Character.TYPE) {
+            return Character.valueOf('\0');
+        }
+        return null;
+    }
+
+    private static boolean setStaticBooleanField(Class<?> owner, String fieldName,
+            boolean value) {
+        try {
+            java.lang.reflect.Field field = findFieldOnHierarchy(owner, fieldName);
+            if (field == null || field.getType() != Boolean.TYPE) {
+                return false;
+            }
+            field.setBoolean(null, value);
+            return true;
+        } catch (Throwable ignored) {
+            return false;
+        }
+    }
+
+    private static boolean seedIntegerFieldIfNull(Object owner, String fieldName, int value) {
+        if (owner == null || fieldName == null) {
+            return false;
+        }
+        try {
+            java.lang.reflect.Field field = findFieldOnHierarchy(owner.getClass(), fieldName);
+            if (field == null || field.get(owner) != null) {
+                return false;
+            }
+            Class<?> type = field.getType();
+            if (type != Integer.class && type != Number.class && type != Object.class) {
+                return false;
+            }
+            field.set(owner, Integer.valueOf(value));
+            return true;
+        } catch (Throwable ignored) {
+            return false;
+        }
+    }
+
+    private static void seedMcdPdpStockClickLiveData(Object viewModel, String source) {
+        Object r1 = null;
+        Object w1 = null;
+        Object before = null;
+        Object w1Before = null;
+        boolean set = false;
+        boolean w1Set = false;
+        Throwable error = null;
+        try {
+            r1 = invokeNoArgValue(viewModel, "R1");
+            before = invokeNoArgValue(r1, "getValue");
+            if (r1 != null && before == null) {
+                java.lang.reflect.Method setValue =
+                        findMethodOnHierarchy(r1.getClass(), "setValue", Object.class);
+                if (setValue != null) {
+                    setValue.invoke(r1, java.lang.Boolean.TRUE);
+                    set = true;
+                }
+            }
+            w1 = invokeNoArgValue(viewModel, "W1");
+            w1Before = invokeNoArgValue(w1, "getValue");
+            if (w1 != null && isTrueObject(w1Before)) {
+                java.lang.reflect.Method setValue =
+                        findMethodOnHierarchy(w1.getClass(), "setValue", Object.class);
+                if (setValue != null) {
+                    setValue.invoke(w1, java.lang.Boolean.FALSE);
+                    w1Set = true;
+                }
+            }
+        } catch (Throwable t) {
+            error = t;
+        }
+        Object after = null;
+        Object w1After = null;
+        try {
+            after = invokeNoArgValue(r1, "getValue");
+        } catch (Throwable ignored) {
+        }
+        try {
+            w1After = invokeNoArgValue(w1, "getValue");
+        } catch (Throwable ignored) {
+        }
+        String marker = "source=" + safeMarkerToken(source)
+                + " viewModel=" + safeMarkerToken(shortObjectTag(viewModel))
+                + " liveData=" + safeMarkerToken(shortObjectTag(r1))
+                + " before=" + safeMarkerToken(String.valueOf(before))
+                + " after=" + safeMarkerToken(String.valueOf(after))
+                + " set=" + boolToken(set)
+                + " loadingLiveData=" + safeMarkerToken(shortObjectTag(w1))
+                + " loadingBefore=" + safeMarkerToken(String.valueOf(w1Before))
+                + " loadingAfter=" + safeMarkerToken(String.valueOf(w1After))
+                + " loadingCleared=" + boolToken(w1Set);
+        if (error != null) {
+            marker += " err=" + safeMarkerToken(throwableTag(error));
+        }
+        startupLog("[WestlakeLauncher] MCD_PDP_STOCK_LIVEDATA_PREP " + marker);
+        appendCutoffCanaryMarker("MCD_PDP_STOCK_LIVEDATA_PREP " + marker);
+    }
+
+    private static boolean invokeMcdPdpGeneratedButtonBinding(Object fragment,
+            android.view.View target, String phase) {
+        Object parentBinding = readMcdPdpFragmentField(fragment, "G0");
+        Object buttonBinding = readObjectField(parentBinding, "B");
+        Object viewModel = readMcdPdpFragmentField(fragment, "E0");
+        boolean invoked = false;
+        Throwable error = null;
+        try {
+            seedMcdPdpStockClickLiveData(viewModel, phase);
+            seedMcdPdpJustFlipBasketDefaults(viewModel != null ? viewModel : fragment,
+                    phase);
+            seedMcdCoreTelemetryManager(viewModel != null ? viewModel : fragment, phase);
+            java.lang.reflect.Method method = findMethodOnHierarchy(
+                    buttonBinding != null ? buttonBinding.getClass() : null,
+                    "a", Integer.TYPE, android.view.View.class);
+            if (method == null) {
+                throw new NoSuchMethodException("OrderPdpButtonLayoutBindingImpl.a");
+            }
+            method.invoke(buttonBinding, Integer.valueOf(2), target);
+            invoked = true;
+        } catch (Throwable t) {
+            error = rootCause(t);
+            startupLog("[WestlakeLauncher] McD PDP generated binding click error", error);
+        }
+        String marker = "phase=" + safeMarkerToken(phase)
+                + " invoked=" + boolToken(invoked)
+                + " parent=" + safeMarkerToken(shortObjectTag(parentBinding))
+                + " buttonBinding=" + safeMarkerToken(shortObjectTag(buttonBinding))
+                + " viewModel=" + safeMarkerToken(shortObjectTag(viewModel))
+                + " target=" + safeMarkerToken(target != null
+                        ? safeViewSummary(target) : "null")
+                + " r1=" + describeMcdLiveData(invokeNoArgValue(viewModel, "R1"))
+                + " w1=" + describeMcdLiveData(invokeNoArgValue(viewModel, "W1"))
+                + " normalAdd=" + describeMcdLiveData(invokeNoArgValue(viewModel, "t0"))
+                + " editAdd=" + describeMcdLiveData(invokeNoArgValue(viewModel, "s1"))
+                + " productLimit=" + describeMcdLiveData(invokeNoArgValue(viewModel, "L2"));
+        if (error != null) {
+            marker += " err=" + safeMarkerToken(throwableTag(error))
+                    + " msg=" + safeMarkerToken(safeThrowableMessage(error))
+                    + " top=" + safeMarkerToken(throwableFirstFrameTag(error));
+        }
+        startupLog("[WestlakeLauncher] MCD_PDP_GENERATED_BINDING_CLICK " + marker);
+        appendCutoffCanaryMarker("MCD_PDP_GENERATED_BINDING_CLICK " + marker);
+        if (invoked) {
+            logMcdPdpAddLiveDataState(fragment, phase + "_after_binding");
+        }
+        return invoked;
+    }
+
+    private static boolean invokeMcdPdpViewModelAddDecision(Object fragment,
+            android.view.View target, String phase) {
+        Object viewModel = readMcdPdpFragmentField(fragment, "E0");
+        boolean invoked = false;
+        Throwable error = null;
+        try {
+            seedMcdPdpStockClickLiveData(viewModel, phase);
+            seedMcdCoreTelemetryManager(viewModel != null ? viewModel : fragment, phase);
+            java.lang.reflect.Method method = findMethodOnHierarchy(
+                    viewModel != null ? viewModel.getClass() : null, "Z");
+            if (method == null) {
+                throw new NoSuchMethodException("OrderPDPViewModel.Z");
+            }
+            method.invoke(viewModel);
+            invoked = true;
+        } catch (Throwable t) {
+            error = rootCause(t);
+            startupLog("[WestlakeLauncher] McD PDP viewmodel add decision error", error);
+        }
+        String marker = "phase=" + safeMarkerToken(phase)
+                + " invoked=" + boolToken(invoked)
+                + " fragment=" + safeMarkerToken(shortObjectTag(fragment))
+                + " viewModel=" + safeMarkerToken(shortObjectTag(viewModel))
+                + " target=" + safeMarkerToken(target != null
+                        ? safeViewSummary(target) : "null")
+                + " normalAdd=" + describeMcdLiveData(invokeNoArgValue(viewModel, "t0"))
+                + " editAdd=" + describeMcdLiveData(invokeNoArgValue(viewModel, "s1"))
+                + " productLimit=" + describeMcdLiveData(invokeNoArgValue(viewModel, "L2"));
+        if (error != null) {
+            marker += " err=" + safeMarkerToken(throwableTag(error))
+                    + " msg=" + safeMarkerToken(safeThrowableMessage(error))
+                    + " top=" + safeMarkerToken(throwableFirstFrameTag(error));
+        }
+        startupLog("[WestlakeLauncher] MCD_PDP_VIEWMODEL_Z_GATE " + marker);
+        appendCutoffCanaryMarker("MCD_PDP_VIEWMODEL_Z_GATE " + marker);
+        if (invoked) {
+            logMcdPdpAddLiveDataState(fragment, phase + "_after_z");
+        }
+        return invoked;
+    }
+
+    private static void finishMcdPdpStockViewClickContinuation(Object fragment,
+            android.view.View target, String phase) {
+        finishMcdPdpStockViewClickContinuation(fragment, target, phase, true);
+    }
+
+    private static void finishMcdPdpStockViewClickContinuation(Object fragment,
+            android.view.View target, String phase, boolean allowModelGate) {
+        logMcdPdpFragmentContinuation(phase, "enter", allowModelGate,
+                fragment, target, null);
+        logMcdPdpAddLiveDataState(fragment, phase + "_after_click");
+        logMcdPdpCartGate(fragment, phase + "_after_click", target);
+        if (allowModelGate) {
+            maybeDispatchMcdPdpStockAddObserver(fragment, target, phase + "_observer");
+        } else {
+            logMcdPdpObserverDispatchSuppressed(fragment, target, phase + "_observer",
+                    "downstream_storage_already_entered");
+        }
+        logMcdPdpFragmentContinuation(phase, "after_observer", allowModelGate,
+                fragment, target, null);
+        if (allowModelGate) {
+            invokeMcdPdpStockAddModelCommit(fragment, target, phase + "_model_gate");
+        } else {
+            logMcdPdpStockAddCommit(phase + "_model_gate", false,
+                    "suppressed_downstream_storage_entered", null, target);
+        }
+        logMcdPdpFragmentContinuation(phase, "after_model_gate", allowModelGate,
+                fragment, target, null);
+        logMcdPdpCartGate(fragment, phase + "_after_gates", target);
+        logMcdPdpAddLiveDataState(fragment, phase + "_after_gates");
+        logMcdPdpFragmentContinuation(phase, "exit", allowModelGate,
+                fragment, target, null);
+    }
+
+    private static void maybeDispatchMcdPdpStockAddObserver(Object fragment,
+            android.view.View target, String phase) {
+        Object viewModel = readMcdPdpFragmentField(fragment, "E0");
+        Object normalAddLiveData = invokeNoArgValue(viewModel, "t0");
+        Object editAddLiveData = invokeNoArgValue(viewModel, "s1");
+        Object productLimitLiveData = invokeNoArgValue(viewModel, "L2");
+        Object normalAddValue = invokeNoArgValue(normalAddLiveData, "getValue");
+        Object editAddValue = invokeNoArgValue(editAddLiveData, "getValue");
+        Object productLimitValue = invokeNoArgValue(productLimitLiveData, "getValue");
+        String route = "none";
+        if (isTrueObject(normalAddValue)) {
+            route = "q7";
+        } else if (isTrueObject(editAddValue)) {
+            route = "Y7";
+        } else if (isTrueObject(productLimitValue)) {
+            route = "product_limit_L2";
+        }
+        boolean requested = !"none".equals(route) && !"product_limit_L2".equals(route);
+        boolean observerAllowed = isMcdUnsafeObserverDispatchEnabled();
+        boolean storageAllowed = isMcdUnsafeStorageCommitEnabled();
+        boolean allowed = requested && observerAllowed && storageAllowed;
+        String reason;
+        if (!requested) {
+            reason = "no_add_livedata_true";
+        } else if (!observerAllowed) {
+            reason = "observer_dispatch_opt_in_required";
+        } else if (!storageAllowed) {
+            reason = "storage_sigbus_risk";
+        } else {
+            reason = "unsafe_observer_dispatch_opt_in";
+        }
+        String marker = "phase=" + safeMarkerToken(phase)
+                + " route=" + safeMarkerToken(route)
+                + " requested=" + boolToken(requested)
+                + " allowed=" + boolToken(allowed)
+                + " reason=" + safeMarkerToken(reason)
+                + " fragment=" + safeMarkerToken(shortObjectTag(fragment))
+                + " viewModel=" + safeMarkerToken(shortObjectTag(viewModel))
+                + " normalAdd=" + describeMcdLiveData(normalAddLiveData)
+                + " editAdd=" + describeMcdLiveData(editAddLiveData)
+                + " productLimit=" + describeMcdLiveData(productLimitLiveData)
+                + " target=" + safeMarkerToken(target != null
+                        ? safeViewSummary(target) : "null");
+        startupLog("[WestlakeLauncher] MCD_PDP_OBSERVER_DISPATCH_GATE " + marker);
+        appendCutoffCanaryMarker("MCD_PDP_OBSERVER_DISPATCH_GATE " + marker);
+        if (!allowed) {
+            return;
+        }
+        boolean invoked = false;
+        Throwable error = null;
+        try {
+            java.lang.reflect.Method method = findMethodOnHierarchy(
+                    fragment != null ? fragment.getClass() : null,
+                    route, java.lang.Boolean.class);
+            if (method == null) {
+                throw new NoSuchMethodException(route);
+            }
+            method.invoke(fragment, java.lang.Boolean.TRUE);
+            invoked = true;
+        } catch (Throwable t) {
+            error = t instanceof java.lang.reflect.InvocationTargetException
+                    && ((java.lang.reflect.InvocationTargetException) t).getCause() != null
+                    ? ((java.lang.reflect.InvocationTargetException) t).getCause() : t;
+        }
+        String dispatchMarker = "phase=" + safeMarkerToken(phase)
+                + " route=" + safeMarkerToken(route)
+                + " invoked=" + boolToken(invoked)
+                + " target=" + safeMarkerToken(target != null
+                        ? safeViewSummary(target) : "null");
+        if (error != null) {
+            dispatchMarker += " err=" + safeMarkerToken(throwableTag(error));
+        }
+        startupLog("[WestlakeLauncher] MCD_PDP_OBSERVER_DISPATCH " + dispatchMarker);
+        appendCutoffCanaryMarker("MCD_PDP_OBSERVER_DISPATCH " + dispatchMarker);
+    }
+
+    private static void logMcdPdpObserverDispatchSuppressed(Object fragment,
+            android.view.View target, String phase, String reason) {
+        Object viewModel = readMcdPdpFragmentField(fragment, "E0");
+        Object normalAddLiveData = invokeNoArgValue(viewModel, "t0");
+        Object editAddLiveData = invokeNoArgValue(viewModel, "s1");
+        Object productLimitLiveData = invokeNoArgValue(viewModel, "L2");
+        String marker = "phase=" + safeMarkerToken(phase)
+                + " route=suppressed"
+                + " requested=false"
+                + " allowed=false"
+                + " reason=" + safeMarkerToken(reason)
+                + " fragment=" + safeMarkerToken(shortObjectTag(fragment))
+                + " viewModel=" + safeMarkerToken(shortObjectTag(viewModel))
+                + " normalAdd=" + describeMcdLiveData(normalAddLiveData)
+                + " editAdd=" + describeMcdLiveData(editAddLiveData)
+                + " productLimit=" + describeMcdLiveData(productLimitLiveData)
+                + " target=" + safeMarkerToken(target != null
+                        ? safeViewSummary(target) : "null");
+        startupLog("[WestlakeLauncher] MCD_PDP_OBSERVER_DISPATCH_GATE " + marker);
+        appendCutoffCanaryMarker("MCD_PDP_OBSERVER_DISPATCH_GATE " + marker);
+    }
+
+    private static boolean isMcdPdpDownstreamStorageEntrySignal(Throwable error) {
+        Throwable cause = rootCause(error);
+        if (cause == null) {
+            return false;
+        }
+        String message = safeThrowableMessage(cause);
+        if (cause instanceof java.lang.IllegalStateException
+                && message != null
+                && (message.indexOf("Telemetry not initialized") >= 0
+                || message.indexOf("Telemetry_not_initialized") >= 0)) {
+            return true;
+        }
+        if (message != null
+                && (message.indexOf("BasketAPIHandler") >= 0
+                || message.indexOf("BaseStorage") >= 0
+                || message.indexOf("Realm") >= 0)) {
+            return true;
+        }
+        try {
+            StackTraceElement[] stack = cause.getStackTrace();
+            if (stack != null) {
+                for (int i = 0; i < stack.length; i++) {
+                    StackTraceElement frame = stack[i];
+                    if (frame == null) {
+                        continue;
+                    }
+                    String cls = frame.getClassName();
+                    if (cls == null) {
+                        continue;
+                    }
+                    if (cls.indexOf("BasketAPIHandler") >= 0
+                            || cls.indexOf("BaseStorage") >= 0
+                            || cls.indexOf("BasketUseCase") >= 0
+                            || cls.indexOf("BasketDataRepository") >= 0
+                            || cls.indexOf("OrderDataSourceConnector") >= 0
+                            || cls.indexOf("OrderingManagerExtended") >= 0
+                            || cls.indexOf("io.realm") >= 0
+                            || cls.indexOf(".realm.") >= 0) {
+                        return true;
+                    }
+                }
+            }
+        } catch (Throwable ignored) {
+        }
+        return false;
+    }
+
+    private static void logMcdPdpAddReentrySuppressed(String phase, String route,
+            String reason, Throwable error, android.view.View target) {
+        Throwable cause = rootCause(error);
+        String marker = "phase=" + safeMarkerToken(phase)
+                + " route=" + safeMarkerToken(route)
+                + " reason=" + safeMarkerToken(reason)
+                + " target=" + safeMarkerToken(target != null
+                        ? safeViewSummary(target) : "null");
+        if (cause != null) {
+            marker += " err=" + safeMarkerToken(throwableTag(cause))
+                    + " msg=" + safeMarkerToken(safeThrowableMessage(cause))
+                    + " top=" + safeMarkerToken(throwableFirstFrameTag(cause));
+        }
+        startupLog("[WestlakeLauncher] MCD_PDP_ADD_REENTRY_SUPPRESSED " + marker);
+        appendCutoffCanaryMarker("MCD_PDP_ADD_REENTRY_SUPPRESSED " + marker);
+    }
+
+    private static void logMcdPdpFragmentContinuation(String phase, String step,
+            boolean allowModelGate, Object fragment, android.view.View target,
+            Throwable error) {
+        Object viewModel = readMcdPdpFragmentField(fragment, "E0");
+        Object cartProduct = readMcdPdpFragmentField(fragment, "t0");
+        String marker = "phase=" + safeMarkerToken(phase)
+                + " step=" + safeMarkerToken(step)
+                + " allowModelGate=" + boolToken(allowModelGate)
+                + " fragment=" + safeMarkerToken(shortObjectTag(fragment))
+                + " viewModel=" + safeMarkerToken(shortObjectTag(viewModel))
+                + " cartProduct=" + safeMarkerToken(shortObjectTag(cartProduct))
+                + " normalAdd=" + describeMcdLiveData(invokeNoArgValue(viewModel, "t0"))
+                + " editAdd=" + describeMcdLiveData(invokeNoArgValue(viewModel, "s1"))
+                + " productLimit=" + describeMcdLiveData(invokeNoArgValue(viewModel, "L2"))
+                + " target=" + safeMarkerToken(target != null
+                        ? safeViewSummary(target) : "null");
+        if (error != null) {
+            marker += " err=" + safeMarkerToken(throwableTag(rootCause(error)));
+        }
+        startupLog("[WestlakeLauncher] MCD_PDP_FRAGMENT_CONTINUATION " + marker);
+        appendCutoffCanaryMarker("MCD_PDP_FRAGMENT_CONTINUATION " + marker);
+    }
+
+    private static void logMcdPdpAddLiveDataState(Object fragment, String phase) {
+        Object viewModel = readMcdPdpFragmentField(fragment, "E0");
+        Object viewOwner = null;
+        Object lifecycle = null;
+        Object lifecycleState = null;
+        try {
+            viewOwner = invokeFragmentNoArg(fragment, fragment != null
+                    ? fragment.getClass() : null, "getViewLifecycleOwner");
+            lifecycle = invokeNoArgValue(viewOwner, "getLifecycle");
+            lifecycleState = readLifecycleStateCompat(lifecycle);
+        } catch (Throwable ignored) {
+        }
+        Object fragmentState = readObjectField(fragment, "mState");
+        Object fragmentResumed = readMcdFragmentResumedCompat(fragment, fragmentState);
+        String marker = "phase=" + safeMarkerToken(phase)
+                + " fragment=" + safeMarkerToken(shortObjectTag(fragment))
+                + " fragmentState=" + safeMarkerToken(String.valueOf(fragmentState))
+                + " fragmentResumed=" + safeMarkerToken(String.valueOf(fragmentResumed))
+                + " viewOwner=" + safeMarkerToken(shortObjectTag(viewOwner))
+                + " lifecycle=" + safeMarkerToken(shortObjectTag(lifecycle))
+                + " lifecycleState=" + safeMarkerToken(String.valueOf(lifecycleState))
+                + " viewModel=" + safeMarkerToken(shortObjectTag(viewModel))
+                + " r1=" + describeMcdLiveData(invokeNoArgValue(viewModel, "R1"))
+                + " w1=" + describeMcdLiveData(invokeNoArgValue(viewModel, "W1"))
+                + " normalAdd=" + describeMcdLiveData(invokeNoArgValue(viewModel, "t0"))
+                + " editAdd=" + describeMcdLiveData(invokeNoArgValue(viewModel, "s1"))
+                + " productLimit=" + describeMcdLiveData(invokeNoArgValue(viewModel, "L2"))
+                + " editMode=" + describeMcdLiveData(invokeNoArgValue(viewModel, "a1"));
+        startupLog("[WestlakeLauncher] MCD_PDP_LIVEDATA_STATE " + marker);
+        appendCutoffCanaryMarker("MCD_PDP_LIVEDATA_STATE " + marker);
+        if (isTrueObject(fragmentResumed) || "RESUMED".equals(String.valueOf(lifecycleState))) {
+            String resumedMarker = "phase=" + safeMarkerToken(phase)
+                    + " source=compat"
+                    + " fragmentState=" + safeMarkerToken(String.valueOf(fragmentState))
+                    + " fragmentResumed=" + safeMarkerToken(String.valueOf(fragmentResumed))
+                    + " lifecycleState=" + safeMarkerToken(String.valueOf(lifecycleState));
+            startupLog("[WestlakeLauncher] MCD_PDP_FRAGMENT_RESUMED " + resumedMarker);
+            appendCutoffCanaryMarker("MCD_PDP_FRAGMENT_RESUMED " + resumedMarker);
+        }
+    }
+
+    private static Object readLifecycleStateCompat(Object lifecycle) {
+        if (lifecycle == null) {
+            return null;
+        }
+        String[] names = new String[] { "getCurrentState", "d", "b", "e" };
+        for (int i = 0; i < names.length; i++) {
+            Object value = invokeNoArgValue(lifecycle, names[i]);
+            if (value != null) {
+                return value;
+            }
+        }
+        return null;
+    }
+
+    private static Object readMcdFragmentResumedCompat(Object fragment, Object fragmentState) {
+        Object resumed = readObjectField(fragment, "mResumed");
+        if (resumed != null) {
+            return resumed;
+        }
+        Object isResumed = invokeFragmentNoArg(fragment,
+                fragment != null ? fragment.getClass() : null, "isResumed");
+        if (isResumed instanceof Boolean) {
+            return isResumed;
+        }
+        int state = intValueOr(fragmentState, -1);
+        return state >= 7 ? Boolean.TRUE : Boolean.FALSE;
+    }
+
+    private static String describeMcdLiveData(Object liveData) {
+        if (liveData == null) {
+            return "null";
+        }
+        Object value = invokeNoArgValue(liveData, "getValue");
+        Object active = readObjectField(liveData, "mActiveCount");
+        Object version = readObjectField(liveData, "mVersion");
+        Object observers = readObjectField(liveData, "mObservers");
+        Object observerCount = invokeNoArgValue(observers, "size");
+        if (observerCount == null) {
+            observerCount = readObjectField(observers, "mSize");
+        }
+        return safeMarkerToken(shortObjectTag(liveData)
+                + "_value=" + String.valueOf(value)
+                + "_active=" + String.valueOf(active)
+                + "_version=" + String.valueOf(version)
+                + "_observers=" + String.valueOf(observerCount));
+    }
+
+    private static boolean isTrueObject(Object value) {
+        return value instanceof Boolean && ((Boolean) value).booleanValue();
+    }
+
+    private static Object readObjectField(Object owner, String fieldName) {
+        if (owner == null || fieldName == null) {
+            return null;
+        }
+        try {
+            java.lang.reflect.Field field = findFieldOnHierarchy(owner.getClass(), fieldName);
+            return field != null ? field.get(owner) : null;
+        } catch (Throwable ignored) {
+            return null;
+        }
+    }
+
+    private static boolean invokeAssignableSetter(Object owner, String name, Object value) {
+        if (owner == null || name == null || value == null) {
+            return false;
+        }
+        try {
+            java.lang.reflect.Method method =
+                    findAssignableSingleArgMethod(owner.getClass(), name, value);
+            if (method == null) {
+                return false;
+            }
+            method.invoke(owner, value);
+            return true;
+        } catch (Throwable ignored) {
+            return false;
+        }
+    }
+
+    private static boolean invokeNoArgBoolean(Object owner, String name) {
+        if (owner == null || name == null) {
+            return false;
+        }
+        try {
+            java.lang.reflect.Method method = findMethodOnHierarchy(owner.getClass(), name);
+            if (method == null) {
+                return false;
+            }
+            method.invoke(owner);
+            return true;
+        } catch (Throwable ignored) {
+            return false;
+        }
+    }
+
+    private static void logMcdPdpStockViewClickReady(String source, Object fragment,
+            android.view.View root, android.view.View target, boolean depsReady) {
+        String marker = "source=" + safeMarkerToken(source)
+                + " depsReady=" + boolToken(depsReady)
+                + " fragment=" + safeMarkerToken(shortObjectTag(fragment))
+                + " root=" + safeMarkerToken(root != null ? safeViewSummary(root) : "null")
+                + " target=" + safeMarkerToken(target != null
+                        ? safeViewSummary(target) : "null");
+        startupLog("[WestlakeLauncher] MCD_PDP_STOCK_VIEW_CLICK_READY " + marker);
+        appendCutoffCanaryMarker("MCD_PDP_STOCK_VIEW_CLICK_READY " + marker);
+    }
+
+    private static void logMcdPdpStockViewClick(String source, String route,
+            boolean invoked, Throwable error, String extra, android.view.View target) {
+        String marker = "source=" + safeMarkerToken(source)
+                + " route=" + safeMarkerToken(route)
+                + " invoked=" + boolToken(invoked)
+                + " target=" + safeMarkerToken(target != null
+                        ? safeViewSummary(target) : "null");
+        if (extra != null) {
+            marker += " " + extra;
+        }
+        if (error != null) {
+            Throwable cause = rootCause(error);
+            marker += " err=" + safeMarkerToken(throwableTag(cause))
+                    + " msg=" + safeMarkerToken(safeThrowableMessage(cause))
+                    + " top=" + safeMarkerToken(throwableFirstFrameTag(cause));
+        }
+        startupLog("[WestlakeLauncher] MCD_PDP_STOCK_VIEW_CLICK " + marker);
+        appendCutoffCanaryMarker("MCD_PDP_STOCK_VIEW_CLICK " + marker);
+    }
+
+    private static boolean invokeMcdPdpFragmentAction(
+            Activity activity, android.view.View target, String label) {
+        return invokeMcdPdpFragmentAction(activity, target, label, true);
+    }
+
+    private static boolean invokeMcdPdpFragmentAction(
+            Activity activity, android.view.View target, String label, boolean allowDeferredAdd) {
+        Object fragment = findMcdOrderPdpFragment(activity);
+        if (fragment == null) {
+            logMcdPdpStockAction(label, "fragment_missing", false, null, target);
+            if (allowDeferredAdd && "add_to_order".equals(label)) {
+                scheduleMcdPdpDeferredStockAdd(activity, "fragment_missing");
+            }
+            return false;
+        }
+        try {
+            if ("add_to_order".equals(label)) {
+                if (!mcdPdpFragmentDepsReady(fragment, label, target)) {
+                    if (allowDeferredAdd) {
+                        scheduleMcdPdpDeferredStockAdd(activity, "deps_missing");
+                    }
+                    return false;
+                }
+                java.lang.reflect.Method addMethod = findMethodOnHierarchy(
+                        fragment.getClass(), "j8", Boolean.TYPE);
+                if (addMethod == null) {
+                    logMcdPdpStockAction(label, "fragment_j8_missing", false, null, target);
+                    if (allowDeferredAdd) {
+                        scheduleMcdPdpDeferredStockAdd(activity, "j8_missing");
+                    }
+                    return false;
+                }
+                String route = allowDeferredAdd ? "fragment_j8" : "fragment_j8_deferred";
+                seedMcdCoreTelemetryManager(readMcdPdpFragmentField(fragment, "E0"), route);
+                syncMcdPdpCartProductForAdd(fragment, route + "_before_j8");
+                logMcdPdpStockAction(label, route + "_enter", true, null, target);
+                logMcdPdpCartGate(fragment, route + "_before", target);
+                addMethod.invoke(fragment, Boolean.TRUE);
+                logMcdPdpCartGate(fragment, route + "_after_j8", target);
+                invokeMcdPdpStockAddModelCommit(fragment, target, route + "_after_j8");
+                logMcdPdpCartGate(fragment, route + "_after", target);
+                logMcdPdpStockAction(label, route, true, null, target);
+                return true;
+            }
+            if (target == null) {
+                logMcdPdpStockAction(label, "fragment_onClick_no_target", false, null, null);
+                return false;
+            }
+            if ("quantity_plus".equals(label)
+                    || "quantity_minus".equals(label)
+                    || "customize".equals(label)
+                    || "customize_card".equals(label)) {
+                if (!mcdPdpFragmentDepsReady(fragment, label, target)) {
+                    return false;
+                }
+                java.lang.reflect.Method clickMethod = findMethodOnHierarchy(
+                        fragment.getClass(), "onClick", android.view.View.class);
+                if (clickMethod == null) {
+                    logMcdPdpStockAction(label, "fragment_onClick_missing",
+                            false, null, target);
+                    return false;
+                }
+                logMcdPdpStockAction(label, "fragment_onClick_enter", true, null, target);
+                clickMethod.invoke(fragment, target);
+                logMcdPdpStockAction(label, "fragment_onClick", true, null, target);
+                return true;
+            }
+            logMcdPdpStockAction(label, "fragment_unmapped", false, null, target);
+            return false;
+        } catch (Throwable t) {
+            Throwable cause = t instanceof java.lang.reflect.InvocationTargetException
+                    && ((java.lang.reflect.InvocationTargetException) t).getCause() != null
+                    ? ((java.lang.reflect.InvocationTargetException) t).getCause() : t;
+            startupLog("[WestlakeLauncher] McD PDP stock fragment action error", cause);
+            logMcdPdpStockAction(label, "fragment_error", false, cause, target);
+            if (allowDeferredAdd && "add_to_order".equals(label)) {
+                scheduleMcdPdpDeferredStockAdd(activity, "fragment_error");
+            }
+            return false;
+        }
+    }
+
+    private static void scheduleMcdPdpDeferredStockAdd(
+            final Activity seedActivity, String reason) {
+        synchronized (sMcdPdpDeferredStockAddLock) {
+            sMcdPdpPendingStockAddCount++;
+            if (sMcdPdpDeferredStockAddWorkerActive) {
+                logMcdPdpDeferredStockAdd("queued", reason,
+                        sMcdPdpPendingStockAddCount, 0, false);
+                return;
+            }
+            sMcdPdpDeferredStockAddWorkerActive = true;
+            logMcdPdpDeferredStockAdd("start", reason,
+                    sMcdPdpPendingStockAddCount, 0, false);
+        }
+        Thread worker = new Thread(new Runnable() {
+            @Override
+            public void run() {
+                runMcdPdpDeferredStockAddWorker(seedActivity);
+            }
+        }, "Westlake-McD-PDP-DeferredStockAdd");
+        try {
+            worker.setDaemon(true);
+        } catch (Throwable ignored) {
+        }
+        worker.start();
+    }
+
+    private static void runMcdPdpDeferredStockAddWorker(Activity seedActivity) {
+        int attempt = 0;
+        while (attempt < 30) {
+            int pending;
+            synchronized (sMcdPdpDeferredStockAddLock) {
+                pending = sMcdPdpPendingStockAddCount;
+                if (pending <= 0) {
+                    sMcdPdpDeferredStockAddWorkerActive = false;
+                    logMcdPdpDeferredStockAdd("idle", "complete", 0, attempt, false);
+                    return;
+                }
+            }
+            attempt++;
+            try {
+                Thread.sleep(attempt <= 6 ? 750L : 1500L);
+            } catch (InterruptedException ignored) {
+            }
+            Activity activity = resolveMcdPdpDeferredStockAddActivity(seedActivity);
+            boolean invoked = false;
+            if (activity != null) {
+                invoked = invokeMcdPdpStockButtonClickOnMain(activity,
+                        "deferred_stock_add");
+            }
+            if (invoked) {
+                synchronized (sMcdPdpDeferredStockAddLock) {
+                    if (sMcdPdpPendingStockAddCount > 0) {
+                        sMcdPdpPendingStockAddCount--;
+                    }
+                    pending = sMcdPdpPendingStockAddCount;
+                    logMcdPdpDeferredStockAdd("invoked", "ready",
+                            pending, attempt, true);
+                    if (pending <= 0) {
+                        sMcdPdpDeferredStockAddWorkerActive = false;
+                        return;
+                    }
+                }
+                attempt = 0;
+            } else {
+                synchronized (sMcdPdpDeferredStockAddLock) {
+                    pending = sMcdPdpPendingStockAddCount;
+                }
+                logMcdPdpDeferredStockAdd("retry", activity != null
+                        ? "not_ready" : "activity_missing", pending, attempt, false);
+            }
+        }
+        synchronized (sMcdPdpDeferredStockAddLock) {
+            sMcdPdpDeferredStockAddWorkerActive = false;
+            logMcdPdpDeferredStockAdd("exhausted", "max_attempts",
+                    sMcdPdpPendingStockAddCount, attempt, false);
+        }
+    }
+
+    private static boolean invokeMcdPdpStockButtonClickOnMain(final Activity activity,
+            final String source) {
+        try {
+            android.os.Looper main = android.os.Looper.getMainLooper();
+            if (main == null) {
+                logMcdPdpDeferredStockAdd("post_failed", "main_looper_missing",
+                        sMcdPdpPendingStockAddCount, 0, false);
+                return false;
+            }
+            if (main.isCurrentThread()) {
+                return performMcdPdpStockButtonClick(activity, null, null,
+                        source, false);
+            }
+            final boolean[] result = new boolean[] { false };
+            final Throwable[] error = new Throwable[] { null };
+            final java.util.concurrent.atomic.AtomicBoolean cancelled =
+                    new java.util.concurrent.atomic.AtomicBoolean(false);
+            final java.util.concurrent.CountDownLatch latch =
+                    new java.util.concurrent.CountDownLatch(1);
+            boolean posted = new android.os.Handler(main).post(new Runnable() {
+                @Override
+                public void run() {
+                    try {
+                        if (!cancelled.get()) {
+                            result[0] = performMcdPdpStockButtonClick(
+                                    activity, null, null, source, false);
+                        }
+                    } catch (Throwable t) {
+                        error[0] = t;
+                    } finally {
+                        latch.countDown();
+                    }
+                }
+            });
+            if (!posted) {
+                logMcdPdpDeferredStockAdd("post_failed", "handler_post_false",
+                        sMcdPdpPendingStockAddCount, 0, false);
+                return false;
+            }
+            boolean completed = latch.await(8000L,
+                    java.util.concurrent.TimeUnit.MILLISECONDS);
+            if (!completed) {
+                cancelled.set(true);
+                logMcdPdpDeferredStockAdd("post_timeout", "main_handler",
+                        sMcdPdpPendingStockAddCount, 0, false);
+                return false;
+            }
+            if (error[0] != null) {
+                startupLog("[WestlakeLauncher] McD PDP stock button post error",
+                        error[0]);
+                logMcdPdpDeferredStockAdd("post_error",
+                        throwableTag(error[0]), sMcdPdpPendingStockAddCount,
+                        0, false);
+                return false;
+            }
+            return result[0];
+        } catch (Throwable t) {
+            startupLog("[WestlakeLauncher] McD PDP stock button post setup error", t);
+            logMcdPdpDeferredStockAdd("post_error", throwableTag(t),
+                    sMcdPdpPendingStockAddCount, 0, false);
+            return false;
+        }
+    }
+
+    private static boolean invokeMcdPdpFragmentActionOnMain(final Activity activity,
+            final android.view.View target, final String label) {
+        try {
+            android.os.Looper main = android.os.Looper.getMainLooper();
+            if (main == null) {
+                logMcdPdpDeferredStockAdd("post_failed", "main_looper_missing",
+                        sMcdPdpPendingStockAddCount, 0, false);
+                return false;
+            }
+            if (main.isCurrentThread()) {
+                return invokeMcdPdpFragmentAction(activity, target, label, false);
+            }
+            final boolean[] result = new boolean[] { false };
+            final Throwable[] error = new Throwable[] { null };
+            final java.util.concurrent.atomic.AtomicBoolean cancelled =
+                    new java.util.concurrent.atomic.AtomicBoolean(false);
+            final java.util.concurrent.CountDownLatch latch =
+                    new java.util.concurrent.CountDownLatch(1);
+            boolean posted = new android.os.Handler(main).post(new Runnable() {
+                @Override
+                public void run() {
+                    try {
+                        if (!cancelled.get()) {
+                            result[0] = invokeMcdPdpFragmentAction(
+                                    activity, target, label, false);
+                        }
+                    } catch (Throwable t) {
+                        error[0] = t;
+                    } finally {
+                        latch.countDown();
+                    }
+                }
+            });
+            if (!posted) {
+                logMcdPdpDeferredStockAdd("post_failed", "handler_post_false",
+                        sMcdPdpPendingStockAddCount, 0, false);
+                return false;
+            }
+            boolean completed = latch.await(8000L,
+                    java.util.concurrent.TimeUnit.MILLISECONDS);
+            if (!completed) {
+                cancelled.set(true);
+                logMcdPdpDeferredStockAdd("post_timeout", "main_handler",
+                        sMcdPdpPendingStockAddCount, 0, false);
+                return false;
+            }
+            if (error[0] != null) {
+                startupLog("[WestlakeLauncher] McD PDP main-post action error",
+                        error[0]);
+                logMcdPdpDeferredStockAdd("post_error",
+                        throwableTag(error[0]), sMcdPdpPendingStockAddCount,
+                        0, false);
+                return false;
+            }
+            return result[0];
+        } catch (Throwable t) {
+            startupLog("[WestlakeLauncher] McD PDP main-post action setup error", t);
+            logMcdPdpDeferredStockAdd("post_error", throwableTag(t),
+                    sMcdPdpPendingStockAddCount, 0, false);
+            return false;
+        }
+    }
+
+    private static Activity resolveMcdPdpDeferredStockAddActivity(Activity seedActivity) {
+        if (isOrderProductDetailsActivity(seedActivity)) {
+            return seedActivity;
+        }
+        try {
+            android.app.MiniActivityManager am =
+                    android.app.MiniServer.currentActivityManager();
+            Activity resumed = am != null ? am.getResumedActivity() : null;
+            if (isOrderProductDetailsActivity(resumed)) {
+                return resumed;
+            }
+        } catch (Throwable ignored) {
+        }
+        return null;
+    }
+
+    private static void logMcdPdpDeferredStockAdd(String phase, String reason,
+            int pending, int attempt, boolean invoked) {
+        String marker = "phase=" + safeMarkerToken(phase)
+                + " reason=" + safeMarkerToken(reason)
+                + " pending=" + intAscii(pending)
+                + " attempt=" + intAscii(attempt)
+                + " invoked=" + boolToken(invoked);
+        startupLog("[WestlakeLauncher] MCD_ORDER_PDP_DEFERRED_STOCK_ADD " + marker);
+        appendCutoffCanaryMarker("MCD_ORDER_PDP_DEFERRED_STOCK_ADD " + marker);
+    }
+
+    private static boolean mcdPdpFragmentDepsReady(
+            Object fragment, String label, android.view.View target) {
+        Object viewModel = readMcdPdpFragmentField(fragment, "E0");
+            Object cartProduct = readMcdPdpFragmentField(fragment, "t0");
+            if (cartProduct == null && sMcdLastPopularProduct != null) {
+                cartProduct = synthesizeMcdPdpCartProduct(fragment, sMcdLastPopularProduct);
+            }
+            Object product = invokeNoArgValue(cartProduct, "getProduct");
+            if (product == null) {
+                product = sMcdLastPopularProduct;
+            }
+            ensureMcdPdpProductStockLimits(product, cartProduct, label + "_readiness");
+            Object binding = readMcdPdpFragmentField(fragment, "G0");
+            android.view.View fragmentView = readMcdPdpFragmentView(fragment);
+        android.view.View bindingRoot = readMcdBindingRoot(binding);
+        boolean boundViewsReady = hydrateMcdPdpFragmentBoundViews(
+                fragment, fragmentView, bindingRoot);
+        boolean added = readMcdPdpFragmentBoolean(fragment, "mAdded");
+        boolean resumed = readMcdPdpFragmentBoolean(fragment, "mResumed");
+        boolean viewAttached = fragmentView != null && fragmentView.getParent() != null;
+        boolean bindingRootAttached = bindingRoot == null || bindingRoot.getParent() != null
+                || bindingRoot == fragmentView;
+        boolean resumeRecovered = false;
+        if (!resumed && viewModel != null && cartProduct != null && binding != null
+                && fragmentView != null && viewAttached && bindingRootAttached) {
+            resumeRecovered = resumeMcdPdpFragmentIfReady(fragment, label);
+            resumed = readMcdPdpFragmentBoolean(fragment, "mResumed") || resumeRecovered;
+        }
+        boolean needsBinding = mcdPdpControlNeedsFragmentReady(label);
+        boolean ready = viewModel != null && cartProduct != null
+                && fragmentView != null && viewAttached && resumed
+                && (!needsBinding || (binding != null && bindingRootAttached));
+        logMcdPdpReadiness(fragment, label, target, ready);
+        if (!ready) {
+            String marker = "control=" + safeMarkerToken(label)
+                    + " route=fragment_deps_missing invoked=false"
+                    + " target=" + safeMarkerToken(target != null
+                            ? safeViewSummary(target) : "null")
+                    + " E0=" + safeMarkerToken(shortObjectTag(viewModel))
+                    + " t0=" + safeMarkerToken(shortObjectTag(cartProduct))
+                    + " G0=" + safeMarkerToken(shortObjectTag(binding))
+                    + " fragmentView=" + safeMarkerToken(safeViewSummary(fragmentView))
+                    + " bindingRoot=" + safeMarkerToken(safeViewSummary(bindingRoot))
+                    + " added=" + boolToken(added)
+                    + " resumed=" + boolToken(resumed)
+                    + " viewAttached=" + boolToken(viewAttached)
+                    + " bindingRootAttached=" + boolToken(bindingRootAttached);
+            startupLog("[WestlakeLauncher] MCD_ORDER_PDP_STOCK_ACTION " + marker);
+            appendCutoffCanaryMarker("MCD_ORDER_PDP_STOCK_ACTION " + marker);
+        }
+        return ready;
+    }
+
+    private static boolean mcdPdpControlNeedsFragmentReady(String label) {
+        return "add_to_order".equals(label)
+                || "quantity_plus".equals(label)
+                || "quantity_minus".equals(label)
+                || "customize".equals(label)
+                || "customize_card".equals(label);
+    }
+
+    private static void logMcdPdpReadiness(
+            Object fragment, String label, android.view.View target, boolean ready) {
+        if (fragment == null && sMcdOrderPdpReadyProbeCount > 80) {
+            return;
+        }
+        if (sMcdOrderPdpReadyProbeCount > 160) {
+            return;
+        }
+        sMcdOrderPdpReadyProbeCount++;
+        Object viewModel = readMcdPdpFragmentField(fragment, "E0");
+        Object cartProduct = readMcdPdpFragmentField(fragment, "t0");
+        Object binding = readMcdPdpFragmentField(fragment, "G0");
+        android.view.View fragmentView = readMcdPdpFragmentView(fragment);
+        android.view.View bindingRoot = readMcdBindingRoot(binding);
+        boolean added = readMcdPdpFragmentBoolean(fragment, "mAdded");
+        boolean resumed = readMcdPdpFragmentBoolean(fragment, "mResumed");
+        boolean viewAttached = fragmentView != null && fragmentView.getParent() != null;
+        boolean bindingRootAttached = bindingRoot == null || bindingRoot.getParent() != null
+                || bindingRoot == fragmentView;
+        String marker = "control=" + safeMarkerToken(label)
+                + " ready=" + boolToken(ready)
+                + " fragment=" + safeMarkerToken(shortObjectTag(fragment))
+                + " E0=" + safeMarkerToken(shortObjectTag(viewModel))
+                + " t0=" + safeMarkerToken(shortObjectTag(cartProduct))
+                + " G0=" + safeMarkerToken(shortObjectTag(binding))
+                + " fragmentView=" + safeMarkerToken(safeViewSummary(fragmentView))
+                + " bindingRoot=" + safeMarkerToken(safeViewSummary(bindingRoot))
+                + " target=" + safeMarkerToken(target != null
+                        ? safeViewSummary(target) : "null")
+                + " added=" + boolToken(added)
+                + " resumed=" + boolToken(resumed)
+                + " viewAttached=" + boolToken(viewAttached)
+                + " bindingRootAttached=" + boolToken(bindingRootAttached);
+        startupLog("[WestlakeLauncher] MCD_ORDER_PDP_READY " + marker);
+        appendCutoffCanaryMarker("MCD_ORDER_PDP_READY " + marker);
+    }
+
+    private static android.view.View readMcdPdpFragmentView(Object fragment) {
+        if (fragment == null) {
+            return null;
+        }
+        try {
+            Object value = invokeFragmentNoArg(fragment, fragment.getClass(), "getView");
+            if (value instanceof android.view.View) {
+                return (android.view.View) value;
+            }
+        } catch (Throwable ignored) {
+        }
+        try {
+            java.lang.reflect.Field field = findFieldOnHierarchy(fragment.getClass(), "mView");
+            Object value = field != null ? field.get(fragment) : null;
+            return value instanceof android.view.View ? (android.view.View) value : null;
+        } catch (Throwable ignored) {
+            return null;
+        }
+    }
+
+    private static boolean readMcdPdpFragmentBoolean(Object fragment, String name) {
+        if (fragment == null || name == null) {
+            return false;
+        }
+        try {
+            java.lang.reflect.Field field = findFieldOnHierarchy(fragment.getClass(), name);
+            Object value = field != null ? field.get(fragment) : null;
+            return value instanceof Boolean && ((Boolean) value).booleanValue();
+        } catch (Throwable ignored) {
+            return false;
+        }
+    }
+
+    private static android.view.View readMcdBindingRoot(Object binding) {
+        if (binding == null) {
+            return null;
+        }
+        try {
+            java.lang.reflect.Method method =
+                    findMethodOnHierarchy(binding.getClass(), "getRoot");
+            Object value = method != null ? method.invoke(binding) : null;
+            return value instanceof android.view.View ? (android.view.View) value : null;
+        } catch (Throwable ignored) {
+            return null;
+        }
+    }
+
+    private static boolean resumeMcdPdpFragmentIfReady(Object fragment, String label) {
+        if (fragment == null) {
+            return false;
+        }
+        try {
+            boolean resumed = setMcdFragmentBooleanField(fragment, "mResumed", true);
+            boolean state = setMcdFragmentIntField(fragment, "mState", 7);
+            String marker = "control="
+                    + safeMarkerToken(label)
+                    + " mode=soft_state"
+                    + " resumedField=" + boolToken(resumed)
+                    + " stateField=" + boolToken(state)
+                    + " fragment=" + safeMarkerToken(shortObjectTag(fragment))
+                    + " view=" + safeMarkerToken(
+                            safeViewSummary(readMcdPdpFragmentView(fragment)));
+            startupLog("[WestlakeLauncher] MCD_PDP_FRAGMENT_RESUME_RECOVERY " + marker);
+            appendCutoffCanaryMarker("MCD_PDP_FRAGMENT_RESUME_RECOVERY " + marker);
+            return true;
+        } catch (Throwable t) {
+            startupLog("[WestlakeLauncher] McD PDP fragment resume recovery error", t);
+            appendCutoffCanaryMarker("MCD_PDP_FRAGMENT_RESUME_RECOVERY_ERROR control="
+                    + safeMarkerToken(label)
+                    + " err=" + safeMarkerToken(throwableTag(t)));
+            return false;
+        }
+    }
+
+    private static boolean hydrateMcdPdpFragmentBoundViews(
+            Object fragment, android.view.View fragmentView, android.view.View bindingRoot) {
+        if (fragment == null) {
+            return false;
+        }
+        android.view.View root = bindingRoot != null ? bindingRoot : fragmentView;
+        android.view.View plus = findMcdPdpKnownView(root, "pdpPlusIcon",
+                "pdp_bound_plus");
+        android.view.View minus = findMcdPdpKnownView(root, "pdpMinusIcon",
+                "pdp_bound_minus");
+        android.view.View quantity = findMcdPdpKnownView(root, "pdpQuantityText",
+                "pdp_bound_quantity");
+        boolean plusOk = setMcdPdpFragmentFieldIfNull(fragment, "M0", plus);
+        boolean minusOk = setMcdPdpFragmentFieldIfNull(fragment, "N0", minus);
+        boolean quantityOk = setMcdPdpFragmentFieldIfNull(fragment,
+                "mDisplayQuantity", quantity);
+        String marker = "plus=" + safeMarkerToken(safeViewSummary(plus))
+                + " minus=" + safeMarkerToken(safeViewSummary(minus))
+                + " quantity=" + safeMarkerToken(safeViewSummary(quantity))
+                + " plusOk=" + boolToken(plusOk)
+                + " minusOk=" + boolToken(minusOk)
+                + " quantityOk=" + boolToken(quantityOk)
+                + " root=" + safeMarkerToken(safeViewSummary(root));
+        startupLog("[WestlakeLauncher] MCD_PDP_FIELD_HYDRATE " + marker);
+        appendCutoffCanaryMarker("MCD_PDP_FIELD_HYDRATE " + marker);
+        return plusOk && minusOk && quantityOk;
+    }
+
+    private static android.view.View findMcdPdpKnownView(
+            android.view.View root, String name, String label) {
+        int id = resolveKnownMcdViewId(name);
+        if (root == null || id == 0) {
+            return null;
+        }
+        return safeFindViewById(root, id, label);
+    }
+
+    private static boolean setMcdPdpFragmentFieldIfNull(
+            Object fragment, String name, Object value) {
+        if (fragment == null || name == null) {
+            return false;
+        }
+        try {
+            java.lang.reflect.Field field = findFieldOnHierarchy(
+                    fragment.getClass(), name);
+            if (field == null) {
+                return false;
+            }
+            Object current = field.get(fragment);
+            if (current != null) {
+                return true;
+            }
+            if (value == null) {
+                return false;
+            }
+            Class<?> type = field.getType();
+            if (type != null && !type.isPrimitive()
+                    && !type.isAssignableFrom(value.getClass())) {
+                return false;
+            }
+            field.set(fragment, value);
+            return true;
+        } catch (Throwable ignored) {
+            return false;
+        }
+    }
+
+    private static boolean setMcdFragmentBooleanField(
+            Object fragment, String name, boolean value) {
+        if (fragment == null || name == null) {
+            return false;
+        }
+        try {
+            java.lang.reflect.Field field = findFieldOnHierarchy(
+                    fragment.getClass(), name);
+            if (field == null || field.getType() != Boolean.TYPE) {
+                return false;
+            }
+            field.setBoolean(fragment, value);
+            return true;
+        } catch (Throwable ignored) {
+            return false;
+        }
+    }
+
+    private static boolean setMcdFragmentIntField(
+            Object fragment, String name, int value) {
+        if (fragment == null || name == null) {
+            return false;
+        }
+        try {
+            java.lang.reflect.Field field = findFieldOnHierarchy(
+                    fragment.getClass(), name);
+            if (field == null || field.getType() != Integer.TYPE) {
+                return false;
+            }
+            field.setInt(fragment, value);
+            return true;
+        } catch (Throwable ignored) {
+            return false;
+        }
+    }
+
+    private static void logMcdPdpCartGate(
+            Object fragment, String phase, android.view.View target) {
+        try {
+            Object cartProduct = readMcdPdpFragmentField(fragment, "t0");
+            Object product = invokeNoArgValue(cartProduct, "getProduct");
+            Object cartVm = null;
+            Object cartInfo = null;
+            Object cartSize = null;
+            try {
+                ClassLoader cl = fragment != null ? fragment.getClass().getClassLoader() : null;
+                Class<?> vmClass = cl != null ? cl.loadClass(
+                        "com.mcdonalds.mcdcoreapp.common.model.CartViewModel") : null;
+                java.lang.reflect.Method getInstance = vmClass != null
+                        ? findMethodOnHierarchy(vmClass, "getInstance") : null;
+                cartVm = getInstance != null ? getInstance.invoke(null) : null;
+                cartInfo = invokeNoArgValue(cartVm, "getCartInfo");
+                cartSize = invokeNoArgValue(cartVm, "getCartSizeWithoutOrderLevelOffers");
+            } catch (Throwable ignored) {
+            }
+            Object productCode = invokeNoArgValue(cartProduct, "getProductCode");
+            Object quantity = invokeNoArgValue(cartProduct, "getQuantity");
+            Object maxQtty = invokeNoArgValue(product, "getMaxQttyAllowedPerOrder");
+            Object productType = invokeNoArgValue(product, "getProductType");
+            Object bagCount = invokeNoArgValue(cartInfo, "getTotalBagCount");
+            if (bagCount == null) {
+                bagCount = invokeNoArgValue(cartInfo, "getTotalQuantity");
+            }
+            String marker = "phase=" + safeMarkerToken(phase)
+                    + " target=" + safeMarkerToken(target != null
+                            ? safeViewSummary(target) : "null")
+                    + " cartProduct=" + safeMarkerToken(shortObjectTag(cartProduct))
+                    + " product=" + safeMarkerToken(shortObjectTag(product))
+                    + " productCode=" + safeMarkerToken(String.valueOf(productCode))
+                    + " quantity=" + safeMarkerToken(String.valueOf(quantity))
+                    + " productType=" + safeMarkerToken(String.valueOf(productType))
+                    + " maxQtty=" + safeMarkerToken(String.valueOf(maxQtty))
+                    + " cartVm=" + safeMarkerToken(shortObjectTag(cartVm))
+                    + " cartInfo=" + safeMarkerToken(shortObjectTag(cartInfo))
+                    + " cartSizeWithoutOffers=" + safeMarkerToken(String.valueOf(cartSize))
+                    + " totalBagCount=" + safeMarkerToken(String.valueOf(bagCount));
+            startupLog("[WestlakeLauncher] MCD_PDP_CART_GATE " + marker);
+            appendCutoffCanaryMarker("MCD_PDP_CART_GATE " + marker);
+        } catch (Throwable t) {
+            appendCutoffCanaryMarker("MCD_PDP_CART_GATE phase="
+                    + safeMarkerToken(phase)
+                    + " err=" + safeMarkerToken(throwableTag(t)));
+        }
+    }
+
+    private static void scheduleMcdPdpCartInfoReadbacks(
+            final Object fragment, final String phase, final android.view.View target) {
+        final int[] delays = new int[] { 0, 250, 1000, 2500 };
+        for (int i = 0; i < delays.length; i++) {
+            final int delayMs = delays[i];
+            Runnable task = new Runnable() {
+                @Override
+                public void run() {
+                    logMcdPdpCartInfoReadback(fragment, phase, target, delayMs, true);
+                }
+            };
+            if (delayMs <= 0) {
+                task.run();
+                continue;
+            }
+            boolean posted = false;
+            try {
+                android.os.Looper main = android.os.Looper.getMainLooper();
+                if (main != null) {
+                    posted = new android.os.Handler(main).postDelayed(task, delayMs);
+                }
+            } catch (Throwable ignored) {
+            }
+            if (!posted) {
+                final Runnable fallbackTask = task;
+                Thread worker = new Thread(new Runnable() {
+                    @Override
+                    public void run() {
+                        try {
+                            Thread.sleep(delayMs);
+                        } catch (InterruptedException ignored) {
+                        }
+                        fallbackTask.run();
+                    }
+                }, "Westlake-McD-CartInfoReadback");
+                try {
+                    worker.setDaemon(true);
+                } catch (Throwable ignored) {
+                }
+                worker.start();
+            }
+        }
+    }
+
+    private static void logMcdPdpCartInfoReadback(
+            Object fragment, String phase, android.view.View target,
+            int delayMs, boolean allowBridge) {
+        Object stockCartInfo = null;
+        Object cartVm = null;
+        Object vmCartInfo = null;
+        Object vmCartSize = null;
+        Object stockTotalBagCount = null;
+        Object stockCartProductQuantity = null;
+        Object vmTotalBagCount = null;
+        Object vmCartProductQuantity = null;
+        boolean p2Invoked = false;
+        boolean bridgeApplied = false;
+        Object bridgeAfterVmTotalBagCount = null;
+        String error = null;
+        try {
+            stockCartInfo = invokeMcdBasketApiHandlerP2(fragment);
+            p2Invoked = true;
+        } catch (Throwable t) {
+            error = throwableTag(rootCause(t));
+        }
+        try {
+            cartVm = getMcdCartViewModel(fragment);
+            vmCartInfo = invokeNoArgValue(cartVm, "getCartInfo");
+            vmCartSize = invokeNoArgValue(cartVm, "getCartSizeWithoutOrderLevelOffers");
+        } catch (Throwable t) {
+            if (error == null) {
+                error = throwableTag(rootCause(t));
+            }
+        }
+        stockTotalBagCount = readMcdCartTotalBagCount(stockCartInfo);
+        stockCartProductQuantity = invokeNoArgValue(stockCartInfo, "getCartProductQuantity");
+        vmTotalBagCount = readMcdCartTotalBagCount(vmCartInfo);
+        vmCartProductQuantity = invokeNoArgValue(vmCartInfo, "getCartProductQuantity");
+        int stockTotal = intValueOr(stockTotalBagCount, 0);
+        int stockQuantity = intValueOr(stockCartProductQuantity, 0);
+        int vmTotal = intValueOr(vmTotalBagCount, 0);
+        int vmSize = intValueOr(vmCartSize, 0);
+        boolean stockPositive = stockTotal > 0 || stockQuantity > 0;
+        boolean vmZero = vmTotal <= 0 && vmSize <= 0;
+        if (allowBridge && stockCartInfo != null && cartVm != null
+                && stockPositive && vmZero) {
+            try {
+                java.lang.reflect.Method setCartInfo = findAssignableSingleArgMethod(
+                        cartVm.getClass(), "setCartInfo", stockCartInfo);
+                if (setCartInfo == null) {
+                    setCartInfo = findMethodOnHierarchy(
+                            cartVm.getClass(), "setCartInfo", stockCartInfo.getClass());
+                }
+                if (setCartInfo != null) {
+                    setCartInfo.invoke(cartVm, stockCartInfo);
+                    bridgeApplied = true;
+                    Object afterCartInfo = invokeNoArgValue(cartVm, "getCartInfo");
+                    bridgeAfterVmTotalBagCount = readMcdCartTotalBagCount(afterCartInfo);
+                    String bridgeMarker = "phase=" + safeMarkerToken(phase)
+                            + " route=basket_api_p2_to_cart_vm"
+                            + " delayMs=" + intAscii(delayMs)
+                            + " stockTotalBagCount=" + safeMarkerToken(String.valueOf(stockTotalBagCount))
+                            + " beforeVmTotalBagCount=" + safeMarkerToken(String.valueOf(vmTotalBagCount))
+                            + " afterVmTotalBagCount="
+                            + safeMarkerToken(String.valueOf(bridgeAfterVmTotalBagCount))
+                            + " applied=true";
+                    startupLog("[WestlakeLauncher] MCD_PDP_CARTINFO_SET_BRIDGE " + bridgeMarker);
+                    appendCutoffCanaryMarker("MCD_PDP_CARTINFO_SET_BRIDGE " + bridgeMarker);
+                    logMcdPdpCartGate(fragment, phase + "_cartinfo_bridge_"
+                            + intAscii(delayMs), target);
+                }
+            } catch (Throwable t) {
+                if (error == null) {
+                    error = throwableTag(rootCause(t));
+                }
+            }
+        }
+        String marker = "phase=" + safeMarkerToken(phase)
+                + " route=basket_api_p2"
+                + " delayMs=" + intAscii(delayMs)
+                + " invoked=" + boolToken(p2Invoked)
+                + " stockCartInfo=" + safeMarkerToken(shortObjectTag(stockCartInfo))
+                + " stockTotalBagCount=" + safeMarkerToken(String.valueOf(stockTotalBagCount))
+                + " stockCartProductQuantity="
+                + safeMarkerToken(String.valueOf(stockCartProductQuantity))
+                + " vmCartInfo=" + safeMarkerToken(shortObjectTag(vmCartInfo))
+                + " vmTotalBagCount=" + safeMarkerToken(String.valueOf(vmTotalBagCount))
+                + " vmCartProductQuantity=" + safeMarkerToken(String.valueOf(vmCartProductQuantity))
+                + " vmCartSizeWithoutOffers=" + safeMarkerToken(String.valueOf(vmCartSize))
+                + " bridgeApplied=" + boolToken(bridgeApplied)
+                + " bridgeAfterVmTotalBagCount="
+                + safeMarkerToken(String.valueOf(bridgeAfterVmTotalBagCount));
+        if (error != null) {
+            marker += " err=" + safeMarkerToken(error);
+        }
+        startupLog("[WestlakeLauncher] MCD_PDP_CARTINFO_READBACK " + marker);
+        appendCutoffCanaryMarker("MCD_PDP_CARTINFO_READBACK " + marker);
+    }
+
+    private static Object invokeMcdBasketApiHandlerP2(Object fragment) throws Exception {
+        ClassLoader cl = fragment != null ? fragment.getClass().getClassLoader()
+                : Thread.currentThread().getContextClassLoader();
+        Class<?> handlerClass = cl != null
+                ? cl.loadClass("com.mcdonalds.androidsdk.ordering.network.internal.BasketAPIHandler")
+                : Class.forName("com.mcdonalds.androidsdk.ordering.network.internal.BasketAPIHandler");
+        java.lang.reflect.Method p2 = findMethodOnHierarchy(handlerClass, "p2");
+        if (p2 == null) {
+            throw new NoSuchMethodException("BasketAPIHandler.p2");
+        }
+        return p2.invoke(null);
+    }
+
+    private static Object getMcdCartViewModel(Object anchor) {
+        try {
+            ClassLoader cl = anchor != null ? anchor.getClass().getClassLoader()
+                    : Thread.currentThread().getContextClassLoader();
+            Class<?> vmClass = cl != null
+                    ? cl.loadClass("com.mcdonalds.mcdcoreapp.common.model.CartViewModel")
+                    : Class.forName("com.mcdonalds.mcdcoreapp.common.model.CartViewModel");
+            java.lang.reflect.Method getInstance = findMethodOnHierarchy(vmClass, "getInstance");
+            return getInstance != null ? getInstance.invoke(null) : null;
+        } catch (Throwable ignored) {
+            return null;
+        }
+    }
+
+    private static Object readMcdCartTotalBagCount(Object cartInfo) {
+        Object value = invokeNoArgValue(cartInfo, "getTotalBagCount");
+        if (value == null) {
+            value = invokeNoArgValue(cartInfo, "getTotalQuantity");
+        }
+        return value;
+    }
+
+    private static int intValueOr(Object value, int fallback) {
+        if (value == null) {
+            return fallback;
+        }
+        if (value instanceof Number) {
+            return ((Number) value).intValue();
+        }
+        try {
+            return Integer.parseInt(String.valueOf(value));
+        } catch (Throwable ignored) {
+            return fallback;
+        }
+    }
+
+    private static boolean syncMcdPdpCartProductForAdd(Object fragment, String phase) {
+        try {
+            Object cartProduct = readMcdPdpFragmentField(fragment, "t0");
+            if (cartProduct == null && sMcdLastPopularProduct != null) {
+                cartProduct = synthesizeMcdPdpCartProduct(fragment, sMcdLastPopularProduct);
+            }
+            int realmListsSet = ensureMcdRealmListFields(
+                    cartProduct, phase + "_cartproduct");
+            Object productForStock = invokeNoArgValue(cartProduct, "getProduct");
+            if (productForStock == null) {
+                productForStock = sMcdLastPopularProduct;
+            }
+            int stockSet = ensureMcdPdpProductStockLimits(
+                    productForStock, cartProduct, phase + "_cartproduct");
+            int selectedQuantity = readMcdPdpSelectedQuantity(fragment);
+            Object beforeQuantity = invokeNoArgValue(cartProduct, "getQuantity");
+            boolean quantitySet = false;
+            if (cartProduct != null) {
+                java.lang.reflect.Method setQuantity = findMethodOnHierarchy(
+                        cartProduct.getClass(), "setQuantity", Integer.TYPE);
+                if (setQuantity != null) {
+                    setQuantity.invoke(cartProduct, Integer.valueOf(selectedQuantity));
+                    quantitySet = true;
+                }
+            }
+            Object afterQuantity = invokeNoArgValue(cartProduct, "getQuantity");
+            Object product = invokeNoArgValue(cartProduct, "getProduct");
+            Object productCode = invokeNoArgValue(cartProduct, "getProductCode");
+            Object maxQtty = invokeNoArgValue(product, "getMaxQttyAllowedPerOrder");
+            String marker = "phase=" + safeMarkerToken(phase)
+                    + " selectedQuantity=" + intAscii(selectedQuantity)
+                    + " quantitySet=" + boolToken(quantitySet)
+                    + " beforeQuantity=" + safeMarkerToken(String.valueOf(beforeQuantity))
+                    + " afterQuantity=" + safeMarkerToken(String.valueOf(afterQuantity))
+                    + " productCode=" + safeMarkerToken(String.valueOf(productCode))
+                    + " maxQtty=" + safeMarkerToken(String.valueOf(maxQtty))
+                    + " realmListsSet=" + intAscii(realmListsSet)
+                    + " stockSet=" + intAscii(stockSet)
+                    + " cartProduct=" + safeMarkerToken(shortObjectTag(cartProduct))
+                    + " product=" + safeMarkerToken(shortObjectTag(product));
+            startupLog("[WestlakeLauncher] MCD_PDP_CART_PRODUCT_PREP " + marker);
+            appendCutoffCanaryMarker("MCD_PDP_CART_PRODUCT_PREP " + marker);
+            return quantitySet;
+        } catch (Throwable t) {
+            String marker = "phase=" + safeMarkerToken(phase)
+                    + " err=" + safeMarkerToken(throwableTag(t));
+            startupLog("[WestlakeLauncher] MCD_PDP_CART_PRODUCT_PREP_ERROR " + marker);
+            appendCutoffCanaryMarker("MCD_PDP_CART_PRODUCT_PREP_ERROR " + marker);
+            return false;
+        }
+    }
+
+    private static int readMcdPdpSelectedQuantity(Object fragment) {
+        int fallback = Math.max(1, sMcdOrderPdpQuantity);
+        Object quantityView = readMcdPdpFragmentField(fragment, "mDisplayQuantity");
+        int parsed = parsePositiveInt(readMcdTextViewText(quantityView), fallback);
+        if (parsed > 0) {
+            return parsed;
+        }
+        Object binding = readMcdPdpFragmentField(fragment, "G0");
+        android.view.View root = readMcdBindingRoot(binding);
+        android.view.View found = findMcdPdpKnownView(root, "pdpQuantityText",
+                "pdp_selected_quantity");
+        return parsePositiveInt(readMcdTextViewText(found), fallback);
+    }
+
+    private static String readMcdTextViewText(Object view) {
+        if (!(view instanceof android.widget.TextView)) {
+            return null;
+        }
+        try {
+            CharSequence text = ((android.widget.TextView) view).getText();
+            return text != null ? text.toString() : null;
+        } catch (Throwable ignored) {
+            return null;
+        }
+    }
+
+    private static int parsePositiveInt(String value, int fallback) {
+        if (value == null) {
+            return fallback;
+        }
+        int result = 0;
+        boolean seen = false;
+        for (int i = 0; i < value.length(); i++) {
+            char c = value.charAt(i);
+            if (c >= '0' && c <= '9') {
+                seen = true;
+                result = result * 10 + (c - '0');
+                if (result > 999) {
+                    return fallback;
+                }
+            }
+        }
+        return seen && result > 0 ? result : fallback;
+    }
+
+    private static boolean invokeMcdPdpStockAddCommit(
+            Object fragment, android.view.View target, String phase) {
+        if (fragment == null) {
+            logMcdPdpStockAddCommit(phase, false, "fragment_missing", null, target);
+            return false;
+        }
+        try {
+            java.lang.reflect.Method commitMethod = findMethodOnHierarchy(
+                    fragment.getClass(), "s7");
+            if (commitMethod == null) {
+                logMcdPdpStockAddCommit(phase, false, "s7_missing", null, target);
+                return false;
+            }
+            syncMcdPdpCartProductForAdd(fragment, phase + "_before_s7");
+            logMcdPdpCartGate(fragment, phase + "_before_s7", target);
+            commitMethod.invoke(fragment);
+            logMcdPdpCartGate(fragment, phase + "_after_s7", target);
+            logMcdPdpStockAddCommit(phase, true, "s7", null, target);
+            return true;
+        } catch (Throwable t) {
+            Throwable cause = t instanceof java.lang.reflect.InvocationTargetException
+                    && ((java.lang.reflect.InvocationTargetException) t).getCause() != null
+                    ? ((java.lang.reflect.InvocationTargetException) t).getCause() : t;
+            startupLog("[WestlakeLauncher] McD PDP stock add commit error", cause);
+            logMcdPdpStockAddCommit(phase, false, "s7_error", cause, target);
+            return false;
+        }
+    }
+
+    private static boolean invokeMcdPdpStockAddModelCommit(
+            Object fragment, android.view.View target, String phase) {
+        if (fragment == null) {
+            logMcdPdpStockAddCommit(phase, false, "model_fragment_missing", null, target);
+            return false;
+        }
+        try {
+            syncMcdPdpCartProductForAdd(fragment, phase + "_before_model_commit");
+            Object cartProduct = readMcdPdpFragmentField(fragment, "t0");
+            Object viewModel = readMcdPdpFragmentField(fragment, "E0");
+            int quantity = readMcdPdpSelectedQuantity(fragment);
+            boolean a7Allowed = true;
+            boolean a7Invoked = false;
+            java.lang.reflect.Method a7Method = findMethodOnHierarchy(
+                    fragment.getClass(), "A7", Integer.TYPE);
+            if (a7Method != null) {
+                Object a7Result = a7Method.invoke(fragment, Integer.valueOf(quantity));
+                a7Invoked = true;
+                a7Allowed = !(a7Result instanceof Boolean)
+                        || ((Boolean) a7Result).booleanValue();
+            }
+            String a7Marker = "phase=" + safeMarkerToken(phase)
+                    + " invoked=" + boolToken(a7Invoked)
+                    + " allowed=" + boolToken(a7Allowed)
+                    + " quantity=" + intAscii(quantity)
+                    + " cartProduct=" + safeMarkerToken(shortObjectTag(cartProduct))
+                    + " viewModel=" + safeMarkerToken(shortObjectTag(viewModel));
+            startupLog("[WestlakeLauncher] MCD_PDP_A7_GATE " + a7Marker);
+            appendCutoffCanaryMarker("MCD_PDP_A7_GATE " + a7Marker);
+            if (!a7Allowed) {
+                logMcdPdpStockAddCommit(phase, false, "model_a7_blocked", null, target);
+                return false;
+            }
+            if (viewModel == null || cartProduct == null) {
+                logMcdPdpStockAddCommit(phase, false, "model_deps_missing", null, target);
+                return false;
+            }
+            java.lang.reflect.Method xMethod = findAssignableSingleArgMethod(
+                    viewModel.getClass(), "X", cartProduct);
+            if (xMethod == null) {
+                logMcdPdpStockAddCommit(phase, false, "model_x_missing", null, target);
+                return false;
+            }
+            logMcdPdpStorageSafetyGate(phase, true, "runtime_storage_commit_enabled",
+                    fragment, viewModel, cartProduct, target);
+            logMcdPdpCartGate(fragment, phase + "_before_model_x", target);
+            xMethod.invoke(viewModel, cartProduct);
+            scheduleMcdPdpCartInfoReadbacks(fragment, phase + "_after_model_x", target);
+            String t2Marker = "phase=" + safeMarkerToken(phase)
+                    + " invoked=false reason=post_model_x_optional_analytics_boundary"
+                    + " viewModel=" + safeMarkerToken(shortObjectTag(viewModel))
+                    + " cartProduct=" + safeMarkerToken(shortObjectTag(cartProduct));
+            startupLog("[WestlakeLauncher] MCD_PDP_T2_ANALYTICS_GATE " + t2Marker);
+            appendCutoffCanaryMarker("MCD_PDP_T2_ANALYTICS_GATE " + t2Marker);
+            logMcdPdpCartGate(fragment, phase + "_after_model_x", target);
+            logMcdPdpStockAddCommit(phase, true, "model_x", null, target);
+            return true;
+        } catch (Throwable t) {
+            Throwable cause = t instanceof java.lang.reflect.InvocationTargetException
+                    && ((java.lang.reflect.InvocationTargetException) t).getCause() != null
+                    ? ((java.lang.reflect.InvocationTargetException) t).getCause() : t;
+            startupLog("[WestlakeLauncher] McD PDP stock add model commit error", cause);
+            logMcdPdpStockAddCommit(phase, false, "model_error", cause, target);
+            return false;
+        }
+    }
+
+    private static void logMcdPdpStockAddCommit(String phase, boolean invoked,
+            String route, Throwable error, android.view.View target) {
+        String marker = "phase=" + safeMarkerToken(phase)
+                + " route=" + safeMarkerToken(route)
+                + " invoked=" + boolToken(invoked)
+                + " target=" + safeMarkerToken(target != null
+                        ? safeViewSummary(target) : "null");
+        if (error != null) {
+            marker += " err=" + safeMarkerToken(throwableTag(error));
+        }
+        startupLog("[WestlakeLauncher] MCD_PDP_STOCK_ADD_COMMIT " + marker);
+        appendCutoffCanaryMarker("MCD_PDP_STOCK_ADD_COMMIT " + marker);
+    }
+
+    private static void logMcdPdpStorageSafetyGate(String phase, boolean allowed,
+            String reason, Object fragment, Object viewModel, Object cartProduct,
+            android.view.View target) {
+        String marker = "phase=" + safeMarkerToken(phase)
+                + " allowed=" + boolToken(allowed)
+                + " reason=" + safeMarkerToken(reason)
+                + " fragment=" + safeMarkerToken(shortObjectTag(fragment))
+                + " viewModel=" + safeMarkerToken(shortObjectTag(viewModel))
+                + " cartProduct=" + safeMarkerToken(shortObjectTag(cartProduct))
+                + " target=" + safeMarkerToken(target != null
+                        ? safeViewSummary(target) : "null");
+        startupLog("[WestlakeLauncher] MCD_PDP_STORAGE_SAFETY_GATE " + marker);
+        appendCutoffCanaryMarker("MCD_PDP_STORAGE_SAFETY_GATE " + marker);
+    }
+
+    private static Object synthesizeMcdPdpCartProduct(Object fragment, Object product) {
+        if (fragment == null || product == null) {
+            return null;
+        }
+        Object cart = null;
+        long productId = -1L;
+        try {
+            ClassLoader cl = fragment.getClass().getClassLoader();
+            if (cl == null) {
+                cl = product.getClass().getClassLoader();
+            }
+            if (cl == null) {
+                logMcdPdpCartProductSynth(false, product, null, -1L,
+                        "classloader_missing");
+                return null;
+            }
+            Class<?> cartClass = cl.loadClass(
+                    "com.mcdonalds.androidsdk.ordering.network.model.basket.CartProduct");
+            java.lang.reflect.Constructor<?> ctor = cartClass.getDeclaredConstructor();
+            ctor.setAccessible(true);
+            cart = ctor.newInstance();
+            ensureMcdRealmListFields(cart, "synthesize_cartproduct");
+
+            java.lang.reflect.Method setProduct =
+                    findAssignableSingleArgMethod(cartClass, "setProduct", product);
+            if (setProduct != null) {
+                setProduct.invoke(cart, product);
+            }
+            ensureMcdPdpProductStockLimits(product, cart, "synthesize_cartproduct");
+
+            java.lang.reflect.Method getId =
+                    findMethodOnHierarchy(product.getClass(), "getId");
+            if (getId != null) {
+                Object id = getId.invoke(product);
+                if (id instanceof Number) {
+                    productId = ((Number) id).longValue();
+                    java.lang.reflect.Method setProductCode =
+                            findMethodOnHierarchy(cartClass, "setProductCode", Long.TYPE);
+                    if (setProductCode != null) {
+                        setProductCode.invoke(cart, Long.valueOf(productId));
+                    }
+                    java.lang.reflect.Method setReferenceCode = findMethodOnHierarchy(
+                            cartClass, "setProductCodeForReferencePrice", Long.TYPE);
+                    if (setReferenceCode != null) {
+                        setReferenceCode.invoke(cart, Long.valueOf(productId));
+                    }
+                }
+            }
+
+            java.lang.reflect.Field t0 = findFieldOnHierarchy(fragment.getClass(), "t0");
+            if (t0 == null) {
+                logMcdPdpCartProductSynth(false, product, cart, productId, "t0_missing");
+                return null;
+            }
+            t0.set(fragment, cart);
+            logMcdPdpCartProductSynth(true, product, cart, productId,
+                    setProduct != null ? "product_attached" : "product_setter_missing");
+            return cart;
+        } catch (Throwable t) {
+            Throwable cause = t instanceof java.lang.reflect.InvocationTargetException
+                    && ((java.lang.reflect.InvocationTargetException) t).getCause() != null
+                    ? ((java.lang.reflect.InvocationTargetException) t).getCause() : t;
+            startupLog("[WestlakeLauncher] MCD_ORDER_PDP_CART_PRODUCT_SYNTH_FAIL", cause);
+            logMcdPdpCartProductSynth(false, product, cart, productId,
+                    throwableTag(cause));
+            return null;
+        }
+    }
+
+    private static int ensureMcdRealmListFields(Object model, String phase) {
+        if (model == null) {
+            return 0;
+        }
+        int seen = 0;
+        int present = 0;
+        int set = 0;
+        int errors = 0;
+        StringBuilder setFields = new StringBuilder();
+        Class<?> modelClass = model.getClass();
+        for (Class<?> c = modelClass; c != null && c != Object.class; c = c.getSuperclass()) {
+            java.lang.reflect.Field[] fields;
+            try {
+                fields = c.getDeclaredFields();
+            } catch (Throwable t) {
+                errors++;
+                continue;
+            }
+            for (int i = 0; i < fields.length; i++) {
+                java.lang.reflect.Field field = fields[i];
+                if ((field.getModifiers() & java.lang.reflect.Modifier.STATIC) != 0) {
+                    continue;
+                }
+                Class<?> fieldType;
+                try {
+                    fieldType = field.getType();
+                } catch (Throwable t) {
+                    errors++;
+                    continue;
+                }
+                if (fieldType == null
+                        || !"io.realm.RealmList".equals(fieldType.getName())) {
+                    continue;
+                }
+                seen++;
+                String name = field.getName();
+                Object current = null;
+                boolean currentKnown = false;
+                java.lang.reflect.Method getter = findMethodOnHierarchy(
+                        modelClass, "realmGet$" + name);
+                if (getter != null) {
+                    try {
+                        current = getter.invoke(model);
+                        currentKnown = true;
+                    } catch (Throwable t) {
+                        errors++;
+                    }
+                }
+                if (!currentKnown) {
+                    try {
+                        field.setAccessible(true);
+                        current = field.get(model);
+                        currentKnown = true;
+                    } catch (Throwable t) {
+                        errors++;
+                    }
+                }
+                if (currentKnown && current != null) {
+                    present++;
+                    continue;
+                }
+                Object emptyList = null;
+                try {
+                    java.lang.reflect.Constructor<?> listCtor =
+                            fieldType.getDeclaredConstructor();
+                    listCtor.setAccessible(true);
+                    emptyList = listCtor.newInstance();
+                } catch (Throwable t) {
+                    errors++;
+                    continue;
+                }
+                boolean applied = false;
+                java.lang.reflect.Method setter = findMethodOnHierarchy(
+                        modelClass, "realmSet$" + name, fieldType);
+                if (setter != null) {
+                    try {
+                        setter.invoke(model, emptyList);
+                        applied = true;
+                    } catch (Throwable t) {
+                        errors++;
+                    }
+                }
+                if (!applied) {
+                    try {
+                        field.setAccessible(true);
+                        field.set(model, emptyList);
+                        applied = true;
+                    } catch (Throwable t) {
+                        errors++;
+                    }
+                }
+                if (applied) {
+                    set++;
+                    if (setFields.length() > 0) {
+                        setFields.append(',');
+                    }
+                    setFields.append(name);
+                }
+            }
+        }
+        String marker = "phase=" + safeMarkerToken(phase)
+                + " model=" + safeMarkerToken(shortObjectTag(model))
+                + " seen=" + intAscii(seen)
+                + " present=" + intAscii(present)
+                + " set=" + intAscii(set)
+                + " errors=" + intAscii(errors)
+                + " fields=" + safeMarkerToken(setFields.toString());
+        startupLog("[WestlakeLauncher] MCD_PDP_REALMLIST_HYDRATE " + marker);
+        appendCutoffCanaryMarker("MCD_PDP_REALMLIST_HYDRATE " + marker);
+        return set;
+    }
+
+    private static int ensureMcdPdpProductStockLimits(
+            Object product, Object cartProduct, String phase) {
+        int changes = 0;
+        int productBefore = readMcdIntProperty(product, "getMaxQttyAllowedPerOrder", -1);
+        if (product != null && productBefore <= 0) {
+            if (writeMcdIntProperty(product, "setMaxQttyAllowedPerOrder",
+                    "realmSet$maxQttyAllowedPerOrder", "maxQttyAllowedPerOrder",
+                    MCD_OFFLINE_MAX_QTTY_ALLOWED_PER_ORDER)) {
+                changes++;
+            }
+        }
+        int productAfter = readMcdIntProperty(product, "getMaxQttyAllowedPerOrder", -1);
+        int cartBefore = readMcdIntProperty(cartProduct, "getMaxQuantity", -1);
+        if (cartProduct != null && cartBefore <= 0) {
+            int value = productAfter > 0
+                    ? productAfter : MCD_OFFLINE_MAX_QTTY_ALLOWED_PER_ORDER;
+            if (writeMcdIntProperty(cartProduct, "setMaxQuantity",
+                    "realmSet$maxQuantity", "maxQuantity", value)) {
+                changes++;
+            }
+        }
+        int cartAfter = readMcdIntProperty(cartProduct, "getMaxQuantity", -1);
+        String marker = "phase=" + safeMarkerToken(phase)
+                + " product=" + safeMarkerToken(shortObjectTag(product))
+                + " cartProduct=" + safeMarkerToken(shortObjectTag(cartProduct))
+                + " productBefore=" + intAscii(productBefore)
+                + " productAfter=" + intAscii(productAfter)
+                + " cartBefore=" + intAscii(cartBefore)
+                + " cartAfter=" + intAscii(cartAfter)
+                + " changes=" + intAscii(changes);
+        startupLog("[WestlakeLauncher] MCD_PDP_PRODUCT_STOCK_HYDRATE " + marker);
+        appendCutoffCanaryMarker("MCD_PDP_PRODUCT_STOCK_HYDRATE " + marker);
+        return changes;
+    }
+
+    private static int readMcdIntProperty(Object target, String getter, int fallback) {
+        Object value = invokeNoArgValue(target, getter);
+        if (value instanceof Number) {
+            return ((Number) value).intValue();
+        }
+        return fallback;
+    }
+
+    private static boolean writeMcdIntProperty(Object target, String setter,
+            String realmSetter, String fieldName, int value) {
+        if (target == null) {
+            return false;
+        }
+        java.lang.reflect.Method method = findMethodOnHierarchy(
+                target.getClass(), setter, Integer.TYPE);
+        if (method == null && realmSetter != null) {
+            method = findMethodOnHierarchy(target.getClass(), realmSetter, Integer.TYPE);
+        }
+        if (method != null) {
+            try {
+                method.invoke(target, Integer.valueOf(value));
+                return true;
+            } catch (Throwable ignored) {
+            }
+        }
+        java.lang.reflect.Field field = findFieldOnHierarchy(target.getClass(), fieldName);
+        if (field != null) {
+            try {
+                field.setInt(target, value);
+                return true;
+            } catch (Throwable ignored) {
+            }
+        }
+        return false;
+    }
+
+    private static java.lang.reflect.Method findAssignableSingleArgMethod(
+            Class<?> start, String name, Object arg) {
+        if (start == null || name == null || arg == null) {
+            return null;
+        }
+        for (Class<?> c = start; c != null && c != Object.class; c = c.getSuperclass()) {
+            try {
+                java.lang.reflect.Method[] methods = c.getDeclaredMethods();
+                for (int i = 0; i < methods.length; i++) {
+                    java.lang.reflect.Method method = methods[i];
+                    if (!name.equals(method.getName())) {
+                        continue;
+                    }
+                    Class<?>[] params = method.getParameterTypes();
+                    if (params.length == 1 && !params[0].isPrimitive()
+                            && params[0].isAssignableFrom(arg.getClass())) {
+                        method.setAccessible(true);
+                        return method;
+                    }
+                }
+            } catch (Throwable ignored) {
+                return null;
+            }
+        }
+        return null;
+    }
+
+    private static void logMcdPdpCartProductSynth(boolean success, Object product,
+            Object cart, long productId, String reason) {
+        String marker = "success=" + boolToken(success)
+                + " product=" + safeMarkerToken(shortObjectTag(product))
+                + " cart=" + safeMarkerToken(shortObjectTag(cart))
+                + " productId=" + java.lang.Long.toString(productId)
+                + " reason=" + safeMarkerToken(reason);
+        startupLog("[WestlakeLauncher] MCD_ORDER_PDP_CART_PRODUCT_SYNTH " + marker);
+        appendCutoffCanaryMarker("MCD_ORDER_PDP_CART_PRODUCT_SYNTH " + marker);
+    }
+
+    private static Object readMcdPdpFragmentField(Object fragment, String name) {
+        if (fragment == null || name == null) {
+            return null;
+        }
+        try {
+            java.lang.reflect.Field field = findFieldOnHierarchy(fragment.getClass(), name);
+            return field != null ? field.get(fragment) : null;
+        } catch (Throwable ignored) {
+            return null;
+        }
+    }
+
+    private static Object findMcdOrderPdpFragment(Activity activity) {
+        if (activity == null) {
+            return null;
+        }
+        try {
+            java.lang.reflect.Field field = findFieldOnHierarchy(
+                    activity.getClass(), "mOrderPDPFragment");
+            if (field == null) {
+                return null;
+            }
+            return field.get(activity);
+        } catch (Throwable ignored) {
+            return null;
+        }
+    }
+
+    private static void logMcdPdpStockAction(
+            String label, String route, boolean invoked,
+            Throwable error, android.view.View target) {
+        String marker = "control=" + safeMarkerToken(label)
+                + " route=" + safeMarkerToken(route)
+                + " invoked=" + boolToken(invoked)
+                + " target=" + safeMarkerToken(target != null ? safeViewSummary(target) : "null");
+        if (error != null) {
+            marker += " err=" + safeMarkerToken(error.getClass().getName())
+                    + " msg=" + safeMarkerToken(error.getMessage());
+        }
+        startupLog("[WestlakeLauncher] MCD_ORDER_PDP_STOCK_ACTION " + marker);
+        appendCutoffCanaryMarker("MCD_ORDER_PDP_STOCK_ACTION " + marker);
+    }
+
+    private static boolean routeListViewItemClick(android.view.View leaf) {
+        android.view.View target = leaf;
+        while (target != null) {
+            android.view.ViewParent parent = null;
+            try {
+                parent = target.getParent();
+            } catch (Throwable ignored) {
+            }
+            if (parent instanceof android.widget.ListView) {
+                android.widget.ListView list = (android.widget.ListView) parent;
+                int position = -1;
+                try {
+                    position = list.getPositionForView(target);
+                } catch (Throwable ignored) {
+                }
+                if (position >= 0) {
+                    startupLog("[WestlakeLauncher] ListView item " + position
+                            + " clicked via generic hit");
+                    try {
+                        return list.performItemClick(target, position, position);
+                    } catch (Throwable t) {
+                        startupLog("[WestlakeLauncher] ListView generic item click error", t);
+                        return false;
+                    }
+                }
+                return false;
+            }
+            if (!(parent instanceof android.view.View)) {
+                return false;
+            }
+            target = (android.view.View) parent;
+        }
+        return false;
+    }
+
+    private static RecyclerHit findRecyclerHitAt(
+            android.view.View view, int x, int y, int depth) {
+        if (view == null || depth > 32) {
+            return null;
+        }
+        try {
+            if (view.getVisibility() != android.view.View.VISIBLE) {
+                return null;
+            }
+            if (x < 0 || y < 0 || x >= view.getWidth() || y >= view.getHeight()) {
+                return null;
+            }
+        } catch (Throwable ignored) {
+            return null;
+        }
+        if (view instanceof androidx.recyclerview.widget.RecyclerView) {
+            androidx.recyclerview.widget.RecyclerView recycler =
+                    (androidx.recyclerview.widget.RecyclerView) view;
+            RecyclerHit hit = new RecyclerHit();
+            hit.recyclerView = recycler;
+            hit.localX = x;
+            hit.localY = y;
+            hit.row = findRecyclerChildAt(recycler, x, y);
+            hit.position = recyclerPositionForHit(recycler, hit.row, x, y);
+            fillRecyclerHitBounds(hit);
+            return hit;
+        }
+        if (!(view instanceof android.view.ViewGroup)) {
+            return null;
+        }
+        android.view.ViewGroup group = (android.view.ViewGroup) view;
+        int count = 0;
+        try {
+            count = group.getChildCount();
+        } catch (Throwable ignored) {
+        }
+        for (int i = count - 1; i >= 0; i--) {
+            android.view.View child = null;
+            try {
+                child = group.getChildAt(i);
+            } catch (Throwable ignored) {
+            }
+            if (child == null) {
+                continue;
+            }
+            try {
+                int cx = x - child.getLeft() + child.getScrollX();
+                int cy = y - child.getTop() + child.getScrollY();
+                RecyclerHit found = findRecyclerHitAt(child, cx, cy, depth + 1);
+                if (found != null) {
+                    return found;
+                }
+            } catch (Throwable ignored) {
+            }
+        }
+        return null;
+    }
+
+    private static android.view.View findRecyclerChildAt(
+            androidx.recyclerview.widget.RecyclerView recycler, int x, int y) {
+        try {
+            for (int i = recycler.getChildCount() - 1; i >= 0; i--) {
+                android.view.View child = recycler.getChildAt(i);
+                if (child == null || child.getVisibility() != android.view.View.VISIBLE) {
+                    continue;
+                }
+                if (x >= child.getLeft() && x < child.getRight()
+                        && y >= child.getTop() && y < child.getBottom()) {
+                    return child;
+                }
+            }
+        } catch (Throwable ignored) {
+        }
+        return null;
+    }
+
+    private static RecyclerHit findRecyclerHitByAbsoluteBounds(
+            android.view.View view, int x, int y, int depth) {
+        if (view == null || depth > 32) {
+            return null;
+        }
+        if (view instanceof androidx.recyclerview.widget.RecyclerView) {
+            androidx.recyclerview.widget.RecyclerView recycler =
+                    (androidx.recyclerview.widget.RecyclerView) view;
+            if (safeRecyclerAdapterCount(recycler) <= 0) {
+                return null;
+            }
+            RecyclerHit candidate = new RecyclerHit();
+            candidate.recyclerView = recycler;
+            fillRecyclerHitBounds(candidate);
+            if (x >= candidate.absLeft && x < candidate.absRight
+                    && y >= candidate.absTop && y < candidate.absBottom) {
+                candidate.localX = x - candidate.absLeft;
+                candidate.localY = y - candidate.absTop;
+                candidate.row = findRecyclerChildAt(recycler,
+                        candidate.localX, candidate.localY);
+                candidate.position = recyclerPositionForHit(recycler, candidate.row,
+                        candidate.localX, candidate.localY);
+                return candidate;
+            }
+        }
+        if (!(view instanceof android.view.ViewGroup)) {
+            return null;
+        }
+        android.view.ViewGroup group = (android.view.ViewGroup) view;
+        int count = safeViewChildCount(group);
+        for (int i = count - 1; i >= 0; i--) {
+            RecyclerHit found = findRecyclerHitByAbsoluteBounds(
+                    group.getChildAt(i), x, y, depth + 1);
+            if (found != null) {
+                return found;
+            }
+        }
+        return null;
+    }
+
+    private static int recyclerPositionForHit(androidx.recyclerview.widget.RecyclerView recycler,
+            android.view.View row, int x, int y) {
+        try {
+            if (row != null) {
+                int position = recycler.getChildAdapterPosition(row);
+                if (position >= 0) {
+                    return position;
+                }
+                androidx.recyclerview.widget.RecyclerView.ViewHolder holder =
+                        recycler.getChildViewHolder(row);
+                if (holder != null && holder.getAdapterPosition() >= 0) {
+                    return holder.getAdapterPosition();
+                }
+            }
+        } catch (Throwable ignored) {
+        }
+        try {
+            androidx.recyclerview.widget.RecyclerView.Adapter adapter = recycler.getAdapter();
+            int count = adapter != null ? adapter.getItemCount() : 0;
+            int childCount = recycler.getChildCount();
+            if (count > 0 && childCount > 0) {
+                int visible = Math.min(count, childCount);
+                boolean horizontal = false;
+                try {
+                    androidx.recyclerview.widget.RecyclerView.LayoutManager lm =
+                            recycler.getLayoutManager();
+                    horizontal = lm != null && lm.canScrollHorizontally();
+                } catch (Throwable ignored) {
+                }
+                int span = horizontal ? Math.max(1, recycler.getWidth())
+                        : Math.max(1, recycler.getHeight());
+                int local = horizontal ? x : y;
+                int position = (local * visible) / span;
+                if (position < 0) {
+                    position = 0;
+                }
+                if (position >= visible) {
+                    position = visible - 1;
+                }
+                return position;
+            }
+        } catch (Throwable ignored) {
+        }
+        return -1;
+    }
+
+    private static void fillRecyclerHitBounds(RecyclerHit hit) {
+        if (hit == null || hit.recyclerView == null) {
+            return;
+        }
+        int left = 0;
+        int top = 0;
+        android.view.View view = hit.recyclerView;
+        while (view != null) {
+            left += view.getLeft() - view.getScrollX();
+            top += view.getTop() - view.getScrollY();
+            android.view.ViewParent parent = view.getParent();
+            view = parent instanceof android.view.View ? (android.view.View) parent : null;
+        }
+        hit.absLeft = left;
+        hit.absTop = top;
+        hit.absRight = left + hit.recyclerView.getWidth();
+        hit.absBottom = top + hit.recyclerView.getHeight();
+    }
+
+    private static boolean performRecyclerHitClick(RecyclerHit hit, int screenX, int screenY,
+            int hitY, int projectionOffset, boolean mcdDashboard) {
+        if (hit == null || hit.recyclerView == null || hit.position < 0) {
+            return false;
+        }
+        boolean handled = false;
+        boolean previewRow = false;
+        String adapterClass = safeRecyclerAdapterClass(hit.recyclerView);
+        String clickableName = "null";
+        String rowName = hit.row != null ? hit.row.getClass().getName() : "null";
+        try {
+            if (hit.row == null) {
+                try {
+                    androidx.recyclerview.widget.RecyclerView.Adapter adapter =
+                            hit.recyclerView.getAdapter();
+                    if (adapter != null) {
+                        hit.row = createRecyclerAdapterPreviewRow(hit.recyclerView, adapter,
+                                hit.position);
+                        settleRecyclerAdapterPreviewRow(hit.recyclerView, hit.row, hit.position,
+                                Math.max(1, hit.recyclerView.getWidth()),
+                                Math.max(44, hit.recyclerView.getHeight()));
+                        previewRow = hit.row != null;
+                        rowName = hit.row != null ? hit.row.getClass().getName() : "null";
+                    }
+                } catch (Throwable previewError) {
+                    startupLog("[WestlakeLauncher] Recycler hit preview row error", previewError);
+                }
+            }
+            android.view.View clickTarget = null;
+            if (hit.row != null) {
+                int rowX = hit.localX - hit.row.getLeft();
+                int rowY = hit.localY - hit.row.getTop();
+                android.view.View leaf = findVisibleViewAt(hit.row, rowX, rowY, 0);
+                clickTarget = findClickableAncestor(leaf, hit.row);
+                if (clickTarget == null) {
+                    clickTarget = findClickableAncestor(hit.row, hit.row);
+                }
+                if (clickTarget == null) {
+                    clickTarget = findFirstClickListenerDescendant(hit.row, 0);
+                }
+                if (clickTarget == null) {
+                    clickTarget = findFirstClickableDescendant(hit.row, 0);
+                }
+            }
+            if (clickTarget != null) {
+                clickableName = clickTarget.getClass().getName();
+                handled = clickTarget.performClick();
+                if (!handled) {
+                    try {
+                        handled = clickTarget.callOnClick();
+                    } catch (Throwable ignored) {
+                    }
+                }
+            }
+            if (mcdDashboard && adapterClass.indexOf("HomePopularItemsAdapter") >= 0) {
+                boolean semanticHandled = invokeMcdPopularItemSemanticClick(hit, adapterClass);
+                handled = handled || semanticHandled;
+            }
+        } catch (Throwable t) {
+            startupLog("[WestlakeLauncher] Recycler hit click error", t);
+        }
+        String marker = "adapter=" + safeMarkerToken(adapterClass)
+                + " position=" + intAscii(hit.position)
+                + " row=" + safeMarkerToken(rowName)
+                + " target=" + safeMarkerToken(clickableName)
+                + " handled=" + boolToken(handled)
+                + " preview=" + boolToken(previewRow)
+                + " localX=" + intAscii(hit.localX)
+                + " localY=" + intAscii(hit.localY)
+                + " x=" + intAscii(screenX)
+                + " y=" + intAscii(screenY)
+                + " hitY=" + intAscii(hitY)
+                + " projectionOffset=" + intAscii(projectionOffset);
+        startupLog("[WestlakeLauncher] GENERIC_RECYCLER_HIT_CLICK " + marker);
+        appendCutoffCanaryMarker("GENERIC_RECYCLER_HIT_CLICK " + marker);
+        if (mcdDashboard) {
+            startupLog("[WestlakeLauncher] MCD_DASH_RECYCLER_HIT_CLICK " + marker);
+            appendCutoffCanaryMarker("MCD_DASH_RECYCLER_HIT_CLICK " + marker);
+        }
+        return handled;
+    }
+
+    private static boolean invokeMcdPopularItemSemanticClick(
+            RecyclerHit hit, String adapterClass) {
+        String markerPrefix = "adapter=" + safeMarkerToken(adapterClass)
+                + " position=" + intAscii(hit != null ? hit.position : -1);
+        long phaseStartMs = java.lang.System.currentTimeMillis();
+        long phaseLastMs = phaseStartMs;
+        try {
+            if (hit == null || hit.recyclerView == null || hit.position < 0) {
+                marker("MCD_DASH_SEMANTIC_POPULAR_CLICK " + markerPrefix
+                        + " handled=false err=no_hit");
+                return false;
+            }
+            phaseLastMs = logMcdSemanticPopularPhase(markerPrefix, "entry",
+                    phaseStartMs, phaseLastMs);
+            androidx.recyclerview.widget.RecyclerView.Adapter adapter =
+                    hit.recyclerView.getAdapter();
+            if (adapter == null) {
+                marker("MCD_DASH_SEMANTIC_POPULAR_CLICK " + markerPrefix
+                        + " handled=false err=no_adapter");
+                return false;
+            }
+            phaseLastMs = logMcdSemanticPopularPhase(markerPrefix, "adapter",
+                    phaseStartMs, phaseLastMs);
+            java.lang.reflect.Field listField = findFieldOnHierarchy(adapter.getClass(), "d");
+            java.lang.reflect.Field listenerField = findFieldOnHierarchy(adapter.getClass(), "f");
+            phaseLastMs = logMcdSemanticPopularPhase(markerPrefix, "fields",
+                    phaseStartMs, phaseLastMs);
+            Object listValue = listField != null ? listField.get(adapter) : null;
+            Object listener = listenerField != null ? listenerField.get(adapter) : null;
+            phaseLastMs = logMcdSemanticPopularPhase(markerPrefix, "field_values",
+                    phaseStartMs, phaseLastMs);
+            if (!(listValue instanceof java.util.List) || listener == null) {
+                marker("MCD_DASH_SEMANTIC_POPULAR_CLICK " + markerPrefix
+                        + " handled=false err=missing_model_or_listener"
+                        + " list=" + safeMarkerToken(listValue != null
+                                ? listValue.getClass().getName() : "null")
+                        + " listener=" + safeMarkerToken(listener != null
+                                ? listener.getClass().getName() : "null"));
+                return false;
+            }
+            java.util.List list = (java.util.List) listValue;
+            if (hit.position >= list.size()) {
+                marker("MCD_DASH_SEMANTIC_POPULAR_CLICK " + markerPrefix
+                        + " handled=false err=position_oob size=" + intAscii(list.size()));
+                return false;
+            }
+            Object product = list.get(hit.position);
+            if (product == null) {
+                marker("MCD_DASH_SEMANTIC_POPULAR_CLICK " + markerPrefix
+                        + " handled=false err=null_product");
+                return false;
+            }
+            sMcdLastPopularProduct = product;
+            phaseLastMs = logMcdSemanticPopularPhase(markerPrefix, "product",
+                    phaseStartMs, phaseLastMs);
+            primeMcdActivityLaunchGate(adapter.getClass().getClassLoader(),
+                    hit.recyclerView.getContext());
+            phaseLastMs = logMcdSemanticPopularPhase(markerPrefix, "launch_gate",
+                    phaseStartMs, phaseLastMs);
+            java.lang.reflect.Method targetMethod = null;
+            java.lang.reflect.Method[] methods = listener.getClass().getMethods();
+            for (int i = 0; i < methods.length; i++) {
+                java.lang.reflect.Method method = methods[i];
+                Class<?>[] params = method.getParameterTypes();
+                if ("Z1".equals(method.getName()) && params.length == 1
+                        && params[0].isAssignableFrom(product.getClass())) {
+                    targetMethod = method;
+                    break;
+                }
+            }
+            if (targetMethod == null) {
+                marker("MCD_DASH_SEMANTIC_POPULAR_CLICK " + markerPrefix
+                        + " handled=false err=no_Z1 product="
+                        + safeMarkerToken(product.getClass().getName())
+                        + " listener=" + safeMarkerToken(listener.getClass().getName()));
+                return false;
+            }
+            phaseLastMs = logMcdSemanticPopularPhase(markerPrefix, "method",
+                    phaseStartMs, phaseLastMs);
+            targetMethod.setAccessible(true);
+            phaseLastMs = logMcdSemanticPopularPhase(markerPrefix, "before_invoke",
+                    phaseStartMs, phaseLastMs);
+            targetMethod.invoke(listener, product);
+            phaseLastMs = logMcdSemanticPopularPhase(markerPrefix, "after_invoke",
+                    phaseStartMs, phaseLastMs);
+            String markerValue = markerPrefix
+                    + " handled=true listener="
+                    + safeMarkerToken(listener.getClass().getName())
+                    + " product=" + safeMarkerToken(product.getClass().getName());
+            startupLog("[WestlakeLauncher] MCD_DASH_SEMANTIC_POPULAR_CLICK "
+                    + markerValue);
+            appendCutoffCanaryMarker("MCD_DASH_SEMANTIC_POPULAR_CLICK "
+                    + markerValue);
+            return true;
+        } catch (Throwable t) {
+            Throwable cause = t instanceof java.lang.reflect.InvocationTargetException
+                    ? ((java.lang.reflect.InvocationTargetException) t).getTargetException()
+                    : t;
+            startupLog("[WestlakeLauncher] MCD_DASH_SEMANTIC_POPULAR_CLICK_FAIL "
+                    + markerPrefix, cause != null ? cause : t);
+            marker("MCD_DASH_SEMANTIC_POPULAR_CLICK " + markerPrefix
+                    + " handled=false err="
+                    + safeMarkerToken(throwableTag(cause != null ? cause : t)));
+            return false;
+        }
+    }
+
+    private static long logMcdSemanticPopularPhase(String markerPrefix, String phase,
+            long startMs, long lastMs) {
+        long nowMs = java.lang.System.currentTimeMillis();
+        startupLog("[WestlakeLauncher] MCD_DASH_SEMANTIC_POPULAR_PHASE "
+                + markerPrefix
+                + " phase=" + safeMarkerToken(phase)
+                + " totalMs=" + java.lang.Long.toString(nowMs - startMs)
+                + " deltaMs=" + java.lang.Long.toString(nowMs - lastMs));
+        return nowMs;
+    }
+
+    private static void primeMcdActivityLaunchGate(
+            ClassLoader classLoader, android.content.Context context) {
+        try {
+            android.app.Activity activity = null;
+            if (context instanceof android.app.Activity) {
+                activity = (android.app.Activity) context;
+            }
+            if (activity == null) {
+                try {
+                    android.app.MiniActivityManager am =
+                            android.app.MiniServer.currentActivityManager();
+                    activity = am != null ? am.getResumedActivity() : null;
+                } catch (Throwable ignored) {
+                }
+            }
+            ClassLoader cl = classLoader;
+            if (cl == null && activity != null) {
+                cl = activity.getClassLoader();
+            }
+            if (cl == null) {
+                return;
+            }
+            Class<?> callbacks = cl.loadClass(
+                    "com.mcdonalds.mcdcoreapp.core.McDActivityCallBacks");
+            try {
+                java.lang.reflect.Method setActive = callbacks.getMethod("m",
+                        boolean.class);
+                setActive.setAccessible(true);
+                setActive.invoke(null, true);
+            } catch (Throwable ignored) {
+            }
+            if (activity != null) {
+                try {
+                    java.lang.reflect.Method markForeground = callbacks.getMethod("j",
+                            android.app.Activity.class);
+                    markForeground.setAccessible(true);
+                    markForeground.invoke(null, activity);
+                } catch (Throwable ignored) {
+                }
+            }
+            String markerValue = "activity=" + safeMarkerToken(activity != null
+                            ? activity.getClass().getName() : "null")
+                    + " callbacks=" + safeMarkerToken(callbacks.getName());
+            startupLog("[WestlakeLauncher] MCD_ACTIVITY_LAUNCH_GATE_PRIMED "
+                    + markerValue);
+            appendCutoffCanaryMarker("MCD_ACTIVITY_LAUNCH_GATE_PRIMED "
+                    + markerValue);
+        } catch (Throwable t) {
+            startupLog("[WestlakeLauncher] MCD_ACTIVITY_LAUNCH_GATE_PRIME_FAIL", t);
+            marker("MCD_ACTIVITY_LAUNCH_GATE_PRIME_FAIL err="
+                    + safeMarkerToken(throwableTag(t)));
+        }
+    }
+
+    private static android.view.View findFirstClickListenerDescendant(
+            android.view.View view, int depth) {
+        if (view == null || depth > 24) {
+            return null;
+        }
+        try {
+            if (view.hasOnClickListeners()) {
+                return view;
+            }
+        } catch (Throwable ignored) {
+        }
+        if (!(view instanceof android.view.ViewGroup)) {
+            return null;
+        }
+        android.view.ViewGroup group = (android.view.ViewGroup) view;
+        int count = 0;
+        try {
+            count = group.getChildCount();
+        } catch (Throwable ignored) {
+        }
+        for (int i = 0; i < count; i++) {
+            android.view.View child = null;
+            try {
+                child = group.getChildAt(i);
+            } catch (Throwable ignored) {
+            }
+            android.view.View found = findFirstClickListenerDescendant(child, depth + 1);
+            if (found != null) {
+                return found;
+            }
+        }
+        return null;
+    }
+
+    private static android.view.View findFirstClickableDescendant(
+            android.view.View view, int depth) {
+        if (view == null || depth > 24) {
+            return null;
+        }
+        try {
+            if (view.hasOnClickListeners() || view.isClickable()) {
+                return view;
+            }
+        } catch (Throwable ignored) {
+        }
+        if (!(view instanceof android.view.ViewGroup)) {
+            return null;
+        }
+        android.view.ViewGroup group = (android.view.ViewGroup) view;
+        int count = 0;
+        try {
+            count = group.getChildCount();
+        } catch (Throwable ignored) {
+        }
+        for (int i = 0; i < count; i++) {
+            android.view.View child = null;
+            try {
+                child = group.getChildAt(i);
+            } catch (Throwable ignored) {
+            }
+            android.view.View found = findFirstClickableDescendant(child, depth + 1);
+            if (found != null) {
+                return found;
+            }
+        }
+        return null;
+    }
+
+    private static String safeViewTextToken(android.view.View view) {
+        try {
+            if (view instanceof android.widget.TextView) {
+                CharSequence text = ((android.widget.TextView) view).getText();
+                return safeMarkerToken(text != null ? text.toString() : "null");
+            }
+        } catch (Throwable ignored) {
+        }
+        return "none";
     }
 
     /** Find the deepest view containing the given point (absolute coords) */

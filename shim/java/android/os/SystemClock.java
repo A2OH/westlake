@@ -18,8 +18,7 @@ public class SystemClock {
     }
 
     public static long currentThreadTimeMillis() {
-        return java.lang.management.ManagementFactory.getThreadMXBean()
-            .getCurrentThreadCpuTime() / 1_000_000;
+        return uptimeMillis();
     }
 
     public static void sleep(long ms) {

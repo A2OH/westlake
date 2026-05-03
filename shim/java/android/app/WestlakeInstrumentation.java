@@ -135,6 +135,679 @@ public class WestlakeInstrumentation extends Instrumentation {
         }
     }
 
+    private void seedMcdonaldsActivityInterfaceFields(Activity activity) {
+        if (!isMcdonaldsActivity(activity)) {
+            return;
+        }
+        int seeded = 0;
+        ClassLoader fallbackCl = null;
+        try {
+            fallbackCl = activity.getClass().getClassLoader();
+        } catch (Throwable ignored) {
+        }
+        for (Class<?> c = activity.getClass(); c != null && c != Object.class;
+                c = c.getSuperclass()) {
+            for (java.lang.reflect.Field field : safeGetDeclaredFields(c)) {
+                try {
+                    int modifiers = field.getModifiers();
+                    if (java.lang.reflect.Modifier.isStatic(modifiers)
+                            || java.lang.reflect.Modifier.isFinal(modifiers)) {
+                        continue;
+                    }
+                    Class<?> fieldType = field.getType();
+                    if (!isMcdonaldsActivitySeedInterface(fieldType)) {
+                        continue;
+                    }
+                    field.setAccessible(true);
+                    if (field.get(activity) != null) {
+                        continue;
+                    }
+                    Object value = resolveMcdonaldsDataSourceValue(fieldType, fallbackCl);
+                    if (value == null) {
+                        value = createMcdonaldsInterfaceProxy(fieldType, fallbackCl,
+                                activity.getClass().getSimpleName() + "." + field.getName());
+                    }
+                    if (value == null || !fieldType.isInstance(value)) {
+                        continue;
+                    }
+                    field.set(activity, value);
+                    seeded++;
+                    log("I", "Seeded McD activity field " + activity.getClass().getSimpleName()
+                            + "." + field.getName() + " as " + fieldType.getName());
+                } catch (Throwable t) {
+                    log("W", "McD activity field seed skipped: " + throwableSummary(t));
+                }
+            }
+        }
+        if (seeded > 0) {
+            WestlakeLauncher.appendCutoffCanaryMarker(
+                    "MCD_PROFILE_ACTIVITY_INTERFACE_SEED_OK class="
+                            + activity.getClass().getName() + " fields=" + seeded);
+        }
+    }
+
+    private void seedMcdonaldsDataSourceHelper(ClassLoader fallbackCl) {
+        try {
+            ClassLoader cl = fallbackCl;
+            if (cl == null) cl = Thread.currentThread().getContextClassLoader();
+            if (cl == null) cl = ClassLoader.getSystemClassLoader();
+            Class<?> helperClass =
+                    cl.loadClass("com.mcdonalds.mcdcoreapp.common.model.DataSourceHelper");
+            WestlakeLauncher.marker("MCD_PROFILE_DATASOURCE_HELPER_CLASS_OK");
+            boolean directRestaurantSeeded =
+                    seedNamedMcdonaldsRestaurantInteractor(helperClass, cl);
+            boolean accountProfileSeeded =
+                    seedNamedMcdonaldsAccountProfileInteractor(helperClass, cl);
+            int seededFields = 0;
+            boolean restaurantSeeded = directRestaurantSeeded;
+            for (java.lang.reflect.Field field : safeGetDeclaredFields(helperClass)) {
+                try {
+                    int modifiers = field.getModifiers();
+                    if (!java.lang.reflect.Modifier.isStatic(modifiers)
+                            || java.lang.reflect.Modifier.isFinal(modifiers)) {
+                        continue;
+                    }
+                    field.setAccessible(true);
+                    if (field.get(null) != null) {
+                        continue;
+                    }
+                    Class<?> fieldType = field.getType();
+                    Object value = null;
+                    if (fieldType == boolean.class || fieldType == Boolean.class) {
+                        value = Boolean.TRUE;
+                    } else if (fieldType == String.class || fieldType == CharSequence.class) {
+                        value = "";
+                    } else if (fieldType.isInterface()
+                            && isMcdonaldsDataSourceSeedInterface(fieldType)) {
+                        value = createMcdonaldsInterfaceProxy(fieldType, cl,
+                                "DataSourceHelper." + field.getName());
+                    }
+                    if (value != null) {
+                        field.set(null, value);
+                        seededFields++;
+                        if (isRestaurantModuleInteractor(fieldType)) {
+                            restaurantSeeded = true;
+                        }
+                    }
+                } catch (Throwable t) {
+                    log("W", "McD DataSourceHelper field seed skipped: "
+                            + throwableSummary(t));
+                }
+            }
+            int fixedMethods = 0;
+            log("D", "McD DataSourceHelper getter verification skipped in instrumentation bootstrap");
+            WestlakeLauncher.appendCutoffCanaryMarker(
+                    "MCD_PROFILE_DATASOURCE_HELPER_SEED_OK fields=" + seededFields
+                            + " methods=" + fixedMethods
+                            + " restaurant=" + restaurantSeeded
+                            + " accountProfile=" + accountProfileSeeded);
+            WestlakeLauncher.marker(
+                    "MCD_PROFILE_DATASOURCE_HELPER_SEED_OK fields=" + seededFields
+                            + " methods=" + fixedMethods
+                            + " restaurant=" + restaurantSeeded
+                            + " accountProfile=" + accountProfileSeeded);
+        } catch (Throwable t) {
+            log("W", "McD DataSourceHelper seed failed: " + throwableSummary(t));
+            WestlakeLauncher.marker("MCD_PROFILE_DATASOURCE_HELPER_SEED_FAIL err="
+                    + throwableSummary(t));
+            WestlakeLauncher.appendCutoffCanaryMarker(
+                    "MCD_PROFILE_DATASOURCE_HELPER_SEED_FAIL err="
+                            + t.getClass().getSimpleName());
+        }
+    }
+
+    private static boolean seedNamedMcdonaldsAccountProfileInteractor(Class<?> helperClass,
+            ClassLoader fallbackCl) {
+        try {
+            ClassLoader cl = fallbackCl;
+            if (cl == null && helperClass != null) cl = helperClass.getClassLoader();
+            if (cl == null) cl = Thread.currentThread().getContextClassLoader();
+            if (cl == null) cl = ClassLoader.getSystemClassLoader();
+            Class<?> interactorType = cl.loadClass(
+                    "com.mcdonalds.mcdcoreapp.helper.interfaces.AccountProfileInteractor");
+            Object interactor = createKnownMcdonaldsConcreteReturn(interactorType, cl);
+            if (interactor == null) {
+                interactor = createMcdonaldsInterfaceProxy(interactorType, cl,
+                        "DataSourceHelper.accountProfileInteractor");
+            }
+            if (interactor == null) {
+                WestlakeLauncher.marker(
+                        "MCD_PROFILE_ACCOUNT_PROFILE_INTERACTOR_SEED_FAIL err=value_null");
+                return false;
+            }
+            java.lang.reflect.Field field =
+                    helperClass.getDeclaredField("accountProfileInteractor");
+            field.setAccessible(true);
+            try {
+                Object current = field.get(null);
+                if (current != null) {
+                    WestlakeLauncher.marker(
+                            "MCD_PROFILE_ACCOUNT_PROFILE_INTERACTOR_SEED_SKIP already_set");
+                    return true;
+                }
+                field.set(null, interactor);
+                WestlakeLauncher.marker(
+                        "MCD_PROFILE_ACCOUNT_PROFILE_INTERACTOR_SEED_OK direct=true");
+                return true;
+            } catch (Throwable normalSetFailure) {
+                if (unsafePutStaticObject(field, interactor)) {
+                    WestlakeLauncher.marker(
+                            "MCD_PROFILE_ACCOUNT_PROFILE_INTERACTOR_SEED_OK direct=false");
+                    return true;
+                }
+                WestlakeLauncher.marker(
+                        "MCD_PROFILE_ACCOUNT_PROFILE_INTERACTOR_SEED_FAIL err="
+                                + normalSetFailure.getClass().getSimpleName());
+                return false;
+            }
+        } catch (Throwable t) {
+            WestlakeLauncher.marker("MCD_PROFILE_ACCOUNT_PROFILE_INTERACTOR_SEED_FAIL err="
+                    + throwableSummary(t));
+            return false;
+        }
+    }
+
+    private static boolean seedNamedMcdonaldsRestaurantInteractor(Class<?> helperClass,
+            ClassLoader fallbackCl) {
+        try {
+            ClassLoader cl = fallbackCl;
+            if (cl == null && helperClass != null) cl = helperClass.getClassLoader();
+            if (cl == null) cl = Thread.currentThread().getContextClassLoader();
+            if (cl == null) cl = ClassLoader.getSystemClassLoader();
+            Class<?> interactorType = cl.loadClass(
+                    "com.mcdonalds.mcdcoreapp.helper.interfaces.RestaurantModuleInteractor");
+            Object interactor = createKnownMcdonaldsConcreteReturn(interactorType, cl);
+            if (interactor == null) {
+                interactor = createMcdonaldsInterfaceProxy(interactorType, cl,
+                        "DataSourceHelper.restaurantModuleInteractor");
+            }
+            if (interactor == null) {
+                WestlakeLauncher.marker(
+                        "MCD_PROFILE_RESTAURANT_INTERACTOR_SEED_FAIL err=value_null");
+                return false;
+            }
+            java.lang.reflect.Field field =
+                    helperClass.getDeclaredField("restaurantModuleInteractor");
+            field.setAccessible(true);
+            boolean set = false;
+            try {
+                Object current = field.get(null);
+                if (current != null) {
+                    WestlakeLauncher.marker(
+                            "MCD_PROFILE_RESTAURANT_INTERACTOR_SEED_SKIP already_set");
+                    return true;
+                }
+                field.set(null, interactor);
+                set = true;
+            } catch (Throwable normalSetFailure) {
+                set = unsafePutStaticObject(field, interactor);
+                if (!set) {
+                    WestlakeLauncher.marker(
+                            "MCD_PROFILE_RESTAURANT_INTERACTOR_SEED_FAIL err="
+                                    + normalSetFailure.getClass().getSimpleName());
+                    return false;
+                }
+            }
+            WestlakeLauncher.marker("MCD_PROFILE_RESTAURANT_INTERACTOR_SEED_OK direct="
+                    + set);
+            return true;
+        } catch (Throwable t) {
+            WestlakeLauncher.marker("MCD_PROFILE_RESTAURANT_INTERACTOR_SEED_FAIL err="
+                    + throwableSummary(t));
+            return false;
+        }
+    }
+
+    private static Object createKnownMcdonaldsConcreteReturn(Class<?> returnType,
+            ClassLoader fallbackCl) {
+        if (returnType == null) {
+            return null;
+        }
+        String implName = null;
+        try {
+            String returnName = returnType.getName();
+            if (("com.mcdonalds.mcdcoreapp.helper.interfaces"
+                    + ".RestaurantModuleInteractor").equals(returnName)) {
+                implName = "com.mcdonalds.restaurant.helpers.RestaurantModuleImplementation";
+            } else if (("com.mcdonalds.mcdcoreapp.helper.interfaces"
+                    + ".AccountProfileInteractor").equals(returnName)) {
+                implName = "com.mcdonalds.account.util.AccountProfileImplementation";
+            } else if (("com.mcdonalds.mcdcoreapp.helper.interfaces"
+                    + ".LoyaltyModuleInteractor").equals(returnName)) {
+                implName = "com.mcdonalds.loyalty.dashboard.util.DealsLoyaltyImplementation";
+            }
+        } catch (Throwable ignored) {
+            return null;
+        }
+        if (implName == null) {
+            return null;
+        }
+        try {
+            ClassLoader cl = returnType.getClassLoader();
+            if (cl == null) cl = fallbackCl;
+            if (cl == null) cl = Thread.currentThread().getContextClassLoader();
+            if (cl == null) cl = ClassLoader.getSystemClassLoader();
+            Class<?> implClass = cl.loadClass(implName);
+            if (!returnType.isAssignableFrom(implClass)) {
+                WestlakeLauncher.marker(
+                        "MCD_PROFILE_KNOWN_CONCRETE_RETURN_FAIL err=not_assignable impl="
+                                + implName);
+                return null;
+            }
+            try {
+                java.lang.reflect.Constructor<?> ctor = implClass.getDeclaredConstructor();
+                ctor.setAccessible(true);
+                Object value = ctor.newInstance();
+                WestlakeLauncher.marker(
+                        "MCD_PROFILE_KNOWN_CONCRETE_RETURN_OK ctor=" + implName);
+                return value;
+            } catch (Throwable ctorFailure) {
+                Object value = instantiateWithDefaultArgs(implClass, cl);
+                if (value != null) {
+                    WestlakeLauncher.marker(
+                            "MCD_PROFILE_KNOWN_CONCRETE_RETURN_OK ctor_args=" + implName);
+                    return value;
+                }
+                if (("com.mcdonalds.loyalty.dashboard.util"
+                        + ".DealsLoyaltyImplementation").equals(implName)) {
+                    WestlakeLauncher.marker(
+                            "MCD_PROFILE_KNOWN_CONCRETE_RETURN_FAIL err=ctor_required impl="
+                                    + implName);
+                    return null;
+                }
+                Object unsafeValue = unsafeAllocate(implClass);
+                if (unsafeValue != null) {
+                    WestlakeLauncher.marker(
+                            "MCD_PROFILE_KNOWN_CONCRETE_RETURN_OK unsafe=" + implName);
+                    return unsafeValue;
+                }
+                WestlakeLauncher.marker(
+                        "MCD_PROFILE_KNOWN_CONCRETE_RETURN_FAIL err="
+                                + ctorFailure.getClass().getSimpleName());
+            }
+        } catch (Throwable t) {
+            WestlakeLauncher.marker("MCD_PROFILE_KNOWN_CONCRETE_RETURN_FAIL err="
+                    + throwableSummary(t));
+        }
+        return null;
+    }
+
+    private static Object instantiateWithDefaultArgs(Class<?> target, ClassLoader fallbackCl) {
+        if (target == null || target.isInterface()
+                || java.lang.reflect.Modifier.isAbstract(target.getModifiers())) {
+            return null;
+        }
+        for (java.lang.reflect.Constructor<?> ctor : target.getDeclaredConstructors()) {
+            try {
+                Class<?>[] parameterTypes = ctor.getParameterTypes();
+                Object[] args = new Object[parameterTypes.length];
+                for (int i = 0; i < parameterTypes.length; i++) {
+                    args[i] = defaultCtorArg(parameterTypes[i], fallbackCl);
+                }
+                ctor.setAccessible(true);
+                return ctor.newInstance(args);
+            } catch (Throwable ignored) {
+            }
+        }
+        return null;
+    }
+
+    private static Object defaultCtorArg(Class<?> type, ClassLoader fallbackCl) {
+        if (type == null) return null;
+        if (type == boolean.class) return Boolean.FALSE;
+        if (type == byte.class) return Byte.valueOf((byte) 0);
+        if (type == short.class) return Short.valueOf((short) 0);
+        if (type == int.class) return Integer.valueOf(0);
+        if (type == long.class) return Long.valueOf(0L);
+        if (type == float.class) return Float.valueOf(0f);
+        if (type == double.class) return Double.valueOf(0d);
+        if (type == char.class) return Character.valueOf('\0');
+        if (type == String.class || type == CharSequence.class) return "";
+        if (type.isArray()) {
+            return java.lang.reflect.Array.newInstance(type.getComponentType(), 0);
+        }
+        if (java.util.List.class.isAssignableFrom(type)
+                || java.util.Collection.class.isAssignableFrom(type)) {
+            return new java.util.ArrayList<Object>();
+        }
+        if (java.util.Map.class.isAssignableFrom(type)) {
+            return new java.util.HashMap<Object, Object>();
+        }
+        if (java.util.Set.class.isAssignableFrom(type)) {
+            return new java.util.HashSet<Object>();
+        }
+        if (type.isInterface() && shouldProxyNestedMcdonaldsReturn(type)) {
+            return createMcdonaldsInterfaceProxy(type, fallbackCl,
+                    "ctor." + type.getSimpleName());
+        }
+        return null;
+    }
+
+    private static Object unsafeAllocate(Class<?> target) {
+        if (target == null) {
+            return null;
+        }
+        try {
+            java.lang.reflect.Field unsafeField =
+                    Class.forName("sun.misc.Unsafe").getDeclaredField("theUnsafe");
+            unsafeField.setAccessible(true);
+            Object unsafe = unsafeField.get(null);
+            return unsafe.getClass().getMethod("allocateInstance", Class.class)
+                    .invoke(unsafe, target);
+        } catch (Throwable ignored) {
+            return null;
+        }
+    }
+
+    private static boolean unsafePutStaticObject(java.lang.reflect.Field field, Object value) {
+        if (field == null) {
+            return false;
+        }
+        try {
+            java.lang.reflect.Field unsafeField =
+                    Class.forName("sun.misc.Unsafe").getDeclaredField("theUnsafe");
+            unsafeField.setAccessible(true);
+            Object unsafe = unsafeField.get(null);
+            java.lang.reflect.Method baseMethod =
+                    unsafe.getClass().getMethod("staticFieldBase", java.lang.reflect.Field.class);
+            java.lang.reflect.Method offsetMethod =
+                    unsafe.getClass().getMethod("staticFieldOffset", java.lang.reflect.Field.class);
+            java.lang.reflect.Method putObjectMethod =
+                    unsafe.getClass().getMethod("putObject", Object.class, long.class,
+                            Object.class);
+            Object base = baseMethod.invoke(unsafe, field);
+            long offset = ((Long) offsetMethod.invoke(unsafe, field)).longValue();
+            putObjectMethod.invoke(unsafe, base, Long.valueOf(offset), value);
+            return true;
+        } catch (Throwable ignored) {
+            return false;
+        }
+    }
+
+    private static int verifyMcdonaldsDataSourceHelperMethods(Class<?> helperClass,
+            ClassLoader fallbackCl) {
+        int fixed = 0;
+        for (java.lang.reflect.Method method : safeGetDeclaredMethods(helperClass)) {
+            try {
+                int modifiers = method.getModifiers();
+                if (!java.lang.reflect.Modifier.isStatic(modifiers)
+                        || method.getParameterTypes().length != 0) {
+                    continue;
+                }
+                Class<?> returnType = method.getReturnType();
+                if (!returnType.isInterface()
+                        || !isMcdonaldsDataSourceSeedInterface(returnType)) {
+                    continue;
+                }
+                method.setAccessible(true);
+                Object current = method.invoke(null);
+                if (current != null) {
+                    continue;
+                }
+                Object value = createMcdonaldsInterfaceProxy(returnType, fallbackCl,
+                        "DataSourceHelper." + method.getName());
+                if (value == null) {
+                    continue;
+                }
+                if (setMatchingStaticHelperField(helperClass, returnType, value)) {
+                    fixed++;
+                }
+            } catch (Throwable ignored) {
+            }
+        }
+        return fixed;
+    }
+
+    private static boolean setMatchingStaticHelperField(Class<?> helperClass, Class<?> type,
+            Object value) {
+        for (java.lang.reflect.Field field : safeGetDeclaredFields(helperClass)) {
+            try {
+                int modifiers = field.getModifiers();
+                if (!java.lang.reflect.Modifier.isStatic(modifiers)
+                        || java.lang.reflect.Modifier.isFinal(modifiers)) {
+                    continue;
+                }
+                if (!field.getType().isAssignableFrom(type) && field.getType() != type) {
+                    continue;
+                }
+                field.setAccessible(true);
+                if (field.get(null) != null) {
+                    continue;
+                }
+                field.set(null, value);
+                return true;
+            } catch (Throwable ignored) {
+            }
+        }
+        return false;
+    }
+
+    private static Object invokeNoArgStaticHelper(Class<?> helperClass, String methodName) {
+        for (java.lang.reflect.Method method : safeGetDeclaredMethods(helperClass)) {
+            try {
+                int modifiers = method.getModifiers();
+                if (!java.lang.reflect.Modifier.isStatic(modifiers)
+                        || method.getParameterTypes().length != 0
+                        || !methodName.equals(method.getName())) {
+                    continue;
+                }
+                method.setAccessible(true);
+                return method.invoke(null);
+            } catch (Throwable ignored) {
+                return null;
+            }
+        }
+        return null;
+    }
+
+    private static boolean isMcdonaldsDataSourceSeedInterface(Class<?> type) {
+        if (type == null || !type.isInterface()) {
+            return false;
+        }
+        try {
+            String name = type.getName();
+            return name != null
+                    && name.startsWith("com.mcdonalds.")
+                    && (name.contains(".helper.interfaces.")
+                    || name.endsWith("Interactor")
+                    || name.endsWith("Repository")
+                    || name.endsWith("Provider")
+                    || name.endsWith("DataSource")
+                    || name.endsWith("Domain")
+                    || name.endsWith("Manager"));
+        } catch (Throwable ignored) {
+            return false;
+        }
+    }
+
+    private static boolean isRestaurantModuleInteractor(Class<?> type) {
+        try {
+            return type != null
+                    && ("com.mcdonalds.mcdcoreapp.helper.interfaces"
+                    + ".RestaurantModuleInteractor").equals(type.getName());
+        } catch (Throwable ignored) {
+            return false;
+        }
+    }
+
+    private static boolean isMcdonaldsActivitySeedInterface(Class<?> type) {
+        if (type == null || !type.isInterface()) {
+            return false;
+        }
+        String name;
+        try {
+            name = type.getName();
+        } catch (Throwable ignored) {
+            return false;
+        }
+        if (name == null || !name.startsWith("com.mcdonalds.")) {
+            return false;
+        }
+        return name.contains(".helper.interfaces.")
+                || name.endsWith("Interactor")
+                || name.endsWith("Repository")
+                || name.endsWith("Provider")
+                || name.endsWith("DataSource")
+                || name.endsWith("Domain")
+                || name.endsWith("Manager");
+    }
+
+    private static Object resolveMcdonaldsDataSourceValue(Class<?> returnType,
+            ClassLoader fallbackCl) {
+        if (returnType == null) {
+            return null;
+        }
+        try {
+            ClassLoader cl = returnType.getClassLoader();
+            if (cl == null) cl = fallbackCl;
+            if (cl == null) cl = Thread.currentThread().getContextClassLoader();
+            if (cl == null) cl = ClassLoader.getSystemClassLoader();
+            Class<?> helperClass =
+                    cl.loadClass("com.mcdonalds.mcdcoreapp.common.model.DataSourceHelper");
+            for (java.lang.reflect.Method method : safeGetDeclaredMethods(helperClass)) {
+                try {
+                    int modifiers = method.getModifiers();
+                    if (!java.lang.reflect.Modifier.isStatic(modifiers)
+                            || method.getParameterTypes().length != 0) {
+                        continue;
+                    }
+                    if (!returnType.isAssignableFrom(method.getReturnType())) {
+                        continue;
+                    }
+                    method.setAccessible(true);
+                    Object value = method.invoke(null);
+                    if (value != null && returnType.isInstance(value)) {
+                        return value;
+                    }
+                } catch (Throwable ignored) {
+                }
+            }
+        } catch (Throwable ignored) {
+        }
+        return null;
+    }
+
+    private static Object createMcdonaldsInterfaceProxy(final Class<?> type, ClassLoader fallbackCl,
+            final String label) {
+        if (type == null || !type.isInterface()) {
+            return null;
+        }
+        try {
+            ClassLoader cl = type.getClassLoader();
+            if (cl == null) cl = fallbackCl;
+            if (cl == null) cl = Thread.currentThread().getContextClassLoader();
+            if (cl == null) cl = ClassLoader.getSystemClassLoader();
+            final ClassLoader proxyCl = cl;
+            return java.lang.reflect.Proxy.newProxyInstance(
+                    proxyCl,
+                    new Class<?>[] { type },
+                    new java.lang.reflect.InvocationHandler() {
+                        @Override
+                        public Object invoke(Object proxy, java.lang.reflect.Method method,
+                                Object[] args) {
+                            String methodName = method != null ? method.getName() : "";
+                            if ("toString".equals(methodName)) {
+                                return "WestlakeMcDActivityProxy(" + label + ":"
+                                        + type.getSimpleName() + ")";
+                            }
+                            if ("hashCode".equals(methodName)) {
+                                return Integer.valueOf(System.identityHashCode(proxy));
+                            }
+                            if ("equals".equals(methodName)) {
+                                return Boolean.valueOf(args != null && args.length > 0
+                                        && proxy == args[0]);
+                            }
+                            if (("com.mcdonalds.mcdcoreapp.helper.interfaces"
+                                    + ".RestaurantModuleInteractor").equals(type.getName())) {
+                                WestlakeLauncher.appendCutoffCanaryMarker(
+                                        "MCD_PROFILE_RESTAURANT_INTERACTOR_PROXY_CALL method="
+                                                + methodName);
+                            }
+                            Class<?> returnType = method != null ? method.getReturnType() : null;
+                            return defaultMcdonaldsProxyReturn(returnType, proxyCl,
+                                    label + "." + methodName);
+                        }
+                    });
+        } catch (Throwable t) {
+            log("W", "McD activity proxy failed for " + type.getName() + ": "
+                    + throwableSummary(t));
+            return null;
+        }
+    }
+
+    private static Object defaultMcdonaldsProxyReturn(Class<?> returnType, ClassLoader fallbackCl,
+            String label) {
+        if (returnType == null || returnType == Void.TYPE) return null;
+        if (returnType == boolean.class) return Boolean.FALSE;
+        if (returnType == byte.class) return Byte.valueOf((byte) 0);
+        if (returnType == short.class) return Short.valueOf((short) 0);
+        if (returnType == int.class) return Integer.valueOf(0);
+        if (returnType == long.class) return Long.valueOf(0L);
+        if (returnType == float.class) return Float.valueOf(0f);
+        if (returnType == double.class) return Double.valueOf(0d);
+        if (returnType == char.class) return Character.valueOf('\0');
+        if (returnType == Boolean.class) return Boolean.FALSE;
+        if (returnType == Byte.class) return Byte.valueOf((byte) 0);
+        if (returnType == Short.class) return Short.valueOf((short) 0);
+        if (returnType == Integer.class) return Integer.valueOf(0);
+        if (returnType == Long.class) return Long.valueOf(0L);
+        if (returnType == Float.class) return Float.valueOf(0f);
+        if (returnType == Double.class) return Double.valueOf(0d);
+        if (returnType == Character.class) return Character.valueOf('\0');
+        if (returnType == String.class || returnType == CharSequence.class) return "";
+        if (returnType.isArray()) {
+            return java.lang.reflect.Array.newInstance(returnType.getComponentType(), 0);
+        }
+        if (java.util.Set.class.isAssignableFrom(returnType)) {
+            return new java.util.HashSet<Object>();
+        }
+        if (java.util.List.class.isAssignableFrom(returnType)
+                || java.util.Collection.class.isAssignableFrom(returnType)) {
+            return new java.util.ArrayList<Object>();
+        }
+        if (java.util.Map.class.isAssignableFrom(returnType)) {
+            return new java.util.HashMap<Object, Object>();
+        }
+        if (java.lang.Iterable.class.isAssignableFrom(returnType)) {
+            return new java.util.ArrayList<Object>();
+        }
+        if (java.util.Iterator.class.isAssignableFrom(returnType)) {
+            return new java.util.ArrayList<Object>().iterator();
+        }
+        if (returnType.isEnum()) {
+            try {
+                Object[] constants = returnType.getEnumConstants();
+                return constants != null && constants.length > 0 ? constants[0] : null;
+            } catch (Throwable ignored) {
+                return null;
+            }
+        }
+        Object concrete = createKnownMcdonaldsConcreteReturn(returnType, fallbackCl);
+        if (concrete != null) {
+            return concrete;
+        }
+        if (returnType.isInterface() && shouldProxyNestedMcdonaldsReturn(returnType)) {
+            return createMcdonaldsInterfaceProxy(returnType, fallbackCl, label);
+        }
+        Object dataSourceValue = resolveMcdonaldsDataSourceValue(returnType, fallbackCl);
+        return dataSourceValue != null ? dataSourceValue : null;
+    }
+
+    private static boolean shouldProxyNestedMcdonaldsReturn(Class<?> type) {
+        if (type == null || !type.isInterface()) {
+            return false;
+        }
+        try {
+            String name = type.getName();
+            return name != null
+                    && !name.startsWith("java.")
+                    && !name.startsWith("android.")
+                    && !name.startsWith("javax.");
+        } catch (Throwable ignored) {
+            return false;
+        }
+    }
+
     private static boolean isMinimalSplashActivity(Activity activity) {
         return activity != null && isMinimalSplashClassName(activity.getClass().getName());
     }
@@ -588,6 +1261,26 @@ public class WestlakeInstrumentation extends Instrumentation {
                 + activity.getClass().getName());
         boolean minimalSplash = isMinimalSplashActivity(activity);
         boolean mcdonaldsActivity = isMcdonaldsActivity(activity);
+        if (mcdonaldsActivity) {
+            WestlakeLauncher.marker("MCD_PROFILE_DATASOURCE_HELPER_SEED_BEGIN class="
+                    + activity.getClass().getName());
+            try {
+                seedMcdonaldsDataSourceHelper(activity.getClass().getClassLoader());
+                WestlakeLauncher.marker("MCD_PROFILE_DATASOURCE_HELPER_SEED_RETURNED class="
+                        + activity.getClass().getName());
+            } catch (Throwable t) {
+                WestlakeLauncher.marker("MCD_PROFILE_DATASOURCE_HELPER_SEED_THROW err="
+                        + throwableSummary(t));
+                log("W", "seedMcdonaldsDataSourceHelper failed: "
+                        + throwableSummary(t));
+            }
+            try {
+                seedMcdonaldsActivityInterfaceFields(activity);
+            } catch (Throwable t) {
+                log("W", "seedMcdonaldsActivityInterfaceFields failed: "
+                        + throwableSummary(t));
+            }
+        }
         if (!minimalSplash && !mcdonaldsActivity) {
             try {
                 WestlakeLauncher.patchProblematicAppClasses(activity.getClass().getClassLoader());
@@ -1320,6 +2013,18 @@ public class WestlakeInstrumentation extends Instrumentation {
             return methods != null ? methods : new java.lang.reflect.Method[0];
         } catch (Throwable ignored) {
             return new java.lang.reflect.Method[0];
+        }
+    }
+
+    private static java.lang.reflect.Field[] safeGetDeclaredFields(Class<?> cls) {
+        if (cls == null) {
+            return new java.lang.reflect.Field[0];
+        }
+        try {
+            java.lang.reflect.Field[] fields = cls.getDeclaredFields();
+            return fields != null ? fields : new java.lang.reflect.Field[0];
+        } catch (Throwable ignored) {
+            return new java.lang.reflect.Field[0];
         }
     }
 

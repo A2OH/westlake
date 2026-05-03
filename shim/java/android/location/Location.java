@@ -35,10 +35,27 @@ public class Location {
         mBearing = l.mBearing;
         mAccuracy = l.mAccuracy;
         mTime = l.mTime;
+        mElapsedRealtimeNanos = l.mElapsedRealtimeNanos;
         mHasAltitude = l.mHasAltitude;
         mHasSpeed = l.mHasSpeed;
         mHasBearing = l.mHasBearing;
         mHasAccuracy = l.mHasAccuracy;
+    }
+
+    public void reset() {
+        mProvider = null;
+        mLatitude = 0.0;
+        mLongitude = 0.0;
+        mAltitude = 0.0;
+        mSpeed = 0.0f;
+        mBearing = 0.0f;
+        mAccuracy = 0.0f;
+        mTime = 0L;
+        mElapsedRealtimeNanos = 0L;
+        mHasAltitude = false;
+        mHasSpeed = false;
+        mHasBearing = false;
+        mHasAccuracy = false;
     }
 
     public String getProvider() { return mProvider; }
@@ -53,18 +70,22 @@ public class Location {
     public boolean hasAltitude() { return mHasAltitude; }
     public double getAltitude() { return mAltitude; }
     public void setAltitude(double alt) { mAltitude = alt; mHasAltitude = true; }
+    public void removeAltitude() { mAltitude = 0.0; mHasAltitude = false; }
 
     public boolean hasSpeed() { return mHasSpeed; }
     public float getSpeed() { return mSpeed; }
     public void setSpeed(float speed) { mSpeed = speed; mHasSpeed = true; }
+    public void removeSpeed() { mSpeed = 0.0f; mHasSpeed = false; }
 
     public boolean hasBearing() { return mHasBearing; }
     public float getBearing() { return mBearing; }
     public void setBearing(float bearing) { mBearing = bearing; mHasBearing = true; }
+    public void removeBearing() { mBearing = 0.0f; mHasBearing = false; }
 
     public boolean hasAccuracy() { return mHasAccuracy; }
     public float getAccuracy() { return mAccuracy; }
     public void setAccuracy(float accuracy) { mAccuracy = accuracy; mHasAccuracy = true; }
+    public void removeAccuracy() { mAccuracy = 0.0f; mHasAccuracy = false; }
 
     public long getTime() { return mTime; }
     public void setTime(long time) { mTime = time; }

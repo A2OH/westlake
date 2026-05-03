@@ -1,6 +1,7 @@
 package androidx.recyclerview.widget;
 
 import android.content.Context;
+import android.graphics.PointF;
 import android.util.AttributeSet;
 
 /**
@@ -15,7 +16,8 @@ import android.util.AttributeSet;
  * RecyclerView.LayoutManager (not the inner LinearLayoutManager) to avoid
  * a circular dependency, and duplicates the same minimal logic.
  */
-public class LinearLayoutManager extends RecyclerView.LayoutManager {
+public class LinearLayoutManager extends RecyclerView.LayoutManager
+        implements RecyclerView.SmoothScroller.ScrollVectorProvider {
 
     public static final int HORIZONTAL = 0;
     public static final int VERTICAL = 1;
@@ -76,22 +78,32 @@ public class LinearLayoutManager extends RecyclerView.LayoutManager {
     }
 
     public int findFirstVisibleItemPosition() {
-        return 0;
+        return getItemCount() > 0 && getChildCount() > 0 ? 0 : -1;
     }
 
     public int findLastVisibleItemPosition() {
-        return getItemCount() - 1;
+        int itemCount = getItemCount();
+        int childCount = getChildCount();
+        return itemCount > 0 && childCount > 0 ? Math.min(itemCount, childCount) - 1 : -1;
     }
 
     public int findFirstCompletelyVisibleItemPosition() {
-        return 0;
+        return findFirstVisibleItemPosition();
     }
 
     public int findLastCompletelyVisibleItemPosition() {
-        return getItemCount() - 1;
+        return findLastVisibleItemPosition();
     }
 
     public void scrollToPositionWithOffset(int position, int offset) {
         // no-op in this minimal shim
+    }
+
+    @Override
+    public PointF computeScrollVectorForPosition(int targetPosition) {
+        int direction = mReverseLayout ? -1 : 1;
+        return mOrientation == HORIZONTAL
+                ? new PointF(direction, 0f)
+                : new PointF(0f, direction);
     }
 }

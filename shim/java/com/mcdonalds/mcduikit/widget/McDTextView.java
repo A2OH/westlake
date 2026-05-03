@@ -3,7 +3,7 @@ package com.mcdonalds.mcduikit.widget;
 import android.content.Context;
 import android.util.AttributeSet;
 
-public class McDTextView extends android.widget.TextView {
+public class McDTextView extends androidx.appcompat.widget.AppCompatTextView {
     public McDTextView(Context context) {
         super(context);
     }

@@ -1,9 +1,13 @@
 package androidx.recyclerview.widget;
 
 import android.content.Context;
+import android.graphics.PointF;
+import android.graphics.Rect;
 import android.util.AttributeSet;
 import android.view.View;
 import android.view.ViewGroup;
+
+import java.util.IdentityHashMap;
 
 /**
  * Android-compatible RecyclerView shim.
@@ -16,6 +20,9 @@ public class RecyclerView extends ViewGroup {
 
     private Adapter mAdapter;
     private LayoutManager mLayoutManager;
+    private OnFlingListener mOnFlingListener;
+    private final IdentityHashMap<View, ViewHolder> mAttachedViewHolders =
+            new IdentityHashMap<View, ViewHolder>();
 
     // ---------------------------------------------------------------
     //  Constructors
@@ -38,9 +45,23 @@ public class RecyclerView extends ViewGroup {
     // ---------------------------------------------------------------
 
     public void setAdapter(Adapter adapter) {
+        if (mAdapter == adapter) {
+            return;
+        }
+        if (mAdapter != null) {
+            try {
+                mAdapter.onDetachedFromRecyclerView(this);
+            } catch (Throwable ignored) {
+            }
+            mAdapter.mRecyclerView = null;
+        }
         mAdapter = adapter;
         if (mAdapter != null) {
             mAdapter.mRecyclerView = this;
+            try {
+                mAdapter.onAttachedToRecyclerView(this);
+            } catch (Throwable ignored) {
+            }
         }
         requestLayout();
     }
@@ -93,6 +114,42 @@ public class RecyclerView extends ViewGroup {
         // no-op in this minimal shim
     }
 
+    public void smoothScrollBy(int dx, int dy) {
+        scrollBy(dx, dy);
+    }
+
+    public int getMinFlingVelocity() {
+        return 50;
+    }
+
+    public int getChildAdapterPosition(View child) {
+        return indexOfChild(child);
+    }
+
+    public int getChildLayoutPosition(View child) {
+        return getChildAdapterPosition(child);
+    }
+
+    public int getChildViewHolderPosition(View child) {
+        return getChildAdapterPosition(child);
+    }
+
+    public ViewHolder getChildViewHolder(View child) {
+        return child != null ? mAttachedViewHolders.get(child) : null;
+    }
+
+    public boolean fling(int velocityX, int velocityY) {
+        return mOnFlingListener != null && mOnFlingListener.onFling(velocityX, velocityY);
+    }
+
+    public void setOnFlingListener(OnFlingListener onFlingListener) {
+        mOnFlingListener = onFlingListener;
+    }
+
+    public OnFlingListener getOnFlingListener() {
+        return mOnFlingListener;
+    }
+
     // ---------------------------------------------------------------
     //  Measure / Layout
     // ---------------------------------------------------------------
@@ -113,17 +170,21 @@ public class RecyclerView extends ViewGroup {
 
         // Remove all previously-added children
         removeAllViews();
+        mAttachedViewHolders.clear();
 
         int parentWidth = r - l;
         int parentHeight = b - t;
+        boolean horizontal = isHorizontalLayout();
         int childTop = getPaddingTop();
         int childLeft = getPaddingLeft();
         int availableWidth = parentWidth - getPaddingLeft() - getPaddingRight();
+        int availableHeight = parentHeight - getPaddingTop() - getPaddingBottom();
         int count = mAdapter.getItemCount();
 
         for (int i = 0; i < count; i++) {
-            if (childTop >= parentHeight) {
-                break; // no more visible space
+            if ((!horizontal && childTop >= parentHeight)
+                    || (horizontal && childLeft >= parentWidth)) {
+                break;
             }
 
             int viewType = mAdapter.getItemViewType(i);
@@ -131,23 +192,100 @@ public class RecyclerView extends ViewGroup {
             // Create and bind
             ViewHolder vh = mAdapter.onCreateViewHolder(this, viewType);
             vh.mPosition = i;
+            vh.mItemViewType = viewType;
             mAdapter.onBindViewHolder(vh, i);
 
             View child = vh.itemView;
+            ensureRecyclerLayoutParams(child);
 
-            // Measure the child: width = exactly available width, height = wrap
-            int childWidthSpec = MeasureSpec.makeMeasureSpec(availableWidth, MeasureSpec.EXACTLY);
-            int childHeightSpec = MeasureSpec.makeMeasureSpec(parentHeight - childTop, MeasureSpec.AT_MOST);
+            int childWidthSpec;
+            int childHeightSpec;
+            if (horizontal) {
+                int itemWidth = availableWidth / 2;
+                if (itemWidth < 120) itemWidth = 120;
+                if (itemWidth > 220) itemWidth = 220;
+                childWidthSpec = MeasureSpec.makeMeasureSpec(itemWidth, MeasureSpec.EXACTLY);
+                childHeightSpec = MeasureSpec.makeMeasureSpec(
+                        Math.max(1, availableHeight), MeasureSpec.AT_MOST);
+            } else {
+                childWidthSpec = MeasureSpec.makeMeasureSpec(
+                        Math.max(1, availableWidth), MeasureSpec.EXACTLY);
+                childHeightSpec = MeasureSpec.makeMeasureSpec(
+                        Math.max(1, parentHeight - childTop), MeasureSpec.AT_MOST);
+            }
             child.measure(childWidthSpec, childHeightSpec);
 
             int childHeight = child.getMeasuredHeight();
             int childWidth = child.getMeasuredWidth();
+            if (childWidth <= 0) childWidth = horizontal ? MeasureSpec.getSize(childWidthSpec) : availableWidth;
+            if (childHeight <= 0) childHeight = horizontal
+                    ? Math.max(44, Math.min(availableHeight, 160)) : 44;
 
             // Add and position
             addView(child);
+            mAttachedViewHolders.put(child, vh);
             child.layout(childLeft, childTop, childLeft + childWidth, childTop + childHeight);
 
-            childTop += childHeight;
+            if (horizontal) {
+                childLeft += childWidth;
+            } else {
+                childTop += childHeight;
+            }
+        }
+    }
+
+    private boolean isHorizontalLayout() {
+        if (mLayoutManager == null) {
+            return false;
+        }
+        try {
+            if (mLayoutManager.canScrollHorizontally()) {
+                return true;
+            }
+        } catch (Throwable ignored) {
+        }
+        if (mLayoutManager instanceof RecyclerView.LinearLayoutManager) {
+            return ((RecyclerView.LinearLayoutManager) mLayoutManager).getOrientation()
+                    == RecyclerView.LinearLayoutManager.HORIZONTAL;
+        }
+        if (mLayoutManager instanceof androidx.recyclerview.widget.LinearLayoutManager) {
+            return ((androidx.recyclerview.widget.LinearLayoutManager) mLayoutManager).getOrientation()
+                    == androidx.recyclerview.widget.LinearLayoutManager.HORIZONTAL;
+        }
+        return false;
+    }
+
+    private void ensureRecyclerLayoutParams(View child) {
+        ViewGroup.LayoutParams lp = child.getLayoutParams();
+        if (lp instanceof LayoutParams) {
+            return;
+        }
+        if (lp instanceof ViewGroup.MarginLayoutParams) {
+            child.setLayoutParams(new LayoutParams((ViewGroup.MarginLayoutParams) lp));
+        } else if (lp != null) {
+            child.setLayoutParams(new LayoutParams(lp));
+        } else {
+            child.setLayoutParams(new LayoutParams(
+                    ViewGroup.LayoutParams.MATCH_PARENT,
+                    ViewGroup.LayoutParams.WRAP_CONTENT));
+        }
+    }
+
+    public static class LayoutParams extends ViewGroup.MarginLayoutParams {
+        public LayoutParams(Context c, AttributeSet attrs) {
+            super(c, attrs);
+        }
+
+        public LayoutParams(int width, int height) {
+            super(width, height);
+        }
+
+        public LayoutParams(ViewGroup.LayoutParams source) {
+            super(source);
+        }
+
+        public LayoutParams(ViewGroup.MarginLayoutParams source) {
+            super(source);
         }
     }
 
@@ -158,6 +296,7 @@ public class RecyclerView extends ViewGroup {
     public static abstract class ViewHolder {
         public final View itemView;
         int mPosition;
+        int mItemViewType;
 
         public ViewHolder(View itemView) {
             if (itemView == null) {
@@ -183,7 +322,7 @@ public class RecyclerView extends ViewGroup {
         }
 
         public final int getItemViewType() {
-            return 0;
+            return mItemViewType;
         }
     }
 
@@ -330,9 +469,96 @@ public class RecyclerView extends ViewGroup {
             return mRecyclerView != null ? mRecyclerView.getPaddingBottom() : 0;
         }
 
+        public int getChildCount() {
+            return mRecyclerView != null ? mRecyclerView.getChildCount() : 0;
+        }
+
+        public View getChildAt(int index) {
+            return mRecyclerView != null ? mRecyclerView.getChildAt(index) : null;
+        }
+
+        public int getPosition(View view) {
+            return mRecyclerView != null ? mRecyclerView.getChildAdapterPosition(view) : -1;
+        }
+
         public int getItemCount() {
             Adapter a = mRecyclerView != null ? mRecyclerView.getAdapter() : null;
             return a != null ? a.getItemCount() : 0;
+        }
+
+        public View findViewByPosition(int position) {
+            if (mRecyclerView == null || position < 0 || position >= mRecyclerView.getChildCount()) {
+                return null;
+            }
+            return mRecyclerView.getChildAt(position);
+        }
+
+        public int getDecoratedLeft(View child) {
+            return child != null ? child.getLeft() : 0;
+        }
+
+        public int getDecoratedTop(View child) {
+            return child != null ? child.getTop() : 0;
+        }
+
+        public int getDecoratedRight(View child) {
+            return child != null ? child.getRight() : 0;
+        }
+
+        public int getDecoratedBottom(View child) {
+            return child != null ? child.getBottom() : 0;
+        }
+
+        public int getDecoratedMeasuredWidth(View child) {
+            return child != null ? child.getMeasuredWidth() : 0;
+        }
+
+        public int getDecoratedMeasuredHeight(View child) {
+            return child != null ? child.getMeasuredHeight() : 0;
+        }
+
+        public int getWidthMode() {
+            return View.MeasureSpec.EXACTLY;
+        }
+
+        public int getHeightMode() {
+            return View.MeasureSpec.EXACTLY;
+        }
+
+        public void getTransformedBoundingBox(View child, boolean includeDecorInsets, Rect out) {
+            if (out == null) {
+                return;
+            }
+            if (child == null) {
+                out.set(0, 0, 0, 0);
+                return;
+            }
+            out.set(child.getLeft(), child.getTop(), child.getRight(), child.getBottom());
+        }
+
+        public void startSmoothScroll(SmoothScroller smoothScroller) {
+            if (smoothScroller != null) {
+                smoothScroller.mLayoutManager = this;
+            }
+        }
+
+        public void requestLayout() {
+            if (mRecyclerView != null) {
+                mRecyclerView.requestLayout();
+            }
+        }
+
+        public void setMeasurementCacheEnabled(boolean measurementCacheEnabled) {
+            // Measurement caching is a performance knob in AndroidX. This shim
+            // lays out directly each frame, so there is no cache to toggle.
+        }
+    }
+
+    public abstract static class SmoothScroller {
+        LayoutManager mLayoutManager;
+
+        public interface ScrollVectorProvider {
+            PointF computeScrollVectorForPosition(int targetPosition);
         }
     }
 
@@ -346,7 +572,8 @@ public class RecyclerView extends ViewGroup {
      * so this mainly exists to satisfy {@code new LinearLayoutManager(ctx)}
      * call sites and orientation queries.
      */
-    public static class LinearLayoutManager extends LayoutManager {
+    public static class LinearLayoutManager extends LayoutManager
+            implements SmoothScroller.ScrollVectorProvider {
         public static final int HORIZONTAL = 0;
         public static final int VERTICAL = 1;
 
@@ -393,23 +620,33 @@ public class RecyclerView extends ViewGroup {
         }
 
         public int findFirstVisibleItemPosition() {
-            return 0;
+            return getItemCount() > 0 && getChildCount() > 0 ? 0 : -1;
         }
 
         public int findLastVisibleItemPosition() {
-            return getItemCount() - 1;
+            int itemCount = getItemCount();
+            int childCount = getChildCount();
+            return itemCount > 0 && childCount > 0 ? Math.min(itemCount, childCount) - 1 : -1;
         }
 
         public int findFirstCompletelyVisibleItemPosition() {
-            return 0;
+            return findFirstVisibleItemPosition();
         }
 
         public int findLastCompletelyVisibleItemPosition() {
-            return getItemCount() - 1;
+            return findLastVisibleItemPosition();
         }
 
         public void scrollToPositionWithOffset(int position, int offset) {
             // no-op
+        }
+
+        @Override
+        public PointF computeScrollVectorForPosition(int targetPosition) {
+            int direction = mReverseLayout ? -1 : 1;
+            return mOrientation == HORIZONTAL
+                    ? new PointF(direction, 0f)
+                    : new PointF(0f, direction);
         }
     }
 
@@ -440,6 +677,12 @@ public class RecyclerView extends ViewGroup {
          */
         public void getItemOffsets(Object outRect, View view, RecyclerView parent, State state) {
             // no-op: all offsets remain 0
+        }
+
+        public void getItemOffsets(Rect outRect, View view, RecyclerView parent, State state) {
+            if (outRect != null) {
+                outRect.set(0, 0, 0, 0);
+            }
         }
     }
 
@@ -512,19 +755,26 @@ public class RecyclerView extends ViewGroup {
     public static final int SCROLL_STATE_DRAGGING = 1;
     public static final int SCROLL_STATE_SETTLING = 2;
 
+    public abstract static class OnFlingListener {
+        public abstract boolean onFling(int velocityX, int velocityY);
+    }
+
     // ---------------------------------------------------------------
     //  Convenience: find child ViewHolder
     // ---------------------------------------------------------------
 
-    /**
-     * Stub: returns null since we do not maintain a ViewHolder map.
-     */
     public ViewHolder findViewHolderForAdapterPosition(int position) {
+        for (View child : mAttachedViewHolders.keySet()) {
+            ViewHolder holder = mAttachedViewHolders.get(child);
+            if (holder != null && holder.getAdapterPosition() == position) {
+                return holder;
+            }
+        }
         return null;
     }
 
     public ViewHolder findViewHolderForLayoutPosition(int position) {
-        return null;
+        return findViewHolderForAdapterPosition(position);
     }
 
     // ---------------------------------------------------------------

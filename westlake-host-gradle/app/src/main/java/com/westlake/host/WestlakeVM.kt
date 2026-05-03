@@ -1,5 +1,6 @@
 package com.westlake.host
 
+import android.content.Context
 import android.graphics.Canvas
 import android.graphics.Bitmap
 import android.graphics.Paint
@@ -7,6 +8,7 @@ import android.util.Base64
 import android.util.Log
 import android.view.SurfaceHolder
 import android.view.SurfaceView
+import android.view.View
 import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.gestures.awaitFirstDown
@@ -37,6 +39,7 @@ import java.net.URL
 import java.net.URLEncoder
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
+import java.util.zip.ZipFile
 import org.json.JSONArray
 import org.json.JSONObject
 
@@ -121,7 +124,7 @@ object WestlakeVM {
     var process: Process? = null
     var pipeStream: java.io.InputStream? = null  // stdout pipe (binary display list frames)
     var touchSeq = 0
-    @Volatile var surfaceHolder: Any? = null  // SurfaceHolder or Surface
+    @Volatile var surfaceHolder: Any? = null  // SurfaceHolder, Surface, or DisplayListFrameView
     @Volatile var guestFrameWidth: Float = GUEST_FRAME_WIDTH
     @Volatile var guestFrameHeight: Float = GUEST_FRAME_HEIGHT
     var onFrameCallback: (() -> Unit)? = null
@@ -129,6 +132,88 @@ object WestlakeVM {
     @Volatile private var httpBridgeRunning = false
     @Volatile private var httpBridgeThread: Thread? = null
     private var httpBridgeReadOffset = 0L
+
+    private class TailFileInputStream(
+        private val file: File,
+        private val isProducerAlive: () -> Boolean,
+    ) : java.io.InputStream() {
+        private var offset = 0L
+        @Volatile private var closed = false
+
+        override fun read(): Int {
+            val one = ByteArray(1)
+            val count = read(one, 0, 1)
+            return if (count <= 0) -1 else one[0].toInt() and 0xff
+        }
+
+        override fun read(buffer: ByteArray, byteOffset: Int, byteCount: Int): Int {
+            if (byteCount == 0) return 0
+            while (true) {
+                if (closed || Thread.currentThread().isInterrupted) return -1
+                val fileLength = file.length()
+                if (fileLength < offset) offset = fileLength
+                val available = fileLength - offset
+                if (available > 0L) {
+                    val count = minOf(byteCount.toLong(), available).toInt()
+                    RandomAccessFile(file, "r").use { raf ->
+                        raf.seek(offset)
+                        val read = raf.read(buffer, byteOffset, count)
+                        if (read > 0) {
+                            offset += read.toLong()
+                            return read
+                        }
+                    }
+                }
+                if (!isProducerAlive()) return -1
+                try {
+                    Thread.sleep(20)
+                } catch (_: InterruptedException) {
+                    Thread.currentThread().interrupt()
+                    return -1
+                }
+            }
+        }
+
+        override fun close() {
+            closed = true
+        }
+    }
+
+    private fun drainVmStdout(stream: java.io.InputStream) {
+        Thread({
+            try {
+                stream.bufferedReader().useLines { lines ->
+                    lines.forEach { line ->
+                        if (line.isNotBlank()) Log.i(TAG, "VM-OUT: $line")
+                    }
+                }
+            } catch (e: Exception) {
+                Log.w(TAG, "Stdout drain ended: $e")
+            }
+        }, "VMStdoutDrain").apply {
+            isDaemon = true
+            start()
+        }
+    }
+
+    private fun closePipeReader() {
+        val stream = pipeStream
+        pipeStream = null
+        try {
+            stream?.close()
+        } catch (_: Exception) {
+        }
+        val thread = pipeReaderThread
+        if (thread != null && thread.isAlive) {
+            thread.interrupt()
+            try {
+                thread.join(300)
+            } catch (_: InterruptedException) {
+                Thread.currentThread().interrupt()
+            }
+        }
+        pipeReaderThread = null
+    }
 
     fun startPipeReader() {
         Log.i(TAG, "startPipeReader: pipe=${pipeStream != null} holder=${surfaceHolder != null} thread=${pipeReaderThread?.isAlive}")
@@ -213,7 +298,7 @@ object WestlakeVM {
         }
         val seq = line.substring(0, first).toIntOrNull()
         val method = line.substring(first + 1, second)
-        val maxBytes = line.substring(second + 1, third).toIntOrNull()?.coerceIn(1, 512 * 1024)
+        val maxBytes = line.substring(second + 1, third).toIntOrNull()?.coerceIn(1, 4 * 1024 * 1024)
             ?: (128 * 1024)
         val rawUrl = line.substring(third + 1)
         if (seq == null || method != "GET") {
@@ -374,7 +459,7 @@ object WestlakeVM {
         }
         try {
             val method = parts[2]
-            val maxBytes = parts[3].toIntOrNull()?.coerceIn(1, 512 * 1024) ?: (128 * 1024)
+            val maxBytes = parts[3].toIntOrNull()?.coerceIn(1, 4 * 1024 * 1024) ?: (128 * 1024)
             val timeoutMs = parts[4].toIntOrNull()?.coerceIn(250, 60000) ?: 15000
             val followRedirects = parts[5] == "1"
             val headersJson = decodeBridgeBase64Utf8(parts[6]).ifBlank { "{}" }
@@ -440,10 +525,13 @@ object WestlakeVM {
         }
         val proxyBase = bridgeProxyBase()
         return if (!proxyBase.isNullOrEmpty() &&
-            (normalized.startsWith("https://dummyjson.com/")
-                    || normalized.startsWith("https://cdn.dummyjson.com/")
-                    || normalized.startsWith("https://picsum.photos/"))) {
-            proxyBase.trimEnd('/') + "/proxy?url=" + URLEncoder.encode(normalized, "UTF-8")
+            (normalized.startsWith("http://") || normalized.startsWith("https://"))) {
+            val base = proxyBase.trimEnd('/')
+            if (normalized.startsWith("$base/")) {
+                normalized
+            } else {
+                base + "/proxy?url=" + URLEncoder.encode(normalized, "UTF-8")
+            }
         } else {
             normalized
         }
@@ -618,8 +706,8 @@ object WestlakeVM {
         val activity = WestlakeActivity.instance ?: return listOf("No activity").also { Log.e(TAG, "No activity instance!") }
 
         // Kill any existing
+        closePipeReader()
         process?.destroyForcibly()
-        pipeStream = null
         stopHttpBridge()
 
         fun allowGuestRead(file: File, executable: Boolean = false) {
@@ -641,9 +729,25 @@ object WestlakeVM {
             }
         }
 
+        fun deleteIfPresent(file: File) {
+            try {
+                if (file.exists()) file.delete()
+            } catch (_: Exception) {
+            }
+        }
+
         // Copy dalvikvm to app's private dir (SELinux allows execute there)
         val vmDir = File(activity.filesDir, "vm").apply { mkdirs() }
         val srcDir = File(DALVIKVM_DIR).also { ensureGuestDir(it) }
+        // The legacy in-process loader extracted aosp-shim.dex into the host
+        // cache and generated oat/vdex files. Remove them before each external
+        // VM launch so ART cannot resolve stale shim code from app-private cache.
+        deleteIfPresent(File(activity.cacheDir, "aosp-shim.dex"))
+        deleteIfPresent(File(activity.cacheDir, "app.dex"))
+        deleteIfPresent(File(activity.cacheDir, "oat/arm64/aosp-shim.odex"))
+        deleteIfPresent(File(activity.cacheDir, "oat/arm64/aosp-shim.vdex"))
+        deleteIfPresent(File(activity.cacheDir, "oat/arm64/app.odex"))
+        deleteIfPresent(File(activity.cacheDir, "oat/arm64/app.vdex"))
         val httpBridgeDir = if (apkConfig != null) {
             File(vmDir, "http_bridge").also { dir ->
                 ensureGuestDir(dir)
@@ -659,6 +763,21 @@ object WestlakeVM {
                     requests.setWritable(true, false)
                 } catch (e: Exception) {
                     Log.w(TAG, "Failed preparing HTTP bridge request log: $e")
+                }
+            }
+        } else {
+            null
+        }
+        val frameBridgeFile = if (apkConfig?.packageName == "com.mcdonalds.app") {
+            File(vmDir, "westlake_frames.dlst").also { file ->
+                deleteIfPresent(file)
+                try {
+                    file.parentFile?.mkdirs()
+                    file.createNewFile()
+                    file.setReadable(true, false)
+                    file.setWritable(true, false)
+                } catch (e: Exception) {
+                    Log.w(TAG, "Failed preparing display-list frame bridge: $e")
                 }
             }
         } else {
@@ -685,6 +804,13 @@ object WestlakeVM {
         // framework.jar SECOND (provides real TypedArray, Theme, Material support)
         val fwJar = if (File("$runDir/framework.jar").exists()) ":$runDir/framework.jar" else ""
         val bcp = "$runDir/core-oj.jar:$runDir/core-libart.jar:$runDir/core-icu4j.jar:$runDir/bouncycastle.jar:$runDir/aosp-shim.dex$fwJar"
+        val icuDataDir = File(runDir, "icu").apply {
+            mkdirs()
+            setReadable(true, false)
+            setExecutable(true, false)
+            setWritable(true, false)
+        }
+        val icuDataPath = "${icuDataDir.absolutePath}:/apex/com.android.i18n/etc/icu"
 
         // Boot image: ALL files packaged as .so in APK → extracted to nativeLibraryDir
         // with apk_data_file SELinux context (allows mmap PROT_EXEC on EMUI)
@@ -776,6 +902,106 @@ object WestlakeVM {
         // Also try direct path to native lib dir (bypass framework discovery)
         val nativeBootArt = File(nativeLibDir, "libboot_art.so")
         val nativeBootOat = File(nativeLibDir, "libboot_oat.so")
+        val appNativeLibDir = File(runDir, "app_lib").also { ensureGuestDir(it) }
+        val guestLibraryPath = listOf(
+            appNativeLibDir.absolutePath,
+            runDir,
+            nativeLibDir,
+        ).joinToString(":")
+        val nativeLibraryVmArgs = arrayOf(
+            "-Djava.library.path=$guestLibraryPath",
+            "-Dapp.native.lib.dir=${appNativeLibDir.absolutePath}",
+            "-Dwestlake.native.lib.dir=${appNativeLibDir.absolutePath}",
+        )
+
+        fun extractApkNativeLibraries(apkPath: String?): Int {
+            if (apkPath.isNullOrEmpty() || !apkPath.endsWith(".apk")) return 0
+            val apkFile = File(apkPath)
+            if (!apkFile.exists()) return 0
+            var extracted = 0
+            try {
+                ZipFile(apkFile).use { zip ->
+                    val entries = zip.entries()
+                    while (entries.hasMoreElements()) {
+                        val entry = entries.nextElement()
+                        if (entry.isDirectory || !entry.name.startsWith("lib/arm64-v8a/")
+                            || !entry.name.endsWith(".so")) {
+                            continue
+                        }
+                        val out = File(appNativeLibDir, entry.name.substringAfterLast('/'))
+                        if (out.exists() && out.length() == entry.size) {
+                            allowGuestRead(out)
+                            out.setExecutable(true, false)
+                            continue
+                        }
+                        zip.getInputStream(entry).use { input ->
+                            FileOutputStream(out).use { output -> input.copyTo(output) }
+                        }
+                        allowGuestRead(out)
+                        out.setExecutable(true, false)
+                        extracted++
+                    }
+                }
+            } catch (e: Exception) {
+                Log.w(TAG, "Failed extracting APK native libraries from $apkPath: $e")
+            }
+            return extracted
+        }
+
+        fun extractSiblingSplitNativeLibraries(apkPath: String?): Int {
+            if (apkPath.isNullOrEmpty() || !apkPath.endsWith(".apk")) return 0
+            val apkFile = File(apkPath)
+            val dir = apkFile.parentFile ?: return 0
+            val splits = dir.listFiles { file ->
+                file.isFile && file.name.startsWith("split_") && file.name.endsWith(".apk")
+            } ?: return 0
+            var extracted = 0
+            for (split in splits.sortedBy { it.name }) {
+                extracted += extractApkNativeLibraries(split.absolutePath)
+            }
+            return extracted
+        }
+
+        fun copySiblingSplits(apkPath: String?, dstDir: File): Int {
+            if (apkPath.isNullOrEmpty() || !apkPath.endsWith(".apk")) return 0
+            val apkFile = File(apkPath)
+            val dir = apkFile.parentFile ?: return 0
+            val splits = dir.listFiles { file ->
+                file.isFile && file.name.startsWith("split_") && file.name.endsWith(".apk")
+            } ?: return 0
+            var copied = 0
+            for (split in splits.sortedBy { it.name }) {
+                val dst = File(dstDir, split.name)
+                try {
+                    if (!dst.exists() || dst.length() != split.length()) {
+                        split.copyTo(dst, overwrite = true)
+                        copied++
+                    }
+                    allowGuestRead(dst)
+                } catch (e: Exception) {
+                    Log.w(TAG, "Failed copying split ${split.name}: $e")
+                }
+            }
+            return copied
+        }
+
+        fun stagedSiblingSplitPaths(apkPath: String?, dstDir: File): List<String> {
+            if (apkPath.isNullOrEmpty() || !apkPath.endsWith(".apk")) return emptyList()
+            val apkFile = File(apkPath)
+            val dir = apkFile.parentFile ?: return emptyList()
+            val splits = dir.listFiles { file ->
+                file.isFile && file.name.startsWith("split_") && file.name.endsWith(".apk")
+            } ?: return emptyList()
+            return splits.sortedBy { it.name }
+                .map { File(dstDir, it.name) }
+                .filter { it.exists() }
+                .map { it.absolutePath }
+        }
+
+        fun splitSourceVmArgs(splitPaths: List<String>): Array<String> {
+            if (splitPaths.isEmpty()) return emptyArray()
+            return arrayOf("-Dwestlake.apk.splitSourceDirs=${splitPaths.joinToString(File.pathSeparator)}")
+        }
         // The current packaged boot image set is not valid on the live phone path.
         // Stay on the accepted imageless Westlake path until the image artifacts are rebuilt coherently.
         val hasBootImage = false && nativeBootArt.exists() && nativeBootOat.exists()
@@ -838,10 +1064,12 @@ object WestlakeVM {
                 val fullBcp = "$bcp:$dexOnlyPath"
                 cmd = arrayOf(
                     dvm, "-Xbootclasspath:$fullBcp", *bootArgs, "-Xverify:none",
+                    "-Dandroid.icu.impl.ICUBinary.dataPath=$icuDataPath",
                     "-Dwestlake.framework.policy=$frameworkPolicy",
                     backendModeArg,
                     *bridgeVmArgs,
                     *extraVmArgs,
+                    *nativeLibraryVmArgs,
                     "-Dwestlake.apk.path=$dexOnlyPath",
                     "-Dwestlake.apk.activity=${apkConfig.activityName}",
                     "-Dwestlake.apk.package=${apkConfig.packageName}",
@@ -871,16 +1099,25 @@ object WestlakeVM {
                         File(apkSrc).copyTo(apkDst, overwrite = true)
                         log.add("Copied APK metadata for ${apkConfig.displayName}")
                     }
+                    val copiedSplits = copySiblingSplits(apkSrc, vmDir)
+                    if (copiedSplits > 0) log.add("Copied $copiedSplits APK split(s)")
                     apkDevicePath
                 } else {
                     log.add("WARNING: missing APK metadata source for ${apkConfig.displayName}")
                     "$runDir/mcd_classes.dex"
+                }
+                val stagedSplitPaths = stagedSiblingSplitPaths(apkSrc, vmDir)
+                if (stagedSplitPaths.isNotEmpty()) {
+                    log.add("APK split metadata: ${stagedSplitPaths.size} split(s)")
                 }
                 if (apkMetaPath.endsWith(".apk")) {
                     // Keep patched DEX first for class resolution, but expose APK resources
                     // such as META-INF/services to the app PathClassLoader.
                     mcdCp.append(":").append(apkMetaPath)
                 }
+                val extractedNativeLibs =
+                    extractApkNativeLibraries(apkMetaPath) + extractSiblingSplitNativeLibraries(apkMetaPath)
+                log.add("App native libs: ${appNativeLibDir.absolutePath} ($extractedNativeLibs extracted incl splits)")
 
                 // Start mock backend server for cached API responses
                 val mockDataDir = "$runDir/mock-backend"
@@ -919,11 +1156,14 @@ object WestlakeVM {
                 cmd = arrayOf(
                     dvm, "-Xbootclasspath:$bcp", *bootArgs, "-Xverify:none",
                     "-Xgc:nonconcurrent", "-Xms256m", "-Xmx768m",
+                    "-Dandroid.icu.impl.ICUBinary.dataPath=$icuDataPath",
                     *proxyArgs,
                     "-Dwestlake.framework.policy=$frameworkPolicy",
                     backendModeArg,
                     *bridgeVmArgs,
                     *extraVmArgs,
+                    *nativeLibraryVmArgs,
+                    *splitSourceVmArgs(stagedSplitPaths),
                     "-Dwestlake.apk.package=${apkConfig.packageName}",
                     "-Dwestlake.apk.activity=${apkConfig.activityName}",
                     "-Dwestlake.apk.path=$apkMetaPath",
@@ -974,6 +1214,15 @@ object WestlakeVM {
             } else {
                 allowGuestRead(apkDst)
             }
+            val copiedSplits = copySiblingSplits(apkSrc, guestStageDir)
+            if (copiedSplits > 0) log.add("Copied $copiedSplits APK split(s)")
+            val stagedSplitPaths = stagedSiblingSplitPaths(apkSrc, guestStageDir)
+            if (stagedSplitPaths.isNotEmpty()) {
+                log.add("APK split metadata: ${stagedSplitPaths.size} split(s)")
+            }
+            val extractedNativeLibs =
+                extractApkNativeLibraries(apkDevicePath) + extractSiblingSplitNativeLibraries(apkSrc)
+            log.add("App native libs: ${appNativeLibDir.absolutePath} ($extractedNativeLibs extracted incl splits)")
 
             // Extract ALL classesN.dex from the APK (multi-dex support)
             val dexPaths = mutableListOf<String>()
@@ -1055,10 +1304,13 @@ object WestlakeVM {
             val manifestPath = "${resDir.absolutePath}/AndroidManifest.xml"
             cmd = arrayOf(
                 dvm, "-Xbootclasspath:$bcp", *bootArgs, "-Xverify:none",
+                "-Dandroid.icu.impl.ICUBinary.dataPath=$icuDataPath",
                 "-Dwestlake.framework.policy=$frameworkPolicy",
                 backendModeArg,
                 *bridgeVmArgs,
                 *extraVmArgs,
+                *nativeLibraryVmArgs,
+                *splitSourceVmArgs(stagedSplitPaths),
                 "-Dwestlake.apk.path=$apkDevicePath",
                 "-Dwestlake.apk.activity=${apkConfig.activityName}",
                 "-Dwestlake.apk.package=${apkConfig.packageName}",
@@ -1083,6 +1335,7 @@ object WestlakeVM {
         } else {
             // --- Legacy MockDonalds mode ---
             cmd = arrayOf(dvm, "-Xbootclasspath:$bcp", *bootArgs, "-Xverify:none",
+                *nativeLibraryVmArgs,
                 "-classpath", "$runDir/app.dex", "com.example.mockdonalds.MockDonaldsApp")
             log.add("Launching MockDonalds (legacy)")
         }
@@ -1150,6 +1403,9 @@ object WestlakeVM {
             envResDir?.let { pb.environment()["WESTLAKE_APK_RESDIR"] = it }
             envManifestPath?.let { pb.environment()["WESTLAKE_APK_MANIFEST"] = it }
             httpBridgeDir?.let { pb.environment()["WESTLAKE_BRIDGE_DIR"] = it.absolutePath }
+            frameBridgeFile?.let { pb.environment()["WESTLAKE_FRAME_PATH"] = it.absolutePath }
+            pb.environment()["WESTLAKE_NATIVE_LIB_DIR"] = appNativeLibDir.absolutePath
+            pb.environment()["WESTLAKE_LIBRARY_PATH"] = guestLibraryPath
             if (!useSysDvm) {
                 pb.environment()["BOOTCLASSPATH"] = bcp
                 pb.environment()["DEX2OATBOOTCLASSPATH"] = bcp
@@ -1167,7 +1423,7 @@ object WestlakeVM {
                 }
                 pb.environment()["LD_LIBRARY_PATH"] = "$nativeLibDir:$runDir"
             } else {
-                pb.environment()["LD_LIBRARY_PATH"] = runDir
+                pb.environment()["LD_LIBRARY_PATH"] = "$guestLibraryPath:$runDir"
             }
             // For app_process64: CLASSPATH tells it which DEX to load
             val mcdApkEnv = try {
@@ -1177,9 +1433,17 @@ object WestlakeVM {
                 pb.environment()["CLASSPATH"] = "$runDir/aosp-shim.dex:$mcdApkEnv"
             }
             // Do NOT redirectErrorStream — stdout is binary pipe, stderr is text logs
-            process = pb.start()
-            pipeStream = process!!.inputStream  // stdout = binary display list frames
-            log.add("VM process started (pipe mode)")
+            val startedProcess = pb.start()
+            process = startedProcess
+            if (frameBridgeFile != null) {
+                drainVmStdout(startedProcess.inputStream)
+                pipeStream = TailFileInputStream(frameBridgeFile) { startedProcess.isAlive }
+                log.add("VM process started (frame file bridge)")
+                Log.i(TAG, "Display-list frame bridge: ${frameBridgeFile.absolutePath}")
+            } else {
+                pipeStream = startedProcess.inputStream  // stdout = binary display list frames
+                log.add("VM process started (pipe mode)")
+            }
             httpBridgeDir?.let {
                 startHttpBridge(it)
                 log.add("HTTP bridge on ${it.absolutePath}")
@@ -1198,7 +1462,7 @@ object WestlakeVM {
             // Read stderr in background for logs
             Thread {
                 try {
-                    val reader = process!!.errorStream.bufferedReader()
+                    val reader = startedProcess.errorStream.bufferedReader()
                     var line = reader.readLine()
                     while (line != null) {
                         if (!line.contains("ziparchive:") && !line.contains("hidden_api") &&
@@ -1248,9 +1512,11 @@ object WestlakeVM {
     }
 
     fun stop() {
+        closePipeReader()
         process?.destroyForcibly()
         process = null
-        pipeStream = null
+        surfaceHolder = null
+        onFrameCallback = null
     }
 }
 
@@ -1402,6 +1668,84 @@ private fun replayDisplayList(canvas: Canvas, paint: Paint, data: ByteArray, siz
     canvas.restoreToCount(baseCount)
 }
 
+private class DisplayListFrameView(context: Context) : View(context) {
+    private val frameLock = Any()
+    private var frameData = ByteArray(0)
+    private var frameSize = 0
+    var guestFrameWidth: Float = GUEST_FRAME_WIDTH
+    var guestFrameHeight: Float = GUEST_FRAME_HEIGHT
+    private var lastTouchAction = -1
+    private var lastTouchX = -1
+    private var lastTouchY = -1
+    private val framePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        isSubpixelText = true
+        typeface = android.graphics.Typeface.create("sans-serif", android.graphics.Typeface.NORMAL)
+    }
+
+    fun submitFrame(data: ByteArray, size: Int) {
+        val copy = data.copyOf(size)
+        synchronized(frameLock) {
+            frameData = copy
+            frameSize = size
+        }
+        postInvalidateOnAnimation()
+    }
+
+    override fun onDraw(canvas: Canvas) {
+        super.onDraw(canvas)
+        val data: ByteArray
+        val size: Int
+        synchronized(frameLock) {
+            data = frameData
+            size = frameSize
+        }
+        canvas.drawColor(android.graphics.Color.BLACK)
+        if (size <= 0) return
+        val frameWidth = guestFrameWidth.coerceAtLeast(1f)
+        val frameHeight = guestFrameHeight.coerceAtLeast(1f)
+        val scale = minOf(
+            width / frameWidth,
+            height / frameHeight,
+        ).coerceAtLeast(0.001f)
+        val dx = (width - frameWidth * scale) / 2f
+        val dy = (height - frameHeight * scale) / 2f
+        canvas.save()
+        canvas.translate(dx, dy)
+        canvas.scale(scale, scale)
+        replayDisplayList(canvas, framePaint, data, size)
+        canvas.restore()
+    }
+
+    override fun onTouchEvent(event: android.view.MotionEvent): Boolean {
+        val frameWidth = guestFrameWidth.coerceAtLeast(1f)
+        val frameHeight = guestFrameHeight.coerceAtLeast(1f)
+        val scale = minOf(
+            width / frameWidth,
+            height / frameHeight,
+        ).coerceAtLeast(0.001f)
+        val dx = (width - frameWidth * scale) / 2f
+        val dy = (height - frameHeight * scale) / 2f
+        val guestX = ((event.x - dx) / scale).coerceIn(0f, frameWidth)
+        val guestY = ((event.y - dy) / scale).coerceIn(0f, frameHeight)
+        val action = when (event.actionMasked) {
+            android.view.MotionEvent.ACTION_DOWN -> 0
+            android.view.MotionEvent.ACTION_UP,
+            android.view.MotionEvent.ACTION_CANCEL -> 1
+            android.view.MotionEvent.ACTION_MOVE -> 2
+            else -> return true
+        }
+        val ix = guestX.toInt()
+        val iy = guestY.toInt()
+        if (action != lastTouchAction || ix != lastTouchX || iy != lastTouchY) {
+            WestlakeVM.sendTouch(action, guestX, guestY)
+            lastTouchAction = action
+            lastTouchX = ix
+            lastTouchY = iy
+        }
+        return true
+    }
+}
+
 /**
  * Read display list frames from pipe and render to SurfaceView.
  * Called from LaunchedEffect in composables.
@@ -1452,7 +1796,17 @@ private suspend fun readPipeAndRenderLocked(
             input.readFully(sizeBytes)
             val size = ByteBuffer.wrap(sizeBytes).order(ByteOrder.LITTLE_ENDIAN).getInt()
             if (size <= 0 || size > 2 * 1024 * 1024) {  // 2MB for screen capture frames
-                Log.w("WestlakeVM", "Bad frame size $size, skipping")
+                val nb = ByteArray(4)
+                input.readFully(nb)
+                var nm = ByteBuffer.wrap(nb).order(ByteOrder.LITTLE_ENDIAN).getInt()
+                var rs = 0
+                while (nm != DLIST_MAGIC && isRunning()) {
+                    nb[0] = nb[1]; nb[1] = nb[2]; nb[2] = nb[3]
+                    nb[3] = input.readByte()
+                    nm = ByteBuffer.wrap(nb).order(ByteOrder.LITTLE_ENDIAN).getInt()
+                    rs++
+                }
+                Log.w("WestlakeVM", "Bad frame size $size, re-synced past $rs bytes")
                 continue
             }
             // Read [size bytes data]
@@ -1461,6 +1815,10 @@ private suspend fun readPipeAndRenderLocked(
 
             val target = WestlakeVM.surfaceHolder ?: holder
             when (target) {
+                is DisplayListFrameView -> {
+                    target.submitFrame(data, size)
+                    Log.i("WestlakeVM", "Frame: ${size} bytes → View")
+                }
                 is android.graphics.Bitmap -> {
                     val canvas = Canvas(target)
                     replayDisplayList(canvas, paint, data, size)
@@ -1846,28 +2204,24 @@ fun WestlakeVMApkScreen(config: ApkVmConfig) {
             ) {
                 AndroidView(
                     factory = { context ->
-                        SurfaceView(context).also { sv ->
-                            sv.holder.addCallback(object : SurfaceHolder.Callback {
-                                override fun surfaceCreated(holder: SurfaceHolder) {
-                                    Log.i("WestlakeVM", "SurfaceCreated ${holder.surfaceFrame}")
-	                                    WestlakeVM.guestFrameWidth = guestFrameWidth
-	                                    WestlakeVM.guestFrameHeight = guestFrameHeight
-	                                    holder.setFixedSize(surfaceBufferWidth, surfaceBufferHeight)
-	                                    Log.i(
-	                                        "WestlakeVM",
-	                                        "Surface buffer ${surfaceBufferWidth}x${surfaceBufferHeight} " +
-	                                            "for ${config.packageName}",
-	                                    )
-                                    WestlakeVM.surfaceHolder = holder
-                                    WestlakeVM.onFrameCallback = { frameCount++ }
-                                    WestlakeVM.startPipeReader()
-                                }
-                                override fun surfaceChanged(holder: SurfaceHolder, f: Int, w: Int, h: Int) {}
-                                override fun surfaceDestroyed(holder: SurfaceHolder) {
-                                    WestlakeVM.surfaceHolder = null
-                                }
-                            })
+                        DisplayListFrameView(context).also { view ->
+                            view.guestFrameWidth = guestFrameWidth
+                            view.guestFrameHeight = guestFrameHeight
+                            Log.i(
+                                "WestlakeVM",
+                                "DisplayListFrameView ${surfaceBufferWidth}x${surfaceBufferHeight} " +
+                                    "for ${config.packageName}",
+                            )
+                            WestlakeVM.guestFrameWidth = guestFrameWidth
+                            WestlakeVM.guestFrameHeight = guestFrameHeight
+                            WestlakeVM.surfaceHolder = view
+                            WestlakeVM.onFrameCallback = { frameCount++ }
+                            WestlakeVM.startPipeReader()
                         }
+                    },
+                    update = { view ->
+                        view.guestFrameWidth = guestFrameWidth
+                        view.guestFrameHeight = guestFrameHeight
                     },
                     modifier = surfaceModifier.align(Alignment.Center)
                 )

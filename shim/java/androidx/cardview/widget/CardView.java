@@ -21,7 +21,6 @@ public class CardView extends FrameLayout {
         bg.setColor(mCardBackgroundColor);
         bg.setCornerRadius(mCardRadius);
         setBackground(bg);
-        setPadding(16, 16, 16, 16);
     }
 
     public void setCardElevation(float elevation) { mCardElevation = elevation; }

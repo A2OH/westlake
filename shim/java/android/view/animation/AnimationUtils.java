@@ -1,10 +1,5 @@
 package android.view.animation;
-import android.animation.TimeInterpolator;
-import android.os.SystemClock;
-import android.animation.TimeInterpolator;
-import android.os.SystemClock;
-
-import android.animation.TimeInterpolator;
+import android.content.Context;
 
 /**
  * Android-compatible AnimationUtils shim. Provides static factory helpers
@@ -21,7 +16,15 @@ public class AnimationUtils {
      * @param id      resource id (ignored)
      * @return a stub Animation instance
      */
+    public static Animation loadAnimation(Context context, int id) {
+        return newNoopAnimation();
+    }
+
     public static Animation loadAnimation(Object context, int id) {
+        return newNoopAnimation();
+    }
+
+    private static Animation newNoopAnimation() {
         return new Animation() {
             @Override
             protected void applyTransformation(float interpolatedTime, Transformation t) {}
@@ -31,6 +34,10 @@ public class AnimationUtils {
     /**
      * Loads a layout animation controller from a resource id.
      */
+    public static LayoutAnimationController loadLayoutAnimation(Context context, int id) {
+        return new LayoutAnimationController(loadAnimation(context, 0));
+    }
+
     public static LayoutAnimationController loadLayoutAnimation(Object context, int id) {
         return new LayoutAnimationController(loadAnimation(context, 0));
     }
@@ -42,8 +49,24 @@ public class AnimationUtils {
      * @param id      resource id (ignored)
      * @return a stub TimeInterpolator that returns input unchanged
      */
+    public static Interpolator loadInterpolator(Context context, int id) {
+        return new LinearInterpolator();
+    }
+
     public static Interpolator loadInterpolator(Object context, int id) {
         return new LinearInterpolator();
+    }
+
+    public static Animation makeInAnimation(Context context, boolean fromLeft) {
+        return newNoopAnimation();
+    }
+
+    public static Animation makeOutAnimation(Context context, boolean toRight) {
+        return newNoopAnimation();
+    }
+
+    public static Animation makeInChildBottomAnimation(Context context) {
+        return newNoopAnimation();
     }
 
     /**

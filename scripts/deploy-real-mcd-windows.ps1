@@ -9,6 +9,8 @@ $ErrorActionPreference = "Stop"
 
 $shim = Join-Path $Repo "aosp-shim.dex"
 $dalvikvm = Join-Path $Repo "ohos-deploy\arm64-a15\dalvikvm"
+$coreOj = Join-Path $Repo "ohos-deploy\arm64-a15\core-oj.jar"
+$coreLibart = Join-Path $Repo "ohos-deploy\arm64-a15\core-libart.jar"
 $apk = Join-Path $Repo "westlake-host-gradle\app\build\outputs\apk\debug\app-debug.apk"
 $stamp = Get-Date -Format "yyyyMMdd_HHmmss"
 $log = Join-Path $OutDir "real_mcd_${stamp}.log"
@@ -18,10 +20,13 @@ New-Item -ItemType Directory -Force -Path $OutDir | Out-Null
 
 & $Adb -s $Serial devices
 & $Adb -s $Serial push $dalvikvm /data/local/tmp/westlake/dalvikvm
+& $Adb -s $Serial push $coreOj /data/local/tmp/westlake/core-oj.jar
+& $Adb -s $Serial push $coreLibart /data/local/tmp/westlake/core-libart.jar
 & $Adb -s $Serial push $shim /data/local/tmp/westlake/aosp-shim.dex
 & $Adb -s $Serial shell chmod 755 /data/local/tmp/westlake/dalvikvm
+& $Adb -s $Serial shell chmod 644 /data/local/tmp/westlake/core-oj.jar /data/local/tmp/westlake/core-libart.jar /data/local/tmp/westlake/aosp-shim.dex
 & $Adb -s $Serial install -r $apk
-& $Adb -s $Serial shell sha256sum /data/local/tmp/westlake/dalvikvm /data/local/tmp/westlake/aosp-shim.dex
+& $Adb -s $Serial shell sha256sum /data/local/tmp/westlake/dalvikvm /data/local/tmp/westlake/core-oj.jar /data/local/tmp/westlake/core-libart.jar /data/local/tmp/westlake/aosp-shim.dex
 & $Adb -s $Serial logcat -c
 & $Adb -s $Serial shell am start -S -W -n com.westlake.host/.WestlakeActivity --es launch WESTLAKE_ART_MCD
 Start-Sleep -Seconds 25

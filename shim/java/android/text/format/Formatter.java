@@ -1,10 +1,16 @@
 package android.text.format;
 
+import android.content.Context;
+
 /**
  * Shim for android.text.format.Formatter.
  * Provides file size formatting utilities.
  */
 public class Formatter {
+
+    public static String formatFileSize(Context context, long sizeBytes) {
+        return formatFileSize((Object) context, sizeBytes);
+    }
 
     public static String formatFileSize(Object context, long sizeBytes) {
         if (sizeBytes < 1024L) {
@@ -26,5 +32,9 @@ public class Formatter {
 
     public static String formatShortFileSize(Object context, long sizeBytes) {
         return formatFileSize(context, sizeBytes);
+    }
+
+    public static String formatShortFileSize(Context context, long sizeBytes) {
+        return formatFileSize((Object) context, sizeBytes);
     }
 }

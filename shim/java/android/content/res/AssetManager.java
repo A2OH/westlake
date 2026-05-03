@@ -2,7 +2,6 @@ package android.content.res;
 
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
-import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.Enumeration;
@@ -11,16 +10,17 @@ import java.util.zip.ZipEntry;
 import java.util.zip.ZipFile;
 
 public class AssetManager {
-    private File mAssetDir;
-    private static File sGlobalAssetDir;  // shared across all AssetManager instances
+    private String mAssetDirPath;
+    private static String sGlobalAssetDirPath;  // shared across all AssetManager instances
     private String mApkPath;
     private static String sGlobalApkPath;
 
     /** Set the root directory where APK assets were extracted. */
     public void setAssetDir(String path) {
-        mAssetDir = (path != null) ? new File(path) : null;
-        if (mAssetDir != null) sGlobalAssetDir = mAssetDir;
-        trace("setAssetDir path=" + path + " local=" + mAssetDir + " global=" + sGlobalAssetDir);
+        mAssetDirPath = path;
+        if (path != null && path.length() > 0) sGlobalAssetDirPath = path;
+        trace("setAssetDir path=" + path + " local=" + mAssetDirPath
+                + " global=" + sGlobalAssetDirPath);
     }
 
     /** Set the source APK used when assets are not pre-extracted. */
@@ -47,7 +47,8 @@ public class AssetManager {
         InputStream apkStream = openFromApk(fileName);
         if (apkStream != null) return apkStream;
 
-        trace("open(" + fileName + ") NOT FOUND local=" + mAssetDir + " global=" + sGlobalAssetDir);
+        trace("open(" + fileName + ") NOT FOUND local=" + mAssetDirPath
+                + " global=" + sGlobalAssetDirPath);
         throw new IOException("Asset not found: " + fileName);
     }
 
@@ -62,7 +63,8 @@ public class AssetManager {
         String[] apkNames = listFromApk(path);
         if (apkNames != null) return apkNames;
 
-        trace("list(" + path + ") NOT FOUND local=" + mAssetDir + " global=" + sGlobalAssetDir);
+        trace("list(" + path + ") NOT FOUND local=" + mAssetDirPath
+                + " global=" + sGlobalAssetDirPath);
         return new String[0];
     }
 
@@ -78,21 +80,12 @@ public class AssetManager {
     }
 
     private String[] assetRootPaths() {
-        String local = pathOf(mAssetDir);
-        String global = pathOf(sGlobalAssetDir);
+        String local = mAssetDirPath;
+        String global = sGlobalAssetDirPath;
         if (local != null && local.equals(global)) {
             return new String[] { local };
         }
         return new String[] { local, global };
-    }
-
-    private static String pathOf(File file) {
-        if (file == null) return null;
-        try {
-            return file.getPath();
-        } catch (Throwable ignored) {
-            return null;
-        }
     }
 
     private static String joinAssetPath(String root, String fileName) {

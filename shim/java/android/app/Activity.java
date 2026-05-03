@@ -7,6 +7,7 @@ import android.os.Bundle;
 import android.os.PersistableBundle;
 
 public class Activity extends Context implements android.view.Window.Callback {
+    private static int sWestlakeGenericTouchMarkerCount = 0;
 
     /* ── Framework-managed state ── */
     Intent mIntent;
@@ -20,8 +21,10 @@ public class Activity extends Context implements android.view.Window.Callback {
     Intent mResultData;
     String mTitle;
     android.view.Window mWindow;
+    private int mRequestedOrientation = -1;
     private FragmentManager mFragmentManager;
     private ActionBar mActionBar;
+    private boolean mWestlakeTouchStreamActive;
 
     public Activity() {
         mWindow = new android.view.Window(this);
@@ -255,6 +258,10 @@ public class Activity extends Context implements android.view.Window.Callback {
     public Object getSystemService(String name) {
         if (Context.LAYOUT_INFLATER_SERVICE.equals(name)) {
             return new android.view.LayoutInflater(this);
+        }
+        if (Context.WINDOW_SERVICE.equals(name) || "WindowManager".equals(name)
+                || "android.view.WindowManager".equals(name)) {
+            return android.view.WindowManagerGlobal.getInstance();
         }
         // Delegate to host's real system services for real functionality
         if (HostBridge.hasHost()) {
@@ -672,13 +679,102 @@ public class Activity extends Context implements android.view.Window.Callback {
     /* ── Input dispatch ── */
 
     public boolean dispatchTouchEvent(android.view.MotionEvent event) {
+        boolean handled = false;
         if (mWindow != null) {
             android.view.View decor = mWindow.getDecorView();
             if (decor != null) {
-                return decor.dispatchTouchEvent(event);
+                int action = event != null ? event.getActionMasked() : -1;
+                if (action == android.view.MotionEvent.ACTION_UP && !mWestlakeTouchStreamActive) {
+                    handled = dispatchWestlakeSyntheticDownBeforeOrphanUp(event, decor);
+                }
+                handled = decor.dispatchTouchEvent(event);
+                logWestlakeGenericTouchDispatch(event, decor, handled);
+                if (action == android.view.MotionEvent.ACTION_DOWN) {
+                    mWestlakeTouchStreamActive = handled;
+                } else if (action == android.view.MotionEvent.ACTION_UP
+                        || action == android.view.MotionEvent.ACTION_CANCEL) {
+                    mWestlakeTouchStreamActive = false;
+                }
+                return handled;
             }
         }
+        logWestlakeGenericTouchDispatch(event, null, false);
         return false;
+    }
+
+    private boolean dispatchWestlakeSyntheticDownBeforeOrphanUp(
+            android.view.MotionEvent upEvent, android.view.View decor) {
+        if (upEvent == null || decor == null) {
+            return false;
+        }
+        long downTime = upEvent.getDownTime();
+        long eventTime = upEvent.getEventTime();
+        if (downTime <= 0 || downTime > eventTime) {
+            downTime = eventTime;
+        }
+        android.view.MotionEvent down = android.view.MotionEvent.obtain(
+                downTime, downTime, android.view.MotionEvent.ACTION_DOWN,
+                upEvent.getX(), upEvent.getY(), upEvent.getMetaState());
+        boolean handled = false;
+        try {
+            handled = decor.dispatchTouchEvent(down);
+            mWestlakeTouchStreamActive = handled;
+        } finally {
+            try {
+                down.recycle();
+            } catch (Throwable ignored) {
+            }
+        }
+        String marker = "activity=" + getClass().getName()
+                + " handled=" + handled
+                + " x=" + (int) upEvent.getX()
+                + " y=" + (int) upEvent.getY()
+                + " decor=" + decor.getClass().getName();
+        android.util.Log.i("WestlakeVM", "VM: WESTLAKE_GENERIC_TOUCH_SYNTH_DOWN " + marker);
+        try {
+            com.westlake.engine.WestlakeLauncher.appendCutoffCanaryMarker(
+                    "WESTLAKE_GENERIC_TOUCH_SYNTH_DOWN " + marker);
+        } catch (Throwable ignored) {
+        }
+        return handled;
+    }
+
+    private void logWestlakeGenericTouchDispatch(android.view.MotionEvent event,
+            android.view.View decor, boolean handled) {
+        if (sWestlakeGenericTouchMarkerCount >= 160 || event == null) {
+            return;
+        }
+        sWestlakeGenericTouchMarkerCount++;
+        String action;
+        switch (event.getActionMasked()) {
+            case android.view.MotionEvent.ACTION_DOWN:
+                action = "down";
+                break;
+            case android.view.MotionEvent.ACTION_UP:
+                action = "up";
+                break;
+            case android.view.MotionEvent.ACTION_MOVE:
+                action = "move";
+                break;
+            case android.view.MotionEvent.ACTION_CANCEL:
+                action = "cancel";
+                break;
+            default:
+                action = String.valueOf(event.getActionMasked());
+                break;
+        }
+        String marker = "activity=" + getClass().getName()
+                + " action=" + action
+                + " handled=" + handled
+                + " x=" + (int) event.getX()
+                + " y=" + (int) event.getY()
+                + " decor=" + (decor != null ? decor.getClass().getName() : "null");
+        android.util.Log.i("WestlakeVM", "VM: WESTLAKE_GENERIC_TOUCH_DISPATCH " + marker);
+        try {
+            com.westlake.engine.WestlakeLauncher.appendCutoffCanaryMarker(
+                    "WESTLAKE_GENERIC_TOUCH_DISPATCH " + marker);
+        } catch (Throwable ignored) {
+        }
     }
 
     public boolean dispatchKeyEvent(android.view.KeyEvent event) {
@@ -762,7 +858,7 @@ public class Activity extends Context implements android.view.Window.Callback {
         if (p0 instanceof Integer) mode = (Integer) p0;
         return getPreferences(mode);
     }
-    public int getRequestedOrientation() { return 0; }
+    public int getRequestedOrientation() { return mRequestedOrientation; }
     public Object getSearchEvent() { return null; }
     public int getTaskId() { return 0; }
     public int getTitleColor() { return 0; }
@@ -772,8 +868,8 @@ public class Activity extends Context implements android.view.Window.Callback {
     public android.view.LayoutInflater getLayoutInflater() {
         return mWindow != null ? mWindow.getLayoutInflater() : android.view.LayoutInflater.from(this);
     }
-    public Object getWindowManager() {
-        return getSystemService(Context.WINDOW_SERVICE);
+    public android.view.WindowManager getWindowManager() {
+        return android.view.WindowManagerGlobal.getInstance();
     }
     public boolean hasWindowFocus() { return false; }
     public void invalidateOptionsMenu() {}
@@ -948,7 +1044,14 @@ public class Activity extends Context implements android.view.Window.Callback {
     public void setLocusContext(Object p0, Object p1) {}
     public void setMediaController(Object p0) {}
     public void setPictureInPictureParams(Object p0) {}
-    public void setRequestedOrientation(Object p0) {}
+    public void setRequestedOrientation(int requestedOrientation) {
+        mRequestedOrientation = requestedOrientation;
+    }
+    public void setRequestedOrientation(Object p0) {
+        if (p0 instanceof Integer) {
+            setRequestedOrientation(((Integer) p0).intValue());
+        }
+    }
     public void setShowWhenLocked(Object p0) {}
     public void setTaskDescription(Object p0) {}
     public boolean setTranslucent(Object p0) { return false; }

@@ -46,8 +46,6 @@ import com.android.internal.annotations.GuardedBy;
 import com.android.internal.annotations.VisibleForTesting;
 import com.android.internal.util.Preconditions;
 
-import dalvik.annotation.optimization.CriticalNative;
-
 import libcore.util.NativeAllocationRegistry;
 
 import java.io.File;
@@ -76,6 +74,9 @@ public class Typeface {
     private static final NativeAllocationRegistry sRegistry =
             NativeAllocationRegistry.createMalloced(
             Typeface.class.getClassLoader(), nativeGetReleaseFunc());
+
+    private static final Map<Long, int[]> sPseudoNativeTypefaces = new HashMap<>();
+    private static long sNextPseudoNativeTypeface = 2L;
 
     /** The default NORMAL typeface object */
     public static final Typeface DEFAULT;
@@ -1106,6 +1107,34 @@ public class Typeface {
         return new Typeface(1); // stub native instance
     }
 
+    private static synchronized long registerPseudoNativeTypeface(int style, int weight) {
+        long ptr = sNextPseudoNativeTypeface++;
+        sPseudoNativeTypefaces.put(ptr, new int[] { style & STYLE_MASK, normalizeWeight(weight) });
+        return ptr;
+    }
+
+    private static int normalizeWeight(int weight) {
+        if (weight == RESOLVE_BY_FONT_TABLE || weight <= 0) {
+            return 400;
+        }
+        if (weight > 1000) {
+            return 1000;
+        }
+        return weight;
+    }
+
+    private static int styleForWeightItalic(int weight, boolean italic) {
+        int style = normalizeWeight(weight) >= 600 ? BOLD : NORMAL;
+        if (italic) {
+            style |= ITALIC;
+        }
+        return style & STYLE_MASK;
+    }
+
+    private static int styleForArrayRequest(int weight, int italic) {
+        return styleForWeightItalic(weight, italic == STYLE_ITALIC);
+    }
+
     /** @hide */
     @VisibleForTesting
     public static void initSystemDefaultTypefaces(Map<String, Typeface> systemFontMap,
@@ -1152,6 +1181,9 @@ public class Typeface {
 
         // Set up defaults and typefaces exposed in public API
         DEFAULT         = create((String) null, 0);
+        if (sDefaultTypeface == null) {
+            setDefault(DEFAULT);
+        }
         DEFAULT_BOLD    = create((String) null, Typeface.BOLD);
         SANS_SERIF      = create("sans-serif", 0);
         SERIF           = create("serif", 0);
@@ -1212,29 +1244,61 @@ public class Typeface {
         return Arrays.binarySearch(mSupportedAxes, axis) >= 0;
     }
 
-    private static native long nativeCreateFromTypeface(long native_instance, int style);
-    private static native long nativeCreateFromTypefaceWithExactStyle(
-            long native_instance, int weight, boolean italic);
+    private static long nativeCreateFromTypeface(long native_instance, int style) {
+        int normalizedStyle = (style & ~STYLE_MASK) == 0 ? style : NORMAL;
+        return registerPseudoNativeTypeface(normalizedStyle, (normalizedStyle & BOLD) != 0 ? 700 : 400);
+    }
+
+    private static long nativeCreateFromTypefaceWithExactStyle(
+            long native_instance, int weight, boolean italic) {
+        return registerPseudoNativeTypeface(styleForWeightItalic(weight, italic), weight);
+    }
+
     // TODO: clean up: change List<FontVariationAxis> to FontVariationAxis[]
-    private static native long nativeCreateFromTypefaceWithVariation(
-            long native_instance, List<FontVariationAxis> axes);
+    private static long nativeCreateFromTypefaceWithVariation(
+            long native_instance, List<FontVariationAxis> axes) {
+        return registerPseudoNativeTypeface(nativeGetStyle(native_instance),
+                nativeGetWeight(native_instance));
+    }
+
     @UnsupportedAppUsage
-    private static native long nativeCreateWeightAlias(long native_instance, int weight);
+    private static long nativeCreateWeightAlias(long native_instance, int weight) {
+        return registerPseudoNativeTypeface(styleForWeightItalic(weight,
+                (nativeGetStyle(native_instance) & ITALIC) != 0), weight);
+    }
+
     @UnsupportedAppUsage
-    private static native long nativeCreateFromArray(long[] familyArray, int weight, int italic);
-    private static native int[] nativeGetSupportedAxes(long native_instance);
+    private static long nativeCreateFromArray(long[] familyArray, int weight, int italic) {
+        return registerPseudoNativeTypeface(styleForArrayRequest(weight, italic), weight);
+    }
 
-    @CriticalNative
-    private static native void nativeSetDefault(long nativePtr);
+    private static int[] nativeGetSupportedAxes(long native_instance) {
+        return EMPTY_AXES;
+    }
 
-    @CriticalNative
-    private static native int  nativeGetStyle(long nativePtr);
+    private static void nativeSetDefault(long nativePtr) {
+    }
 
-    @CriticalNative
-    private static native int  nativeGetWeight(long nativePtr);
+    private static synchronized int nativeGetStyle(long nativePtr) {
+        if (nativePtr == 1L) {
+            return NORMAL;
+        }
+        int[] info = sPseudoNativeTypefaces.get(nativePtr);
+        return info == null ? NORMAL : info[0];
+    }
 
-    @CriticalNative
-    private static native long nativeGetReleaseFunc();
+    private static synchronized int nativeGetWeight(long nativePtr) {
+        if (nativePtr == 1L) {
+            return 400;
+        }
+        int[] info = sPseudoNativeTypefaces.get(nativePtr);
+        return info == null ? 400 : info[1];
+    }
 
-    private static native void nativeRegisterGenericFamily(String str, long nativePtr);
+    private static long nativeGetReleaseFunc() {
+        return 0L;
+    }
+
+    private static void nativeRegisterGenericFamily(String str, long nativePtr) {
+    }
 }

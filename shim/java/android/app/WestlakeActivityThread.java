@@ -238,23 +238,141 @@ public class WestlakeActivityThread {
 
             // Set package name via ShimCompat (handles both shim and real Android)
             ShimCompat.setPackageName(app, packageName);
+            Context baseContext = new Context();
+            attachApplicationBaseContext(app, baseContext);
 
             mApplication = app;
+            publishApplicationBeforeOnCreate(app, packageName);
+            wireApplicationResourcesBeforeOnCreate(app, packageName);
+
+            if (isMcdonaldsPackageOrClass(packageName)
+                    || isMcdonaldsPackageOrClass(cls)
+                    || isMcdonaldsPackageOrClass(app.getClass().getName())) {
+                seedMcdonaldsApplicationContext(classLoader, app);
+                seedMcdonaldsSdkPersistenceState(classLoader);
+            }
 
             // Invoke Application.onCreate via Instrumentation
             if (instrumentation != null) {
                 try {
+                    WestlakeLauncher.bootstrapIcuDataPath();
                     WestlakeLauncher.marker("CV WAT application onCreate begin");
                     instrumentation.callApplicationOnCreate(app);
                     WestlakeLauncher.marker("CV WAT application onCreate returned");
                 } catch (Exception e) {
                     WestlakeLauncher.marker("CV WAT application onCreate failed "
                             + throwableSummary(e));
+                    WestlakeLauncher.dumpThrowable(
+                            "[WestlakeActivityThread] Application.onCreate failed", e);
+                    WestlakeLauncher.dumpThrowableFrames(
+                            "CV WAT application onCreate throwable", e, 24);
                     log("W", "Application.onCreate() threw: " + throwableSummary(e));
                 }
             }
 
             return app;
+        }
+
+        private void wireApplicationResourcesBeforeOnCreate(Application app, String packageName) {
+            if (app == null) {
+                return;
+            }
+            String resDir = null;
+            String apkPath = null;
+            try {
+                resDir = WestlakeLauncher.currentResDirForShim();
+                apkPath = WestlakeLauncher.currentApkPathForShim();
+            } catch (Throwable ignored) {
+            }
+            if (resDir == null || resDir.length() == 0) {
+                try {
+                    resDir = System.getProperty("westlake.apk.resdir", "");
+                } catch (Throwable ignored) {
+                }
+            }
+            if (resDir == null || resDir.length() == 0) {
+                return;
+            }
+            try {
+                ApkInfo earlyInfo = ApkLoader.loadFromExtracted(resDir, packageName, null);
+                try {
+                    MiniServer server = MiniServer.get();
+                    if (server != null) {
+                        java.lang.reflect.Field f = MiniServer.class.getDeclaredField("mApkInfo");
+                        f.setAccessible(true);
+                        f.set(server, earlyInfo);
+                    }
+                } catch (Throwable ignored) {
+                }
+
+                android.content.res.Resources res = app.getResources();
+                if (res != null && earlyInfo.resourceTable instanceof android.content.res.ResourceTable) {
+                    ShimCompat.loadResourceTable(
+                            res, (android.content.res.ResourceTable) earlyInfo.resourceTable);
+                }
+                if (res != null && apkPath != null && apkPath.length() > 0) {
+                    ShimCompat.setApkPath(res, apkPath);
+                }
+                android.content.res.AssetManager assets = app.getAssets();
+                if (assets != null) {
+                    if (apkPath != null && apkPath.length() > 0) {
+                        ShimCompat.setAssetApkPath(assets, apkPath);
+                    }
+                    if (earlyInfo.assetDir != null) {
+                        ShimCompat.setAssetDir(assets, earlyInfo.assetDir);
+                    }
+                }
+                int strings = earlyInfo.resourceTable instanceof android.content.res.ResourceTable
+                        ? ((android.content.res.ResourceTable) earlyInfo.resourceTable).getStringCount()
+                        : 0;
+                WestlakeLauncher.marker("CV WAT application early resources wired strings="
+                        + strings + " resDir=" + resDir);
+            } catch (Throwable t) {
+                WestlakeLauncher.marker("CV WAT application early resources failed "
+                        + throwableSummary(t));
+            }
+        }
+
+        private void attachApplicationBaseContext(Application app, Context baseContext) {
+            if (app == null || baseContext == null) {
+                return;
+            }
+            try {
+                app.attachBaseContext(baseContext);
+                WestlakeLauncher.marker("CV WAT application attachBaseContext returned");
+            } catch (Throwable directFailure) {
+                try {
+                    java.lang.reflect.Method method = app.getClass().getDeclaredMethod(
+                            "attachBaseContext", Context.class);
+                    method.setAccessible(true);
+                    method.invoke(app, baseContext);
+                    WestlakeLauncher.marker("CV WAT application attachBaseContext reflect returned");
+                } catch (Throwable reflectFailure) {
+                    WestlakeLauncher.marker("CV WAT application attachBaseContext failed "
+                            + throwableSummary(reflectFailure));
+                    log("W", "Application.attachBaseContext failed: "
+                            + throwableSummary(directFailure) + " / "
+                            + throwableSummary(reflectFailure));
+                }
+            }
+        }
+
+        private void publishApplicationBeforeOnCreate(Application app, String packageName) {
+            if (app == null) {
+                return;
+            }
+            try {
+                MiniServer.currentSetPackageName(packageName);
+            } catch (Throwable ignored) {
+            }
+            try {
+                MiniServer.currentSetApplication(app);
+                WestlakeLauncher.marker("CV WAT application pre-onCreate published");
+            } catch (Throwable t) {
+                WestlakeLauncher.marker("CV WAT application pre-onCreate publish failed "
+                        + throwableSummary(t));
+                log("W", "Application pre-onCreate publish failed: " + throwableSummary(t));
+            }
         }
 
         private Application instantiateApplicationWithFactory(AppComponentFactory factory,
@@ -288,6 +406,7 @@ public class WestlakeActivityThread {
 
     public WestlakeActivityThread() {
         mLooper = Looper.getMainLooper();
+        mInstrumentation = new WestlakeInstrumentation(this);
     }
 
     // ── Getters ────────────────────────────────────────────────────────────
@@ -297,6 +416,7 @@ public class WestlakeActivityThread {
     }
 
     public WestlakeInstrumentation getInstrumentation() {
+        ensureLaunchHelpersReady();
         return mInstrumentation;
     }
 
@@ -340,6 +460,25 @@ public class WestlakeActivityThread {
 
     public AppComponentFactory getAppComponentFactory() {
         return mAppComponentFactory;
+    }
+
+    private void ensureLaunchHelpersReady() {
+        final boolean strictStandalone = !WestlakeLauncher.isRealFrameworkFallbackAllowed();
+        if (mInstrumentation == null) {
+            mInstrumentation = new WestlakeInstrumentation(this);
+            if (strictStandalone) {
+                WestlakeLauncher.marker("PF301 strict WAT lazy instrumentation ready");
+            }
+        }
+        if (mAppComponentFactory == null) {
+            mAppComponentFactory = new AppComponentFactory();
+            if (strictStandalone) {
+                WestlakeLauncher.marker("PF301 strict WAT lazy default factory ready");
+            }
+        } else if (mInstrumentation != null
+                && mAppComponentFactory.getClass() != AppComponentFactory.class) {
+            mInstrumentation.setAppComponentFactory(mAppComponentFactory);
+        }
     }
 
     /** Set a custom AppComponentFactory (e.g., Hilt's). */
@@ -707,6 +846,9 @@ public class WestlakeActivityThread {
         } else if ("com.mcdonalds.mcdcoreapp.helper.interfaces.HomeDashboardHeroInteractor"
                 .equals(returnName)) {
             implName = "com.mcdonalds.homedashboard.util.HomeDashboardHeroInteractorImpl";
+        } else if ("com.mcdonalds.mcdcoreapp.helper.interfaces.LoyaltyModuleInteractor"
+                .equals(returnName)) {
+            implName = "com.mcdonalds.loyalty.dashboard.util.DealsLoyaltyImplementation";
         }
         if (implName == null) return null;
         try {
@@ -719,6 +861,17 @@ public class WestlakeActivityThread {
                         + " is not assignable to " + returnName);
                 return null;
             }
+            Object constructed = instantiateMcdWithDefaultArgs(implClass);
+            if (constructed != null) {
+                log("I", "McD DataSource " + returnName + " = " + implName
+                        + " [default args]");
+                return constructed;
+            }
+            if ("com.mcdonalds.loyalty.dashboard.util.DealsLoyaltyImplementation"
+                    .equals(implName)) {
+                log("W", "McD DataSource known return needs constructor " + implName);
+                return null;
+            }
             Object instance = allocateWithoutConstructor(implClass);
             if (instance != null) {
                 log("I", "McD DataSource " + returnName + " = " + implName);
@@ -729,6 +882,62 @@ public class WestlakeActivityThread {
                     + t.getClass().getSimpleName() + ": " + t.getMessage());
             return null;
         }
+    }
+
+    private static Object instantiateMcdWithDefaultArgs(Class<?> clazz) {
+        if (clazz == null || clazz.isInterface()
+                || java.lang.reflect.Modifier.isAbstract(clazz.getModifiers())) {
+            return null;
+        }
+        try {
+            java.lang.reflect.Constructor<?> noArg = clazz.getDeclaredConstructor();
+            noArg.setAccessible(true);
+            return noArg.newInstance();
+        } catch (Throwable ignored) {
+        }
+        for (java.lang.reflect.Constructor<?> ctor : clazz.getDeclaredConstructors()) {
+            try {
+                Class<?>[] types = ctor.getParameterTypes();
+                Object[] args = new Object[types.length];
+                for (int i = 0; i < types.length; i++) {
+                    args[i] = defaultMcdConstructorArg(types[i]);
+                }
+                ctor.setAccessible(true);
+                return ctor.newInstance(args);
+            } catch (Throwable ignored) {
+            }
+        }
+        return null;
+    }
+
+    private static Object defaultMcdConstructorArg(Class<?> type) {
+        if (type == null) return null;
+        if (type == boolean.class) return Boolean.FALSE;
+        if (type == byte.class) return Byte.valueOf((byte) 0);
+        if (type == short.class) return Short.valueOf((short) 0);
+        if (type == int.class) return Integer.valueOf(0);
+        if (type == long.class) return Long.valueOf(0L);
+        if (type == float.class) return Float.valueOf(0f);
+        if (type == double.class) return Double.valueOf(0d);
+        if (type == char.class) return Character.valueOf('\0');
+        if (type == String.class || type == CharSequence.class) return "";
+        if (type.isArray()) {
+            return java.lang.reflect.Array.newInstance(type.getComponentType(), 0);
+        }
+        if (java.util.List.class.isAssignableFrom(type)
+                || java.util.Collection.class.isAssignableFrom(type)) {
+            return new java.util.ArrayList<Object>();
+        }
+        if (java.util.Map.class.isAssignableFrom(type)) {
+            return new java.util.HashMap<Object, Object>();
+        }
+        if (java.util.Set.class.isAssignableFrom(type)) {
+            return new java.util.HashSet<Object>();
+        }
+        if (type.isInterface()) {
+            return createMcdInterfaceProxy(type, type.getClassLoader(), "ctor");
+        }
+        return null;
     }
 
     private static Object createMcdInterfaceProxy(final Class<?> type, ClassLoader fallbackCl,
@@ -931,6 +1140,18 @@ public class WestlakeActivityThread {
         if (strictStandalone) {
             WestlakeLauncher.marker("PF301 strict WAT impl getClassLoader returned");
         }
+        ensureLaunchHelpersReady();
+        if (strictStandalone) {
+            WestlakeLauncher.marker("PF301 strict WAT impl launch helpers ready");
+        }
+        try {
+            if (isMcdonaldsDataSourceLaunch(packageName, className, intent)) {
+                seedCoroutineRuntimeState(cl);
+            }
+        } catch (Throwable t) {
+            log("W", "Coroutine runtime seed failed: "
+                    + t.getClass().getSimpleName() + ": " + t.getMessage());
+        }
         AppComponentFactory factory = mAppComponentFactory != null
                 ? mAppComponentFactory : new AppComponentFactory();
 
@@ -1059,72 +1280,7 @@ public class WestlakeActivityThread {
                     log("W", "DataSourceHelper field '" + f.getName() + "' scan error: " + perFieldEx.getMessage());
                 }
             }
-            // Verify key methods return non-null after field scan
-            // getOrderModuleInteractor() chains through dataSourceModuleProvider.I()
-            // The field scan above should proxy dataSourceModuleProvider, making I() return a nested proxy.
-            // But verify and fix if needed.
-            for (java.lang.reflect.Method m : safeGetDeclaredMethods(helperClass)) {
-                if (!java.lang.reflect.Modifier.isStatic(m.getModifiers())) continue;
-                if (m.getParameterTypes().length > 0) continue;
-                Class<?> mrt = m.getReturnType();
-                if (!mrt.isInterface()) continue;
-                m.setAccessible(true);
-                try {
-                    Object val = m.invoke(null);
-                    if (val == null) {
-                        log("W", "DataSourceHelper." + m.getName() + "() still returns null — scanning fields for indirect backing");
-                        // The method may chain through a DIFFERENT-typed field (e.g., DataSourceModuleProvider.I() → OrderModuleInteractor)
-                        // First try: find field with SAME type as return
-                        boolean fixed = false;
-                        for (java.lang.reflect.Field bf : safeGetDeclaredFields(helperClass)) {
-                            try {
-                                if (bf.getType() == mrt && java.lang.reflect.Modifier.isStatic(bf.getModifiers())) {
-                                    bf.setAccessible(true);
-                                    if (bf.get(null) == null) {
-                                        ClassLoader bcl = mrt.getClassLoader();
-                                        if (bcl == null) bcl = cl;
-                                        Object proxy = java.lang.reflect.Proxy.newProxyInstance(bcl, new Class<?>[]{mrt}, stubRef[0]);
-                                        bf.set(null, proxy);
-                                        log("I", "DataSourceHelper." + bf.getName() + " = proxy(" + mrt.getSimpleName() + ") [via " + m.getName() + "()]");
-                                        fixed = true;
-                                        break;
-                                    }
-                                }
-                            } catch (Throwable t) {}
-                        }
-                        // Still null? The backing field might be a different interface type (e.g., DataSourceModuleProvider)
-                        // Re-check all interface fields — ensure they're proxied
-                        if (!fixed) {
-                            for (java.lang.reflect.Field bf : safeGetDeclaredFields(helperClass)) {
-                                try {
-                                    if (!java.lang.reflect.Modifier.isStatic(bf.getModifiers())) continue;
-                                    bf.setAccessible(true);
-                                    if (bf.get(null) != null) continue;
-                                    Class<?> bfType = bf.getType();
-                                    if (!bfType.isInterface()) continue;
-                                    ClassLoader bcl = bfType.getClassLoader();
-                                    if (bcl == null) bcl = cl;
-                                    Object proxy = java.lang.reflect.Proxy.newProxyInstance(bcl, new Class<?>[]{bfType}, stubRef[0]);
-                                    bf.set(null, proxy);
-                                    log("I", "DataSourceHelper." + bf.getName() + " = proxy(" + bfType.getSimpleName() + ") [re-scan for " + m.getName() + "()]");
-                                } catch (Throwable t) {}
-                            }
-                            // Re-test
-                            try {
-                                val = m.invoke(null);
-                                if (val != null) log("I", "DataSourceHelper." + m.getName() + "() → fixed (now " + val.getClass().getSimpleName() + ")");
-                                else log("W", "DataSourceHelper." + m.getName() + "() → still null after re-scan");
-                            } catch (Throwable t) {
-                                log("W", "DataSourceHelper." + m.getName() + "() re-test threw: " + t.getMessage());
-                            }
-                        }
-                    } else {
-                        log("D", "DataSourceHelper." + m.getName() + "() = " + val.getClass().getSimpleName() + " (ok)");
-                    }
-                } catch (Throwable ignored) {
-                    log("W", "DataSourceHelper." + m.getName() + "() threw: " + ignored.getMessage());
-                }
-            }
+            log("D", "DataSourceHelper getter verification skipped in standalone bootstrap");
             }
         } catch (Throwable t) {
             log("W", "Step 3.5 DataSourceHelper error: " + t.getClass().getSimpleName() + ": " + t.getMessage());
@@ -1137,6 +1293,8 @@ public class WestlakeActivityThread {
         try {
             if (shouldBootstrapMcdonaldsDataSource(packageName, className, intent)) {
                 seedMcdonaldsAppConfigurationState(cl);
+                seedMcdonaldsJustFlipState(cl);
+                seedMcdonaldsSdkPersistenceState(cl);
             }
         } catch (Throwable t) {
             log("W", "McD AppConfiguration seed failed: "
@@ -1168,7 +1326,7 @@ public class WestlakeActivityThread {
             }
         } catch (Exception e) {
             WestlakeLauncher.dumpThrowable("[WestlakeActivityThread] step4 newActivity failed", e);
-            if (!mInstrumentation.onException(null, e)) {
+            if (mInstrumentation == null || !mInstrumentation.onException(null, e)) {
                 log("E", "  Unable to instantiate activity " + className + ": " + e);
                 throw new RuntimeException(
                         "Unable to instantiate activity " + component + ": " + e, e);
@@ -1223,10 +1381,16 @@ public class WestlakeActivityThread {
             android.util.Log.i("WestlakeStep", "performLaunchActivity application ready "
                     + (app != null ? app.getClass().getName() : "null"));
         }
+        if (app != null) {
+            mInitialApplication = app;
+            ShimCompat.setPackageName(app, packageName);
+        }
 
         try {
             if (shouldBootstrapMcdonaldsDataSource(packageName, className, intent)) {
+                seedMcdonaldsApplicationContext(cl, app != null ? app : baseContext);
                 seedMcdonaldsAppConfigurationState(cl);
+                seedMcdonaldsJustFlipState(cl);
                 seedMcdonaldsSdkCoreReady(cl, app != null ? app : baseContext);
                 seedMcdonaldsClickstreamState(cl, app);
                 seedMcdonaldsDeepLinkRouter(cl);
@@ -1357,7 +1521,342 @@ public class WestlakeActivityThread {
         return activity;
     }
 
-    private static void seedMcdonaldsAppConfigurationState(final ClassLoader cl) {
+    private static void seedCoroutineRuntimeState(final ClassLoader cl) {
+        seedCoroutineSchedulerProperties();
+        seedCoroutineMainDispatcher(cl);
+        seedCoroutineExceptionHandlers(cl);
+    }
+
+    public static void prepareCoroutineRuntimeForWestlake(final ClassLoader cl) {
+        seedCoroutineRuntimeState(cl);
+    }
+
+    private static void seedCoroutineSchedulerProperties() {
+        setDefaultSystemProperty("kotlinx.coroutines.scheduler.core.pool.size", "2");
+        setDefaultSystemProperty("kotlinx.coroutines.scheduler.max.pool.size", "4");
+        setDefaultSystemProperty("kotlinx.coroutines.io.parallelism", "4");
+        log("D", "Coroutine scheduler props core="
+                + System.getProperty("kotlinx.coroutines.scheduler.core.pool.size")
+                + " max=" + System.getProperty("kotlinx.coroutines.scheduler.max.pool.size")
+                + " io=" + System.getProperty("kotlinx.coroutines.io.parallelism"));
+    }
+
+    private static void setDefaultSystemProperty(String key, String value) {
+        try {
+            String existing = System.getProperty(key);
+            if (existing == null || existing.length() == 0) {
+                System.setProperty(key, value);
+            }
+        } catch (Throwable ignored) {
+        }
+    }
+
+    static void seedCoroutineMainDispatcher(final ClassLoader cl) {
+        if (cl == null) {
+            return;
+        }
+        try {
+            System.setProperty("kotlinx.coroutines.fast.service.loader", "false");
+        } catch (Throwable ignored) {
+        }
+
+        Object dispatcher = createAndroidCoroutineDispatcher(cl);
+        if (dispatcher == null) {
+            dispatcher = createHandlerContextCoroutineDispatcher(cl);
+        }
+        if (dispatcher == null) {
+            return;
+        }
+
+        Class<?> loaderClass;
+        Class<?> dispatcherClass;
+        try {
+            loaderClass = Class.forName("kotlinx.coroutines.internal.MainDispatcherLoader", false, cl);
+            dispatcherClass = Class.forName("kotlinx.coroutines.MainCoroutineDispatcher", false, cl);
+        } catch (ClassNotFoundException ignored) {
+            return;
+        } catch (Throwable t) {
+            log("W", "Coroutine main dispatcher seed class load failed: "
+                    + t.getClass().getSimpleName() + ": " + t.getMessage());
+            return;
+        }
+
+        int seeded = seedCoroutineMainDispatcherField(loaderClass, dispatcherClass, dispatcher);
+        try {
+            Class.forName("kotlinx.coroutines.internal.MainDispatcherLoader", true, cl);
+        } catch (Throwable t) {
+            log("D", "Coroutine MainDispatcherLoader init tolerated during seed: "
+                    + t.getClass().getSimpleName() + ": " + t.getMessage());
+        }
+        seeded += seedCoroutineMainDispatcherField(loaderClass, dispatcherClass, dispatcher);
+        if (seeded > 0) {
+            log("I", "Coroutine main dispatcher seeded "
+                    + dispatcher.getClass().getName() + " fields=" + seeded);
+        }
+    }
+
+    private static Object createAndroidCoroutineDispatcher(final ClassLoader cl) {
+        try {
+            Class<?> factoryClass = Class.forName(
+                    "kotlinx.coroutines.android.AndroidDispatcherFactory", true, cl);
+            Object factory = factoryClass.getDeclaredConstructor().newInstance();
+            java.util.List<Object> factories = java.util.Collections.singletonList(factory);
+            Class<?> dispatcherClass = Class.forName(
+                    "kotlinx.coroutines.MainCoroutineDispatcher", false, cl);
+            java.lang.reflect.Method[] methods = factoryClass.getDeclaredMethods();
+            for (java.lang.reflect.Method method : methods) {
+                Class<?>[] params = method.getParameterTypes();
+                if (params.length != 1 || !java.util.List.class.isAssignableFrom(params[0])) {
+                    continue;
+                }
+                if (!dispatcherClass.isAssignableFrom(method.getReturnType())) {
+                    continue;
+                }
+                method.setAccessible(true);
+                return method.invoke(factory, factories);
+            }
+            log("D", "Coroutine AndroidDispatcherFactory had no matching create method");
+        } catch (ClassNotFoundException ignored) {
+        } catch (Throwable t) {
+            log("W", "Coroutine AndroidDispatcherFactory seed failed: "
+                    + t.getClass().getSimpleName() + ": " + t.getMessage());
+        }
+        return null;
+    }
+
+    private static Object createHandlerContextCoroutineDispatcher(final ClassLoader cl) {
+        try {
+            Class<?> handlerContextClass = Class.forName(
+                    "kotlinx.coroutines.android.HandlerContext", true, cl);
+            java.lang.reflect.Constructor<?> ctor = handlerContextClass.getDeclaredConstructor(
+                    android.os.Handler.class, String.class);
+            ctor.setAccessible(true);
+            return ctor.newInstance(new android.os.Handler(android.os.Looper.getMainLooper()), "Main");
+        } catch (ClassNotFoundException ignored) {
+        } catch (Throwable t) {
+            log("W", "Coroutine HandlerContext seed failed: "
+                    + t.getClass().getSimpleName() + ": " + t.getMessage());
+        }
+        return null;
+    }
+
+    private static int seedCoroutineMainDispatcherField(Class<?> loaderClass,
+            Class<?> dispatcherClass, Object dispatcher) {
+        int seeded = 0;
+        for (java.lang.reflect.Field field : safeGetDeclaredFields(loaderClass)) {
+            int modifiers = field.getModifiers();
+            if (!java.lang.reflect.Modifier.isStatic(modifiers)
+                    || !dispatcherClass.isAssignableFrom(field.getType())) {
+                continue;
+            }
+            field.setAccessible(true);
+            if (putStaticObjectFieldUnsafe(field, dispatcher)
+                    || setStaticObjectField(field, dispatcher)) {
+                seeded++;
+            }
+        }
+        return seeded;
+    }
+
+    private static boolean putStaticObjectFieldUnsafe(java.lang.reflect.Field field, Object value) {
+        try {
+            Object unsafe = getUnsafeSingleton("sun.misc.Unsafe");
+            Object base = unsafe.getClass()
+                    .getMethod("staticFieldBase", java.lang.reflect.Field.class)
+                    .invoke(unsafe, field);
+            long offset = ((Long) unsafe.getClass()
+                    .getMethod("staticFieldOffset", java.lang.reflect.Field.class)
+                    .invoke(unsafe, field)).longValue();
+            unsafe.getClass()
+                    .getMethod("putObject", Object.class, long.class, Object.class)
+                    .invoke(unsafe, base, Long.valueOf(offset), value);
+            return true;
+        } catch (Throwable unsafeFailure) {
+            return false;
+        }
+    }
+
+    private static void seedCoroutineExceptionHandlers(final ClassLoader cl) {
+        if (cl == null) {
+            return;
+        }
+        final String[] classNames = {
+                "kotlinx.coroutines.internal.CoroutineExceptionHandlerImplKt",
+                "kotlinx.coroutines.internal.CoroutineExceptionHandlerImpl_commonKt"
+        };
+        for (String className : classNames) {
+            try {
+                Class<?> klass = Class.forName(className, true, cl);
+                int seeded = 0;
+                for (java.lang.reflect.Field field : safeGetDeclaredFields(klass)) {
+                    if (!java.lang.reflect.Modifier.isStatic(field.getModifiers())) {
+                        continue;
+                    }
+                    Class<?> type = field.getType();
+                    Object replacement = coroutineEmptyValueFor(type);
+                    if (replacement == null) {
+                        continue;
+                    }
+                    field.setAccessible(true);
+                    Object current = field.get(null);
+                    if (current != null) {
+                        continue;
+                    }
+                    if (setStaticObjectField(field, replacement)) {
+                        seeded++;
+                    }
+                }
+                if (seeded > 0) {
+                    log("I", "Coroutine exception handlers seeded " + className
+                            + " fields=" + seeded);
+                }
+            } catch (ClassNotFoundException ignored) {
+            } catch (Throwable t) {
+                log("W", "Coroutine exception handler seed failed " + className + ": "
+                        + t.getClass().getSimpleName() + ": " + t.getMessage());
+            }
+        }
+    }
+
+    private static Object coroutineEmptyValueFor(Class<?> type) {
+        if (type == null) {
+            return null;
+        }
+        if (java.util.Iterator.class.isAssignableFrom(type)) {
+            return java.util.Collections.emptyIterator();
+        }
+        if (java.util.List.class.isAssignableFrom(type)) {
+            return java.util.Collections.emptyList();
+        }
+        if (java.util.Set.class.isAssignableFrom(type)) {
+            return java.util.Collections.emptySet();
+        }
+        if (java.util.Collection.class.isAssignableFrom(type)
+                || java.lang.Iterable.class.isAssignableFrom(type)) {
+            return java.util.Collections.emptyList();
+        }
+        return null;
+    }
+
+    private static boolean setStaticObjectField(java.lang.reflect.Field field, Object value) {
+        try {
+            field.set(null, value);
+            return true;
+        } catch (Throwable directFailure) {
+            try {
+                Object unsafe = getUnsafeSingleton("sun.misc.Unsafe");
+                Object base = unsafe.getClass()
+                        .getMethod("staticFieldBase", java.lang.reflect.Field.class)
+                        .invoke(unsafe, field);
+                long offset = ((Long) unsafe.getClass()
+                        .getMethod("staticFieldOffset", java.lang.reflect.Field.class)
+                        .invoke(unsafe, field)).longValue();
+                unsafe.getClass()
+                        .getMethod("putObject", Object.class, long.class, Object.class)
+                        .invoke(unsafe, base, Long.valueOf(offset), value);
+                return true;
+            } catch (Throwable unsafeFailure) {
+                log("W", "Static field seed failed " + field.getName() + ": "
+                        + directFailure.getClass().getSimpleName() + " / "
+                        + unsafeFailure.getClass().getSimpleName());
+                return false;
+            }
+        }
+    }
+
+    private static Object getUnsafeSingleton(String className) throws Exception {
+        Class<?> unsafeClass = Class.forName(className);
+        java.lang.reflect.Field unsafeField = unsafeClass.getDeclaredField("theUnsafe");
+        unsafeField.setAccessible(true);
+        return unsafeField.get(null);
+    }
+
+    public static void seedMcdonaldsApplicationContext(final ClassLoader cl,
+            final Context context) {
+        if (cl == null || context == null) {
+            return;
+        }
+        seedMcdonaldsJustFlipContextState(cl, context);
+        try {
+            Class<?> appCtx = cl.loadClass(
+                    "com.mcdonalds.mcdcoreapp.common.ApplicationContext");
+            int seeded = 0;
+            try {
+                java.lang.reflect.Method setter = appCtx.getDeclaredMethod(
+                        "b", android.content.Context.class, boolean.class);
+                setter.setAccessible(true);
+                setter.invoke(null, context, Boolean.TRUE);
+                seeded++;
+                log("I", "McD ApplicationContext.b(context,true) invoked");
+            } catch (Throwable t) {
+                log("D", "McD ApplicationContext setter seed skipped: "
+                        + t.getClass().getSimpleName() + ": " + t.getMessage());
+            }
+            for (java.lang.reflect.Field field : safeGetDeclaredFields(appCtx)) {
+                int modifiers = field.getModifiers();
+                if (!java.lang.reflect.Modifier.isStatic(modifiers)
+                        || java.lang.reflect.Modifier.isFinal(modifiers)) {
+                    continue;
+                }
+                Class<?> type = field.getType();
+                if (type == null || !type.isAssignableFrom(context.getClass())) {
+                    continue;
+                }
+                field.setAccessible(true);
+                if (putStaticObjectFieldUnsafe(field, context)
+                        || setStaticObjectField(field, context)) {
+                    seeded++;
+                    log("I", "McD ApplicationContext." + field.getName()
+                            + " = " + context.getClass().getSimpleName());
+                }
+            }
+            if (seeded == 0) {
+                log("D", "McD ApplicationContext seed found no null Context fields");
+            }
+        } catch (Throwable t) {
+            log("W", "McD ApplicationContext seed failed: "
+                    + t.getClass().getSimpleName() + ": " + t.getMessage());
+        }
+    }
+
+    static void seedMcdonaldsJustFlipContextState(final ClassLoader cl,
+            final Context context) {
+        if (cl == null || context == null) {
+            return;
+        }
+        try {
+            Class<?> contextProvider = cl.loadClass(
+                    "com.mcdonalds.justflip_kmm.flag_data.ContextProviderKt");
+            int seeded = 0;
+            for (java.lang.reflect.Field field : safeGetDeclaredFields(contextProvider)) {
+                int modifiers = field.getModifiers();
+                if (!java.lang.reflect.Modifier.isStatic(modifiers)
+                        || java.lang.reflect.Modifier.isFinal(modifiers)) {
+                    continue;
+                }
+                Class<?> type = field.getType();
+                if (type == null || !type.isAssignableFrom(context.getClass())) {
+                    continue;
+                }
+                field.setAccessible(true);
+                if (putStaticObjectFieldUnsafe(field, context)
+                        || setStaticObjectField(field, context)) {
+                    seeded++;
+                    log("I", "McD JustFlip ContextProviderKt." + field.getName()
+                            + " = " + context.getClass().getSimpleName());
+                }
+            }
+            if (seeded == 0) {
+                log("D", "McD JustFlip ContextProvider seed found no Context fields");
+            }
+        } catch (ClassNotFoundException ignored) {
+        } catch (Throwable t) {
+            log("W", "McD JustFlip ContextProvider seed failed: "
+                    + t.getClass().getSimpleName() + ": " + t.getMessage());
+        }
+    }
+
+    static void seedMcdonaldsAppConfigurationState(final ClassLoader cl) {
         if (cl == null) {
             return;
         }
@@ -1370,7 +1869,7 @@ public class WestlakeActivityThread {
             java.util.ArrayList<Object> markets = new java.util.ArrayList<>();
             markets.add(newMcdMarketMap(cl));
             config.put("markets", markets);
-            config.put("marketId", "US");
+            config.put("marketId", "usdap_prod");
             config.put("market", "US");
             config.put("country", "US");
             config.put("language", "en-US");
@@ -1381,6 +1880,11 @@ public class WestlakeActivityThread {
             config.put("authUrl", "https://us-prod.api.mcd.com/v1/security/auth/token");
             config.put("baseUrl", "https://us-prod.api.mcd.com/exp/v1/");
             config.put("akamaiEnabled", Boolean.FALSE);
+            config.put("user_interface_build.applicationmenu", newMcdApplicationMenu(cl));
+            config.put("user_interface.applicationmenu", newMcdApplicationMenu(cl));
+            config.put("user_interface.order.menu", new java.util.ArrayList<Object>());
+            config.put("homeDashboardSections", newMcdHomeDashboardSections(cl));
+            config.put("AppFeature.AppParameter", newMcdAppFeatureAppParameter(cl));
 
             Object proxy = java.lang.reflect.Proxy.newProxyInstance(
                     appConfiguration.getClassLoader() != null
@@ -1419,13 +1923,28 @@ public class WestlakeActivityThread {
                                     ? String.valueOf(args[0]) : "";
                             if ("v".equals(name) || "t".equals(name)) {
                                 Object value = config.get(key);
-                                if (value != null) return value;
+                                if (value != null) {
+                                    log("I", "MCD_CONFIG_GET method=" + name + " key=" + key
+                                            + " value=" + mcdBoundaryValueSummary(value));
+                                    return value;
+                                }
+                                if ("user_interface_build.applicationmenu".equals(key)
+                                        || "user_interface.applicationmenu".equals(key)) {
+                                    Object menu = newMcdApplicationMenu(cl);
+                                    log("I", "MCD_CONFIG_GET method=" + name + " key=" + key
+                                            + " value=" + mcdBoundaryValueSummary(menu));
+                                    return menu;
+                                }
                                 if ("markets".equals(key)) {
                                     java.util.ArrayList<Object> fallbackMarkets =
                                             new java.util.ArrayList<>();
                                     fallbackMarkets.add(newMcdMarketMap(cl));
+                                    log("I", "MCD_CONFIG_GET method=" + name + " key=" + key
+                                            + " value=" + mcdBoundaryValueSummary(fallbackMarkets));
                                     return fallbackMarkets;
                                 }
+                                log("I", "MCD_CONFIG_GET method=" + name + " key=" + key
+                                        + " value=null");
                                 return null;
                             }
                             if ("u".equals(name) || "k".equals(name) || "m".equals(name)
@@ -1433,7 +1952,10 @@ public class WestlakeActivityThread {
                                 Object value = config.get(key);
                                 return value != null ? String.valueOf(value) : "";
                             }
-                            if ("f".equals(name) || "w".equals(name) || "x".equals(name)) {
+                            if ("f".equals(name)) {
+                                return "en-US";
+                            }
+                            if ("w".equals(name) || "x".equals(name)) {
                                 return "US";
                             }
                             if ("A".equals(name) || "q".equals(name)) {
@@ -1474,6 +1996,188 @@ public class WestlakeActivityThread {
         }
     }
 
+    private static java.util.List<Object> newMcdApplicationMenu(ClassLoader cl) {
+        return new java.util.ArrayList<Object>();
+    }
+
+    @SuppressWarnings("unchecked")
+    private static java.util.Map<Object, Object> newMcdLinkedTreeMap(ClassLoader cl) {
+        try {
+            Class<?> linkedTreeMap = cl.loadClass("com.google.gson.internal.LinkedTreeMap");
+            Object instance = linkedTreeMap.getDeclaredConstructor().newInstance();
+            if (instance instanceof java.util.Map) {
+                return (java.util.Map<Object, Object>) instance;
+            }
+        } catch (Throwable ignored) {
+        }
+        return new java.util.HashMap<Object, Object>();
+    }
+
+    private static java.util.ArrayList<Object> newMcdHomeDashboardSections(ClassLoader cl) {
+        java.util.ArrayList<Object> sections = new java.util.ArrayList<>();
+        sections.add(newMcdHomeDashboardSection(cl, "DEALS", true));
+        sections.add(newMcdHomeDashboardSection(cl, "MENU", true));
+        sections.add(newMcdHomeDashboardSection(cl, "POPULAR", false));
+        return sections;
+    }
+
+    private static Object newMcdHomeDashboardSection(ClassLoader cl, String name, boolean enabled) {
+        java.util.Map<Object, Object> section = newMcdLinkedTreeMap(cl);
+        section.put("Name", name);
+        section.put("Enabled", Boolean.valueOf(enabled));
+        return section;
+    }
+
+    private static Object newMcdAppFeatureAppParameter(ClassLoader cl) {
+        java.util.Map<Object, Object> root = newMcdLinkedTreeMap(cl);
+        Object config = newMcdOperationModeConfig(cl);
+        root.put("BOTH", config);
+        root.put("US", config);
+        root.put("usdap_prod", config);
+        root.put("default", config);
+        root.put("string_2132085665", config);
+        return root;
+    }
+
+    private static Object newMcdOperationModeConfig(ClassLoader cl) {
+        java.util.Map<Object, Object> config = newMcdLinkedTreeMap(cl);
+        java.util.ArrayList<Object> modes = new java.util.ArrayList<>();
+        java.util.Map<Object, Object> mode = newMcdLinkedTreeMap(cl);
+        mode.put("Name", "operationMode");
+        mode.put("Value", "3");
+        modes.add(mode);
+        config.put("modes", modes);
+        return config;
+    }
+
+    private static String mcdBoundaryValueSummary(Object value) {
+        if (value == null) {
+            return "null";
+        }
+        try {
+            if (value instanceof java.util.Collection) {
+                return value.getClass().getName() + "[size="
+                        + ((java.util.Collection<?>) value).size() + "]";
+            }
+            if (value instanceof java.util.Map) {
+                return value.getClass().getName() + "[size="
+                        + ((java.util.Map<?, ?>) value).size() + "]";
+            }
+            if (value instanceof CharSequence || value instanceof Number
+                    || value instanceof Boolean) {
+                return String.valueOf(value);
+            }
+            return value.getClass().getName();
+        } catch (Throwable ignored) {
+            return value.getClass().getName();
+        }
+    }
+
+    static void seedMcdonaldsJustFlipState(final ClassLoader cl) {
+        if (cl == null) {
+            return;
+        }
+        try {
+            Class<?> justFlipClass = cl.loadClass("com.mcdonalds.justflip_kmm.JustFlip");
+            Class<?> resolverClass =
+                    cl.loadClass("com.mcdonalds.justflip_kmm.flag_providers.FlagResolver");
+            Object resolver = java.lang.reflect.Proxy.newProxyInstance(
+                    resolverClass.getClassLoader() != null ? resolverClass.getClassLoader() : cl,
+                    new Class<?>[] { resolverClass },
+                    new java.lang.reflect.InvocationHandler() {
+                        public Object invoke(Object proxy, java.lang.reflect.Method method,
+                                Object[] args) {
+                            String name = method.getName();
+                            if ("toString".equals(name)) return "WestlakeJustFlipResolver";
+                            if ("hashCode".equals(name)) return Integer.valueOf(0);
+                            if ("equals".equals(name)) {
+                                return Boolean.valueOf(proxy == (args != null && args.length > 0
+                                        ? args[0] : null));
+                            }
+                            if ("getFlagWithAttributes".equals(name)) {
+                                String flagKey = args != null && args.length > 0
+                                        && args[0] != null ? String.valueOf(args[0]) : "";
+                                log("I", "MCD_JUSTFLIP_FLAG method=" + name + " key="
+                                        + flagKey + " value=off");
+                                return "off";
+                            }
+                            if ("getFlagWithConfiguration".equals(name)) {
+                                String flagKey = args != null && args.length > 0
+                                        && args[0] != null ? String.valueOf(args[0]) : "";
+                                String override = mcdJustFlipConfigOverride(flagKey);
+                                log("I", "MCD_JUSTFLIP_FLAG method=" + name + " key="
+                                        + flagKey + " value="
+                                        + (override != null ? override : "null"));
+                                return override;
+                            }
+                            return defaultMcdProxyReturn(method.getReturnType(), cl,
+                                    "JustFlipResolver." + name);
+                        }
+                    });
+            final Object resolverRef = resolver;
+            java.util.Map<Object, Object> resolvers =
+                    new java.util.AbstractMap<Object, Object>() {
+                        public Object get(Object key) {
+                            return resolverRef;
+                        }
+
+                        public boolean containsKey(Object key) {
+                            return true;
+                        }
+
+                        public java.util.Set<java.util.Map.Entry<Object, Object>> entrySet() {
+                            return java.util.Collections.emptySet();
+                        }
+                    };
+            java.lang.reflect.Constructor<?> ctor = justFlipClass.getDeclaredConstructor(
+                    java.util.Map.class, String.class, java.util.List.class);
+            ctor.setAccessible(true);
+            Object justFlip = ctor.newInstance(resolvers, "westlake-offline",
+                    java.util.Collections.emptyList());
+
+            boolean seeded = false;
+            try {
+                java.lang.reflect.Method setter = justFlipClass.getDeclaredMethod(
+                        "k", justFlipClass);
+                setter.setAccessible(true);
+                setter.invoke(null, justFlip);
+                seeded = true;
+            } catch (Throwable ignored) {
+            }
+            try {
+                java.lang.reflect.Field singleton = justFlipClass.getDeclaredField("o");
+                singleton.setAccessible(true);
+                if (putStaticObjectFieldUnsafe(singleton, justFlip)
+                        || setStaticObjectField(singleton, justFlip)) {
+                    seeded = true;
+                }
+            } catch (Throwable t) {
+                log("D", "McD JustFlip singleton field seed skipped: "
+                        + t.getClass().getSimpleName() + ": " + t.getMessage());
+            }
+            if (seeded) {
+                log("I", "McD JustFlip singleton seeded with offline flag resolver");
+            }
+        } catch (ClassNotFoundException ignored) {
+        } catch (Throwable t) {
+            log("W", "McD JustFlip seed failed: "
+                    + t.getClass().getSimpleName() + ": " + t.getMessage());
+        }
+    }
+
+    private static String mcdJustFlipConfigOverride(String flagKey) {
+        if (flagKey == null) {
+            return null;
+        }
+        if ("maxQtyOnBasket".equals(flagKey)) {
+            return "{\"maxQtyOnBasket\":99}";
+        }
+        if ("maxItemQuantity".equals(flagKey)) {
+            return "{\"maxItemQuantity\":99}";
+        }
+        return null;
+    }
+
     @SuppressWarnings("unchecked")
     private static java.util.Map<String, Object> newMcdMarketMap(ClassLoader cl) {
         java.util.Map<String, Object> market = null;
@@ -1491,7 +2195,7 @@ public class WestlakeActivityThread {
         java.util.ArrayList<String> languages = new java.util.ArrayList<>();
         languages.add("en-US");
         languages.add("en");
-        market.put("marketId", "US");
+        market.put("marketId", "usdap_prod");
         market.put("market", "US");
         market.put("country", "US");
         market.put("language", "en-US");
@@ -1518,10 +2222,261 @@ public class WestlakeActivityThread {
                 contextField.set(null, context);
                 log("I", "McD CoreManager context seeded for SDKManager.t()");
             }
+            seedMcdonaldsSdkPersistenceState(cl);
         } catch (Throwable t) {
             log("W", "McD CoreManager seed failed: "
                     + t.getClass().getSimpleName() + ": " + t.getMessage());
         }
+    }
+
+    private static void seedMcdonaldsSdkPersistenceState(ClassLoader cl) {
+        if (cl == null) {
+            return;
+        }
+        try {
+            Class<?> coreManager =
+                    cl.loadClass("com.mcdonalds.androidsdk.core.internal.CoreManager");
+            Class<?> settingsClass =
+                    cl.loadClass("com.mcdonalds.androidsdk.core.configuration.model.SDKSettings");
+            Class<?> modulesClass =
+                    cl.loadClass("com.mcdonalds.androidsdk.core.configuration.model.ModuleConfigurations");
+            Class<?> persistenceClass =
+                    cl.loadClass("com.mcdonalds.androidsdk.core.configuration.model.PersistenceConfiguration");
+
+            Object settings = null;
+            try {
+                java.lang.reflect.Method getSettings = coreManager.getDeclaredMethod("k");
+                getSettings.setAccessible(true);
+                settings = getSettings.invoke(null);
+            } catch (Throwable ignored) {
+            }
+            if (settings == null) {
+                java.lang.reflect.Constructor<?> ctor = settingsClass.getDeclaredConstructor();
+                ctor.setAccessible(true);
+                settings = ctor.newInstance();
+                java.lang.reflect.Method setSettings =
+                        coreManager.getDeclaredMethod("v", settingsClass);
+                setSettings.setAccessible(true);
+                setSettings.invoke(null, settings);
+            }
+
+            Object modules = null;
+            try {
+                java.lang.reflect.Method getModules =
+                        settingsClass.getDeclaredMethod("getModuleConfigurations");
+                getModules.setAccessible(true);
+                modules = getModules.invoke(settings);
+            } catch (Throwable ignored) {
+            }
+            if (modules == null) {
+                java.lang.reflect.Constructor<?> ctor = modulesClass.getDeclaredConstructor();
+                ctor.setAccessible(true);
+                modules = ctor.newInstance();
+                try {
+                    java.lang.reflect.Method setModules =
+                            settingsClass.getDeclaredMethod("setModuleConfigurations", modulesClass);
+                    setModules.setAccessible(true);
+                    setModules.invoke(settings, modules);
+                } catch (Throwable directFailure) {
+                    java.lang.reflect.Field modulesField =
+                            settingsClass.getDeclaredField("moduleConfigurations");
+                    modulesField.setAccessible(true);
+                    modulesField.set(settings, modules);
+                }
+            }
+
+            Object persistence = null;
+            try {
+                java.lang.reflect.Method getPersistence =
+                        modulesClass.getDeclaredMethod("getPersistence");
+                getPersistence.setAccessible(true);
+                persistence = getPersistence.invoke(modules);
+            } catch (Throwable ignored) {
+            }
+            if (persistence == null) {
+                java.lang.reflect.Constructor<?> ctor =
+                        persistenceClass.getDeclaredConstructor();
+                ctor.setAccessible(true);
+                persistence = ctor.newInstance();
+                java.lang.reflect.Field persistenceField =
+                        modulesClass.getDeclaredField("persistence");
+                persistenceField.setAccessible(true);
+                persistenceField.set(modules, persistence);
+            }
+
+            try {
+                java.lang.reflect.Field encrypted =
+                        persistenceClass.getDeclaredField("encrypted");
+                encrypted.setAccessible(true);
+                encrypted.setBoolean(persistence, false);
+            } catch (Throwable ignored) {
+            }
+            seedMcdonaldsSdkOrderingConfiguration(cl, modules);
+            seedMcdonaldsSdkAccountViewProfileEndpoint(cl);
+            log("I", "McD SDK persistence config seeded encrypted=false");
+        } catch (ClassNotFoundException ignored) {
+        } catch (Throwable t) {
+            log("W", "McD SDK persistence seed failed: "
+                    + t.getClass().getSimpleName() + ": " + t.getMessage());
+        }
+    }
+
+    private static void seedMcdonaldsSdkOrderingConfiguration(ClassLoader cl, Object modules) {
+        if (cl == null || modules == null) {
+            return;
+        }
+        try {
+            Object ordering = null;
+            try {
+                java.lang.reflect.Method getOrdering =
+                        modules.getClass().getDeclaredMethod("getOrdering");
+                getOrdering.setAccessible(true);
+                ordering = getOrdering.invoke(modules);
+            } catch (Throwable ignored) {
+            }
+            if (ordering == null) {
+                Class<?> orderingClass = cl.loadClass(
+                        "com.mcdonalds.androidsdk.core.configuration.model.OrderingConfiguration");
+                ordering = orderingClass.getDeclaredConstructor().newInstance();
+                setMcdObjectField(modules, "ordering", ordering);
+            }
+            setMcdObjectField(ordering, "cartResponseTTL", Long.valueOf(1800L));
+            setMcdObjectField(ordering, "maxCachedOrders", Integer.valueOf(10));
+            setMcdObjectField(ordering, "maxCachedRestaurantCatalog", Integer.valueOf(10));
+            setMcdObjectField(ordering, "catalogSnsTopic", "");
+            log("I", "McD SDK ordering config seeded cartResponseTTL=1800");
+        } catch (Throwable t) {
+            log("W", "McD SDK ordering config seed failed: "
+                    + t.getClass().getSimpleName() + ": " + t.getMessage());
+        }
+    }
+
+    private static void seedMcdonaldsSdkAccountViewProfileEndpoint(ClassLoader cl) {
+        if (cl == null) {
+            return;
+        }
+        try {
+            Class<?> accountModuleClass =
+                    cl.loadClass("com.mcdonalds.androidsdk.account.module.AccountModule");
+            java.lang.reflect.Method getModule = accountModuleClass.getDeclaredMethod("e");
+            getModule.setAccessible(true);
+            Object module = getModule.invoke(null);
+            Object api = ensureMcdSdkApiConfiguration(cl, module, "account");
+            if (api == null) {
+                return;
+            }
+            java.util.List<Object> endpoints = ensureMcdSdkEndpointList(api);
+            if (!hasMcdSdkEndpoint(endpoints, "viewProfile")) {
+                endpoints.add(newMcdSdkEndpoint(cl, "viewProfile",
+                        "customer/profile", "GET"));
+            }
+            java.lang.reflect.Method setConfig = cl.loadClass(
+                    "com.mcdonalds.androidsdk.configuration.factory.ConfigurationModule")
+                    .getDeclaredMethod("b", cl.loadClass(
+                            "com.mcdonalds.androidsdk.core.configuration.model.ApiConfiguration"));
+            setConfig.setAccessible(true);
+            setConfig.invoke(module, api);
+            log("I", "McD SDK account endpoint seeded viewProfile");
+        } catch (ClassNotFoundException ignored) {
+        } catch (Throwable t) {
+            log("W", "McD SDK account endpoint seed failed: "
+                    + t.getClass().getSimpleName() + ": " + t.getMessage());
+        }
+    }
+
+    private static Object ensureMcdSdkApiConfiguration(ClassLoader cl, Object module,
+            String moduleName) throws Exception {
+        if (cl == null || module == null) {
+            return null;
+        }
+        Class<?> configurationModule =
+                cl.loadClass("com.mcdonalds.androidsdk.configuration.factory.ConfigurationModule");
+        java.lang.reflect.Field configField = configurationModule.getDeclaredField("a");
+        configField.setAccessible(true);
+        Object api = configField.get(module);
+        if (api == null) {
+            Class<?> apiClass = cl.loadClass(
+                    "com.mcdonalds.androidsdk.core.configuration.model.ApiConfiguration");
+            api = apiClass.getDeclaredConstructor().newInstance();
+            configField.set(module, api);
+        }
+        setMcdObjectField(api, "name", moduleName);
+        setMcdObjectField(api, "baseURL", "https://us-prod.api.mcd.com/exp/v1/");
+        return api;
+    }
+
+    @SuppressWarnings("unchecked")
+    private static java.util.List<Object> ensureMcdSdkEndpointList(Object api)
+            throws Exception {
+        java.lang.reflect.Field endpointsField =
+                findMcdField(api.getClass(), "endPoints");
+        endpointsField.setAccessible(true);
+        Object endpoints = endpointsField.get(api);
+        if (!(endpoints instanceof java.util.List)) {
+            endpoints = new java.util.ArrayList<Object>();
+            endpointsField.set(api, endpoints);
+        }
+        return (java.util.List<Object>) endpoints;
+    }
+
+    private static boolean hasMcdSdkEndpoint(java.util.List<Object> endpoints, String name) {
+        if (endpoints == null || name == null) {
+            return false;
+        }
+        for (Object endpoint : endpoints) {
+            if (endpoint == null) {
+                continue;
+            }
+            try {
+                java.lang.reflect.Method getName = endpoint.getClass().getDeclaredMethod("getName");
+                getName.setAccessible(true);
+                Object value = getName.invoke(endpoint);
+                if (name.equals(value)) {
+                    return true;
+                }
+            } catch (Throwable ignored) {
+            }
+        }
+        return false;
+    }
+
+    private static Object newMcdSdkEndpoint(ClassLoader cl, String name, String path,
+            String method) throws Exception {
+        Class<?> endpointClass = cl.loadClass(
+                "com.mcdonalds.androidsdk.core.configuration.model.EndPointSetting");
+        Object endpoint = endpointClass.getDeclaredConstructor().newInstance();
+        setMcdObjectField(endpoint, "name", name);
+        setMcdObjectField(endpoint, "path", path);
+        setMcdObjectField(endpoint, "method", method);
+        setMcdObjectField(endpoint, "akamaiEnabled", Boolean.FALSE);
+        return endpoint;
+    }
+
+    private static boolean setMcdObjectField(Object target, String fieldName, Object value) {
+        if (target == null || fieldName == null) {
+            return false;
+        }
+        try {
+            java.lang.reflect.Field field = findMcdField(target.getClass(), fieldName);
+            field.setAccessible(true);
+            field.set(target, value);
+            return true;
+        } catch (Throwable ignored) {
+            return false;
+        }
+    }
+
+    private static java.lang.reflect.Field findMcdField(Class<?> type, String fieldName)
+            throws NoSuchFieldException {
+        Class<?> current = type;
+        while (current != null) {
+            try {
+                return current.getDeclaredField(fieldName);
+            } catch (NoSuchFieldException ignored) {
+                current = current.getSuperclass();
+            }
+        }
+        throw new NoSuchFieldException(fieldName);
     }
 
     private static void seedMcdonaldsClickstreamState(ClassLoader cl, Application app) {

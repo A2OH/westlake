@@ -92,6 +92,12 @@ public class MiniActivityManager {
         return name != null && name.contains("mcdonalds");
     }
 
+    private static boolean isMcdOrderProductDetailsRecord(ActivityRecord record) {
+        String className = record != null && record.component != null
+                ? record.component.getClassName() : null;
+        return "com.mcdonalds.order.activity.OrderProductDetailsActivity".equals(className);
+    }
+
     private ClassLoader resolveAppClassLoader() {
         final boolean strictStandalone =
                 !com.westlake.engine.WestlakeLauncher.isRealFrameworkFallbackAllowed();
@@ -342,15 +348,27 @@ public class MiniActivityManager {
         Thread.currentThread().setContextClassLoader(appCl);
         try {
             seedCoroutineSchedulerProperties();
+            WestlakeActivityThread.seedCoroutineMainDispatcher(appCl);
+            WestlakeActivityThread.seedMcdonaldsAppConfigurationState(appCl);
+            WestlakeActivityThread.seedMcdonaldsJustFlipContextState(appCl, app);
+            WestlakeActivityThread.seedMcdonaldsJustFlipState(appCl);
 
             try {
                 Class<?> appCtx = appCl.loadClass("com.mcdonalds.mcdcoreapp.common.ApplicationContext");
+                try {
+                    java.lang.reflect.Method setter = appCtx.getDeclaredMethod(
+                            "b", android.content.Context.class, boolean.class);
+                    setter.setAccessible(true);
+                    setter.invoke(null, app, Boolean.TRUE);
+                    Log.d(TAG, "  ApplicationContext.b(application,true) OK");
+                } catch (Throwable setterError) {
+                    Log.d(TAG, "  ApplicationContext setter skipped: "
+                            + setterError.getClass().getSimpleName());
+                }
                 java.lang.reflect.Field ctxField = appCtx.getDeclaredField("a");
                 ctxField.setAccessible(true);
-                if (ctxField.get(null) == null) {
-                    ctxField.set(null, app);
-                    Log.d(TAG, "  ApplicationContext.a = " + app.getClass().getSimpleName());
-                }
+                ctxField.set(null, app);
+                Log.d(TAG, "  ApplicationContext.a = " + app.getClass().getSimpleName());
             } catch (Throwable t) {
                 Log.d(TAG, "  ApplicationContext seed skipped: " + t.getClass().getSimpleName());
             }
@@ -442,29 +460,13 @@ public class MiniActivityManager {
                 Log.d(TAG, "  DataSourceHelper seeded fields=" + seeded);
             }
 
-            for (java.lang.reflect.Method m : helperClass.getDeclaredMethods()) {
-                if (!java.lang.reflect.Modifier.isStatic(m.getModifiers())) continue;
-                if (m.getParameterTypes().length != 0) continue;
-                Class<?> returnType = m.getReturnType();
-                if (returnType.isPrimitive()
-                        || returnType == String.class
-                        || returnType == Object.class
-                        || returnType == Void.TYPE) {
-                    continue;
-                }
-                ensureNonNullDataSourceHelperMethod(helperClass, m.getName(), singleton);
-            }
+            Log.d(TAG, "  DataSourceHelper getter verification skipped in standalone bootstrap");
 
             seedRealAppClickstreamBootstrap(appCl, app, singleton);
 
-            if (singleton != null) {
-                initStaticHelperFromSingleton(
-                        appCl,
-                        singleton,
-                        "com.mcdonalds.mcdcoreapp.analytics.ClickstreamDataHelper");
-            }
+            Log.d(TAG, "  ClickstreamDataHelper singleton bootstrap skipped in standalone bootstrap");
 
-            repairCachedDataSourceCrypto(appCl, app);
+            Log.d(TAG, "  DataSourceHelper Crypto repair skipped in standalone bootstrap");
         } catch (Throwable t) {
             Log.w(TAG, "  seedPreCreateDatasourceState failed: "
                     + t.getClass().getSimpleName() + ": " + t.getMessage());
@@ -832,6 +834,10 @@ public class MiniActivityManager {
             return instantiateKnownImpl(type, appCl, "com.mcdonalds.account.util.AccountProfileImplementation");
         }
 
+        if ("com.mcdonalds.mcdcoreapp.helper.interfaces.LoyaltyModuleInteractor".equals(name)) {
+            return instantiateKnownImpl(type, appCl, "com.mcdonalds.loyalty.dashboard.util.DealsLoyaltyImplementation");
+        }
+
         if ("com.mcdonalds.mcdcoreapp.helper.interfaces.HomeDashboardModuleInteractor".equals(name)) {
             return instantiateKnownImpl(type, appCl, "com.mcdonalds.homedashboard.util.HomeDashboardModuleImpl");
         }
@@ -881,9 +887,59 @@ public class MiniActivityManager {
                         + instance.getClass().getSimpleName());
                 return instance;
             }
+            instance = instantiateWithDefaultArgs(impl);
+            if (instance != null && requestedType.isInstance(instance)) {
+                Log.d(TAG, "  " + requestedType.getSimpleName() + " = "
+                        + instance.getClass().getSimpleName() + " [default args]");
+                return instance;
+            }
         } catch (Throwable t) {
             Log.d(TAG, "  " + implName.substring(implName.lastIndexOf('.') + 1)
                     + " stub failed: " + t.getClass().getSimpleName() + ": " + t.getMessage());
+        }
+        return null;
+    }
+
+    private Object instantiateWithDefaultArgs(Class<?> type) {
+        if (type == null || type.isInterface()
+                || java.lang.reflect.Modifier.isAbstract(type.getModifiers())) {
+            return null;
+        }
+        for (java.lang.reflect.Constructor<?> ctor : type.getDeclaredConstructors()) {
+            try {
+                Class<?>[] params = ctor.getParameterTypes();
+                Object[] args = new Object[params.length];
+                for (int i = 0; i < params.length; i++) {
+                    args[i] = defaultCtorArg(params[i]);
+                }
+                ctor.setAccessible(true);
+                return ctor.newInstance(args);
+            } catch (Throwable ignored) {
+            }
+        }
+        return null;
+    }
+
+    private Object defaultCtorArg(Class<?> type) {
+        if (type == null) return null;
+        if (type == boolean.class) return false;
+        if (type == int.class) return 0;
+        if (type == long.class) return 0L;
+        if (type == float.class) return 0f;
+        if (type == double.class) return 0.0;
+        if (type == byte.class) return (byte) 0;
+        if (type == short.class) return (short) 0;
+        if (type == char.class) return '\0';
+        if (type == String.class || type == CharSequence.class) return "";
+        if (type.isArray()) {
+            return java.lang.reflect.Array.newInstance(type.getComponentType(), 0);
+        }
+        if (java.util.List.class.isAssignableFrom(type)) return new java.util.ArrayList();
+        if (java.util.Map.class.isAssignableFrom(type)) return new java.util.HashMap();
+        if (java.util.Set.class.isAssignableFrom(type)) return new java.util.HashSet();
+        if (type.isInterface()) {
+            return dagger.hilt.android.internal.managers.ActivityComponentManager
+                    .createInterfaceProxy(type);
         }
         return null;
     }
@@ -2164,6 +2220,7 @@ public class MiniActivityManager {
         dispatchLifecycleEvent(r.activity, "performRestore", savedInstanceState);
         boolean createNPE = false;
         final ClassLoader appCl = resolveAppClassLoader();
+        WestlakeActivityThread.seedCoroutineMainDispatcher(appCl);
         logMainDispatcherProbe("performCreate app", appCl);
 
         // Run onCreate in thread with timeout (complex apps can hang in DI init)
@@ -2176,13 +2233,7 @@ public class MiniActivityManager {
                 Thread.currentThread().setContextClassLoader(appCl);
                 logMainDispatcherProbe("performCreate thread", Thread.currentThread().getContextClassLoader());
                 try {
-                    // Use reflection to bypass protected access check.
-                    // On phone's dalvikvm64, Activity.onCreate is protected and
-                    // inaccessible from shim classloader.
-                    java.lang.reflect.Method ocm = android.app.Activity.class.getDeclaredMethod(
-                        "onCreate", android.os.Bundle.class);
-                    ocm.setAccessible(true);
-                    ocm.invoke(actRef, ssRef);
+                    actRef.onCreate(ssRef);
                     done[0] = true;
                 } catch (Throwable e) {
                     error[0] = (e instanceof Exception) ? (Exception) e : new RuntimeException(e);
@@ -2192,16 +2243,37 @@ public class MiniActivityManager {
         }, "ActivityOnCreate");
         ocThread.setDaemon(true);
         ocThread.start();
-        try { ocThread.join(5000); } catch (InterruptedException ie) {}
+        String componentName = r.component != null ? r.component.getClassName() : null;
+        boolean mcdNonSplash = componentName != null
+                && componentName.startsWith("com.mcdonalds.")
+                && !componentName.endsWith(".SplashActivity");
+        long createTimeoutMs = mcdNonSplash ? 15000L : 5000L;
+        try { ocThread.join(createTimeoutMs); } catch (InterruptedException ie) {}
         // CRITICAL: Stop the thread if still running to prevent GC deadlock.
         // SplashActivity.onCreate may catch UUID errors and continue with DI code
         // that never reaches a safepoint, causing nonconcurrent GC to freeze all threads.
+        boolean timeoutContentInstalled = ocThread.isAlive()
+                && hasInstalledWindowContent(r.activity);
         if (ocThread.isAlive()) {
-            try { ocThread.stop(); } catch (Throwable t) { /* ThreadDeath expected */ }
+            Log.w(TAG, "performCreate thread still alive after " + createTimeoutMs
+                    + "ms for " + r.component.getClassName());
+            StackTraceElement[] stack = ocThread.getStackTrace();
+            if (stack != null) {
+                for (int i = 0; i < stack.length && i < 16; i++) {
+                    Log.w(TAG, "  onCreate stack[" + i + "] " + stack[i]);
+                }
+            }
+            if (mcdNonSplash && timeoutContentInstalled) {
+                Log.w(TAG, "performCreate leaving McD content onCreate thread alive for "
+                        + r.component.getClassName());
+            } else {
+                try { ocThread.stop(); } catch (Throwable t) { /* ThreadDeath expected */ }
+            }
         }
 
         if (!done[0]) {
-            Log.w(TAG, "performCreate TIMEOUT (5s) for " + r.component.getClassName() + " — proceeding");
+            Log.w(TAG, "performCreate TIMEOUT (" + createTimeoutMs + "ms) for "
+                    + r.component.getClassName() + " — proceeding");
         } else if (error[0] instanceof NullPointerException) {
             Log.w(TAG, "performCreate NPE (non-fatal): " + error[0].getMessage());
             createNPE = true;
@@ -2214,7 +2286,12 @@ public class MiniActivityManager {
         }
 
         // If onCreate NPE'd, try to manually set content view with the splash layout
-        if (createNPE || !done[0]) {
+        boolean timeoutWithContent = !createNPE && !done[0]
+                && (timeoutContentInstalled || hasInstalledWindowContent(r.activity));
+        if (timeoutWithContent) {
+            Log.d(TAG, "  performCreate timeout: content already installed for "
+                    + r.component.getClassName() + "; skipping fallback setContentView");
+        } else if (createNPE || !done[0]) {
             Log.d(TAG, "  tryRecoverContent: attempting manual setContentView for " + r.component.getClassName());
             // Fill null interface fields with dynamic Proxies (surviving DI failure)
             fillNullFieldsWithProxies(r.activity);
@@ -2258,6 +2335,22 @@ public class MiniActivityManager {
             tryRecoverFragments(r.activity);
         } catch (Throwable t) {
             Log.d(TAG, "  tryRecoverFragments post-create failed: " + t);
+        }
+    }
+
+    private boolean hasInstalledWindowContent(Activity activity) {
+        try {
+            if (activity == null || activity.getWindow() == null) {
+                return false;
+            }
+            android.view.View decor = activity.getWindow().getDecorView();
+            if (!(decor instanceof android.view.ViewGroup)) {
+                return false;
+            }
+            android.view.ViewGroup group = (android.view.ViewGroup) decor;
+            return group.getChildCount() > 0;
+        } catch (Throwable ignored) {
+            return false;
         }
     }
 
@@ -2369,6 +2462,11 @@ public class MiniActivityManager {
             // Common pattern: Activity has a FrameLayout(id=R.id.main_content) for the main fragment
             String pkg = activity.getPackageName();
             if (pkg == null) pkg = activity.getClass().getPackage().getName();
+            if (pkg != null && pkg.startsWith("com.mcdonalds.")) {
+                Log.d(TAG, "  tryRecoverFragments: skipping generic fragment recovery for McD "
+                        + activity.getClass().getName());
+                return;
+            }
 
             // Counter app special case: two fragments in a DrawerLayout
             // Main content (0x7f0a004a) = CounterFragment, Drawer (0x7f0a004b) = CountersListFragment
@@ -2524,6 +2622,9 @@ public class MiniActivityManager {
      */
     private boolean tryCounterAppFragments(Activity activity, android.view.View decor, String pkg) {
         try {
+            if (pkg != null && pkg.startsWith("com.mcdonalds.")) {
+                return false;
+            }
             Class<?> counterFragClass = null;
             Class<?> listFragClass = null;
             try { counterFragClass = resolveAppClassLoader().loadClass(pkg + ".ui.CounterFragment"); } catch (Exception e) {}
@@ -3001,27 +3102,72 @@ public class MiniActivityManager {
         ShimCompat.setActivityField(r.activity, "mStarted", Boolean.TRUE);
         // Run onStart with timeout (Fragment lifecycle can hang in interpreter)
         final Activity actRef = r.activity;
+        final boolean mcdPdp = isMcdOrderProductDetailsRecord(r);
         final boolean[] startDone = { false };
         Thread startThread = new Thread(new Runnable() {
             public void run() {
                 Thread.currentThread().setContextClassLoader(resolveAppClassLoader());
                 try {
-                    java.lang.reflect.Method m = Activity.class.getDeclaredMethod("onStart");
-                    m.setAccessible(true);
-                    m.invoke(actRef);
+                    actRef.onStart();
                     startDone[0] = true;
-                } catch (Throwable e) { startDone[0] = true; Log.w(TAG, "onStart error: " + e.getMessage()); }
+                } catch (Throwable e) {
+                    startDone[0] = true;
+                    Log.w(TAG, "onStart error: " + e.getMessage());
+                    if (mcdPdp) {
+                        Log.w(TAG, "onStart root for McD PDP: "
+                                + e.getClass().getName() + ": " + e.getMessage());
+                        StackTraceElement[] stack = e.getStackTrace();
+                        if (stack != null) {
+                            for (int i = 0; i < stack.length && i < 12; i++) {
+                                Log.w(TAG, "  onStart frame[" + i + "] " + stack[i]);
+                            }
+                        }
+                        noteProof("MCD_PDP_ACTIVITY_ONSTART_ERROR"
+                                + " error=" + safeToken(e.getClass().getName())
+                                + " message=" + safeToken(e.getMessage()));
+                    }
+                }
             }
         }, "ActivityOnStart");
         startThread.setDaemon(true);
         startThread.start();
-        try { startThread.join(10000); } catch (InterruptedException ie) {}
-        if (!startDone[0]) Log.w(TAG, "performStart TIMEOUT (10s) for " + r.component.getClassName());
+        long startWaitMs = mcdPdp ? 35000L : 10000L;
+        try { startThread.join(startWaitMs); } catch (InterruptedException ie) {}
+        if (!startDone[0] && mcdPdp && startWaitMs < 35000L) {
+            boolean contentInstalled = hasInstalledWindowContent(actRef);
+            try {
+                com.westlake.engine.WestlakeLauncher.noteMarker(
+                        "MCD_ORDER_PDP_START_WAIT_EXTEND content="
+                                + contentInstalled + " elapsedMs=" + startWaitMs);
+            } catch (Throwable ignored) {
+            }
+            long extraWaitMs = contentInstalled ? 3500L : 6500L;
+            try { startThread.join(extraWaitMs); } catch (InterruptedException ie) {}
+            startWaitMs += extraWaitMs;
+        }
+        if (!startDone[0] && mcdPdp && startWaitMs < 35000L
+                && !hasInstalledWindowContent(actRef)) {
+            try { startThread.join(3500L); } catch (InterruptedException ie) {}
+            startWaitMs += 3500L;
+        }
+        if (!startDone[0]) {
+            Log.w(TAG, "performStart TIMEOUT (" + startWaitMs + "ms) for "
+                    + r.component.getClassName());
+            if (mcdPdp) {
+                try {
+                    com.westlake.engine.WestlakeLauncher.noteMarker(
+                            "MCD_ORDER_PDP_START_EARLY_CONTINUE content="
+                                    + hasInstalledWindowContent(actRef));
+                } catch (Throwable ignored) {
+                }
+            }
+        }
         try {
             dispatchLifecycleEvent(r.activity, "ON_START");
         } catch (Exception e) {
             Log.w(TAG, "performStart lifecycle dispatch error: " + e.getMessage());
         }
+        dispatchMcdPdpObserverBridge(r, "ON_START", "performStart");
     }
 
     private void performResume(ActivityRecord r) {
@@ -3046,9 +3192,7 @@ public class MiniActivityManager {
             public void run() {
                 Thread.currentThread().setContextClassLoader(resolveAppClassLoader());
                 try {
-                    java.lang.reflect.Method m = Activity.class.getDeclaredMethod("onResume");
-                    m.setAccessible(true);
-                    m.invoke(actRef);
+                    actRef.onResume();
                     resumeDone[0] = true;
                 } catch (Throwable e) { resumeDone[0] = true; Log.w(TAG, "onResume error: " + e.getMessage()); }
             }
@@ -3058,9 +3202,7 @@ public class MiniActivityManager {
         try { resumeThread.join(10000); } catch (InterruptedException ie) {}
         if (!resumeDone[0]) Log.w(TAG, "performResume TIMEOUT (10s) for " + r.component.getClassName());
         try {
-            java.lang.reflect.Method m = Activity.class.getDeclaredMethod("onPostResume");
-            m.setAccessible(true);
-            m.invoke(r.activity);
+            r.activity.onPostResume();
         } catch (Throwable e) {
             Log.w(TAG, "onPostResume error (non-fatal): " + e.getClass().getSimpleName() + ": " + e.getMessage());
         }
@@ -3069,6 +3211,7 @@ public class MiniActivityManager {
         } catch (Throwable e) {
             Log.w(TAG, "performResume lifecycle dispatch error: " + e.getClass().getSimpleName() + ": " + e.getMessage());
         }
+        dispatchMcdPdpObserverBridge(r, "ON_RESUME", "performResume");
         Log.d(TAG, "  performResume completed for " + r.component.getClassName());
     }
 
@@ -3168,9 +3311,393 @@ public class MiniActivityManager {
     }
 
     /** Internal record tracking an Activity's state. */
-    /** Dispatch lifecycle events — no-op for now, will be wired via Compose's lifecycle */
-    private void dispatchLifecycleEvent(Activity activity, String eventName) {}
+    /**
+     * Dispatch AndroidX lifecycle events for activities that are driven by
+     * MiniActivityManager instead of the platform ActivityThread. This is
+     * intentionally shaped like Android's LifecycleRegistry path: callers see
+     * getLifecycle().handleLifecycleEvent(event), or the obfuscated alias used by
+     * the app-bundled AndroidX runtime.
+     */
+    private void dispatchLifecycleEvent(Activity activity, String eventName) {
+        dispatchLifecycleOwnerEvent(activity, eventName);
+    }
     private void dispatchLifecycleEvent(Activity activity, String action, Bundle state) {}
+
+    private boolean dispatchLifecycleOwnerEvent(Object owner, String eventName) {
+        if (owner == null || eventName == null || !eventName.startsWith("ON_")) {
+            return false;
+        }
+        try {
+            java.lang.reflect.Method getLifecycle = findNoArgMethod(
+                    owner.getClass(), "getLifecycle");
+            if (getLifecycle == null) {
+                return false;
+            }
+            getLifecycle.setAccessible(true);
+            Object lifecycle = getLifecycle.invoke(owner);
+            if (lifecycle == null) {
+                return false;
+            }
+            ClassLoader cl = lifecycle.getClass().getClassLoader();
+            if (cl == null) {
+                cl = resolveAppClassLoader();
+            }
+            Class<?> eventClass = Class.forName("androidx.lifecycle.Lifecycle$Event", false, cl);
+            Object event = java.lang.Enum.valueOf((Class) eventClass, eventName);
+            boolean dispatched = invokeOneArgLifecycleMethod(
+                    lifecycle, "handleLifecycleEvent", event)
+                    || invokeOneArgLifecycleMethod(lifecycle, "l", event)
+                    || markLifecycleState(lifecycle, eventName, cl);
+            boolean viewDispatched = dispatchViewLifecycleOwnerEvent(owner, eventName);
+            return dispatched || viewDispatched;
+        } catch (Throwable t) {
+            return false;
+        }
+    }
+
+    private boolean dispatchViewLifecycleOwnerEvent(Object owner, String eventName) {
+        if (owner == null || eventName == null) {
+            return false;
+        }
+        try {
+            java.lang.reflect.Method getViewLifecycleOwner = findNoArgMethod(
+                    owner.getClass(), "getViewLifecycleOwner");
+            if (getViewLifecycleOwner == null) {
+                return false;
+            }
+            getViewLifecycleOwner.setAccessible(true);
+            Object viewOwner = getViewLifecycleOwner.invoke(owner);
+            if (viewOwner == null || viewOwner == owner) {
+                return false;
+            }
+            invokeNoArg(viewOwner, "b");
+            invokeNoArg(viewOwner, "a");
+            java.lang.reflect.Method getLifecycle = findNoArgMethod(
+                    viewOwner.getClass(), "getLifecycle");
+            if (getLifecycle == null) {
+                return false;
+            }
+            getLifecycle.setAccessible(true);
+            Object lifecycle = getLifecycle.invoke(viewOwner);
+            if (lifecycle == null) {
+                return false;
+            }
+            ClassLoader cl = lifecycle.getClass().getClassLoader();
+            if (cl == null) {
+                cl = resolveAppClassLoader();
+            }
+            Class<?> eventClass = Class.forName("androidx.lifecycle.Lifecycle$Event", false, cl);
+            Object event = java.lang.Enum.valueOf((Class) eventClass, eventName);
+            boolean dispatched = invokeOneArgLifecycleMethod(
+                    lifecycle, "handleLifecycleEvent", event)
+                    || invokeOneArgLifecycleMethod(lifecycle, "l", event);
+            boolean ownerDispatched = false;
+            if (!dispatched) {
+                ownerDispatched = invokeOneArgLifecycleMethod(viewOwner, "handleLifecycleEvent", event)
+                        || invokeOneArgLifecycleMethod(viewOwner, "a", event)
+                        || invokeOneArgLifecycleMethod(viewOwner, "c", event)
+                        || invokeOneArgLifecycleMethod(viewOwner, "f", event);
+            }
+            boolean marked = false;
+            if (!dispatched && !ownerDispatched) {
+                marked = markLifecycleState(lifecycle, eventName, cl)
+                        || markLifecycleState(viewOwner, eventName, cl);
+            }
+            return dispatched || ownerDispatched || marked;
+        } catch (Throwable ignored) {
+            return false;
+        }
+    }
+
+    private boolean invokeOneArgLifecycleMethod(Object target, String name, Object arg) {
+        if (target == null || name == null || arg == null) {
+            return false;
+        }
+        for (Class<?> c = target.getClass(); c != null && c != Object.class; c = c.getSuperclass()) {
+            java.lang.reflect.Method[] methods = c.getDeclaredMethods();
+            for (int i = 0; i < methods.length; i++) {
+                java.lang.reflect.Method method = methods[i];
+                if (!name.equals(method.getName())) {
+                    continue;
+                }
+                Class<?>[] params = method.getParameterTypes();
+                if (params.length != 1 || !params[0].isAssignableFrom(arg.getClass())) {
+                    continue;
+                }
+                try {
+                    method.setAccessible(true);
+                    method.invoke(target, arg);
+                    return true;
+                } catch (Throwable ignored) {
+                }
+            }
+        }
+        return false;
+    }
+
+    private boolean markLifecycleState(Object lifecycle, String eventName, ClassLoader cl) {
+        try {
+            Class<?> stateClass = Class.forName("androidx.lifecycle.Lifecycle$State", false, cl);
+            String stateName = lifecycleStateForEvent(eventName);
+            if (stateName == null) {
+                return false;
+            }
+            Object state = java.lang.Enum.valueOf((Class) stateClass, stateName);
+            return invokeOneArgLifecycleMethod(lifecycle, "setCurrentState", state)
+                    || invokeOneArgLifecycleMethod(lifecycle, "markState", state)
+                    || invokeOneArgLifecycleMethod(lifecycle, "q", state)
+                    || invokeOneArgLifecycleMethod(lifecycle, "p", state)
+                    || invokeOneArgLifecycleMethod(lifecycle, "n", state)
+                    || invokeOneArgLifecycleMethod(lifecycle, "o", state)
+                    || invokeOneArgLifecycleMethod(lifecycle, "d", state)
+                    || invokeOneArgLifecycleMethod(lifecycle, "f", state)
+                    || invokeOneArgLifecycleMethod(lifecycle, "g", state);
+        } catch (Throwable ignored) {
+            return false;
+        }
+    }
+
+    private static String lifecycleStateForEvent(String eventName) {
+        if ("ON_CREATE".equals(eventName) || "ON_STOP".equals(eventName)) {
+            return "CREATED";
+        }
+        if ("ON_START".equals(eventName) || "ON_PAUSE".equals(eventName)) {
+            return "STARTED";
+        }
+        if ("ON_RESUME".equals(eventName)) {
+            return "RESUMED";
+        }
+        if ("ON_DESTROY".equals(eventName)) {
+            return "DESTROYED";
+        }
+        return null;
+    }
+
+    private void dispatchMcdPdpObserverBridge(ActivityRecord r, String eventName, String reason) {
+        if (!isMcdOrderProductDetailsRecord(r) || r.activity == null) {
+            return;
+        }
+        ArrayList<Object> fragments = new ArrayList<>();
+        collectActivityFragments(r.activity, fragments, 0);
+        int pdpCount = 0;
+        int dispatchCount = 0;
+        for (int i = 0; i < fragments.size(); i++) {
+            Object fragment = fragments.get(i);
+            if (fragment == null) {
+                continue;
+            }
+            String name = fragment.getClass().getName();
+            boolean pdp = name != null && name.contains("OrderPDPFragment");
+            if (pdp) {
+                pdpCount++;
+                setBooleanFieldIfPresent(fragment, "mAdded", true);
+                if ("ON_START".equals(eventName) || "ON_RESUME".equals(eventName)) {
+                    setBooleanFieldIfPresent(fragment, "mStarted", true);
+                }
+                if ("ON_RESUME".equals(eventName)) {
+                    setBooleanFieldIfPresent(fragment, "mResumed", true);
+                }
+            }
+            boolean dispatched = dispatchLifecycleOwnerEvent(fragment, eventName);
+            if (dispatched) {
+                dispatchCount++;
+            }
+            if (pdp) {
+                noteProof("MCD_PDP_OBSERVER_BRIDGE"
+                        + " event=" + eventName
+                        + " reason=" + safeToken(reason)
+                        + " fragment=" + safeToken(name)
+                        + " dispatched=" + dispatched
+                        + " added=" + getBooleanFieldIfPresent(fragment, "mAdded")
+                        + " started=" + getBooleanFieldIfPresent(fragment, "mStarted")
+                        + " resumed=" + getBooleanFieldIfPresent(fragment, "mResumed"));
+            }
+        }
+        noteProof("MCD_PDP_OBSERVER_BRIDGE_SUMMARY"
+                + " event=" + eventName
+                + " reason=" + safeToken(reason)
+                + " fragments=" + fragments.size()
+                + " pdp=" + pdpCount
+                + " dispatched=" + dispatchCount);
+    }
+
+    private void collectActivityFragments(Activity activity, ArrayList<Object> out, int depth) {
+        if (activity == null || depth > 4) {
+            return;
+        }
+        collectDirectFragmentFields(activity, out);
+        Object manager = invokeNoArg(activity, "getSupportFragmentManager");
+        collectFragmentsFromManager(manager, out, depth);
+        manager = invokeNoArg(activity, "getFragmentManager");
+        collectFragmentsFromManager(manager, out, depth);
+    }
+
+    private void collectFragmentsFromManager(Object manager, ArrayList<Object> out, int depth) {
+        if (manager == null || depth > 4) {
+            return;
+        }
+        collectFragmentsFromCollection(invokeNoArg(manager, "getFragments"), out, depth);
+        collectFragmentsFromCollection(invokeNoArg(manager, "G0"), out, depth);
+        for (Class<?> c = manager.getClass(); c != null && c != Object.class; c = c.getSuperclass()) {
+            java.lang.reflect.Field[] fields = c.getDeclaredFields();
+            for (int i = 0; i < fields.length; i++) {
+                java.lang.reflect.Field field = fields[i];
+                try {
+                    field.setAccessible(true);
+                    Object value = field.get(manager);
+                    if (value instanceof java.util.Collection) {
+                        collectFragmentsFromCollection(value, out, depth);
+                    }
+                } catch (Throwable ignored) {
+                }
+            }
+        }
+    }
+
+    private void collectFragmentsFromCollection(Object value, ArrayList<Object> out, int depth) {
+        if (!(value instanceof java.util.Collection)) {
+            return;
+        }
+        java.util.Iterator<?> iterator = ((java.util.Collection<?>) value).iterator();
+        while (iterator.hasNext()) {
+            Object candidate = iterator.next();
+            if (!isFragmentLike(candidate) || containsIdentity(out, candidate)) {
+                continue;
+            }
+            out.add(candidate);
+            Object childManager = invokeNoArg(candidate, "getChildFragmentManager");
+            collectFragmentsFromManager(childManager, out, depth + 1);
+        }
+    }
+
+    private void collectDirectFragmentFields(Activity activity, ArrayList<Object> out) {
+        for (Class<?> c = activity.getClass(); c != null && c != Object.class; c = c.getSuperclass()) {
+            java.lang.reflect.Field[] fields = c.getDeclaredFields();
+            for (int i = 0; i < fields.length; i++) {
+                java.lang.reflect.Field field = fields[i];
+                try {
+                    field.setAccessible(true);
+                    Object value = field.get(activity);
+                    if (isFragmentLike(value) && !containsIdentity(out, value)) {
+                        out.add(value);
+                    }
+                } catch (Throwable ignored) {
+                }
+            }
+        }
+    }
+
+    private static boolean isFragmentLike(Object value) {
+        if (value == null) {
+            return false;
+        }
+        String name = value.getClass().getName();
+        return name != null
+                && name.contains("Fragment")
+                && !name.contains("FragmentManager")
+                && !name.contains("FragmentTransaction");
+    }
+
+    private static boolean containsIdentity(ArrayList<Object> list, Object value) {
+        for (int i = 0; i < list.size(); i++) {
+            if (list.get(i) == value) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private Object invokeNoArg(Object target, String name) {
+        if (target == null || name == null) {
+            return null;
+        }
+        try {
+            java.lang.reflect.Method method = findNoArgMethod(target.getClass(), name);
+            if (method == null) {
+                return null;
+            }
+            method.setAccessible(true);
+            return method.invoke(target);
+        } catch (Throwable ignored) {
+            return null;
+        }
+    }
+
+    private static java.lang.reflect.Method findNoArgMethod(Class<?> type, String name) {
+        for (Class<?> c = type; c != null && c != Object.class; c = c.getSuperclass()) {
+            java.lang.reflect.Method[] methods = c.getDeclaredMethods();
+            for (int i = 0; i < methods.length; i++) {
+                java.lang.reflect.Method method = methods[i];
+                if (name.equals(method.getName()) && method.getParameterTypes().length == 0) {
+                    return method;
+                }
+            }
+        }
+        return null;
+    }
+
+    private static void setBooleanFieldIfPresent(Object target, String name, boolean value) {
+        try {
+            java.lang.reflect.Field field = findField(target.getClass(), name);
+            if (field != null && field.getType() == boolean.class) {
+                field.setAccessible(true);
+                field.setBoolean(target, value);
+            }
+        } catch (Throwable ignored) {
+        }
+    }
+
+    private static boolean getBooleanFieldIfPresent(Object target, String name) {
+        try {
+            java.lang.reflect.Field field = findField(target.getClass(), name);
+            if (field != null && field.getType() == boolean.class) {
+                field.setAccessible(true);
+                return field.getBoolean(target);
+            }
+        } catch (Throwable ignored) {
+        }
+        return false;
+    }
+
+    private static java.lang.reflect.Field findField(Class<?> type, String name) {
+        for (Class<?> c = type; c != null && c != Object.class; c = c.getSuperclass()) {
+            try {
+                return c.getDeclaredField(name);
+            } catch (NoSuchFieldException ignored) {
+            }
+        }
+        return null;
+    }
+
+    private static void noteProof(String marker) {
+        try {
+            com.westlake.engine.WestlakeLauncher.marker(marker);
+            com.westlake.engine.WestlakeLauncher.appendCutoffCanaryMarker(marker);
+        } catch (Throwable ignored) {
+        }
+    }
+
+    private static String safeToken(Object value) {
+        if (value == null) {
+            return "null";
+        }
+        String s = String.valueOf(value);
+        if (s.length() == 0) {
+            return "empty";
+        }
+        StringBuilder out = new StringBuilder(s.length());
+        for (int i = 0; i < s.length(); i++) {
+            char ch = s.charAt(i);
+            if ((ch >= 'a' && ch <= 'z') || (ch >= 'A' && ch <= 'Z')
+                    || (ch >= '0' && ch <= '9') || ch == '.' || ch == '_'
+                    || ch == '-' || ch == ':' || ch == '=') {
+                out.append(ch);
+            } else {
+                out.append('_');
+            }
+        }
+        return out.toString();
+    }
 
     static class ActivityRecord {
         Activity activity;

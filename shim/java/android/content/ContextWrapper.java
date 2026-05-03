@@ -27,7 +27,14 @@ public class ContextWrapper extends Context {
     public int checkSelfPermission(String p0) { return 0; }
     public int checkUriPermission(Uri p0, int p1, int p2, int p3) { return 0; }
     public int checkUriPermission(Uri p0, String p1, String p2, int p3, int p4, int p5) { return 0; }
-    public Context createConfigurationContext(Configuration p0) { return null; }
+    public Context createConfigurationContext(Configuration p0) {
+        Context base = super.getBaseContext();
+        if (base != null && base != this) {
+            Context configured = base.createConfigurationContext(p0);
+            if (configured != null) return configured;
+        }
+        return super.createConfigurationContext(p0);
+    }
     public Context createContextForSplit(String p0) { return null; }
     public Context createDeviceProtectedStorageContext() { return null; }
     public Context createDisplayContext(Display p0) { return null; }
@@ -43,7 +50,7 @@ public class ContextWrapper extends Context {
     public void enforcePermission(String p0, int p1, int p2, String p3) {}
     public void enforceUriPermission(Uri p0, int p1, int p2, int p3, String p4) {}
     public void enforceUriPermission(Uri p0, String p1, String p2, int p3, int p4, int p5, String p6) {}
-    public String[] fileList() { return null; }
+    public String[] fileList() { return super.fileList(); }
     public Context getApplicationContext() { return super.getApplicationContext(); }
     public ApplicationInfo getApplicationInfo() { return super.getApplicationInfo(); }
     public AssetManager getAssets() { return super.getAssets(); }
@@ -60,7 +67,7 @@ public class ContextWrapper extends Context {
     public File getExternalFilesDir(String p0) { return null; }
     public File[] getExternalFilesDirs(String p0) { return null; }
     public File[] getExternalMediaDirs() { return null; }
-    public File getFileStreamPath(String p0) { return null; }
+    public File getFileStreamPath(String p0) { return super.getFileStreamPath(p0); }
     public File getFilesDir() { return null; }
     public Looper getMainLooper() { return null; }
     public File getNoBackupFilesDir() { return null; }
@@ -79,18 +86,31 @@ public class ContextWrapper extends Context {
     public boolean isDeviceProtectedStorage() { return false; }
     public boolean moveDatabaseFrom(Context p0, String p1) { return false; }
     public boolean moveSharedPreferencesFrom(Context p0, String p1) { return false; }
-    public java.io.FileInputStream openFileInput(String p0) { return null; }
-    public java.io.FileOutputStream openFileOutput(String p0, int p1) { return null; }
+    public java.io.FileInputStream openFileInput(String p0) throws java.io.FileNotFoundException {
+        return super.openFileInput(p0);
+    }
+    public java.io.FileOutputStream openFileOutput(String p0, int p1)
+            throws java.io.FileNotFoundException {
+        return super.openFileOutput(p0, p1);
+    }
     public SQLiteDatabase openOrCreateDatabase(String p0, int p1, Object p2) { return null; }
     public SQLiteDatabase openOrCreateDatabase(String p0, int p1, Object p2, DatabaseErrorHandler p3) { return null; }
-    public Intent registerReceiver(BroadcastReceiver p0, IntentFilter p1) { return null; }
-    public Intent registerReceiver(BroadcastReceiver p0, IntentFilter p1, int p2) { return null; }
-    public Intent registerReceiver(BroadcastReceiver p0, IntentFilter p1, String p2, Handler p3) { return null; }
-    public Intent registerReceiver(BroadcastReceiver p0, IntentFilter p1, String p2, Handler p3, int p4) { return null; }
+    public Intent registerReceiver(BroadcastReceiver p0, IntentFilter p1) {
+        return super.registerReceiver(p0, p1);
+    }
+    public Intent registerReceiver(BroadcastReceiver p0, IntentFilter p1, int p2) {
+        return super.registerReceiver(p0, p1, p2);
+    }
+    public Intent registerReceiver(BroadcastReceiver p0, IntentFilter p1, String p2, Handler p3) {
+        return super.registerReceiver(p0, p1, p2, p3);
+    }
+    public Intent registerReceiver(BroadcastReceiver p0, IntentFilter p1, String p2, Handler p3, int p4) {
+        return super.registerReceiver(p0, p1, p2, p3, p4);
+    }
     public void revokeUriPermission(Uri p0, int p1) {}
     public void revokeUriPermission(String p0, Uri p1, int p2) {}
-    public void sendBroadcast(Intent p0) {}
-    public void sendBroadcast(Intent p0, String p1) {}
+    public void sendBroadcast(Intent p0) { super.sendBroadcast(p0); }
+    public void sendBroadcast(Intent p0, String p1) { super.sendBroadcast(p0, p1); }
     public void sendBroadcastAsUser(Intent p0, UserHandle p1) {}
     public void sendBroadcastAsUser(Intent p0, UserHandle p1, String p2) {}
     public void sendOrderedBroadcast(Intent p0, String p1) {}
@@ -109,5 +129,5 @@ public class ContextWrapper extends Context {
     public ComponentName startService(Intent p0) { return super.startService(p0); }
     public boolean stopService(Intent p0) { return super.stopService(p0); }
     public void unbindService(ServiceConnection p0) { super.unbindService(p0); }
-    public void unregisterReceiver(BroadcastReceiver p0) {}
+    public void unregisterReceiver(BroadcastReceiver p0) { super.unregisterReceiver(p0); }
 }

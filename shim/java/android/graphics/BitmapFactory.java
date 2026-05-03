@@ -3,6 +3,7 @@ import android.content.res.Resources;
 
 import java.io.ByteArrayOutputStream;
 import java.io.File;
+import java.io.FileDescriptor;
 import java.io.FileInputStream;
 import java.io.IOException;
 import java.io.InputStream;
@@ -39,6 +40,22 @@ public class BitmapFactory {
 
         /** Preferred pixel format for the output bitmap. */
         public Bitmap.Config inPreferredConfig = Bitmap.Config.ARGB_8888;
+
+        /** Reusable temporary decode buffer supplied by image pipelines like Glide. */
+        public byte[] inTempStorage;
+
+        /** Optional reusable bitmap. The shim does not reuse pixels yet, but exposes the field. */
+        public Bitmap inBitmap;
+
+        public boolean inMutable = false;
+        public boolean inScaled = true;
+        public boolean inDither = false;
+        public boolean inPremultiplied = true;
+        public boolean inPreferQualityOverSpeed = false;
+
+        public ColorSpace inPreferredColorSpace;
+        public ColorSpace outColorSpace;
+        public Bitmap.Config outConfig;
 
         /** Screen density; used by resource loading. */
         public int inScreenDensity;
@@ -153,6 +170,7 @@ public class BitmapFactory {
 
     private static Bitmap doDecode(byte[] data, int offset, int length, Options opts) {
         if (data == null || length <= 0) return null;
+        ImageInfo headerInfo = parseImageInfo(data, offset, length);
 
         // Try native decoding via OHBridge stb_image
         try {
@@ -164,7 +182,9 @@ public class BitmapFactory {
                     int w = decoded[0], h = decoded[1];
                     if (opts != null) {
                         opts.outWidth = w; opts.outHeight = h;
-                        opts.outMimeType = "image/png";
+                        opts.outMimeType = headerInfo != null ? headerInfo.mimeType : guessMimeType(data, offset, length);
+                        opts.outConfig = Bitmap.Config.ARGB_8888;
+                        opts.outColorSpace = ColorSpace.get(ColorSpace.Named.SRGB);
                         if (opts.inJustDecodeBounds) return null;
                         int s = Math.max(1, opts.inSampleSize);
                         if (s > 1) { w = Math.max(1, w / s); h = Math.max(1, h / s); }
@@ -180,6 +200,9 @@ public class BitmapFactory {
                         }
                     }
                     bmp.setPixels(pixels, 0, w, 0, 0, w, h);
+                    bmp.mImageData = imgData;
+                    bmp.mWidth = decoded[0];
+                    bmp.mHeight = decoded[1];
                     return bmp;
                 }
             }
@@ -188,13 +211,7 @@ public class BitmapFactory {
         }
 
         // Parse image header for dimensions
-        ImageInfo info = null;
-        if (isPng(data, offset, length)) {
-            info = parsePng(data, offset, length);
-        } else if (isJpeg(data, offset, length)) {
-            info = parseJpeg(data, offset, length);
-        }
-
+        ImageInfo info = headerInfo;
         if (info == null) return null;
 
         int width = info.width;
@@ -205,6 +222,8 @@ public class BitmapFactory {
             opts.outWidth = width;
             opts.outHeight = height;
             opts.outMimeType = mimeType;
+            opts.outConfig = Bitmap.Config.ARGB_8888;
+            opts.outColorSpace = ColorSpace.get(ColorSpace.Named.SRGB);
 
             if (opts.inJustDecodeBounds) return null;
 
@@ -214,19 +233,42 @@ public class BitmapFactory {
 
             Bitmap.Config cfg = (opts.inPreferredConfig != null)
                     ? opts.inPreferredConfig : Bitmap.Config.ARGB_8888;
-            return Bitmap.createBitmap(width, height, cfg);
+            byte[] imgData = (offset == 0 && length == data.length) ? data :
+                    java.util.Arrays.copyOfRange(data, offset, offset + length);
+            Bitmap bitmap = Bitmap.createFromImageData(imgData, width, height);
+            return bitmap;
         }
 
-        return Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888);
+        byte[] imgData = (offset == 0 && length == data.length) ? data :
+                java.util.Arrays.copyOfRange(data, offset, offset + length);
+        return Bitmap.createFromImageData(imgData, width, height);
+    }
+
+    private static ImageInfo parseImageInfo(byte[] data, int offset, int length) {
+        if (isPng(data, offset, length)) {
+            return parsePng(data, offset, length);
+        }
+        if (isJpeg(data, offset, length)) {
+            return parseJpeg(data, offset, length);
+        }
+        return null;
+    }
+
+    private static String guessMimeType(byte[] data, int offset, int length) {
+        if (isPng(data, offset, length)) return "image/png";
+        if (isJpeg(data, offset, length)) return "image/jpeg";
+        return "image/*";
     }
 
     // ── Stream to byte array helper ──────────────────────────────────────────
 
-    private static byte[] readAllBytes(InputStream is) {
+    private static byte[] readAllBytes(InputStream is, Options opts) {
         if (is == null) return null;
         try {
             ByteArrayOutputStream baos = new ByteArrayOutputStream();
-            byte[] buf = new byte[4096];
+            byte[] supplied = opts != null ? opts.inTempStorage : null;
+            byte[] buf = supplied != null && supplied.length > 0
+                    ? supplied : new byte[4096];
             int n;
             while ((n = is.read(buf)) != -1) {
                 baos.write(buf, 0, n);
@@ -261,8 +303,18 @@ public class BitmapFactory {
 
     public static Bitmap decodeStream(InputStream is, Rect outPadding, Options opts) {
         if (is == null) return null;
-        byte[] data = readAllBytes(is);
+        byte[] data = readAllBytes(is, opts);
         if (data == null) return null;
+        try {
+            System.out.println("[WestlakeLauncher] MCD_BITMAPFACTORY_DECODE_STREAM bytes="
+                    + data.length
+                    + " justBounds=" + (opts != null && opts.inJustDecodeBounds)
+                    + " sample=" + (opts != null ? opts.inSampleSize : 0)
+                    + " temp=" + (opts != null && opts.inTempStorage != null
+                            ? opts.inTempStorage.length : -1)
+                    + " stream=" + is.getClass().getName());
+        } catch (Throwable ignored) {
+        }
         return doDecode(data, 0, data.length, opts);
     }
 
@@ -283,6 +335,20 @@ public class BitmapFactory {
                 fis.close();
             }
         } catch (IOException e) {
+            return null;
+        }
+    }
+
+    public static Bitmap decodeFileDescriptor(FileDescriptor fd) {
+        return decodeFileDescriptor(fd, null, null);
+    }
+
+    public static Bitmap decodeFileDescriptor(FileDescriptor fd, Rect outPadding, Options opts) {
+        if (fd == null) return null;
+        try {
+            FileInputStream fis = new FileInputStream(fd);
+            return decodeStream(fis, outPadding, opts);
+        } catch (Throwable t) {
             return null;
         }
     }

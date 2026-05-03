@@ -25,6 +25,14 @@ public final class ActivityComponentManager {
     public final android.app.Activity c;
     public final Object d; // GeneratedComponentManager
 
+    private static void log(String message) {
+        try {
+            java.io.PrintStream err = System.err;
+            if (err != null) err.println(message);
+        } catch (Throwable ignored) {
+        }
+    }
+
     /** InvocationHandler for the activity component proxy */
     private static final InvocationHandler COMPONENT_HANDLER = new InvocationHandler() {
         @Override
@@ -42,6 +50,8 @@ public final class ActivityComponentManager {
             if (rt == float.class) return 0f;
             if (rt == double.class) return 0.0;
             // For interface return types, return a proxy of that interface
+            Object known = createKnownConcreteReturn(rt);
+            if (known != null) return known;
             if (rt.isInterface()) {
                 return createInterfaceProxy(rt);
             }
@@ -74,10 +84,10 @@ public final class ActivityComponentManager {
                 if (java.util.Map.class.isAssignableFrom(rt)) return new java.util.HashMap();
                 if (java.util.Set.class.isAssignableFrom(rt)) return new java.util.HashSet();
             } catch (Throwable t) {}
+            Object known = createKnownConcreteReturn(rt);
+            if (known != null) return known;
             // Return proxies for ALL interface return types
             if (rt.isInterface()) return createInterfaceProxy(rt);
-            // Try no-arg constructor for concrete types
-            try { return rt.getDeclaredConstructor().newInstance(); } catch (Throwable t) {}
             return null;
         }
     };
@@ -91,7 +101,7 @@ public final class ActivityComponentManager {
             if (name.equals("hashCode")) return 42;
             if (name.equals("equals")) return proxy == args[0];
 
-            System.err.println("[Hilt-PROXY] " + name + "(" + (args != null ? args.length : 0) + " args) → " + method.getReturnType().getSimpleName());
+            log("[Hilt-PROXY] " + name + "(" + (args != null ? args.length : 0) + " args) → " + method.getReturnType().getSimpleName());
             // inject/x/y/z methods (obfuscated): fill null interface fields AND try singleton delegation
             if (args != null && args.length == 1 && args[0] != null && method.getReturnType() == void.class) {
                 // This is likely an inject method (obfuscated name like x, y, z)
@@ -101,11 +111,11 @@ public final class ActivityComponentManager {
                     try {
                         Method real = singleton.getClass().getMethod(name, method.getParameterTypes());
                         real.invoke(singleton, args);
-                        System.err.println("[Hilt-ACM] Delegated " + name + "() to singleton — SUCCESS");
+                        log("[Hilt-ACM] Delegated " + name + "() to singleton — SUCCESS");
                         return null;
                     } catch (NoSuchMethodException e) { /* fall through */ }
                     catch (java.lang.reflect.InvocationTargetException e) {
-                        System.err.println("[Hilt-ACM] Singleton " + name + "() threw: " + e.getTargetException().getMessage());
+                        log("[Hilt-ACM] Singleton " + name + "() threw: " + e.getTargetException().getMessage());
                     }
                 }
                 // Try MembersInjector classes (Dagger generates SplashActivity_MembersInjector)
@@ -125,12 +135,12 @@ public final class ActivityComponentManager {
                             Object val = valType.isInterface() ? createInterfaceProxy(valType) : null;
                             if (val != null) {
                                 im.invoke(null, args[0], val);
-                                System.err.println("[Hilt-ACM] MembersInjector: " + im.getName() + " → " + valType.getSimpleName());
+                                log("[Hilt-ACM] MembersInjector: " + im.getName() + " → " + valType.getSimpleName());
                             }
                         }
                     }
                 } catch (Throwable miEx) {
-                    System.err.println("[Hilt-ACM] MembersInjector failed: " + miEx.getMessage());
+                    log("[Hilt-ACM] MembersInjector failed: " + miEx.getMessage());
                 }
                 // Fallback: fill null fields generically
                 fillNullInterfaceFields(args[0]);
@@ -155,6 +165,8 @@ public final class ActivityComponentManager {
             if (rt == float.class) return 0f;
             if (rt == double.class) return 0.0;
             if (rt == String.class) return "";
+            Object known = createKnownConcreteReturn(rt);
+            if (known != null) return known;
             if (rt.isInterface()) return createInterfaceProxy(rt);
             return null;
         }
@@ -165,7 +177,7 @@ public final class ActivityComponentManager {
         this.c = act;
         this.b = new Object(); // lock
         this.d = null;
-        System.err.println("[Hilt] ActivityComponentManager(<Activity>) created for " + (act != null ? act.getClass().getSimpleName() : "null"));
+        log("[Hilt] ActivityComponentManager(<Activity>) created for " + (act != null ? act.getClass().getSimpleName() : "null"));
     }
 
     // Fallback constructor
@@ -174,7 +186,7 @@ public final class ActivityComponentManager {
         this.c = (activity instanceof android.app.Activity) ? (android.app.Activity) activity : null;
         this.b = new Object();
         this.d = null;
-        System.err.println("[Hilt] ActivityComponentManager(<Object>) created for " + (activity != null ? activity.getClass().getSimpleName() : "null"));
+        log("[Hilt] ActivityComponentManager(<Object>) created for " + (activity != null ? activity.getClass().getSimpleName() : "null"));
     }
 
     /**
@@ -186,12 +198,12 @@ public final class ActivityComponentManager {
 
     /** Obfuscated alias — R8 renames generatedComponent() to a() */
     public Object a() {
-        System.err.println("[Hilt-ACM] a() called!");
+        log("[Hilt-ACM] a() called!");
         return generatedComponent();
     }
 
     public Object generatedComponent() {
-        System.err.println("[Hilt-ACM] generatedComponent() called, activity=" + (activity != null ? activity.getClass().getSimpleName() : "null"));
+        log("[Hilt-ACM] generatedComponent() called, activity=" + (activity != null ? activity.getClass().getSimpleName() : "null"));
         if (component != null) return component;
         synchronized (this) {
             if (component != null) return component;
@@ -217,7 +229,7 @@ public final class ActivityComponentManager {
                                         Object actComponent = bm.invoke(builder);
                                         if (actComponent != null) {
                                             component = actComponent;
-                                            System.err.println("[Hilt] Real ActivityComponent built: " + actComponent.getClass().getName());
+                                            log("[Hilt] Real ActivityComponent built: " + actComponent.getClass().getName());
                                             return component;
                                         }
                                     }
@@ -226,13 +238,13 @@ public final class ActivityComponentManager {
                         }
                     }
                 } catch (Throwable t) {
-                    System.err.println("[Hilt] ActivityComponent build failed: " + t.getMessage());
+                    log("[Hilt] ActivityComponent build failed: " + t.getMessage());
                 }
             }
 
             // Fallback: create a universal proxy that implements any cast
             component = createUniversalProxy();
-            System.err.println("[Hilt] ActivityComponent: using universal proxy");
+            log("[Hilt] ActivityComponent: using universal proxy");
             return component;
         }
     }
@@ -267,14 +279,14 @@ public final class ActivityComponentManager {
         }
 
         // Log all discovered interfaces
-        System.err.println("[Hilt-ACM] Universal proxy interfaces (" + ifaces.size() + "):");
-        for (Class<?> i : ifaces) System.err.println("[Hilt-ACM]   " + i.getName());
+        log("[Hilt-ACM] Universal proxy interfaces (" + ifaces.size() + "):");
+        for (Class<?> i : ifaces) log("[Hilt-ACM]   " + i.getName());
         if (ifaces.isEmpty()) ifaces.add(java.io.Serializable.class);
 
         try {
             return Proxy.newProxyInstance(cl, ifaces.toArray(new Class<?>[0]), COMPONENT_HANDLER_V2);
         } catch (Throwable t) {
-            System.err.println("[Hilt] Universal proxy failed: " + t);
+            log("[Hilt] Universal proxy failed: " + t);
             // Last resort: bare object
             return new Object() {};
         }
@@ -291,6 +303,76 @@ public final class ActivityComponentManager {
         } catch (Throwable t) {
             return null;
         }
+    }
+
+    public static Object createKnownConcreteReturn(Class<?> type) {
+        if (type == null) return null;
+        String implName = null;
+        try {
+            String name = type.getName();
+            if ("com.mcdonalds.mcdcoreapp.helper.interfaces.LoyaltyModuleInteractor"
+                    .equals(name)) {
+                implName = "com.mcdonalds.loyalty.dashboard.util.DealsLoyaltyImplementation";
+            }
+        } catch (Throwable ignored) {
+            return null;
+        }
+        if (implName == null) return null;
+        try {
+            ClassLoader cl = type.getClassLoader();
+            if (cl == null) cl = Thread.currentThread().getContextClassLoader();
+            if (cl == null) cl = ClassLoader.getSystemClassLoader();
+            Class<?> impl = cl.loadClass(implName);
+            if (!type.isAssignableFrom(impl)) return null;
+            Object instance = instantiateWithDefaultArgs(impl);
+            if (instance != null) {
+                log("[Hilt-ACM] known concrete " + type.getSimpleName()
+                        + " = " + impl.getSimpleName());
+            }
+            return instance;
+        } catch (Throwable t) {
+            log("[Hilt-ACM] known concrete failed for " + implName + ": "
+                    + t.getClass().getSimpleName());
+            return null;
+        }
+    }
+
+    private static Object instantiateWithDefaultArgs(Class<?> type) {
+        if (type == null || type.isInterface() || Modifier.isAbstract(type.getModifiers())) {
+            return null;
+        }
+        for (java.lang.reflect.Constructor<?> ctor : type.getDeclaredConstructors()) {
+            try {
+                Class<?>[] params = ctor.getParameterTypes();
+                Object[] args = new Object[params.length];
+                for (int i = 0; i < params.length; i++) {
+                    args[i] = defaultCtorArg(params[i]);
+                }
+                ctor.setAccessible(true);
+                return ctor.newInstance(args);
+            } catch (Throwable ignored) {
+            }
+        }
+        return null;
+    }
+
+    private static Object defaultCtorArg(Class<?> type) {
+        if (type == null) return null;
+        if (type == boolean.class) return false;
+        if (type == int.class) return 0;
+        if (type == long.class) return 0L;
+        if (type == float.class) return 0f;
+        if (type == double.class) return 0.0;
+        if (type == byte.class) return (byte) 0;
+        if (type == short.class) return (short) 0;
+        if (type == char.class) return '\0';
+        if (type == String.class || type == CharSequence.class) return "";
+        if (type.isArray()) return java.lang.reflect.Array.newInstance(type.getComponentType(), 0);
+        if (java.util.List.class.isAssignableFrom(type)) return new java.util.ArrayList();
+        if (java.util.Map.class.isAssignableFrom(type)) return new java.util.HashMap();
+        if (java.util.Set.class.isAssignableFrom(type)) return new java.util.HashSet();
+        if (type.isInterface()) return createInterfaceProxy(type);
+        return null;
     }
 
     private static Object createLocalCacheManagerDataSourceProxy(final Class<?> iface) {
@@ -375,8 +457,9 @@ public final class ActivityComponentManager {
                             if (java.util.Map.class.isAssignableFrom(rt)) return new java.util.HashMap();
                             if (java.util.Set.class.isAssignableFrom(rt)) return new java.util.HashSet();
                             if (rt == Object.class) return null;
+                            Object known = createKnownConcreteReturn(rt);
+                            if (known != null) return known;
                             if (rt.isInterface()) return createInterfaceProxy(rt);
-                            try { return rt.getDeclaredConstructor().newInstance(); } catch (Throwable t) {}
                             return null;
                         }
                     });
@@ -427,29 +510,16 @@ public final class ActivityComponentManager {
                         Object proxy = createInterfaceProxy(type);
                         if (proxy != null) { f.set(target, proxy); filled++; }
                     }
-                    // For concrete types: try no-arg constructor (Kotlin lateinit fields)
-                    else if (!tn.startsWith("android.widget.") && !tn.startsWith("android.view.")) {
-                        try {
-                            java.lang.reflect.Constructor<?> ctor = type.getDeclaredConstructor();
-                            ctor.setAccessible(true);
-                            f.set(target, ctor.newInstance());
-                            filled++;
-                        } catch (Throwable noctor) {
-                            // Try with Context parameter
-                            try {
-                                java.lang.reflect.Constructor<?> ctxCtor = type.getDeclaredConstructor(android.content.Context.class);
-                                ctxCtor.setAccessible(true);
-                                android.content.Context ctx = (target instanceof android.content.Context) ? (android.content.Context) target : null;
-                                if (ctx != null) { f.set(target, ctxCtor.newInstance(ctx)); filled++; }
-                            } catch (Throwable noCtxCtor) { /* skip */ }
-                        }
-                    }
+                    // Do not instantiate arbitrary app concrete types here. On Westlake's
+                    // current standalone runtime, reflective Constructor.newInstance0 can
+                    // SIGBUS before Java exception handling gets control. Known-safe view
+                    // fields are handled above; unresolved concrete DI fields stay null.
                 }
                 cls = cls.getSuperclass();
             }
         } catch (Throwable t) { /* reflection failure */ }
         if (filled > 0) {
-            System.err.println("[Hilt] Injected " + filled + " stub proxies into " + target.getClass().getSimpleName());
+            log("[Hilt] Injected " + filled + " stub proxies into " + target.getClass().getSimpleName());
         }
     }
 

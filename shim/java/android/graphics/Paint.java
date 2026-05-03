@@ -64,6 +64,7 @@ public class Paint {
     private Align textAlign   = Align.LEFT;
     private float strokeMiter = 4f;
     private boolean fakeBoldText = false;
+    private Xfermode mXfermode;
 
     // ── Cached AWT FontMetrics (host JVM only) ─────────────────────────
     private transient Object cachedAwtMetrics;  // java.awt.FontMetrics
@@ -93,6 +94,7 @@ public class Paint {
             this.strokeMiter = paint.strokeMiter;
             this.fakeBoldText = paint.fakeBoldText;
             this.mTypeface = paint.mTypeface;
+            this.mXfermode = paint.mXfermode;
         }
     }
 
@@ -369,8 +371,17 @@ public class Paint {
     // ── Shader/Xfermode/Dither ───────────────────────────────────────────
     public Shader setShader(Shader shader) { return shader; }
     public Shader getShader() { return null; }
-    public Object setXfermode(Object xfermode) { return xfermode; }
-    public Xfermode getXfermode() { return null; }
+    public Object setXfermode(Object xfermode) {
+        if (xfermode instanceof Xfermode) {
+            mXfermode = (Xfermode) xfermode;
+        }
+        return xfermode;
+    }
+    public Xfermode setXfermode(Xfermode xfermode) {
+        mXfermode = xfermode;
+        return xfermode;
+    }
+    public Xfermode getXfermode() { return mXfermode; }
     public boolean hasShadowLayer() { return false; }
     public void setDither(boolean dither) { if (dither) flags |= DITHER_FLAG; else flags &= ~DITHER_FLAG; }
     public boolean isDither() { return (flags & DITHER_FLAG) != 0; }
@@ -431,7 +442,10 @@ public class Paint {
     public int getTextRunCursor(char[] text, int contextStart, int contextLength, boolean isRtl, int offset, int cursorOpt) { return offset; }
 
     // ── PorterDuffXfermode ──
-    public PorterDuffXfermode setXfermode(PorterDuffXfermode xfermode) { return xfermode; }
+    public PorterDuffXfermode setXfermode(PorterDuffXfermode xfermode) {
+        setXfermode((Xfermode) xfermode);
+        return xfermode;
+    }
 
     // ── BlendMode ──
     private BlendMode mBlendMode;

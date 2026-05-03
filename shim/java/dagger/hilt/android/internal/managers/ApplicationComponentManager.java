@@ -22,6 +22,14 @@ public final class ApplicationComponentManager  {
     /** Static reference to the singleton component for cross-manager access */
     public static volatile Object singletonComponent;
 
+    private static void log(String message) {
+        try {
+            java.io.PrintStream err = System.err;
+            if (err != null) err.println(message);
+        } catch (Throwable ignored) {
+        }
+    }
+
     /** InvocationHandler that populates @Inject fields on inject* calls */
     private static final InvocationHandler STUB_HANDLER = new InvocationHandler() {
         @Override
@@ -38,6 +46,8 @@ public final class ApplicationComponentManager  {
             if (rt == long.class) return 0L;
             if (rt == float.class) return 0.0f;
             if (rt == double.class) return 0.0;
+            Object known = ActivityComponentManager.createKnownConcreteReturn(rt);
+            if (known != null) return known;
             if (rt.isInterface()) return ActivityComponentManager.createInterfaceProxy(rt);
             return null;
         }
@@ -56,13 +66,13 @@ public final class ApplicationComponentManager  {
             synchronized (this) {
                 if (component == null) {
                     // Try real Dagger component builder with timeout, fall back to proxy
-                    System.err.println("[Hilt] Trying real DI (10s timeout)...");
+                    log("[Hilt] Trying real DI (10s timeout)...");
                     final Object[] realComponent = {null};
                     if (componentSupplier != null) {
                         Thread diThread = new Thread(new Runnable() {
                             public void run() {
                                 try { realComponent[0] = componentSupplier.get(); }
-                                catch (Throwable t) { System.err.println("[Hilt] Real DI failed: " + t.getMessage()); }
+                                catch (Throwable t) { log("[Hilt] Real DI failed: " + t.getMessage()); }
                             }
                         }, "RealDI");
                         diThread.setDaemon(true);
@@ -75,23 +85,23 @@ public final class ApplicationComponentManager  {
                             try {
                                 Class<?> dsp = Class.forName("com.mcdonalds.mcdcoreapp.common.di.DataSourceModuleProvider");
                                 hasDSP = dsp.isInstance(realComponent[0]);
-                                System.err.println("[Hilt] Real component instanceof DataSourceModuleProvider: " + hasDSP);
+                                log("[Hilt] Real component instanceof DataSourceModuleProvider: " + hasDSP);
                                 if (hasDSP) {
                                     // Test calling v() directly
                                     java.lang.reflect.Method vm = dsp.getMethod("v");
                                     Object result = vm.invoke(realComponent[0]);
-                                    System.err.println("[Hilt] DataSourceModuleProvider.v() = " + result);
+                                    log("[Hilt] DataSourceModuleProvider.v() = " + result);
                                 }
                             } catch (Throwable t) {
-                                System.err.println("[Hilt] DataSourceModuleProvider check: " + t);
+                                log("[Hilt] DataSourceModuleProvider check: " + t);
                             }
                             component = realComponent[0];
                             a = component; // sync obfuscated field
                             singletonComponent = component;
-                            System.err.println("[Hilt] Real DI completed! Component: " + realComponent[0].getClass().getName());
+                            log("[Hilt] Real DI completed! Component: " + realComponent[0].getClass().getName());
                             return component;
                         }
-                        System.err.println("[Hilt] Real DI timeout/failed — using stub proxy");
+                        log("[Hilt] Real DI timeout/failed — using stub proxy");
                     }
                     // Create proxy implementing the Application's GeneratedInjector
                     ClassLoader cl = Thread.currentThread().getContextClassLoader();
@@ -117,9 +127,9 @@ public final class ApplicationComponentManager  {
                             cl, ifaces.toArray(new Class<?>[0]), STUB_HANDLER);
                         a = component; // sync obfuscated field
                         singletonComponent = component; // make available for DataSourceHelper init
-                        System.err.println("[Hilt] Stub proxy implements: " + ifaces);
+                        log("[Hilt] Stub proxy implements: " + ifaces);
                     } catch (Throwable t) {
-                        System.err.println("[Hilt] Proxy failed: " + t.getMessage());
+                        log("[Hilt] Proxy failed: " + t.getMessage());
                         component = new Object();
                         a = component;
                     }
@@ -185,7 +195,7 @@ public final class ApplicationComponentManager  {
         try {
             return Proxy.newProxyInstance(cl, ifaces.toArray(new Class<?>[0]), delegatingHandler);
         } catch (Throwable t) {
-            System.err.println("[Hilt] wrapComponent failed: " + t.getMessage());
+            log("[Hilt] wrapComponent failed: " + t.getMessage());
             return realComponent;
         }
     }

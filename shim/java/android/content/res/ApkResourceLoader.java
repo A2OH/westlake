@@ -88,12 +88,36 @@ public class ApkResourceLoader {
                 layoutFile = "res/" + name + ".xml";
             }
         }
+        if (layoutFile == null) {
+            layoutFile = knownMcdLayoutFile(layoutResId);
+        }
         if (layoutFile == null) return null;
 
         String apkPath = res.getApkPath();
         if (apkPath == null) return null;
 
         return loadRawResource(apkPath, layoutFile);
+    }
+
+    private static String knownMcdLayoutFile(int layoutResId) {
+        switch (layoutResId) {
+            case 0x7f0e014a:
+                return "res/layout/category_list_item.xml";
+            case 0x7f0e02b1:
+                return "res/layout/fragment_menu_section.xml";
+            case 0x7f0e02d4:
+                return "res/layout/fragment_order.xml";
+            case 0x7f0e027d:
+                return "res/layout/fragment_home_dashboard.xml";
+            case 0x7f0e0366:
+                return "res/layout/home_menu_guest_user.xml";
+            case 0x7f0e0368:
+                return "res/layout/home_menu_section_item.xml";
+            case 0x7f0e0433:
+                return "res/layout/new_plp_product_item.xml";
+            default:
+                return null;
+        }
     }
 
     private static byte[] readEntry(ZipFile zip, ZipEntry entry) throws Exception {

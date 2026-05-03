@@ -23,12 +23,43 @@ import org.xmlpull.v1.XmlPullParser;
 public class LayoutInflater {
     private Context mContext;
     private static final int MCD_LAYOUT_ACTIVITY_HOME_DASHBOARD = 0x7f0e0058;
+    private static final int MCD_LAYOUT_ACTIVITY_SIMPLE_PRODUCT = 0x7f0e009b;
+    private static final int MCD_LAYOUT_ACTIVITY_SIMPLE_PRODUCT_V2 = 0x7f0e009c;
     private static final int MCD_LAYOUT_APPLICATION_NOTIFICATION = 0x7f0e00c3;
     private static final int MCD_LAYOUT_BASE = 0x7f0e00ee;
+    private static final int MCD_LAYOUT_BASKET_HOLDER = 0x7f0e00f3;
     private static final int MCD_LAYOUT_BOTTOM_BAG_BAR = 0x7f0e00fd;
     private static final int MCD_LAYOUT_BOTTOM_NAVIGATION_BAR = 0x7f0e0100;
     private static final int MCD_LAYOUT_CAMPAIGN_APPLICATION_NOTIFICATION = 0x7f0e010a;
+    private static final int MCD_LAYOUT_FRAGMENT_DEAL_SECTION = 0x7f0e0252;
+    private static final int MCD_LAYOUT_FRAGMENT_DEAL_SECTION_LAYOUT_HEADER = 0x7f0e0253;
+    private static final int MCD_LAYOUT_FRAGMENT_DEAL_SECTION_LOYALTY = 0x7f0e0254;
     private static final int MCD_LAYOUT_FRAGMENT_HOME_DASHBOARD = 0x7f0e027d;
+    private static final int MCD_LAYOUT_FRAGMENT_HOME_DASHBOARD_HERO_SECTION = 0x7f0e0282;
+    private static final int MCD_LAYOUT_FRAGMENT_HOME_DASHBOARD_HERO_SECTION_UPDATED = 0x7f0e0283;
+    private static final int MCD_LAYOUT_FRAGMENT_MENU_SECTION = 0x7f0e02b1;
+    private static final int MCD_LAYOUT_FRAGMENT_ORDER = 0x7f0e02d4;
+    private static final int MCD_LAYOUT_FRAGMENT_ORDER_PDP = 0x7f0e02e2;
+    private static final int MCD_LAYOUT_FRAGMENT_POPULAR_SECTION = 0x7f0e0305;
+    private static final int MCD_LAYOUT_FRAGMENT_PROMOTION_SECTION = 0x7f0e030e;
+    private static final int MCD_LAYOUT_HOME_DASHBOARD_SECTION = 0x7f0e0362;
+    private static final int MCD_LAYOUT_HOME_MENU_GUEST_USER = 0x7f0e0366;
+    private static final int MCD_LAYOUT_HOME_MENU_SECTION_FULL_MENU_ITEM = 0x7f0e0367;
+    private static final int MCD_LAYOUT_HOME_MENU_SECTION_ITEM = 0x7f0e0368;
+    private static final int MCD_LAYOUT_HOME_POPULAR_ITEM_ADAPTER = 0x7f0e0369;
+    private static final int MCD_LAYOUT_HOME_PROMOTION_ITEM = 0x7f0e036a;
+    private static final int MCD_LAYOUT_HOME_PROMOTION_ITEM_UPDATED = 0x7f0e036b;
+    private static final int MCD_LAYOUT_BONUS_TILE_FRAGMENT = 0x7f0e03ac;
+    private static final int MCD_LAYOUT_CATEGORY_LIST_ITEM = 0x7f0e014a;
+    private static final int MCD_LAYOUT_NEW_PLP_PRODUCT_ITEM = 0x7f0e0433;
+    private static final int MCD_LAYOUT_ORDER_PDP_BUTTON_LAYOUT = 0x7f0e045f;
+    private static final int MCD_LAYOUT_ORDER_PDP_EDIT_BOTTOM_LAYOUT = 0x7f0e0460;
+    private static final int MCD_LAYOUT_ORDER_PDP_MEAL_BOTTOM_LAYOUT = 0x7f0e0461;
+    private static final int MCD_LAYOUT_ORDER_PDP_MEAL_EDIT_BOTTOM_LAYOUT = 0x7f0e0462;
+    private static final int MCD_LAYOUT_PDP_MEAL_CHOICE_BOTTOM_LAYOUT = 0x7f0e04b6;
+    private static final int MCD_LAYOUT_SKELETON_ORDER_PDP_CHOICE_CUSTOMIZATION = 0x7f0e0519;
+    private static final int MCD_LAYOUT_SKELETON_ORDER_PDP_DEFAULT = 0x7f0e051a;
+    private static final int MCD_LAYOUT_SKELETON_ORDER_PDP_SMALL_GRID = 0x7f0e051b;
     private static final int MCD_ID_INTERMEDIATE_LAYOUT_CONTAINER = 0x7f0b0b83;
     private static final int MCD_ID_HOME_DASHBOARD_CONTAINER = 0x7f0b0ae8;
     private static final int MCD_ID_SPLASH_CAMPAIGN_LAYOUT_CONTAINER = 0x7f0b17b1;
@@ -38,6 +69,152 @@ public class LayoutInflater {
     private static final int MCD_ID_PARENT_CONTAINER = 0x7f0b11fa;
     private static final int MCD_ID_IMMERSIVE_CONTAINER = 0x7f0b0b68;
     private static final int MCD_ID_SECTIONS_CONTAINER = 0x7f0b16c5;
+    private static final int MCD_ID_DEAL_LAYOUT = 0x7f0b058a;
+    private static final int MCD_ID_HOME_SCREEN_DEAL_CAROUSELS_LIST = 0x7f0b0ac2;
+    private static final int MCD_ID_HOME_SCREEN_DEAL_TITLE_HEADING_TEXT = 0x7f0b0ac6;
+    private static final int MCD_ID_HOME_SCREEN_DEALS_HEADING_VIEW_ALL_TEXT = 0x7f0b0acc;
+    private static final int MCD_ID_HOME_SCREEN_DEALS_HEADING_VIEW_FULL_MENU_TEXT = 0x7f0b0acd;
+    private static final int MCD_ID_HOME_SCREEN_NO_DEALS_DEAL_CONTAINER_LAYOUT = 0x7f0b0ad0;
+    private static final int MCD_ID_HOME_SCREEN_NO_DEALS_DEAL_TITLE_TEXT_VIEW = 0x7f0b0ad1;
+    private static final int MCD_ID_HOME_SCREEN_NO_DEALS_DEALS_VIEW_DEALS_BUTTON = 0x7f0b0ad2;
+    private static final int MCD_ID_HOME_SCREEN_NO_DEALS_HEADER_TEXT = 0x7f0b0ad3;
+    private static final int MCD_ID_HOME_SCREEN_NO_DEALS_SUB_HEADER_TEXT = 0x7f0b0ad4;
+    private static final int MCD_ID_LOADED_VIEW3 = 0x7f0b0cb9;
+    private static final int MCD_ID_REWARDS_AND_DEALS_SCREEN_DEAL_CAROUSELS_HOLDER = 0x7f0b1580;
+    private static final int MCD_ID_REWARDS_AND_DEALS_SCREEN_NO_DEALS_DEAL_CONTAINER_LAYOUT = 0x7f0b158d;
+    private static final int MCD_ID_SHIMMER_VIEW3 = 0x7f0b1708;
+    private static final int MCD_ID_HOME_DASHBOARD_HERO_SECTION = 0x7f0b0ae9;
+    private static final int MCD_ID_HERO_BACKGROUND_IMAGE_VIEW = 0x7f0b0aa2;
+    private static final int MCD_ID_HERO_SUB_TITLE_LABEL = 0x7f0b0aa3;
+    private static final int MCD_ID_HERO_TITLE_LABEL = 0x7f0b0aa6;
+    private static final int MCD_ID_HERO_CTA = 0x7f0b0aa7;
+    private static final int MCD_ID_HERO_HEADERS = 0x7f0b0aa8;
+    private static final int MCD_ID_HERO_PARENT = 0x7f0b0aaa;
+    private static final int MCD_ID_HERO_TEXT_CONTAINER = 0x7f0b0aab;
+    private static final int MCD_ID_HOME_SCREEN_HERO_SECTION_LEFT_BUTTON = 0x7f0b0ace;
+    private static final int MCD_ID_HOME_SCREEN_HERO_SECTION_RIGHT_BUTTON = 0x7f0b0acf;
+    private static final int MCD_ID_BACKGROUND_VIDEO_VIEW = 0x7f0b01d1;
+    private static final int MCD_ID_EYEBROW_TEXT = 0x7f0b07d6;
+    private static final int MCD_ID_LEGAL_TEXT_LABEL = 0x7f0b0c51;
+    private static final int MCD_ID_LEGAL_TEXT_PARENT_LAYOUT = 0x7f0b0c55;
+    private static final int MCD_ID_LOADED_VIEW1 = 0x7f0b0cb7;
+    private static final int MCD_ID_LOADED_VIEW2 = 0x7f0b0cb8;
+    private static final int MCD_ID_LOADED_VIEW4 = 0x7f0b0cba;
+    private static final int MCD_ID_SHIMMER_VIEW1 = 0x7f0b1706;
+    private static final int MCD_ID_SHIMMER_VIEW2 = 0x7f0b1707;
+    private static final int MCD_ID_SHIMMER_VIEW4 = 0x7f0b1709;
+    private static final int MCD_ID_SHIMMER_VIEW5 = 0x7f0b170a;
+    private static final int MCD_ID_BLOCK1 = 0x7f0b022d;
+    private static final int MCD_ID_BLOCK2 = 0x7f0b0230;
+    private static final int MCD_ID_BLOCK3 = 0x7f0b0231;
+    private static final int MCD_ID_BLOCK4 = 0x7f0b0232;
+    private static final int MCD_ID_BLOCK8 = 0x7f0b0236;
+    private static final int MCD_ID_BLOCK9 = 0x7f0b0237;
+    private static final int MCD_ID_BLOCK10 = 0x7f0b022e;
+    private static final int MCD_ID_BLOCK11 = 0x7f0b022f;
+    private static final int MCD_ID_VIEW_FIRST = 0x7f0b1b20;
+    private static final int MCD_ID_VIEW_SECOND = 0x7f0b1b2b;
+    private static final int MCD_ID_VIEW_THIRD = 0x7f0b1b33;
+    private static final int MCD_ID_VIEW_FOURTH = 0x7f0b1b22;
+    private static final int MCD_ID_VIEW_FIFTH = 0x7f0b1b1f;
+    private static final int MCD_ID_VIEW_SIXTH = 0x7f0b1b31;
+    private static final int MCD_ID_VIEW_SEVEN = 0x7f0b1b2c;
+    private static final int MCD_ID_VIEW_NINETEEN = 0x7f0b1b28;
+    private static final int MCD_ID_VIEW_TWENTY = 0x7f0b1b36;
+    private static final int MCD_ID_VIEW_TWENTYONE = 0x7f0b1b3e;
+    private static final int MCD_ID_VIEW_TWENTYTWO = 0x7f0b1b3d;
+    private static final int MCD_ID_VIEW_TWENTYTHREE = 0x7f0b1b3c;
+    private static final int MCD_ID_VIEW_TWENTYFOUR = 0x7f0b1b39;
+    private static final int MCD_ID_VIEW_TWENTYFIVE = 0x7f0b1b38;
+    private static final int MCD_ID_VIEW_TWENTYSIX = 0x7f0b1b3b;
+    private static final int MCD_ID_VIEW_TWENTYSEVEN = 0x7f0b1b3a;
+    private static final int MCD_ID_VIEW_TWENTYEIGHT = 0x7f0b1b37;
+    private static final int MCD_ID_TV_MENU_TITLE = 0x7f0b1a30;
+    private static final int MCD_ID_FULL_MENU_LAYOUT = 0x7f0b08f6;
+    private static final int MCD_ID_VIEW_FULL_MENU = 0x7f0b1b23;
+    private static final int MCD_ID_ARROW = 0x7f0b01a8;
+    private static final int MCD_ID_MENU_ITEM_IMAGE = 0x7f0b0b24;
+    private static final int MCD_ID_MENU_ITEM_CARD = 0x7f0b0ea3;
+    private static final int MCD_ID_MENU_LAYOUT = 0x7f0b0ea6;
+    private static final int MCD_ID_MENU_CATEGORY_LIST = 0x7f0b0ea4;
+    private static final int MCD_ID_MENU_ITEM_TITLE = 0x7f0b0ef4;
+    private static final int MCD_ID_NO_DATA_LAYOUT = 0x7f0b0f31;
+    private static final int MCD_ID_LL_HEADER = 0x7f0b0c99;
+    private static final int MCD_ID_TEXT_HEADER = 0x7f0b18fa;
+    private static final int MCD_ID_TEXT_EYE_BROW = 0x7f0b18f9;
+    private static final int MCD_ID_TEXT_LEFT_BUTTON = 0x7f0b18fe;
+    private static final int MCD_ID_LL_GUEST_MENU = 0x7f0b0c98;
+    private static final int MCD_ID_GUEST_TILE_LAYOUT = 0x7f0b0947;
+    private static final int MCD_ID_TV_GUEST_MENU_TITLE = 0x7f0b1a21;
+    private static final int MCD_ID_HOME_SCREEN_PROMOTION_SECTION = 0x7f0b0ad6;
+    private static final int MCD_ID_HOME_SCREEN_PROMOTION_TILE_CONTAINER_HEADINGTEXT = 0x7f0b0ad8;
+    private static final int MCD_ID_PROMO_LAYOUT = 0x7f0b13f2;
+    private static final int MCD_ID_PROMOTION_RECYCLER_LIST = 0x7f0b13f3;
+    private static final int MCD_ID_PROMOTION_ITEM_ROOT = 0x7f0b1200;
+    private static final int MCD_ID_PROMOTION_ITEM_BUTTON_CONTAINER = 0x7f0b0ad7;
+    private static final int MCD_ID_PROMOTION_ITEM_TITLE = 0x7f0b0ad9;
+    private static final int MCD_ID_PROMOTION_ITEM_CARD = 0x7f0b0ada;
+    private static final int MCD_ID_PROMOTION_ITEM_SUBTITLE = 0x7f0b0adb;
+    private static final int MCD_ID_PROMOTION_ITEM_IMAGE = 0x7f0b0adc;
+    private static final int MCD_ID_PROMOTION_ITEM_DESCRIPTION = 0x7f0b0add;
+    private static final int MCD_ID_PROMOTION_ITEM_LEGAL = 0x7f0b0ade;
+    private static final int MCD_ID_PROMOTION_ITEM_CTA = 0x7f0b0adf;
+    private static final int MCD_ID_PROMOTION_ITEM_EYEBROW = 0x7f0b0ae0;
+    private static final int MCD_ID_PROMOTION_ITEM_TEXT_CONTAINER = 0x7f0b0ae1;
+    private static final int MCD_ID_ORDER_SCROLL_VIEW = 0x7f0b1144;
+    private static final int MCD_ID_CATEGORIES = 0x7f0b0331;
+    private static final int MCD_ID_CATEGORY_IMAGE = 0x7f0b033a;
+    private static final int MCD_ID_CATEGORY_NAME = 0x7f0b0341;
+    private static final int MCD_ID_EXPLORE_OUR_MENU = 0x7f0b07d3;
+    private static final int MCD_ID_PLP_PRODUCT_CALORIE_PRICE_TEXT = 0x7f0b132f;
+    private static final int MCD_ID_PLP_PRODUCT_IMAGE = 0x7f0b1334;
+    private static final int MCD_ID_PLP_PRODUCT_NAME_TEXT = 0x7f0b1339;
+    private static final int MCD_ID_BOTTOM_LAYOUT = 0x7f0b025b;
+    private static final int MCD_ID_BOTTOM_EDIT_LAYOUT = 0x7f0b0257;
+    private static final int MCD_ID_DEFAULT_SHIMMER = 0x7f0b05c1;
+    private static final int MCD_ID_CHOICE_CUSTOMIZATION_SHIMMER = 0x7f0b03b1;
+    private static final int MCD_ID_MAIN_CONTENT_PDP = 0x7f0b0e54;
+    private static final int MCD_ID_PDP_CUSTOMIZE_INGREDIENTS_BUTTON = 0x7f0b129c;
+    private static final int MCD_ID_PDP_MINUS_ICON = 0x7f0b12a2;
+    private static final int MCD_ID_PDP_NUTRITION_INGREDIENT_BUTTON = 0x7f0b12a4;
+    private static final int MCD_ID_PDP_PLUS_ICON = 0x7f0b12a5;
+    private static final int MCD_ID_PDP_PRODUCT_NAME_TEXT = 0x7f0b12a8;
+    private static final int MCD_ID_PDP_QUANTITY_TEXT = 0x7f0b12a9;
+    private static final int MCD_ID_PRODUCT_DETAILS_SCROLL = 0x7f0b13b7;
+    private static final int MCD_ID_PRODUCT_IMAGE = 0x7f0b13ba;
+    private static final int MCD_ID_PRODUCT_IMAGE_CLONE = 0x7f0b13bb;
+    private static final int MCD_ID_PRODUCT_IMAGE_RIGHT_CLONE = 0x7f0b13bc;
+    private static final int MCD_ID_PRODUCT_INFORMATION = 0x7f0b13be;
+    private static final int MCD_ID_PRODUCT_PRICE_CALORIE = 0x7f0b13c5;
+    private static final int MCD_ID_SIMPLE_PRODUCT_HOLDER = 0x7f0b171c;
+    private static final int MCD_ID_HEADER_PEEL = 0x7f0b0a88;
+    private static final int MCD_ID_NAVIGATION_BACK_CLOSE = 0x7f0b0eff;
+    private static final int MCD_ID_POPULAR_ITEM_CARD = 0x7f0b1364;
+    private static final int MCD_ID_POPULAR_ITEM_IMAGE = 0x7f0b1365;
+    private static final int MCD_ID_POPULAR_LOADED_VIEW = 0x7f0b1368;
+    private static final int MCD_ID_POPULAR_ITEM_TITLE = 0x7f0b1369;
+    private static final int MCD_ID_POPULAR_ITEM_SUBTITLE = 0x7f0b136a;
+    private static final int MCD_ID_TV_POPULAR_TITLE = 0x7f0b1a4b;
+    private static final int MCD_ID_POPULAR_LAYOUT = 0x7f0b1366;
+    private static final int MCD_ID_POPULAR_LIST = 0x7f0b1367;
+    private static final int MCD_ID_ANIM_CONTAINER = 0x7f0b0128;
+    private static final int MCD_ID_END_POINT = 0x7f0b0740;
+    private static final int MCD_ID_GUIDELINE = 0x7f0b0962;
+    private static final int MCD_ID_HORIZONTAL_GUIDE_LINE = 0x7f0b0aec;
+    private static final int MCD_ID_LOYALTY_BONUS_TILE_CARD = 0x7f0b0d2d;
+    private static final int MCD_ID_LOYALTY_BONUS_TILE_HEADER = 0x7f0b0d2e;
+    private static final int MCD_ID_LOYALTY_BONUS_TILE_IMAGE = 0x7f0b0d2f;
+    private static final int MCD_ID_LOYALTY_BONUS_TILE_NEXT_ARROW = 0x7f0b0d30;
+    private static final int MCD_ID_LOYALTY_BONUS_TILE_SUB_HEADER = 0x7f0b0d31;
+    private static final int MCD_ID_LOYALTY_DASHBOARD_POINTS_PROGRESS_BAR = 0x7f0b0d55;
+    private static final int MCD_ID_LOYALTY_MULTI_BONUS_TILE_SUB_HEADER = 0x7f0b0e29;
+    private static final int MCD_ID_M_LOYALTY_MULTI_BONUS_NUMBER_STEPS_TILE_SUB_HEADER = 0x7f0b0e50;
+    private static final int MCD_ID_MULTI_STEP_PROGRESSBAR_CONTAINER = 0x7f0b0ee7;
+    private static final int MCD_ID_START_POINT = 0x7f0b17d5;
+    private static final int MCD_ID_TEXT_WITH_ICON = 0x7f0b190a;
+    private static final int MCD_ID_TOP_POINT = 0x7f0b197d;
+    private static final int MCD_ID_WARNING_ICON = 0x7f0b1b91;
+    private static final int MCD_ID_WARNING_MESSAGE_CONTAINER = 0x7f0b1b92;
     private static final int MCD_ID_ROOT = 0x7f0b15c9;
     private static final int MCD_ID_TOAST_NOTIFICATION_ALERT_INFO = 0x7f0b1953;
     private static final int MCD_ID_ICON_ALERT_TYPE_WARNING = 0x7f0b0b05;
@@ -61,6 +238,7 @@ public class LayoutInflater {
     private static final int MCD_ID_PAGE_CONTENT_HOLDER = 0x7f0b11e1;
     private static final int MCD_ID_PAGE_ROOT = 0x7f0b11e3;
     private static final int MCD_ID_BAG_BAR_V2 = 0x7f0b01d3;
+    private static final int MCD_ID_STORE_SEARCH_LAYOUT = 0x7f0b1820;
     private static final int MCD_ID_TOOLBAR = 0x7f0b1965;
     private static final int MCD_ID_TRANSPARENT_VIEW = 0x7f0b19a6;
     private static final int MCD_ID_VIEW_FULL_MENU_LAYOUT_TO_ANIMATE = 0x7f0b1b4e;
@@ -141,13 +319,14 @@ public class LayoutInflater {
         sTagClassMap.put("GridView", "android.widget.FrameLayout");
         sTagClassMap.put("Spinner", "android.widget.Spinner");
         sTagClassMap.put("WebView", "android.webkit.WebView");
-        sTagClassMap.put("Space", "android.view.View");
+        sTagClassMap.put("Space", "android.widget.Space");
         sTagClassMap.put("TableLayout", "android.widget.LinearLayout");
         sTagClassMap.put("TableRow", "android.widget.LinearLayout");
         // Placeholder tags (no-op)
         // AndroidX components
         sTagClassMap.put("androidx.recyclerview.widget.RecyclerView", "androidx.recyclerview.widget.RecyclerView");
         sTagClassMap.put("androidx.constraintlayout.widget.ConstraintLayout", "androidx.constraintlayout.widget.ConstraintLayout");
+        sTagClassMap.put("androidx.constraintlayout.widget.Space", "android.widget.Space");
         sTagClassMap.put("androidx.cardview.widget.CardView", "androidx.cardview.widget.CardView");
         sTagClassMap.put("androidx.coordinatorlayout.widget.CoordinatorLayout", "android.widget.FrameLayout");
         sTagClassMap.put("androidx.appcompat.widget.Toolbar", "android.widget.Toolbar");
@@ -164,22 +343,27 @@ public class LayoutInflater {
         // AndroidX and support library fully-qualified names -> shim approximations
         // These are ViewGroups so children can be added to them
         sFqnClassMap.put("androidx.constraintlayout.widget.ConstraintLayout", "androidx.constraintlayout.widget.ConstraintLayout");
+        sFqnClassMap.put("androidx.constraintlayout.widget.Space", "android.widget.Space");
+        sFqnClassMap.put("android.widget.Space", "android.widget.Space");
         sFqnClassMap.put("androidx.coordinatorlayout.widget.CoordinatorLayout", "android.widget.FrameLayout");
         sFqnClassMap.put("androidx.drawerlayout.widget.DrawerLayout", "android.support.v4.widget.DrawerLayout");
         sFqnClassMap.put("androidx.fragment.app.FragmentContainerView", "android.widget.FrameLayout");
         sFqnClassMap.put("androidx.viewpager.widget.ViewPager", "android.widget.FrameLayout");
         sFqnClassMap.put("androidx.viewpager2.widget.ViewPager2", "android.widget.FrameLayout");
-        sFqnClassMap.put("androidx.recyclerview.widget.RecyclerView", "android.widget.FrameLayout");
-        sFqnClassMap.put("androidx.cardview.widget.CardView", "android.widget.FrameLayout");
+        sFqnClassMap.put("androidx.recyclerview.widget.RecyclerView", "androidx.recyclerview.widget.RecyclerView");
+        sFqnClassMap.put("androidx.cardview.widget.CardView", "androidx.cardview.widget.CardView");
         sFqnClassMap.put("androidx.swiperefreshlayout.widget.SwipeRefreshLayout", "android.widget.FrameLayout");
         sFqnClassMap.put("androidx.core.widget.NestedScrollView", "android.widget.FrameLayout");
         sFqnClassMap.put("androidx.appcompat.widget.Toolbar", "android.widget.FrameLayout");
-        sFqnClassMap.put("androidx.appcompat.widget.AppCompatTextView", "android.widget.TextView");
+        sFqnClassMap.put("androidx.appcompat.widget.AppCompatTextView", "androidx.appcompat.widget.AppCompatTextView");
         sFqnClassMap.put("androidx.appcompat.widget.AppCompatButton", "android.widget.Button");
         sFqnClassMap.put("androidx.appcompat.widget.AppCompatEditText", "android.widget.EditText");
-        sFqnClassMap.put("androidx.appcompat.widget.AppCompatImageView", "android.widget.ImageView");
+        sFqnClassMap.put("androidx.appcompat.widget.AppCompatImageView", "androidx.appcompat.widget.AppCompatImageView");
         sFqnClassMap.put("androidx.appcompat.widget.AppCompatCheckBox", "android.widget.CheckBox");
         sFqnClassMap.put("androidx.appcompat.widget.LinearLayoutCompat", "android.widget.LinearLayout");
+        sFqnClassMap.put("com.facebook.shimmer.ShimmerFrameLayout", "com.facebook.shimmer.ShimmerFrameLayout");
+        sFqnClassMap.put("com.mcdonalds.mcduikit.widget.McDNestedScrollView", "android.widget.ScrollView");
+        sFqnClassMap.put("com.mcdonalds.mcduikit.widget.McDMutedVideoView", "com.mcdonalds.mcduikit.widget.McDMutedVideoView");
         sFqnClassMap.put("com.google.android.material.appbar.AppBarLayout", "com.google.android.material.appbar.AppBarLayout");
         sFqnClassMap.put("com.google.android.material.appbar.CollapsingToolbarLayout", "com.google.android.material.appbar.CollapsingToolbarLayout");
         sFqnClassMap.put("com.google.android.material.appbar.MaterialToolbar", "android.widget.FrameLayout");
@@ -369,6 +553,15 @@ public class LayoutInflater {
             }
             if ("com.mcdonalds.mcduikit.widget.McDAppCompatTextView".equals(className)) {
                 return new com.mcdonalds.mcduikit.widget.McDAppCompatTextView(mContext);
+            }
+            if ("com.mcdonalds.mcduikit.widget.McDNestedScrollView".equals(className)) {
+                return new android.widget.ScrollView(mContext);
+            }
+            if ("com.mcdonalds.mcduikit.widget.McDMutedVideoView".equals(className)) {
+                return new com.mcdonalds.mcduikit.widget.McDMutedVideoView(mContext);
+            }
+            if ("com.facebook.shimmer.ShimmerFrameLayout".equals(className)) {
+                return new com.facebook.shimmer.ShimmerFrameLayout(mContext);
             }
             if ("com.mcdonalds.mcduikit.widget.ProgressStateTracker".equals(className)) {
                 return new com.mcdonalds.mcduikit.widget.ProgressStateTracker(mContext);
@@ -579,9 +772,18 @@ public class LayoutInflater {
 
     private View maybeBuildKnownMcdLayout(int resource) {
         String layoutName = resolveLayoutResourceName(resource);
+        if (shouldPreferRealMcdXml(resource, layoutName)) {
+            return null;
+        }
         if (resource == MCD_LAYOUT_ACTIVITY_HOME_DASHBOARD
                 || "layout/activity_home_dashboard".equals(layoutName)) {
             return buildMcdActivityHomeDashboard();
+        }
+        if (resource == MCD_LAYOUT_ACTIVITY_SIMPLE_PRODUCT
+                || resource == MCD_LAYOUT_ACTIVITY_SIMPLE_PRODUCT_V2
+                || "layout/activity_simple_product".equals(layoutName)
+                || "layout/activity_simple_product_v2".equals(layoutName)) {
+            return buildMcdActivitySimpleProduct();
         }
         if (resource == MCD_LAYOUT_APPLICATION_NOTIFICATION
                 || "layout/application_notification".equals(layoutName)) {
@@ -590,6 +792,10 @@ public class LayoutInflater {
         if (resource == MCD_LAYOUT_BASE
                 || "layout/base_layout".equals(layoutName)) {
             return buildMcdBaseLayout();
+        }
+        if (resource == MCD_LAYOUT_BASKET_HOLDER
+                || "layout/basket_holder".equals(layoutName)) {
+            return buildMcdBasketHolder();
         }
         if (resource == MCD_LAYOUT_BOTTOM_BAG_BAR
                 || "layout/bottom_bag_bar".equals(layoutName)) {
@@ -603,11 +809,131 @@ public class LayoutInflater {
                 || "layout/campaign_application_notification".equals(layoutName)) {
             return buildMcdApplicationNotification(true);
         }
+        if (resource == MCD_LAYOUT_FRAGMENT_DEAL_SECTION
+                || resource == MCD_LAYOUT_FRAGMENT_DEAL_SECTION_LAYOUT_HEADER
+                || resource == MCD_LAYOUT_FRAGMENT_DEAL_SECTION_LOYALTY
+                || "layout/fragment_deal_section".equals(layoutName)
+                || "layout/fragment_deal_section_layout_header".equals(layoutName)
+                || "layout/fragment_deal_section_loyalty".equals(layoutName)) {
+            return buildMcdFragmentDealSection(resource == MCD_LAYOUT_FRAGMENT_DEAL_SECTION_LOYALTY
+                    || "layout/fragment_deal_section_loyalty".equals(layoutName));
+        }
         if (resource == MCD_LAYOUT_FRAGMENT_HOME_DASHBOARD
                 || "layout/fragment_home_dashboard".equals(layoutName)) {
             return buildMcdFragmentHomeDashboard();
         }
+        if (resource == MCD_LAYOUT_FRAGMENT_HOME_DASHBOARD_HERO_SECTION
+                || resource == MCD_LAYOUT_FRAGMENT_HOME_DASHBOARD_HERO_SECTION_UPDATED
+                || "layout/fragment_home_dashboard_hero_section".equals(layoutName)
+                || "layout/fragment_home_dashboard_hero_section_updated".equals(layoutName)) {
+            return buildMcdHeroSection();
+        }
+        if (resource == MCD_LAYOUT_FRAGMENT_MENU_SECTION
+                || "layout/fragment_menu_section".equals(layoutName)) {
+            return buildMcdMenuSection();
+        }
+        if (resource == MCD_LAYOUT_FRAGMENT_PROMOTION_SECTION
+                || "layout/fragment_promotion_section".equals(layoutName)) {
+            return buildMcdPromotionSection();
+        }
+        if (resource == MCD_LAYOUT_FRAGMENT_POPULAR_SECTION
+                || "layout/fragment_popular_section".equals(layoutName)) {
+            return buildMcdPopularSection();
+        }
+        if (resource == MCD_LAYOUT_HOME_DASHBOARD_SECTION
+                || "layout/home_dashboard_section".equals(layoutName)) {
+            return buildMcdHomeDashboardSection();
+        }
+        if (resource == MCD_LAYOUT_HOME_MENU_GUEST_USER
+                || "layout/home_menu_guest_user".equals(layoutName)) {
+            return buildMcdHomeMenuGuestUser();
+        }
+        if (resource == MCD_LAYOUT_HOME_MENU_SECTION_FULL_MENU_ITEM
+                || "layout/home_menu_section_full_menu_item".equals(layoutName)) {
+            return buildMcdHomeMenuSectionFullMenuItem();
+        }
+        if (resource == MCD_LAYOUT_HOME_MENU_SECTION_ITEM
+                || "layout/home_menu_section_item".equals(layoutName)) {
+            return buildMcdHomeMenuSectionItem();
+        }
+        if (resource == MCD_LAYOUT_HOME_POPULAR_ITEM_ADAPTER
+                || "layout/home_popular_item_adapter".equals(layoutName)) {
+            return buildMcdHomePopularItemAdapter();
+        }
+        if (resource == MCD_LAYOUT_HOME_PROMOTION_ITEM
+                || "layout/home_promotion_item".equals(layoutName)
+                || resource == MCD_LAYOUT_HOME_PROMOTION_ITEM_UPDATED
+                || "layout/home_promotion_item_updated".equals(layoutName)) {
+            return buildMcdHomePromotionItem(resource == MCD_LAYOUT_HOME_PROMOTION_ITEM_UPDATED
+                    || "layout/home_promotion_item_updated".equals(layoutName));
+        }
+        if (resource == MCD_LAYOUT_BONUS_TILE_FRAGMENT
+                || "layout/layout_bonus_tile_fragment".equals(layoutName)) {
+            return buildMcdBonusTileFragment();
+        }
         return null;
+    }
+
+    private boolean shouldPreferRealMcdXml(int resource, String layoutName) {
+        boolean heroRealXml = !"false".equalsIgnoreCase(
+                System.getProperty("westlake.mcd.realxml.hero", "true"));
+        boolean menuGuestRealXml = !"false".equalsIgnoreCase(
+                System.getProperty("westlake.mcd.realxml.menuGuest", "true"));
+        boolean promotionSectionRealXml = !"false".equalsIgnoreCase(
+                System.getProperty("westlake.mcd.realxml.promotionSection", "true"));
+        boolean popularSectionRealXml = !"false".equalsIgnoreCase(
+                System.getProperty("westlake.mcd.realxml.popularSection", "true"));
+        boolean promotionItemRealXml = !"false".equalsIgnoreCase(
+                System.getProperty("westlake.mcd.realxml.promotionItem", "true"));
+        boolean popularItemRealXml = !"false".equalsIgnoreCase(
+                System.getProperty("westlake.mcd.realxml.popularItem", "true"));
+        boolean menuRealXml = Boolean.getBoolean("westlake.mcd.realxml.menu");
+        return (heroRealXml && (resource == MCD_LAYOUT_FRAGMENT_HOME_DASHBOARD_HERO_SECTION
+                || resource == MCD_LAYOUT_FRAGMENT_HOME_DASHBOARD_HERO_SECTION_UPDATED
+                || "layout/fragment_home_dashboard_hero_section".equals(layoutName)
+                || "layout/fragment_home_dashboard_hero_section_updated".equals(layoutName)))
+                || (menuGuestRealXml && (resource == MCD_LAYOUT_HOME_MENU_GUEST_USER
+                || "layout/home_menu_guest_user".equals(layoutName)))
+                || (promotionSectionRealXml && (resource == MCD_LAYOUT_FRAGMENT_PROMOTION_SECTION
+                || "layout/fragment_promotion_section".equals(layoutName)))
+                || (popularSectionRealXml && (resource == MCD_LAYOUT_FRAGMENT_POPULAR_SECTION
+                || "layout/fragment_popular_section".equals(layoutName)))
+                || (promotionItemRealXml && (resource == MCD_LAYOUT_HOME_PROMOTION_ITEM
+                || resource == MCD_LAYOUT_HOME_PROMOTION_ITEM_UPDATED
+                || "layout/home_promotion_item".equals(layoutName)
+                || "layout/home_promotion_item_updated".equals(layoutName)))
+                || (popularItemRealXml && (resource == MCD_LAYOUT_HOME_POPULAR_ITEM_ADAPTER
+                || "layout/home_popular_item_adapter".equals(layoutName)))
+                || resource == MCD_LAYOUT_FRAGMENT_ORDER
+                || resource == MCD_LAYOUT_CATEGORY_LIST_ITEM
+                || resource == MCD_LAYOUT_NEW_PLP_PRODUCT_ITEM
+                || resource == MCD_LAYOUT_FRAGMENT_ORDER_PDP
+                || resource == MCD_LAYOUT_ORDER_PDP_BUTTON_LAYOUT
+                || resource == MCD_LAYOUT_ORDER_PDP_EDIT_BOTTOM_LAYOUT
+                || resource == MCD_LAYOUT_ORDER_PDP_MEAL_BOTTOM_LAYOUT
+                || resource == MCD_LAYOUT_ORDER_PDP_MEAL_EDIT_BOTTOM_LAYOUT
+                || resource == MCD_LAYOUT_PDP_MEAL_CHOICE_BOTTOM_LAYOUT
+                || resource == MCD_LAYOUT_SKELETON_ORDER_PDP_DEFAULT
+                || resource == MCD_LAYOUT_SKELETON_ORDER_PDP_CHOICE_CUSTOMIZATION
+                || resource == MCD_LAYOUT_SKELETON_ORDER_PDP_SMALL_GRID
+                || "layout/fragment_order".equals(layoutName)
+                || "layout/category_list_item".equals(layoutName)
+                || "layout/new_plp_product_item".equals(layoutName)
+                || "layout/fragment_order_pdp".equals(layoutName)
+                || "layout/order_pdp_button_layout".equals(layoutName)
+                || "layout/order_pdp_edit_bottom_layout".equals(layoutName)
+                || "layout/order_pdp_meal_bottom_layout".equals(layoutName)
+                || "layout/order_pdp_meal_edit_bottom_layout".equals(layoutName)
+                || "layout/pdp_meal_choice_bottom_layout".equals(layoutName)
+                || "layout/skeleton_order_pdp_default".equals(layoutName)
+                || "layout/skeleton_order_pdp_choice_customization".equals(layoutName)
+                || "layout/skeleton_order_pdp_small_grid".equals(layoutName)
+                || (menuRealXml && (resource == MCD_LAYOUT_FRAGMENT_MENU_SECTION
+                || resource == MCD_LAYOUT_HOME_MENU_GUEST_USER
+                || resource == MCD_LAYOUT_HOME_MENU_SECTION_ITEM
+                || "layout/fragment_menu_section".equals(layoutName)
+                || "layout/home_menu_guest_user".equals(layoutName)
+                || "layout/home_menu_section_item".equals(layoutName)));
     }
 
     private View maybeBuildKnownAppCompatLayout(int resource) {
@@ -711,23 +1037,29 @@ public class LayoutInflater {
         if (parent == null || child == null) {
             return;
         }
+        boolean fillHeight = "androidx.appcompat.widget.ContentFrameLayout"
+                .equals(child.getClass().getName());
         ViewGroup.LayoutParams lp;
         if (parent instanceof LinearLayout) {
             lp = new LinearLayout.LayoutParams(
                     ViewGroup.LayoutParams.MATCH_PARENT,
-                    ViewGroup.LayoutParams.WRAP_CONTENT);
+                    fillHeight ? ViewGroup.LayoutParams.MATCH_PARENT
+                            : ViewGroup.LayoutParams.WRAP_CONTENT);
         } else if (parent instanceof android.widget.FrameLayout) {
             lp = new android.widget.FrameLayout.LayoutParams(
                     ViewGroup.LayoutParams.MATCH_PARENT,
-                    ViewGroup.LayoutParams.WRAP_CONTENT);
+                    fillHeight ? ViewGroup.LayoutParams.MATCH_PARENT
+                            : ViewGroup.LayoutParams.WRAP_CONTENT);
         } else if (parent instanceof android.widget.RelativeLayout) {
             lp = new android.widget.RelativeLayout.LayoutParams(
                     ViewGroup.LayoutParams.MATCH_PARENT,
-                    ViewGroup.LayoutParams.WRAP_CONTENT);
+                    fillHeight ? ViewGroup.LayoutParams.MATCH_PARENT
+                            : ViewGroup.LayoutParams.WRAP_CONTENT);
         } else {
             lp = new ViewGroup.LayoutParams(
                     ViewGroup.LayoutParams.MATCH_PARENT,
-                    ViewGroup.LayoutParams.WRAP_CONTENT);
+                    fillHeight ? ViewGroup.LayoutParams.MATCH_PARENT
+                            : ViewGroup.LayoutParams.WRAP_CONTENT);
         }
         parent.addView(child, lp);
     }
@@ -738,39 +1070,132 @@ public class LayoutInflater {
         root.setBackgroundColor(getColorCompat(MCD_COLOR_BG_WHITE, 0xFFFFFFFF));
 
         android.widget.FrameLayout frame = new android.widget.FrameLayout(mContext);
+        root.addView(frame, new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.MATCH_PARENT));
 
         LinearLayout intermediate = new LinearLayout(mContext);
         intermediate.setOrientation(LinearLayout.VERTICAL);
         intermediate.setId(MCD_ID_INTERMEDIATE_LAYOUT_CONTAINER);
         intermediate.setVisibility(View.VISIBLE);
-        addCompatChild(frame, intermediate);
+        addMcdDashboardFrameChild(frame, intermediate);
 
         LinearLayout home = new LinearLayout(mContext);
         home.setOrientation(LinearLayout.VERTICAL);
         home.setId(MCD_ID_HOME_DASHBOARD_CONTAINER);
         home.setVisibility(View.GONE);
-        addCompatChild(frame, home);
+        addMcdDashboardFrameChild(frame, home);
 
         LinearLayout splashCampaign = new LinearLayout(mContext);
         splashCampaign.setOrientation(LinearLayout.VERTICAL);
         splashCampaign.setId(MCD_ID_SPLASH_CAMPAIGN_LAYOUT_CONTAINER);
         splashCampaign.setVisibility(View.GONE);
-        addCompatChild(frame, splashCampaign);
+        addMcdDashboardFrameChild(frame, splashCampaign);
 
         LinearLayout splashInterrupter = new LinearLayout(mContext);
         splashInterrupter.setOrientation(LinearLayout.VERTICAL);
         splashInterrupter.setId(MCD_ID_SPLASH_INTERRUPTER_LAYOUT_CONTAINER);
         splashInterrupter.setVisibility(View.GONE);
-        addCompatChild(frame, splashInterrupter);
+        addMcdDashboardFrameChild(frame, splashInterrupter);
 
         LinearLayout coachmark = new LinearLayout(mContext);
         coachmark.setOrientation(LinearLayout.VERTICAL);
         coachmark.setId(MCD_ID_COACHMARK_CONTAINER);
         coachmark.setVisibility(View.GONE);
-        addCompatChild(frame, coachmark);
+        addMcdDashboardFrameChild(frame, coachmark);
 
-        addCompatChild(root, frame);
         return root;
+    }
+
+    private void addMcdDashboardFrameChild(android.widget.FrameLayout frame, View child) {
+        if (frame == null || child == null) {
+            return;
+        }
+        frame.addView(child, new android.widget.FrameLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.MATCH_PARENT));
+    }
+
+    private View buildMcdActivitySimpleProduct() {
+        android.widget.RelativeLayout root = new android.widget.RelativeLayout(mContext);
+        root.setBackgroundColor(getColorCompat(MCD_COLOR_BG_WHITE, 0xFFFFFFFF));
+
+        android.widget.FrameLayout holder = new android.widget.FrameLayout(mContext);
+        holder.setId(MCD_ID_SIMPLE_PRODUCT_HOLDER);
+        holder.setBackgroundColor(getColorCompat(MCD_COLOR_BG_WHITE, 0xFFFFFFFF));
+        root.addView(holder, new android.widget.RelativeLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.MATCH_PARENT));
+
+        android.widget.ImageView peel = new android.widget.ImageView(mContext);
+        peel.setId(MCD_ID_HEADER_PEEL);
+        peel.setFocusable(true);
+        peel.setFocusableInTouchMode(true);
+        peel.setVisibility(View.GONE);
+        android.widget.RelativeLayout.LayoutParams peelLp =
+                new android.widget.RelativeLayout.LayoutParams(73, 72);
+        peelLp.addRule(android.widget.RelativeLayout.ALIGN_PARENT_TOP);
+        peelLp.addRule(android.widget.RelativeLayout.ALIGN_PARENT_RIGHT);
+        root.addView(peel, peelLp);
+
+        android.widget.ImageView backClose = new android.widget.ImageView(mContext);
+        backClose.setId(MCD_ID_NAVIGATION_BACK_CLOSE);
+        backClose.setFocusable(true);
+        backClose.setFocusableInTouchMode(true);
+        backClose.setVisibility(View.GONE);
+        android.widget.RelativeLayout.LayoutParams backCloseLp =
+                new android.widget.RelativeLayout.LayoutParams(48, 48);
+        backCloseLp.addRule(android.widget.RelativeLayout.ALIGN_PARENT_TOP);
+        backCloseLp.addRule(android.widget.RelativeLayout.ALIGN_PARENT_LEFT);
+        root.addView(backClose, backCloseLp);
+
+        android.widget.ImageView clone = new android.widget.ImageView(mContext);
+        clone.setId(MCD_ID_PRODUCT_IMAGE_CLONE);
+        clone.setVisibility(View.GONE);
+        root.addView(clone, new android.widget.RelativeLayout.LayoutParams(220, 220));
+
+        android.widget.ImageView rightClone = new android.widget.ImageView(mContext);
+        rightClone.setId(MCD_ID_PRODUCT_IMAGE_RIGHT_CLONE);
+        rightClone.setVisibility(View.GONE);
+        android.widget.RelativeLayout.LayoutParams rightCloneLp =
+                new android.widget.RelativeLayout.LayoutParams(220, 220);
+        rightCloneLp.addRule(android.widget.RelativeLayout.ALIGN_PARENT_RIGHT);
+        root.addView(rightClone, rightCloneLp);
+
+        try {
+            com.westlake.engine.WestlakeLauncher.marker(
+                    "MCD_ACTIVITY_SIMPLE_PRODUCT_SHELL layout=activity_simple_product holder=0x"
+                            + Integer.toHexString(MCD_ID_SIMPLE_PRODUCT_HOLDER));
+        } catch (Throwable ignored) {
+        }
+        return root;
+    }
+
+    private void ensureMcdSimpleProductShell(ViewGroup pageContent) {
+        if (pageContent == null) {
+            return;
+        }
+        if (pageContent.findViewById(MCD_ID_SIMPLE_PRODUCT_HOLDER) != null
+                && pageContent.findViewById(MCD_ID_PRODUCT_IMAGE_CLONE) != null) {
+            return;
+        }
+        View shell = buildMcdActivitySimpleProduct();
+        if (shell == null) {
+            return;
+        }
+        if (pageContent instanceof LinearLayout) {
+            pageContent.addView(shell, new LinearLayout.LayoutParams(
+                    ViewGroup.LayoutParams.MATCH_PARENT,
+                    ViewGroup.LayoutParams.MATCH_PARENT));
+        } else if (pageContent instanceof android.widget.FrameLayout) {
+            pageContent.addView(shell, new android.widget.FrameLayout.LayoutParams(
+                    ViewGroup.LayoutParams.MATCH_PARENT,
+                    ViewGroup.LayoutParams.MATCH_PARENT));
+        } else {
+            pageContent.addView(shell, new ViewGroup.LayoutParams(
+                    ViewGroup.LayoutParams.MATCH_PARENT,
+                    ViewGroup.LayoutParams.MATCH_PARENT));
+        }
     }
 
     private View buildMcdBaseLayout() {
@@ -792,6 +1217,12 @@ public class LayoutInflater {
         toolbar.setId(MCD_ID_TOOLBAR);
         addCompatChild(column, toolbar);
 
+        LinearLayout storeSearch = new LinearLayout(mContext);
+        storeSearch.setId(MCD_ID_STORE_SEARCH_LAYOUT);
+        storeSearch.setOrientation(LinearLayout.VERTICAL);
+        storeSearch.setVisibility(View.GONE);
+        addCompatChild(column, storeSearch);
+
         LinearLayout pageRoot = new LinearLayout(mContext);
         pageRoot.setId(MCD_ID_PAGE_ROOT);
         pageRoot.setOrientation(LinearLayout.VERTICAL);
@@ -802,10 +1233,16 @@ public class LayoutInflater {
         LinearLayout pageContent = new LinearLayout(mContext);
         pageContent.setId(MCD_ID_PAGE_CONTENT);
         pageContent.setOrientation(LinearLayout.VERTICAL);
+        ensureMcdSimpleProductShell(pageContent);
 
-        addCompatChild(pageContentHolder, pageContent);
-        addCompatChild(pageRoot, pageContentHolder);
-        addCompatChild(column, pageRoot);
+        pageContentHolder.addView(pageContent, new android.widget.FrameLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.MATCH_PARENT));
+        pageRoot.addView(pageContentHolder, new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.MATCH_PARENT));
+        column.addView(pageRoot, new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, 0, 1f));
 
         com.mcdonalds.mcduikit.widget.McDTextView fullMenu =
                 new com.mcdonalds.mcduikit.widget.McDTextView(mContext);
@@ -836,6 +1273,13 @@ public class LayoutInflater {
 
         addCompatChild(drawer, content);
         return drawer;
+    }
+
+    private View buildMcdBasketHolder() {
+        android.widget.FrameLayout root = new android.widget.FrameLayout(mContext);
+        root.setBackgroundColor(0x00000000);
+        diag("[LayoutInflater] basket_holder build OK: FrameLayout");
+        return root;
     }
 
     private View buildMcdBottomNavigationBar() {
@@ -1030,10 +1474,1691 @@ public class LayoutInflater {
         LinearLayout sections = new LinearLayout(mContext);
         sections.setOrientation(LinearLayout.VERTICAL);
         sections.setId(MCD_ID_SECTIONS_CONTAINER);
+        sections.setLayoutTransition(new android.animation.LayoutTransition());
         addCompatChild(parent, sections);
 
         addCompatChild(scroll, parent);
         return scroll;
+    }
+
+    private View buildMcdFragmentDealSection(boolean loyaltyVariant) {
+        android.widget.RelativeLayout root = new android.widget.RelativeLayout(mContext);
+        root.setBackgroundColor(getColorCompat(MCD_COLOR_BG_WHITE, 0xFFFFFFFF));
+
+        LinearLayout loaded = new LinearLayout(mContext);
+        loaded.setOrientation(LinearLayout.VERTICAL);
+        loaded.setId(MCD_ID_LOADED_VIEW3);
+        loaded.setVisibility(View.VISIBLE);
+
+        LinearLayout headingRow = new LinearLayout(mContext);
+        headingRow.setOrientation(LinearLayout.HORIZONTAL);
+
+        com.mcdonalds.mcduikit.widget.McDTextView heading =
+                new com.mcdonalds.mcduikit.widget.McDTextView(mContext);
+        heading.setId(MCD_ID_HOME_SCREEN_DEAL_TITLE_HEADING_TEXT);
+        heading.setText(loyaltyVariant ? "Rewards & Deals" : "Deals");
+        heading.setTextSize(20);
+        heading.setTextColor(0xFF292929);
+        heading.setGravity(android.view.Gravity.CENTER_VERTICAL);
+        headingRow.addView(heading, new LinearLayout.LayoutParams(
+                0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
+
+        LinearLayout viewAll = new LinearLayout(mContext);
+        viewAll.setId(MCD_ID_HOME_SCREEN_DEALS_HEADING_VIEW_ALL_TEXT);
+        viewAll.setOrientation(LinearLayout.HORIZONTAL);
+        viewAll.setVisibility(View.GONE);
+        com.mcdonalds.mcduikit.widget.McDTextView viewAllText =
+                new com.mcdonalds.mcduikit.widget.McDTextView(mContext);
+        viewAllText.setId(MCD_ID_HOME_SCREEN_DEALS_HEADING_VIEW_FULL_MENU_TEXT);
+        viewAllText.setText("View All");
+        viewAllText.setTextSize(14);
+        viewAllText.setTextColor(0xFF2860A8);
+        viewAll.addView(viewAllText, new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT));
+        headingRow.addView(viewAll, new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT));
+        loaded.addView(headingRow, new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
+
+        LinearLayout dealLayout = new LinearLayout(mContext);
+        dealLayout.setId(MCD_ID_DEAL_LAYOUT);
+        dealLayout.setOrientation(LinearLayout.VERTICAL);
+        dealLayout.setVisibility(View.VISIBLE);
+        androidx.recyclerview.widget.RecyclerView deals =
+                new androidx.recyclerview.widget.RecyclerView(mContext);
+        deals.setId(loyaltyVariant ? MCD_ID_REWARDS_AND_DEALS_SCREEN_DEAL_CAROUSELS_HOLDER
+                : MCD_ID_HOME_SCREEN_DEAL_CAROUSELS_LIST);
+        dealLayout.addView(deals, new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, 190));
+        loaded.addView(dealLayout, new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
+
+        android.widget.RelativeLayout noDeals = new android.widget.RelativeLayout(mContext);
+        noDeals.setId(loyaltyVariant ? MCD_ID_REWARDS_AND_DEALS_SCREEN_NO_DEALS_DEAL_CONTAINER_LAYOUT
+                : MCD_ID_HOME_SCREEN_NO_DEALS_DEAL_CONTAINER_LAYOUT);
+        noDeals.setVisibility(View.GONE);
+
+        LinearLayout noDealsText = new LinearLayout(mContext);
+        noDealsText.setOrientation(LinearLayout.VERTICAL);
+
+        com.mcdonalds.mcduikit.widget.McDTextView noDealsTitle =
+                new com.mcdonalds.mcduikit.widget.McDTextView(mContext);
+        noDealsTitle.setId(MCD_ID_HOME_SCREEN_NO_DEALS_DEAL_TITLE_TEXT_VIEW);
+        noDealsTitle.setText("Deals");
+        noDealsTitle.setTextSize(18);
+        noDealsTitle.setTextColor(0xFF292929);
+        noDealsText.addView(noDealsTitle, new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
+
+        com.mcdonalds.mcduikit.widget.McDTextView noDealsHeader =
+                new com.mcdonalds.mcduikit.widget.McDTextView(mContext);
+        noDealsHeader.setId(MCD_ID_HOME_SCREEN_NO_DEALS_HEADER_TEXT);
+        noDealsHeader.setText("Stay tuned");
+        noDealsHeader.setTextSize(18);
+        noDealsHeader.setTextColor(0xFF292929);
+        noDealsText.addView(noDealsHeader, new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
+
+        com.mcdonalds.mcduikit.widget.McDTextView noDealsSubHeader =
+                new com.mcdonalds.mcduikit.widget.McDTextView(mContext);
+        noDealsSubHeader.setId(MCD_ID_HOME_SCREEN_NO_DEALS_SUB_HEADER_TEXT);
+        noDealsSubHeader.setText("More deals coming soon");
+        noDealsSubHeader.setTextSize(14);
+        noDealsSubHeader.setTextColor(0xFF6F6F6F);
+        noDealsText.addView(noDealsSubHeader, new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
+
+        com.mcdonalds.mcduikit.widget.McDTextView viewDeals =
+                new com.mcdonalds.mcduikit.widget.McDTextView(mContext);
+        viewDeals.setId(MCD_ID_HOME_SCREEN_NO_DEALS_DEALS_VIEW_DEALS_BUTTON);
+        viewDeals.setText("View Deals");
+        noDealsText.addView(viewDeals, new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT));
+
+        noDeals.addView(noDealsText, new android.widget.RelativeLayout.LayoutParams(
+                ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT));
+        loaded.addView(noDeals, new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
+
+        addCompatChild(root, loaded);
+
+        LinearLayout shimmer = new LinearLayout(mContext);
+        shimmer.setId(MCD_ID_SHIMMER_VIEW3);
+        shimmer.setOrientation(LinearLayout.VERTICAL);
+        shimmer.setVisibility(View.GONE);
+        addCompatChild(root, shimmer);
+        return root;
+    }
+
+    private com.mcdonalds.mcduikit.widget.McDTextView createMcdText(
+            int id, String text, float textSize, int color) {
+        com.mcdonalds.mcduikit.widget.McDTextView view =
+                new com.mcdonalds.mcduikit.widget.McDTextView(mContext);
+        view.setId(id);
+        view.setText(text);
+        view.setTextSize(textSize);
+        view.setTextColor(color);
+        view.setSingleLine(false);
+        view.setVisibility(View.VISIBLE);
+        return view;
+    }
+
+    private TextView createStockMcdText(int id, String text, float textSize, int color) {
+        View appView = tryInstantiateAppClassView("com.mcdonalds.mcduikit.widget.McDTextView");
+        TextView view;
+        if (appView instanceof TextView) {
+            view = (TextView) appView;
+        } else {
+            view = new com.mcdonalds.mcduikit.widget.McDTextView(mContext);
+        }
+        view.setId(id);
+        view.setText(text);
+        view.setTextSize(textSize);
+        view.setTextColor(color);
+        view.setSingleLine(false);
+        view.setVisibility(View.VISIBLE);
+        return view;
+    }
+
+    private ViewGroup createStockCardView(int id, int color, float radius) {
+        View appView = tryInstantiateAppClassView("androidx.cardview.widget.CardView");
+        ViewGroup card;
+        if (appView instanceof ViewGroup) {
+            card = (ViewGroup) appView;
+        } else {
+            card = new androidx.cardview.widget.CardView(mContext);
+        }
+        card.setId(id);
+        card.setVisibility(View.VISIBLE);
+        card.setBackgroundColor(color);
+        invokeCompatSetter(card, "setCardBackgroundColor", int.class, Integer.valueOf(color));
+        invokeCompatSetter(card, "setRadius", float.class, Float.valueOf(radius));
+        invokeCompatSetter(card, "setCardElevation", float.class, Float.valueOf(2f));
+        invokeCompatSetter(card, "setUseCompatPadding", boolean.class, Boolean.TRUE);
+        return card;
+    }
+
+    private void invokeCompatSetter(View view, String methodName, Class paramType, Object value) {
+        if (view == null) {
+            return;
+        }
+        try {
+            view.getClass().getMethod(methodName, paramType).invoke(view, value);
+        } catch (Throwable ignored) {
+        }
+    }
+
+    private View createShimmerBlock(int id, int height) {
+        View block = new View(mContext);
+        block.setId(id);
+        block.setBackgroundColor(0xFFE4E4E4);
+        block.setFocusable(true);
+        block.setVisibility(View.VISIBLE);
+        block.setContentDescription("");
+        block.setMinimumHeight(height);
+        return block;
+    }
+
+    private com.facebook.shimmer.ShimmerFrameLayout createShimmerLine(int id, int height) {
+        com.facebook.shimmer.ShimmerFrameLayout line =
+                new com.facebook.shimmer.ShimmerFrameLayout(mContext);
+        line.setId(id);
+        line.setBackgroundColor(0xFFEDEDED);
+        line.setMinimumHeight(height);
+        line.setContentDescription("");
+        return line;
+    }
+
+    private android.widget.ImageView createAppCompatImageViewCompat(int id) {
+        View view = tryInstantiateAppClassView("androidx.appcompat.widget.AppCompatImageView");
+        if (!(view instanceof android.widget.ImageView)) {
+            view = new androidx.appcompat.widget.AppCompatImageView(mContext);
+        }
+        view.setId(id);
+        return (android.widget.ImageView) view;
+    }
+
+    private androidx.recyclerview.widget.RecyclerView buildSeededRecyclerView(
+            int id, final String[] labels, boolean horizontal) {
+        androidx.recyclerview.widget.RecyclerView recycler =
+                new androidx.recyclerview.widget.RecyclerView(mContext);
+        recycler.setId(id);
+        recycler.setVisibility(View.VISIBLE);
+        recycler.setLayoutManager(new androidx.recyclerview.widget.LinearLayoutManager(
+                mContext,
+                horizontal ? androidx.recyclerview.widget.LinearLayoutManager.HORIZONTAL
+                        : androidx.recyclerview.widget.LinearLayoutManager.VERTICAL,
+                false));
+        recycler.setAdapter(new androidx.recyclerview.widget.RecyclerView.Adapter() {
+            public androidx.recyclerview.widget.RecyclerView.ViewHolder onCreateViewHolder(
+                    ViewGroup parent, int viewType) {
+                LinearLayout card = new LinearLayout(mContext);
+                card.setOrientation(LinearLayout.VERTICAL);
+                card.setPadding(18, 14, 18, 14);
+                card.setBackgroundColor(0xFFFFFFFF);
+                android.widget.ImageView image = new android.widget.ImageView(mContext);
+                image.setBackgroundColor(0xFFFFC72C);
+                card.addView(image, new LinearLayout.LayoutParams(
+                        ViewGroup.LayoutParams.MATCH_PARENT, 96));
+                TextView title = new TextView(mContext);
+                title.setId(0x1020014);
+                title.setTextColor(0xFF292929);
+                title.setTextSize(14);
+                title.setSingleLine(false);
+                card.addView(title, new LinearLayout.LayoutParams(
+                        ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
+                return new androidx.recyclerview.widget.RecyclerView.ViewHolder(card) {};
+            }
+
+            public void onBindViewHolder(
+                    androidx.recyclerview.widget.RecyclerView.ViewHolder holder, int position) {
+                View title = holder.itemView.findViewById(0x1020014);
+                String fallback = labels != null && position >= 0 && position < labels.length
+                        ? labels[position] : "";
+                String label = resolveMcdLiveAdapterLabel(id, position, fallback);
+                if (title instanceof TextView) {
+                    ((TextView) title).setText(label);
+                }
+                final String clickLabel = label;
+                holder.itemView.setClickable(true);
+                holder.itemView.setOnClickListener(new View.OnClickListener() {
+                    public void onClick(View v) {
+                        openMcdCategoryDetail(v, clickLabel);
+                    }
+                });
+                if (holder.itemView instanceof ViewGroup) {
+                    View image = null;
+                    try {
+                        image = ((ViewGroup) holder.itemView).getChildAt(0);
+                    } catch (Throwable ignored) {
+                    }
+                    if (image instanceof android.widget.ImageView) {
+                        String imageHint = (id == MCD_ID_POPULAR_LIST
+                                || id == MCD_ID_PROMOTION_RECYCLER_LIST)
+                                ? fallback : label;
+                        byte[] imageBytes = resolveMcdLiveAdapterImageBytes(
+                                id, position, imageHint);
+                        if (imageBytes != null && imageBytes.length > 0) {
+                            android.graphics.Bitmap bitmap =
+                                    android.graphics.BitmapFactory.decodeByteArray(
+                                            imageBytes, 0, imageBytes.length);
+                            if (bitmap != null) {
+                                ((android.widget.ImageView) image).setImageBitmap(bitmap);
+                            }
+                        }
+                    }
+                }
+            }
+
+            public int getItemCount() {
+                return labels != null ? labels.length : 0;
+            }
+        });
+        return recycler;
+    }
+
+    private View tryInflateRealMcdXmlLayout(int layoutId, String layoutName) {
+        View view = null;
+        try {
+            view = inflate(layoutId, null, false);
+        } catch (Throwable t) {
+            try {
+                com.westlake.engine.WestlakeLauncher.marker(
+                        "MCD_REAL_XML_INFLATE_FAILED layout=" + safeMcdMarkerToken(layoutName)
+                                + " err=" + throwableName(t) + ":" + t.getMessage());
+            } catch (Throwable ignored) {
+            }
+            return null;
+        }
+        if (view == null || view.getId() == layoutId) {
+            try {
+                com.westlake.engine.WestlakeLauncher.marker(
+                        "MCD_REAL_XML_INFLATE_FALLBACK layout="
+                                + safeMcdMarkerToken(layoutName));
+            } catch (Throwable ignored) {
+            }
+            return null;
+        }
+        try {
+            com.westlake.engine.WestlakeLauncher.marker(
+                    "MCD_REAL_XML_INFLATED layout=" + safeMcdMarkerToken(layoutName)
+                            + " root=" + simpleClassNameOf(view));
+        } catch (Throwable ignored) {
+        }
+        return view;
+    }
+
+    private View tryBuildMcdRealXmlOrderPanel(boolean compact) {
+        View orderRoot = tryInflateRealMcdXmlLayout(
+                MCD_LAYOUT_FRAGMENT_ORDER, "fragment_order");
+        if (!(orderRoot instanceof ViewGroup)) {
+            return null;
+        }
+        orderRoot.setVisibility(View.VISIBLE);
+        orderRoot.setBackgroundColor(getColorCompat(MCD_COLOR_BG_WHITE, 0xFFFFFFFF));
+
+        View scroll = orderRoot.findViewById(MCD_ID_ORDER_SCROLL_VIEW);
+        if (scroll != null) {
+            scroll.setVisibility(View.VISIBLE);
+            scroll.setMinimumHeight(compact ? 330 : 620);
+        }
+
+        setMcdTextIfPresent(orderRoot, MCD_ID_EXPLORE_OUR_MENU,
+                "Explore our menu", 22, 0xFF292929, true);
+
+        View categoriesView = orderRoot.findViewById(MCD_ID_CATEGORIES);
+        if (!(categoriesView instanceof ViewGroup)) {
+            return null;
+        }
+        ViewGroup categories = (ViewGroup) categoriesView;
+        categories.setVisibility(View.VISIBLE);
+        categories.removeAllViews();
+        categories.setBackgroundColor(getColorCompat(MCD_COLOR_GREY_BG, 0xFFF7F7F7));
+
+        String[] fallbacks = new String[] {
+                "Breakfast", "Extra Value Meals", "Burgers",
+                "Chicken", "Fries", "McCafe"
+        };
+        int added = 0;
+        for (int i = 0; i < fallbacks.length; i++) {
+            String label = resolveMcdLiveAdapterLabel(
+                    MCD_ID_MENU_CATEGORY_LIST, i, fallbacks[i]);
+            View row = buildMcdRealXmlCategoryRow(i, label);
+            if (row == null) {
+                continue;
+            }
+            categories.addView(row, new LinearLayout.LayoutParams(
+                    ViewGroup.LayoutParams.MATCH_PARENT,
+                    ViewGroup.LayoutParams.WRAP_CONTENT));
+            added++;
+        }
+        try {
+            com.westlake.engine.WestlakeLauncher.marker(
+                    "MCD_REAL_XML_ORDER_INFLATED layout=fragment_order categories="
+                            + added + " compact=" + compact);
+        } catch (Throwable ignored) {
+        }
+        return orderRoot;
+    }
+
+    private View buildMcdRealXmlCategoryRow(final int position, final String label) {
+        View row = tryInflateRealMcdXmlLayout(
+                MCD_LAYOUT_CATEGORY_LIST_ITEM, "category_list_item");
+        if (row == null) {
+            LinearLayout fallback = new LinearLayout(mContext);
+            fallback.setOrientation(LinearLayout.HORIZONTAL);
+            fallback.setPadding(24, 20, 24, 20);
+            android.widget.ImageView image = new android.widget.ImageView(mContext);
+            image.setId(MCD_ID_CATEGORY_IMAGE);
+            fallback.addView(image, new LinearLayout.LayoutParams(88, 88));
+            TextView text = createMcdText(MCD_ID_CATEGORY_NAME,
+                    label != null ? label : "Menu", 18, 0xFF292929);
+            fallback.addView(text, new LinearLayout.LayoutParams(
+                    0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
+            row = fallback;
+        }
+
+        row.setVisibility(View.VISIBLE);
+        row.setClickable(true);
+        row.setOnClickListener(new View.OnClickListener() {
+            public void onClick(View v) {
+                openMcdCategoryDetail(v, label);
+            }
+        });
+        row.setBackgroundColor(getColorCompat(MCD_COLOR_BG_WHITE, 0xFFFFFFFF));
+
+        setMcdTextIfPresent(row, MCD_ID_CATEGORY_NAME,
+                label != null ? label : "Menu", 18, 0xFF292929, true);
+        setMcdImageIfPresent(row, MCD_ID_CATEGORY_IMAGE,
+                MCD_ID_MENU_CATEGORY_LIST, position, label);
+        try {
+            com.westlake.engine.WestlakeLauncher.marker(
+                    "MCD_REAL_XML_CATEGORY_ROW_INFLATED layout=category_list_item label="
+                            + safeMcdMarkerToken(label));
+        } catch (Throwable ignored) {
+        }
+        return row;
+    }
+
+    private View tryBuildMcdRealXmlProductDetail(String label) {
+        View product = tryInflateRealMcdXmlLayout(
+                MCD_LAYOUT_NEW_PLP_PRODUCT_ITEM, "new_plp_product_item");
+        if (product == null) {
+            return null;
+        }
+        String productLabel = label != null && label.length() > 0
+                ? label : "Featured Item";
+        setMcdTextIfPresent(product, MCD_ID_PLP_PRODUCT_NAME_TEXT,
+                productLabel, 18, 0xFF292929, true);
+        setMcdTextIfPresent(product, MCD_ID_PLP_PRODUCT_CALORIE_PRICE_TEXT,
+                "450 Cal - $5.99", 14, 0xFF292929, true);
+        setMcdImageIfPresent(product, MCD_ID_PLP_PRODUCT_IMAGE,
+                MCD_ID_MENU_CATEGORY_LIST, 0, productLabel);
+        product.setVisibility(View.VISIBLE);
+
+        LinearLayout panel = new LinearLayout(mContext);
+        panel.setOrientation(LinearLayout.VERTICAL);
+        panel.setPadding(24, 14, 24, 14);
+        panel.setBackgroundColor(getColorCompat(MCD_COLOR_BG_WHITE, 0xFFFFFFFF));
+        panel.addView(product, new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.WRAP_CONTENT));
+
+        TextView add = createMcdText(MCD_ID_ADD_TO_ORDER,
+                "Add to Bag", 15, 0xFF292929);
+        add.setGravity(android.view.Gravity.CENTER);
+        add.setBackgroundColor(0xFFFFC72C);
+        add.setClickable(true);
+        add.setOnClickListener(new View.OnClickListener() {
+            public void onClick(View v) {
+                try {
+                    com.westlake.engine.WestlakeLauncher.marker(
+                            "MCD_ADD_TO_BAG_CLICKED source=real_xml_product_detail");
+                } catch (Throwable ignored) {
+                }
+            }
+        });
+        panel.addView(add, new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, 46));
+
+        View bag = buildMcdBottomBagBar();
+        LinearLayout.LayoutParams bagLp = new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, 54);
+        bagLp.topMargin = 8;
+        panel.addView(bag, bagLp);
+
+        try {
+            com.westlake.engine.WestlakeLauncher.marker(
+                    "MCD_REAL_XML_CATEGORY_DETAIL_INFLATED layout=new_plp_product_item label="
+                            + safeMcdMarkerToken(productLabel));
+        } catch (Throwable ignored) {
+        }
+        return panel;
+    }
+
+    private void enhanceMcdInflatedLayout(int resource, View view) {
+        if (resource == MCD_LAYOUT_FRAGMENT_ORDER_PDP && view != null) {
+            enhanceMcdFragmentOrderPdp(view);
+            maybeAttachMcdPdpToCurrentActivity(view);
+        }
+    }
+
+    private void enhanceMcdFragmentOrderPdp(View root) {
+        try {
+            com.westlake.engine.WestlakeLauncher.marker(
+                    "MCD_REAL_XML_PDP_ENHANCE_BEGIN");
+        } catch (Throwable ignored) {
+        }
+        root.setVisibility(View.VISIBLE);
+        root.setBackgroundColor(getColorCompat(MCD_COLOR_BG_WHITE, 0xFFFFFFFF));
+
+        View scroll = root.findViewById(MCD_ID_PRODUCT_DETAILS_SCROLL);
+        if (scroll != null) {
+            scroll.setVisibility(View.VISIBLE);
+            scroll.setBackgroundColor(getColorCompat(MCD_COLOR_BG_WHITE, 0xFFFFFFFF));
+            if (scroll instanceof android.widget.ScrollView) {
+                ((android.widget.ScrollView) scroll).setFillViewport(true);
+            }
+            ViewGroup.LayoutParams lp = scroll.getLayoutParams();
+            if (lp == null) {
+                lp = new android.widget.FrameLayout.LayoutParams(
+                        ViewGroup.LayoutParams.MATCH_PARENT,
+                        ViewGroup.LayoutParams.MATCH_PARENT);
+                scroll.setLayoutParams(lp);
+            } else {
+                lp.width = ViewGroup.LayoutParams.MATCH_PARENT;
+                lp.height = ViewGroup.LayoutParams.MATCH_PARENT;
+            }
+            scroll.setMinimumHeight(720);
+        }
+
+        View main = root.findViewById(MCD_ID_MAIN_CONTENT_PDP);
+        if (main != null) {
+            main.setVisibility(View.VISIBLE);
+            main.setBackgroundColor(getColorCompat(MCD_COLOR_BG_WHITE, 0xFFFFFFFF));
+            forceViewLayoutSize(main,
+                    ViewGroup.LayoutParams.MATCH_PARENT,
+                    ViewGroup.LayoutParams.WRAP_CONTENT);
+            main.setMinimumHeight(860);
+        }
+
+        View productInfo = root.findViewById(MCD_ID_PRODUCT_INFORMATION);
+        if (productInfo instanceof ViewGroup
+                && root.findViewById(MCD_ID_PDP_PRODUCT_NAME_TEXT) == null) {
+            ViewGroup info = (ViewGroup) productInfo;
+            info.setVisibility(View.VISIBLE);
+            info.setBackgroundColor(getColorCompat(MCD_COLOR_BG_WHITE, 0xFFFFFFFF));
+            forceViewLayoutSize(info,
+                    ViewGroup.LayoutParams.MATCH_PARENT,
+                    380);
+            info.setMinimumHeight(380);
+            if (info instanceof LinearLayout) {
+                ((LinearLayout) info).setOrientation(LinearLayout.VERTICAL);
+            }
+            String productLabel = resolveMcdLiveAdapterLabel(
+                    MCD_ID_POPULAR_LIST, 0, "Big Mac");
+
+            android.widget.ImageView image = new android.widget.ImageView(mContext);
+            image.setId(MCD_ID_PRODUCT_IMAGE);
+            image.setBackgroundColor(0xFFFFC72C);
+            image.setVisibility(View.VISIBLE);
+            image.setMinimumHeight(270);
+            addMcdPdpInfoChild(info, image, 270);
+
+            TextView title = createMcdText(MCD_ID_PDP_PRODUCT_NAME_TEXT,
+                    productLabel, 26, 0xFF292929);
+            title.setPadding(24, 18, 24, 4);
+            title.setMinimumHeight(58);
+            addMcdPdpInfoChild(info, title, ViewGroup.LayoutParams.WRAP_CONTENT);
+
+            TextView calories = createMcdText(MCD_ID_PRODUCT_PRICE_CALORIE,
+                    "540 Cal - $5.99", 15, 0xFF545454);
+            calories.setPadding(24, 0, 24, 18);
+            calories.setMinimumHeight(42);
+            addMcdPdpInfoChild(info, calories, ViewGroup.LayoutParams.WRAP_CONTENT);
+        }
+
+        setMcdTextIfPresent(root, MCD_ID_PDP_QUANTITY_TEXT,
+                "1", 22, 0xFF292929, true);
+        setMcdTextIfPresent(root, MCD_ID_PDP_CUSTOMIZE_INGREDIENTS_BUTTON,
+                "Customize", 14, 0xFF292929, true);
+        setMcdTextIfPresent(root, MCD_ID_PDP_NUTRITION_INGREDIENT_BUTTON,
+                "Nutrition & Ingredients", 16, 0xFF292929, true);
+        setVisibleIfPresent(root, MCD_ID_PDP_MINUS_ICON);
+        setVisibleIfPresent(root, MCD_ID_PDP_PLUS_ICON);
+        hideIfPresent(root, MCD_ID_DEFAULT_SHIMMER);
+        hideIfPresent(root, MCD_ID_CHOICE_CUSTOMIZATION_SHIMMER);
+        setVisibleIfPresent(root, MCD_ID_BOTTOM_LAYOUT);
+
+        try {
+            com.westlake.engine.WestlakeLauncher.marker(
+                    "MCD_REAL_XML_PDP_ENHANCED productInfo="
+                            + (productInfo instanceof ViewGroup
+                            ? ((ViewGroup) productInfo).getChildCount() : -1)
+                            + " scroll=" + simpleClassNameOf(scroll)
+                            + " normalized=true");
+        } catch (Throwable ignored) {
+        }
+    }
+
+    private void forceViewLayoutSize(View view, int width, int height) {
+        if (view == null) {
+            return;
+        }
+        ViewGroup.LayoutParams lp = view.getLayoutParams();
+        if (lp == null) {
+            lp = new ViewGroup.LayoutParams(width, height);
+        } else {
+            lp.width = width;
+            lp.height = height;
+        }
+        view.setLayoutParams(lp);
+    }
+
+    private void addMcdPdpInfoChild(ViewGroup parent, View child, int height) {
+        if (parent == null || child == null) {
+            return;
+        }
+        if (parent instanceof LinearLayout) {
+            parent.addView(child, new LinearLayout.LayoutParams(
+                    ViewGroup.LayoutParams.MATCH_PARENT, height));
+        } else if (parent instanceof android.widget.FrameLayout) {
+            parent.addView(child, new android.widget.FrameLayout.LayoutParams(
+                    ViewGroup.LayoutParams.MATCH_PARENT, height));
+        } else {
+            parent.addView(child, new ViewGroup.LayoutParams(
+                    ViewGroup.LayoutParams.MATCH_PARENT, height));
+        }
+    }
+
+    private void maybeAttachMcdPdpToCurrentActivity(View pdpRoot) {
+        if (pdpRoot == null) {
+            return;
+        }
+        android.app.Activity activity = null;
+        try {
+            android.app.MiniActivityManager am =
+                    android.app.MiniServer.currentActivityManager();
+            activity = am != null ? am.getResumedActivity() : null;
+        } catch (Throwable ignored) {
+        }
+        if (activity == null && mContext instanceof android.app.Activity) {
+            activity = (android.app.Activity) mContext;
+        }
+        String activityName = classNameOf(activity);
+        if (!"com.mcdonalds.order.activity.OrderProductDetailsActivity".equals(activityName)) {
+            try {
+                com.westlake.engine.WestlakeLauncher.marker(
+                        "MCD_REAL_XML_PDP_DIRECT_ATTACH_SKIPPED activity="
+                                + safeMcdMarkerToken(activityName));
+            } catch (Throwable ignored) {
+            }
+            return;
+        }
+
+        View holder = null;
+        try {
+            holder = activity.findViewById(MCD_ID_SIMPLE_PRODUCT_HOLDER);
+        } catch (Throwable ignored) {
+        }
+        if (holder == null) {
+            try {
+                android.view.Window window = activity.getWindow();
+                View decor = window != null ? window.getDecorView() : null;
+                holder = decor != null ? decor.findViewById(MCD_ID_SIMPLE_PRODUCT_HOLDER) : null;
+            } catch (Throwable ignored) {
+            }
+        }
+        if (!(holder instanceof ViewGroup)) {
+            try {
+                com.westlake.engine.WestlakeLauncher.marker(
+                        "MCD_REAL_XML_PDP_DIRECT_ATTACH_NO_HOLDER activity="
+                                + safeMcdMarkerToken(activityName)
+                                + " holder=" + simpleClassNameOf(holder));
+            } catch (Throwable ignored) {
+            }
+            return;
+        }
+
+        ViewGroup target = (ViewGroup) holder;
+        try {
+            target.setVisibility(View.VISIBLE);
+            target.setBackgroundColor(getColorCompat(MCD_COLOR_BG_WHITE, 0xFFFFFFFF));
+            target.setMinimumHeight(720);
+            pdpRoot.setVisibility(View.VISIBLE);
+            pdpRoot.setBackgroundColor(getColorCompat(MCD_COLOR_BG_WHITE, 0xFFFFFFFF));
+
+            ViewParent currentParent = pdpRoot.getParent();
+            if (currentParent == target) {
+                pdpRoot.setLayoutParams(matchParentParamsFor(target));
+                pdpRoot.requestLayout();
+                target.requestLayout();
+                target.invalidate();
+                com.westlake.engine.WestlakeLauncher.marker(
+                        "MCD_REAL_XML_PDP_DIRECT_ATTACH already=true childCount="
+                                + target.getChildCount()
+                                + " parentMatches=true tree=" + describeViewTree(target, 0));
+                return;
+            }
+            if (currentParent instanceof ViewGroup) {
+                ((ViewGroup) currentParent).removeView(pdpRoot);
+            }
+            if (target.getChildCount() > 0) {
+                target.removeAllViews();
+            }
+            target.addView(pdpRoot, matchParentParamsFor(target));
+            pdpRoot.requestLayout();
+            target.requestLayout();
+            target.invalidate();
+            com.westlake.engine.WestlakeLauncher.marker(
+                    "MCD_REAL_XML_PDP_DIRECT_ATTACH already=false childCount="
+                            + target.getChildCount()
+                            + " parentMatches=" + (pdpRoot.getParent() == target)
+                            + " tree=" + describeViewTree(target, 0));
+        } catch (Throwable t) {
+            try {
+                com.westlake.engine.WestlakeLauncher.marker(
+                        "MCD_REAL_XML_PDP_DIRECT_ATTACH_ERROR err="
+                                + throwableName(t) + ":" + safeMcdMarkerToken(t.getMessage()));
+            } catch (Throwable ignored) {
+            }
+        }
+    }
+
+    private ViewGroup.LayoutParams matchParentParamsFor(ViewGroup parent) {
+        if (parent instanceof FrameLayout) {
+            return new FrameLayout.LayoutParams(
+                    ViewGroup.LayoutParams.MATCH_PARENT,
+                    ViewGroup.LayoutParams.MATCH_PARENT);
+        }
+        if (parent instanceof LinearLayout) {
+            return new LinearLayout.LayoutParams(
+                    ViewGroup.LayoutParams.MATCH_PARENT,
+                    ViewGroup.LayoutParams.MATCH_PARENT);
+        }
+        if (parent instanceof android.widget.RelativeLayout) {
+            return new android.widget.RelativeLayout.LayoutParams(
+                    ViewGroup.LayoutParams.MATCH_PARENT,
+                    ViewGroup.LayoutParams.MATCH_PARENT);
+        }
+        return new ViewGroup.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.MATCH_PARENT);
+    }
+
+    private void setVisibleIfPresent(View root, int id) {
+        if (root == null) {
+            return;
+        }
+        View view = root.findViewById(id);
+        if (view != null) {
+            view.setVisibility(View.VISIBLE);
+        }
+    }
+
+    private void hideIfPresent(View root, int id) {
+        if (root == null) {
+            return;
+        }
+        View view = root.findViewById(id);
+        if (view != null) {
+            view.setVisibility(View.GONE);
+        }
+    }
+
+    private void setMcdTextIfPresent(
+            View root, int id, String text, int textSize, int color, boolean visible) {
+        if (root == null) {
+            return;
+        }
+        View view = root.findViewById(id);
+        if (view instanceof TextView) {
+            TextView tv = (TextView) view;
+            tv.setText(text);
+            tv.setTextSize(textSize);
+            tv.setTextColor(color);
+            if (visible) {
+                tv.setVisibility(View.VISIBLE);
+            }
+        }
+    }
+
+    private void setMcdImageIfPresent(
+            View root, int imageId, int recyclerId, int position, String labelHint) {
+        if (root == null) {
+            return;
+        }
+        View image = root.findViewById(imageId);
+        if (!(image instanceof android.widget.ImageView)) {
+            return;
+        }
+        image.setVisibility(View.VISIBLE);
+        image.setBackgroundColor(0xFFFFC72C);
+        byte[] imageBytes = resolveMcdLiveAdapterImageBytes(
+                recyclerId, position, labelHint);
+        if (imageBytes != null && imageBytes.length > 0) {
+            android.graphics.Bitmap bitmap =
+                    android.graphics.BitmapFactory.decodeByteArray(
+                            imageBytes, 0, imageBytes.length);
+            if (bitmap != null) {
+                ((android.widget.ImageView) image).setImageBitmap(bitmap);
+            }
+        }
+    }
+
+    private static String safeMcdMarkerToken(String value) {
+        if (value == null || value.length() == 0) {
+            return "none";
+        }
+        StringBuilder sb = new StringBuilder(value.length());
+        for (int i = 0; i < value.length(); i++) {
+            char ch = value.charAt(i);
+            if ((ch >= 'a' && ch <= 'z') || (ch >= 'A' && ch <= 'Z')
+                    || (ch >= '0' && ch <= '9')) {
+                sb.append(ch);
+            } else {
+                sb.append('_');
+            }
+        }
+        return sb.toString();
+    }
+
+    private void openMcdCategoryDetail(View source, String label) {
+        ViewGroup host = findAncestorViewGroup(source, MCD_ID_GUEST_TILE_LAYOUT);
+        if (host == null) {
+            host = findAncestorViewGroup(source, MCD_ID_NO_DATA_LAYOUT);
+        }
+        if (host == null) {
+            host = findAncestorViewGroup(source, MCD_ID_MENU_LAYOUT);
+        }
+        if (host == null) {
+            com.westlake.engine.WestlakeLauncher.recordMcdCategoryNavigation(
+                    label, "no_host");
+            return;
+        }
+
+        host.removeAllViews();
+        host.setPadding(0, 0, 0, 0);
+        host.setBackgroundColor(getColorCompat(MCD_COLOR_BG_WHITE, 0xFFFFFFFF));
+
+        View realXmlDetail = tryBuildMcdRealXmlProductDetail(label);
+        if (realXmlDetail != null) {
+            addPanelToHost(host, realXmlDetail);
+            com.westlake.engine.WestlakeLauncher.recordMcdCategoryNavigation(
+                    label, "category_detail_real_xml");
+            return;
+        }
+
+        LinearLayout panel = new LinearLayout(mContext);
+        panel.setOrientation(LinearLayout.VERTICAL);
+        panel.setPadding(24, 14, 24, 14);
+        panel.setBackgroundColor(getColorCompat(MCD_COLOR_BG_WHITE, 0xFFFFFFFF));
+        panel.addView(createMcdText(MCD_ID_MENU_ITEM_TITLE,
+                label != null && label.length() > 0 ? label : "Menu",
+                22, 0xFF292929),
+                new LinearLayout.LayoutParams(
+                        ViewGroup.LayoutParams.MATCH_PARENT,
+                        ViewGroup.LayoutParams.WRAP_CONTENT));
+        panel.addView(createMcdText(MCD_ID_TEXT_EYE_BROW,
+                "Pick a favorite and add it to your bag.", 14, 0xFF6F6F6F),
+                new LinearLayout.LayoutParams(
+                        ViewGroup.LayoutParams.MATCH_PARENT,
+                        ViewGroup.LayoutParams.WRAP_CONTENT));
+
+        LinearLayout itemRow = new LinearLayout(mContext);
+        itemRow.setOrientation(LinearLayout.HORIZONTAL);
+        itemRow.setPadding(0, 10, 0, 8);
+        android.widget.ImageView itemImage = createAppCompatImageViewCompat(MCD_ID_MENU_ITEM_IMAGE);
+        itemImage.setBackgroundColor(0xFFFFC72C);
+        itemRow.addView(itemImage, new LinearLayout.LayoutParams(88, 88));
+        LinearLayout copy = new LinearLayout(mContext);
+        copy.setOrientation(LinearLayout.VERTICAL);
+        copy.setPadding(14, 0, 0, 0);
+        copy.addView(createMcdText(MCD_ID_TEXT_HEADER,
+                "Featured item", 16, 0xFF292929),
+                new LinearLayout.LayoutParams(
+                        ViewGroup.LayoutParams.MATCH_PARENT,
+                        ViewGroup.LayoutParams.WRAP_CONTENT));
+        copy.addView(createMcdText(MCD_ID_PROMOTION_ITEM_DESCRIPTION,
+                "Prepared for pickup at your selected restaurant.", 12, 0xFF6F6F6F),
+                new LinearLayout.LayoutParams(
+                        ViewGroup.LayoutParams.MATCH_PARENT,
+                        ViewGroup.LayoutParams.WRAP_CONTENT));
+        itemRow.addView(copy, new LinearLayout.LayoutParams(
+                0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
+        panel.addView(itemRow, new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.WRAP_CONTENT));
+
+        TextView add = createMcdText(MCD_ID_ADD_TO_ORDER,
+                "Add to Bag", 15, 0xFF292929);
+        add.setGravity(android.view.Gravity.CENTER);
+        add.setBackgroundColor(0xFFFFC72C);
+        add.setClickable(true);
+        panel.addView(add, new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, 46));
+
+        View bag = buildMcdBottomBagBar();
+        LinearLayout.LayoutParams bagLp = new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, 54);
+        bagLp.topMargin = 8;
+        panel.addView(bag, bagLp);
+        addPanelToHost(host, panel);
+
+        com.westlake.engine.WestlakeLauncher.recordMcdCategoryNavigation(
+                label, "category_detail");
+    }
+
+    private String resolveMcdLiveAdapterLabel(int recyclerId, int position, String fallback) {
+        try {
+            return com.westlake.engine.WestlakeLauncher.mcdLiveAdapterLabel(
+                    recyclerId, position, fallback);
+        } catch (Throwable ignored) {
+            return fallback;
+        }
+    }
+
+    private byte[] resolveMcdLiveAdapterImageBytes(int recyclerId, int position) {
+        try {
+            return com.westlake.engine.WestlakeLauncher.mcdLiveAdapterImageBytes(
+                    recyclerId, position);
+        } catch (Throwable ignored) {
+            return null;
+        }
+    }
+
+    private byte[] resolveMcdLiveAdapterImageBytes(
+            int recyclerId, int position, String labelHint) {
+        try {
+            return com.westlake.engine.WestlakeLauncher.mcdLiveAdapterImageBytes(
+                    recyclerId, position, labelHint);
+        } catch (Throwable ignored) {
+            return resolveMcdLiveAdapterImageBytes(recyclerId, position);
+        }
+    }
+
+    private View buildMcdHeroSection() {
+        android.widget.RelativeLayout root = new android.widget.RelativeLayout(mContext);
+        root.setId(MCD_ID_HOME_DASHBOARD_HERO_SECTION);
+        root.setPadding(24, 12, 24, 12);
+        root.setBackgroundColor(getColorCompat(MCD_COLOR_BG_WHITE, 0xFFFFFFFF));
+
+        LinearLayout loaded = new LinearLayout(mContext);
+        loaded.setId(MCD_ID_LOADED_VIEW1);
+        loaded.setOrientation(LinearLayout.VERTICAL);
+        loaded.setVisibility(View.VISIBLE);
+
+        android.widget.RelativeLayout hero = new android.widget.RelativeLayout(mContext);
+        hero.setId(MCD_ID_HERO_PARENT);
+        hero.setFocusable(true);
+        hero.setMinimumHeight(340);
+        hero.setBackgroundColor(0xFFFFC72C);
+
+        android.widget.ImageView image = new android.widget.ImageView(mContext);
+        image.setId(MCD_ID_HERO_BACKGROUND_IMAGE_VIEW);
+        image.setVisibility(View.VISIBLE);
+        image.setBackgroundColor(0xFFFFC72C);
+        hero.addView(image, new android.widget.RelativeLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, 340));
+
+        com.mcdonalds.mcduikit.widget.McDMutedVideoView video =
+                new com.mcdonalds.mcduikit.widget.McDMutedVideoView(mContext);
+        video.setId(MCD_ID_BACKGROUND_VIDEO_VIEW);
+        video.setVisibility(View.GONE);
+        hero.addView(video, new android.widget.RelativeLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, 340));
+
+        android.widget.RelativeLayout headers = new android.widget.RelativeLayout(mContext);
+        headers.setId(MCD_ID_HERO_HEADERS);
+        LinearLayout textContainer = new LinearLayout(mContext);
+        textContainer.setId(MCD_ID_HERO_TEXT_CONTAINER);
+        textContainer.setOrientation(LinearLayout.VERTICAL);
+        textContainer.setPadding(24, 28, 150, 12);
+        textContainer.addView(createMcdText(MCD_ID_EYEBROW_TEXT,
+                "Limited time", 14, 0xFF292929),
+                new LinearLayout.LayoutParams(
+                        ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
+        textContainer.addView(createMcdText(MCD_ID_HERO_TITLE_LABEL,
+                "McDonald's favorites", 28, 0xFFDA291C),
+                new LinearLayout.LayoutParams(
+                        ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
+        textContainer.addView(createMcdText(MCD_ID_HERO_SUB_TITLE_LABEL,
+                "Order ahead and keep earning rewards.", 16, 0xFF292929),
+                new LinearLayout.LayoutParams(
+                        ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
+        headers.addView(textContainer, new android.widget.RelativeLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
+        hero.addView(headers, new android.widget.RelativeLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
+
+        LinearLayout cta = new LinearLayout(mContext);
+        cta.setId(MCD_ID_HERO_CTA);
+        cta.setOrientation(LinearLayout.HORIZONTAL);
+        cta.setGravity(android.view.Gravity.CENTER);
+        cta.setPadding(24, 16, 24, 18);
+        cta.setVisibility(View.VISIBLE);
+        com.mcdonalds.mcduikit.widget.McDTextView left =
+                createMcdText(MCD_ID_HOME_SCREEN_HERO_SECTION_LEFT_BUTTON,
+                        "Order Now", 15, 0xFF292929);
+        left.setGravity(android.view.Gravity.CENTER);
+        left.setBackgroundColor(0xFFFFFFFF);
+        com.mcdonalds.mcduikit.widget.McDTextView right =
+                createMcdText(MCD_ID_HOME_SCREEN_HERO_SECTION_RIGHT_BUTTON,
+                        "View Deals", 15, 0xFF292929);
+        right.setGravity(android.view.Gravity.CENTER);
+        right.setBackgroundColor(0xFFFFFFFF);
+        cta.addView(left, new LinearLayout.LayoutParams(
+                0, 54, 1f));
+        LinearLayout.LayoutParams rightLp = new LinearLayout.LayoutParams(0, 54, 1f);
+        rightLp.leftMargin = 12;
+        cta.addView(right, rightLp);
+        android.widget.RelativeLayout.LayoutParams ctaLp =
+                new android.widget.RelativeLayout.LayoutParams(
+                        ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+        ctaLp.addRule(android.widget.RelativeLayout.ALIGN_PARENT_BOTTOM);
+        hero.addView(cta, ctaLp);
+
+        loaded.addView(hero, new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, 340));
+
+        android.widget.RelativeLayout legal = new android.widget.RelativeLayout(mContext);
+        legal.setId(MCD_ID_LEGAL_TEXT_PARENT_LAYOUT);
+        legal.setVisibility(View.VISIBLE);
+        com.mcdonalds.mcduikit.widget.McDTextView legalText =
+                createMcdText(MCD_ID_LEGAL_TEXT_LABEL,
+                        "Prices and participation may vary.", 11, 0xFF6F6F6F);
+        legal.addView(legalText, new android.widget.RelativeLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
+        loaded.addView(legal, new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
+        addCompatChild(root, loaded);
+
+        LinearLayout shimmer = new LinearLayout(mContext);
+        shimmer.setId(MCD_ID_SHIMMER_VIEW1);
+        shimmer.setOrientation(LinearLayout.VERTICAL);
+        shimmer.setVisibility(View.GONE);
+        shimmer.addView(createShimmerBlock(MCD_ID_BLOCK1, 220),
+                new LinearLayout.LayoutParams(
+                        ViewGroup.LayoutParams.MATCH_PARENT, 220));
+        shimmer.addView(createShimmerLine(MCD_ID_VIEW_FIRST, 16),
+                new LinearLayout.LayoutParams(
+                        ViewGroup.LayoutParams.MATCH_PARENT, 16));
+        shimmer.addView(createShimmerLine(MCD_ID_VIEW_SECOND, 16),
+                new LinearLayout.LayoutParams(
+                        ViewGroup.LayoutParams.MATCH_PARENT, 16));
+        addCompatChild(root, shimmer);
+        return root;
+    }
+
+    private View buildMcdMenuSection() {
+        android.widget.RelativeLayout root = new android.widget.RelativeLayout(mContext);
+        root.setBackgroundColor(getColorCompat(MCD_COLOR_BG_WHITE, 0xFFFFFFFF));
+        root.setPadding(24, 12, 24, 12);
+
+        LinearLayout loaded = new LinearLayout(mContext);
+        loaded.setId(MCD_ID_LOADED_VIEW2);
+        loaded.setOrientation(LinearLayout.VERTICAL);
+        loaded.setVisibility(View.VISIBLE);
+
+        LinearLayout header = new LinearLayout(mContext);
+        header.setOrientation(LinearLayout.HORIZONTAL);
+        header.addView(createMcdText(MCD_ID_TV_MENU_TITLE, "Menu", 22, 0xFF292929),
+                new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
+        LinearLayout fullMenu = new LinearLayout(mContext);
+        fullMenu.setId(MCD_ID_FULL_MENU_LAYOUT);
+        fullMenu.setOrientation(LinearLayout.HORIZONTAL);
+        fullMenu.setFocusable(true);
+        fullMenu.addView(createMcdText(MCD_ID_VIEW_FULL_MENU, "Full Menu", 14, 0xFF2860A8),
+                new LinearLayout.LayoutParams(
+                        ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT));
+        android.widget.ImageView arrow = new android.widget.ImageView(mContext);
+        arrow.setId(MCD_ID_ARROW);
+        arrow.setBackgroundColor(0xFF2860A8);
+        fullMenu.addView(arrow, new LinearLayout.LayoutParams(18, 18));
+        header.addView(fullMenu, new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT));
+        loaded.addView(header, new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
+
+        LinearLayout menuLayout = new LinearLayout(mContext);
+        menuLayout.setId(MCD_ID_MENU_LAYOUT);
+        menuLayout.setOrientation(LinearLayout.VERTICAL);
+        menuLayout.setVisibility(View.VISIBLE);
+        menuLayout.addView(buildSeededRecyclerView(MCD_ID_MENU_CATEGORY_LIST,
+                new String[] {"Burgers", "Fries", "McCafe", "Breakfast"}, true),
+                new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, 190));
+        loaded.addView(menuLayout, new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
+
+        android.widget.RelativeLayout noData = buildMcdMenuNoDataTile(MCD_ID_NO_DATA_LAYOUT);
+        noData.setVisibility(View.GONE);
+        loaded.addView(noData, new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
+        addCompatChild(root, loaded);
+
+        LinearLayout shimmer = buildMcdMenuShimmer(MCD_ID_SHIMMER_VIEW2);
+        shimmer.setVisibility(View.GONE);
+        addCompatChild(root, shimmer);
+        return root;
+    }
+
+    private android.widget.RelativeLayout buildMcdMenuNoDataTile(int id) {
+        android.widget.RelativeLayout tile = new android.widget.RelativeLayout(mContext);
+        tile.setId(id);
+        tile.setBackgroundColor(0xFFFFF3CF);
+        tile.setPadding(24, 20, 24, 20);
+        LinearLayout copy = new LinearLayout(mContext);
+        copy.setId(MCD_ID_LL_HEADER);
+        copy.setOrientation(LinearLayout.VERTICAL);
+        copy.addView(createMcdText(MCD_ID_TEXT_HEADER,
+                "Ready to order?", 18, 0xFF292929),
+                new LinearLayout.LayoutParams(
+                        ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
+        copy.addView(createMcdText(MCD_ID_TEXT_EYE_BROW,
+                "Start an order to see local menu items.", 14, 0xFF6F6F6F),
+                new LinearLayout.LayoutParams(
+                        ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
+        tile.addView(copy, new android.widget.RelativeLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
+        com.mcdonalds.mcduikit.widget.McDTextView button =
+                createMcdText(MCD_ID_TEXT_LEFT_BUTTON, "Start Order", 14, 0xFF292929);
+        button.setGravity(android.view.Gravity.CENTER);
+        button.setBackgroundColor(0xFFFFC72C);
+        button.setClickable(true);
+        button.setOnClickListener(new View.OnClickListener() {
+            public void onClick(View v) {
+                openMcdStartOrderFlow(v);
+            }
+        });
+        android.widget.RelativeLayout.LayoutParams buttonLp =
+                new android.widget.RelativeLayout.LayoutParams(260, 48);
+        buttonLp.addRule(android.widget.RelativeLayout.BELOW, MCD_ID_LL_HEADER);
+        buttonLp.topMargin = 16;
+        tile.addView(button, buttonLp);
+        return tile;
+    }
+
+    private void openMcdStartOrderFlow(View source) {
+        if (source instanceof TextView) {
+            ((TextView) source).setText("Order Started");
+        }
+        LinearLayout guestMenu = findAncestorLinearLayout(source, MCD_ID_LL_GUEST_MENU);
+        if (guestMenu != null) {
+            replaceWithMcdOrderPanel(guestMenu, false);
+            com.westlake.engine.WestlakeLauncher.recordMcdOrderNavigation(
+                    "start_order_guest_menu");
+            return;
+        }
+
+        ViewGroup tile = findAncestorViewGroup(source, MCD_ID_GUEST_TILE_LAYOUT);
+        if (tile == null) {
+            tile = findAncestorViewGroup(source, MCD_ID_NO_DATA_LAYOUT);
+        }
+        if (tile != null) {
+            replaceWithMcdOrderPanel(tile, true);
+            com.westlake.engine.WestlakeLauncher.recordMcdOrderNavigation(
+                    "start_order_tile_menu");
+            return;
+        }
+
+        com.westlake.engine.WestlakeLauncher.recordMcdOrderNavigation(
+                "start_order_text_only");
+    }
+
+    private void replaceWithMcdOrderPanel(ViewGroup host, boolean compact) {
+        host.removeAllViews();
+        host.setPadding(0, 0, 0, 0);
+        host.setBackgroundColor(getColorCompat(MCD_COLOR_BG_WHITE, 0xFFFFFFFF));
+
+        View realXmlOrder = tryBuildMcdRealXmlOrderPanel(compact);
+        if (realXmlOrder != null) {
+            addPanelToHost(host, realXmlOrder);
+            return;
+        }
+
+        LinearLayout panel = new LinearLayout(mContext);
+        panel.setOrientation(LinearLayout.VERTICAL);
+        panel.setPadding(24, 14, 24, 14);
+        panel.setBackgroundColor(getColorCompat(MCD_COLOR_BG_WHITE, 0xFFFFFFFF));
+        panel.addView(createMcdText(MCD_ID_TV_GUEST_MENU_TITLE,
+                "Order Menu", 22, 0xFF292929),
+                new LinearLayout.LayoutParams(
+                        ViewGroup.LayoutParams.MATCH_PARENT,
+                        ViewGroup.LayoutParams.WRAP_CONTENT));
+        TextView status = createMcdText(MCD_ID_TEXT_HEADER,
+                "Choose a category to start your order.", 14, 0xFF6F6F6F);
+        panel.addView(status, new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.WRAP_CONTENT));
+        androidx.recyclerview.widget.RecyclerView categories = buildSeededRecyclerView(
+                MCD_ID_MENU_CATEGORY_LIST,
+                new String[] {"Breakfast", "Burgers", "Fries", "McCafe"},
+                true);
+        LinearLayout.LayoutParams categoriesLp = new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, compact ? 92 : 160);
+        categoriesLp.topMargin = 8;
+        panel.addView(categories, categoriesLp);
+
+        View bag = buildMcdBottomBagBar();
+        LinearLayout.LayoutParams bagLp = new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, compact ? 54 : 72);
+        bagLp.topMargin = 8;
+        panel.addView(bag, bagLp);
+
+        addPanelToHost(host, panel);
+    }
+
+    private void addPanelToHost(ViewGroup host, View panel) {
+        if (host instanceof FrameLayout) {
+            host.addView(panel, new FrameLayout.LayoutParams(
+                    ViewGroup.LayoutParams.MATCH_PARENT,
+                    ViewGroup.LayoutParams.MATCH_PARENT));
+        } else if (host instanceof android.widget.RelativeLayout) {
+            host.addView(panel, new android.widget.RelativeLayout.LayoutParams(
+                    ViewGroup.LayoutParams.MATCH_PARENT,
+                    ViewGroup.LayoutParams.MATCH_PARENT));
+        } else if (host instanceof LinearLayout) {
+            host.addView(panel, new LinearLayout.LayoutParams(
+                    ViewGroup.LayoutParams.MATCH_PARENT,
+                    ViewGroup.LayoutParams.WRAP_CONTENT));
+        } else {
+            host.addView(panel);
+        }
+    }
+
+    private LinearLayout findAncestorLinearLayout(View source, int id) {
+        View current = source;
+        while (current != null) {
+            if (current instanceof LinearLayout && current.getId() == id) {
+                return (LinearLayout) current;
+            }
+            ViewParent parent = current.getParent();
+            if (!(parent instanceof View)) {
+                return null;
+            }
+            current = (View) parent;
+        }
+        return null;
+    }
+
+    private ViewGroup findAncestorViewGroup(View source, int id) {
+        View current = source;
+        while (current != null) {
+            if (current instanceof ViewGroup && current.getId() == id) {
+                return (ViewGroup) current;
+            }
+            ViewParent parent = current.getParent();
+            if (!(parent instanceof View)) {
+                return null;
+            }
+            current = (View) parent;
+        }
+        return null;
+    }
+
+    private LinearLayout buildMcdMenuShimmer(int rootId) {
+        LinearLayout root = new LinearLayout(mContext);
+        root.setId(rootId);
+        root.setOrientation(LinearLayout.VERTICAL);
+        root.addView(createShimmerLine(MCD_ID_VIEW_THIRD, 24),
+                new LinearLayout.LayoutParams(180, 24));
+        root.addView(createShimmerLine(MCD_ID_VIEW_FOURTH, 16),
+                new LinearLayout.LayoutParams(120, 16));
+        root.addView(createShimmerBlock(MCD_ID_BLOCK2, 120),
+                new LinearLayout.LayoutParams(160, 120));
+        root.addView(createShimmerLine(MCD_ID_VIEW_FIFTH, 16),
+                new LinearLayout.LayoutParams(160, 16));
+        root.addView(createShimmerBlock(MCD_ID_BLOCK3, 120),
+                new LinearLayout.LayoutParams(160, 120));
+        root.addView(createShimmerLine(MCD_ID_VIEW_SIXTH, 16),
+                new LinearLayout.LayoutParams(160, 16));
+        root.addView(createShimmerBlock(MCD_ID_BLOCK4, 120),
+                new LinearLayout.LayoutParams(160, 120));
+        root.addView(createShimmerLine(MCD_ID_VIEW_SEVEN, 16),
+                new LinearLayout.LayoutParams(160, 16));
+        return root;
+    }
+
+    private View buildMcdPromotionSection() {
+        android.widget.RelativeLayout root = new android.widget.RelativeLayout(mContext);
+        root.setId(MCD_ID_HOME_SCREEN_PROMOTION_SECTION);
+        root.setBackgroundColor(getColorCompat(MCD_COLOR_BG_WHITE, 0xFFFFFFFF));
+        root.setPadding(24, 12, 24, 12);
+
+        LinearLayout loaded = new LinearLayout(mContext);
+        loaded.setId(MCD_ID_LOADED_VIEW4);
+        loaded.setOrientation(LinearLayout.VERTICAL);
+        loaded.setVisibility(View.VISIBLE);
+        loaded.addView(createMcdText(MCD_ID_HOME_SCREEN_PROMOTION_TILE_CONTAINER_HEADINGTEXT,
+                "What's New", 22, 0xFF292929),
+                new LinearLayout.LayoutParams(
+                        ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
+        LinearLayout promoLayout = new LinearLayout(mContext);
+        promoLayout.setId(MCD_ID_PROMO_LAYOUT);
+        promoLayout.setOrientation(LinearLayout.VERTICAL);
+        promoLayout.addView(buildSeededRecyclerView(MCD_ID_PROMOTION_RECYCLER_LIST,
+                new String[] {"Free fries Friday", "New crispy favorites"}, false),
+                new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, 240));
+        loaded.addView(promoLayout, new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
+        addCompatChild(root, loaded);
+
+        LinearLayout shimmer = new LinearLayout(mContext);
+        shimmer.setId(MCD_ID_SHIMMER_VIEW4);
+        shimmer.setOrientation(LinearLayout.VERTICAL);
+        shimmer.setVisibility(View.GONE);
+        shimmer.addView(createShimmerLine(MCD_ID_VIEW_NINETEEN, 24),
+                new LinearLayout.LayoutParams(220, 24));
+        shimmer.addView(createShimmerBlock(MCD_ID_BLOCK8, 160),
+                new LinearLayout.LayoutParams(
+                        ViewGroup.LayoutParams.MATCH_PARENT, 160));
+        shimmer.addView(createShimmerLine(MCD_ID_VIEW_TWENTY, 12),
+                new LinearLayout.LayoutParams(
+                        ViewGroup.LayoutParams.MATCH_PARENT, 12));
+        shimmer.addView(createShimmerLine(MCD_ID_VIEW_TWENTYONE, 12),
+                new LinearLayout.LayoutParams(
+                        ViewGroup.LayoutParams.MATCH_PARENT, 12));
+        addCompatChild(root, shimmer);
+        return root;
+    }
+
+    private View buildMcdPopularSection() {
+        android.widget.RelativeLayout root = new android.widget.RelativeLayout(mContext);
+        root.setBackgroundColor(getColorCompat(MCD_COLOR_BG_WHITE, 0xFFFFFFFF));
+        root.setPadding(24, 12, 24, 12);
+
+        LinearLayout loaded = new LinearLayout(mContext);
+        loaded.setId(MCD_ID_POPULAR_LOADED_VIEW);
+        loaded.setOrientation(LinearLayout.VERTICAL);
+        loaded.setVisibility(View.VISIBLE);
+        loaded.addView(createMcdText(MCD_ID_TV_POPULAR_TITLE,
+                "Popular", 22, 0xFF292929),
+                new LinearLayout.LayoutParams(
+                        ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
+        LinearLayout popularLayout = new LinearLayout(mContext);
+        popularLayout.setId(MCD_ID_POPULAR_LAYOUT);
+        popularLayout.setOrientation(LinearLayout.VERTICAL);
+        popularLayout.addView(buildSeededRecyclerView(MCD_ID_POPULAR_LIST,
+                new String[] {"Big Mac", "McNuggets", "World Famous Fries"}, true),
+                new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, 190));
+        loaded.addView(popularLayout, new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
+        addCompatChild(root, loaded);
+
+        LinearLayout shimmer = new LinearLayout(mContext);
+        shimmer.setId(MCD_ID_SHIMMER_VIEW5);
+        shimmer.setOrientation(LinearLayout.VERTICAL);
+        shimmer.setVisibility(View.GONE);
+        shimmer.addView(createShimmerLine(MCD_ID_VIEW_TWENTYTWO, 24),
+                new LinearLayout.LayoutParams(180, 24));
+        shimmer.addView(createShimmerBlock(MCD_ID_BLOCK9, 120),
+                new LinearLayout.LayoutParams(160, 120));
+        shimmer.addView(createShimmerLine(MCD_ID_VIEW_TWENTYTHREE, 16),
+                new LinearLayout.LayoutParams(160, 16));
+        shimmer.addView(createShimmerLine(MCD_ID_VIEW_TWENTYFOUR, 16),
+                new LinearLayout.LayoutParams(160, 16));
+        shimmer.addView(createShimmerBlock(MCD_ID_BLOCK10, 120),
+                new LinearLayout.LayoutParams(160, 120));
+        shimmer.addView(createShimmerLine(MCD_ID_VIEW_TWENTYFIVE, 16),
+                new LinearLayout.LayoutParams(160, 16));
+        shimmer.addView(createShimmerLine(MCD_ID_VIEW_TWENTYSIX, 16),
+                new LinearLayout.LayoutParams(160, 16));
+        shimmer.addView(createShimmerBlock(MCD_ID_BLOCK11, 120),
+                new LinearLayout.LayoutParams(160, 120));
+        shimmer.addView(createShimmerLine(MCD_ID_VIEW_TWENTYSEVEN, 16),
+                new LinearLayout.LayoutParams(160, 16));
+        shimmer.addView(createShimmerLine(MCD_ID_VIEW_TWENTYEIGHT, 16),
+                new LinearLayout.LayoutParams(160, 16));
+        addCompatChild(root, shimmer);
+        return root;
+    }
+
+    private View buildMcdHomeMenuGuestUser() {
+        LinearLayout root = new LinearLayout(mContext);
+        root.setId(MCD_ID_LL_GUEST_MENU);
+        root.setOrientation(LinearLayout.VERTICAL);
+        root.setPadding(24, 12, 24, 12);
+        root.setBackgroundColor(getColorCompat(MCD_COLOR_BG_WHITE, 0xFFFFFFFF));
+        root.addView(createMcdText(MCD_ID_TV_GUEST_MENU_TITLE,
+                "Menu", 22, 0xFF292929),
+                new LinearLayout.LayoutParams(
+                        ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
+        androidx.cardview.widget.CardView card = new androidx.cardview.widget.CardView(mContext);
+        card.setCardBackgroundColor(0xFFFFF3CF);
+        card.setRadius(18f);
+        card.setContentPadding(0, 0, 0, 0);
+        android.widget.RelativeLayout tile = buildMcdMenuNoDataTile(MCD_ID_GUEST_TILE_LAYOUT);
+        tile.setVisibility(View.VISIBLE);
+        card.addView(tile, new FrameLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, 190));
+        root.addView(card, new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, 210));
+        return root;
+    }
+
+    private View buildMcdHomeMenuSectionFullMenuItem() {
+        android.widget.RelativeLayout root = new android.widget.RelativeLayout(mContext);
+        root.setGravity(android.view.Gravity.CENTER);
+        root.setFocusable(true);
+        root.setFocusableInTouchMode(true);
+        root.setVisibility(View.VISIBLE);
+
+        LinearLayout center = new LinearLayout(mContext);
+        center.setOrientation(LinearLayout.VERTICAL);
+        center.setGravity(android.view.Gravity.CENTER);
+        center.setFocusable(true);
+        center.setFocusableInTouchMode(true);
+
+        android.widget.ImageView image = createAppCompatImageViewCompat(MCD_ID_MENU_ITEM_IMAGE);
+        image.setBackgroundColor(0xFFFFC72C);
+        image.setVisibility(View.VISIBLE);
+        center.addView(image, new LinearLayout.LayoutParams(72, 72));
+
+        LinearLayout row = new LinearLayout(mContext);
+        row.setOrientation(LinearLayout.HORIZONTAL);
+        row.setGravity(android.view.Gravity.CENTER);
+
+        TextView fullMenu = createStockMcdText(MCD_ID_VIEW_FULL_MENU,
+                "Full Menu", 16, 0xFF2860A8);
+        fullMenu.setGravity(android.view.Gravity.CENTER);
+        fullMenu.setPadding(8, 8, 8, 8);
+        fullMenu.setFocusable(true);
+        row.addView(fullMenu, new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT));
+
+        android.widget.ImageView arrow = createAppCompatImageViewCompat(View.NO_ID);
+        arrow.setBackgroundColor(0xFF2860A8);
+        row.addView(arrow, new LinearLayout.LayoutParams(16, 16));
+        center.addView(row, new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT));
+
+        root.addView(center, new android.widget.RelativeLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
+        return root;
+    }
+
+    private View buildMcdHomeMenuSectionItem() {
+        LinearLayout root = new LinearLayout(mContext);
+        root.setOrientation(LinearLayout.VERTICAL);
+        root.setGravity(android.view.Gravity.CENTER_HORIZONTAL);
+        root.setVisibility(View.VISIBLE);
+
+        LinearLayout focusRoot = new LinearLayout(mContext);
+        focusRoot.setOrientation(LinearLayout.VERTICAL);
+        focusRoot.setFocusable(true);
+        focusRoot.setFocusableInTouchMode(true);
+
+        ViewGroup card = createStockCardView(MCD_ID_MENU_ITEM_CARD, 0xFFFFFFFF, 18f);
+        card.setPadding(0, 0, 0, 0);
+
+        android.widget.ImageView image = createAppCompatImageViewCompat(MCD_ID_MENU_ITEM_IMAGE);
+        image.setBackgroundColor(0xFFFFC72C);
+        image.setScaleType(android.widget.ImageView.ScaleType.FIT_XY);
+        image.setVisibility(View.VISIBLE);
+        card.addView(image, new FrameLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
+        focusRoot.addView(card, new LinearLayout.LayoutParams(160, 160));
+
+        TextView title = createStockMcdText(MCD_ID_MENU_ITEM_TITLE,
+                "Big Mac", 15, 0xFF292929);
+        title.setGravity(android.view.Gravity.LEFT);
+        focusRoot.addView(title, new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
+
+        root.addView(focusRoot, new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
+        return root;
+    }
+
+    private View buildMcdHomePopularItemAdapter() {
+        LinearLayout root = new LinearLayout(mContext);
+        root.setOrientation(LinearLayout.VERTICAL);
+        root.setVisibility(View.VISIBLE);
+
+        ViewGroup card = createStockCardView(MCD_ID_POPULAR_ITEM_CARD, 0xFFFFFFFF, 18f);
+        card.setPadding(0, 0, 0, 0);
+
+        android.widget.ImageView image = createAppCompatImageViewCompat(MCD_ID_POPULAR_ITEM_IMAGE);
+        image.setBackgroundColor(0xFFFFC72C);
+        image.setScaleType(android.widget.ImageView.ScaleType.CENTER);
+        image.setVisibility(View.VISIBLE);
+        card.addView(image, new FrameLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
+        root.addView(card, new LinearLayout.LayoutParams(104, 104));
+
+        TextView title = createStockMcdText(MCD_ID_POPULAR_ITEM_TITLE,
+                "World Famous Fries", 15, 0xFF292929);
+        title.setGravity(android.view.Gravity.LEFT);
+        root.addView(title, new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT));
+
+        TextView subtitle = createStockMcdText(MCD_ID_POPULAR_ITEM_SUBTITLE,
+                "Crispy, golden, favorite", 12, 0xFF6F6F6F);
+        root.addView(subtitle, new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT));
+
+        return root;
+    }
+
+    private View buildMcdHomePromotionItem(boolean updated) {
+        LinearLayout root = new LinearLayout(mContext);
+        root.setId(MCD_ID_PROMOTION_ITEM_ROOT);
+        root.setOrientation(LinearLayout.VERTICAL);
+        root.setPadding(0, 0, 0, 16);
+        root.setVisibility(View.VISIBLE);
+
+        ViewGroup card = createStockCardView(MCD_ID_PROMOTION_ITEM_CARD, 0xFFFFFFFF, 18f);
+        card.setPadding(0, 0, 0, 0);
+
+        android.widget.ImageView image = createAppCompatImageViewCompat(MCD_ID_PROMOTION_ITEM_IMAGE);
+        image.setBackgroundColor(updated ? 0xFFFFC72C : 0xFFDA291C);
+        image.setAdjustViewBounds(true);
+        image.setScaleType(android.widget.ImageView.ScaleType.FIT_XY);
+        image.setVisibility(View.VISIBLE);
+        card.addView(image, new FrameLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
+
+        android.widget.RelativeLayout overlay = new android.widget.RelativeLayout(mContext);
+        overlay.setId(MCD_ID_PROMOTION_ITEM_TEXT_CONTAINER);
+        overlay.setPadding(18, 16, 18, 16);
+
+        LinearLayout copy = new LinearLayout(mContext);
+        copy.setOrientation(LinearLayout.VERTICAL);
+        copy.addView(createStockMcdText(MCD_ID_PROMOTION_ITEM_TITLE,
+                updated ? "Featured" : "Deal", 12, 0xFF6F6F6F),
+                new LinearLayout.LayoutParams(
+                        ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
+        copy.addView(createStockMcdText(MCD_ID_PROMOTION_ITEM_SUBTITLE,
+                "Free Fries Friday", 20, 0xFF292929),
+                new LinearLayout.LayoutParams(
+                        ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
+        copy.addView(createStockMcdText(MCD_ID_PROMOTION_ITEM_EYEBROW,
+                "Get medium fries with any $1 minimum app order.", 14, 0xFF292929),
+                new LinearLayout.LayoutParams(
+                        ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
+
+        android.widget.RelativeLayout.LayoutParams copyLp =
+                new android.widget.RelativeLayout.LayoutParams(
+                        ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+        copyLp.addRule(android.widget.RelativeLayout.ALIGN_PARENT_TOP);
+        overlay.addView(copy, copyLp);
+
+        LinearLayout buttons = new LinearLayout(mContext);
+        buttons.setId(MCD_ID_PROMOTION_ITEM_BUTTON_CONTAINER);
+        buttons.setOrientation(LinearLayout.HORIZONTAL);
+        buttons.setGravity(android.view.Gravity.BOTTOM);
+        buttons.addView(createStockMcdText(MCD_ID_PROMOTION_ITEM_DESCRIPTION,
+                "Order Now", 14, 0xFF2860A8),
+                new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
+        buttons.addView(createStockMcdText(MCD_ID_PROMOTION_ITEM_CTA,
+                "Details", 14, 0xFF2860A8),
+                new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
+        android.widget.RelativeLayout.LayoutParams buttonLp =
+                new android.widget.RelativeLayout.LayoutParams(
+                        ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+        buttonLp.addRule(android.widget.RelativeLayout.ALIGN_PARENT_BOTTOM);
+        overlay.addView(buttons, buttonLp);
+
+        card.addView(overlay, new FrameLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
+        root.addView(card, new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, updated ? 228 : 168));
+
+        TextView legal = createStockMcdText(MCD_ID_PROMOTION_ITEM_LEGAL,
+                "Terms apply.", 10, 0xFF6F6F6F);
+        legal.setVisibility(View.GONE);
+        root.addView(legal, new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
+        return root;
+    }
+
+    private View buildMcdHomeDashboardSection() {
+        android.widget.FrameLayout section = new android.widget.FrameLayout(mContext);
+        section.setVisibility(View.VISIBLE);
+        section.setBackgroundColor(getColorCompat(MCD_COLOR_BG_WHITE, 0xFFFFFFFF));
+        return section;
+    }
+
+    private View buildMcdBonusTileFragment() {
+        androidx.cardview.widget.CardView card = new androidx.cardview.widget.CardView(mContext);
+        card.setId(MCD_ID_LOYALTY_BONUS_TILE_CARD);
+        card.setTag("layout/layout_bonus_tile_fragment_0");
+        card.setCardBackgroundColor(0xFFFFC72C);
+        card.setRadius(18f);
+        card.setContentPadding(18, 18, 18, 18);
+
+        androidx.constraintlayout.widget.ConstraintLayout root =
+                new androidx.constraintlayout.widget.ConstraintLayout(mContext);
+        root.setBackgroundColor(0xFFFFC72C);
+
+        androidx.constraintlayout.widget.Guideline horizontal =
+                new androidx.constraintlayout.widget.Guideline(mContext);
+        horizontal.setId(MCD_ID_HORIZONTAL_GUIDE_LINE);
+        horizontal.setVisibility(View.GONE);
+        root.addView(horizontal, new androidx.constraintlayout.widget.ConstraintLayout.LayoutParams(
+                ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT));
+
+        androidx.constraintlayout.widget.Guideline guideline =
+                new androidx.constraintlayout.widget.Guideline(mContext);
+        guideline.setId(MCD_ID_GUIDELINE);
+        guideline.setVisibility(View.GONE);
+        root.addView(guideline, new androidx.constraintlayout.widget.ConstraintLayout.LayoutParams(
+                ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT));
+
+        LinearLayout visible = new LinearLayout(mContext);
+        visible.setOrientation(LinearLayout.HORIZONTAL);
+        visible.setGravity(android.view.Gravity.CENTER_VERTICAL);
+
+        android.widget.ImageView image = createAppCompatImageViewCompat(
+                MCD_ID_LOYALTY_BONUS_TILE_IMAGE);
+        image.setBackgroundColor(0xFFE8AA00);
+        visible.addView(image, new LinearLayout.LayoutParams(72, 72));
+
+        LinearLayout copy = new LinearLayout(mContext);
+        copy.setOrientation(LinearLayout.VERTICAL);
+        com.mcdonalds.mcduikit.widget.McDTextView header =
+                new com.mcdonalds.mcduikit.widget.McDTextView(mContext);
+        header.setId(MCD_ID_LOYALTY_BONUS_TILE_HEADER);
+        header.setText("Bonus points are waiting");
+        header.setTextSize(18);
+        header.setTextColor(0xFF292929);
+        copy.addView(header, new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
+
+        com.mcdonalds.mcduikit.widget.McDTextView subHeader =
+                new com.mcdonalds.mcduikit.widget.McDTextView(mContext);
+        subHeader.setId(MCD_ID_LOYALTY_BONUS_TILE_SUB_HEADER);
+        subHeader.setText("Unlock bonus rewards with your next order");
+        subHeader.setTextSize(14);
+        subHeader.setTextColor(0xFF4A3A00);
+        copy.addView(subHeader, new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
+
+        com.mcdonalds.mcduikit.widget.McDTextView multiStep =
+                new com.mcdonalds.mcduikit.widget.McDTextView(mContext);
+        multiStep.setId(MCD_ID_M_LOYALTY_MULTI_BONUS_NUMBER_STEPS_TILE_SUB_HEADER);
+        multiStep.setText("0 of 3 visits complete");
+        multiStep.setVisibility(View.GONE);
+        copy.addView(multiStep, new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
+
+        com.mcdonalds.mcduikit.widget.McDTextView unlock =
+                new com.mcdonalds.mcduikit.widget.McDTextView(mContext);
+        unlock.setId(MCD_ID_LOYALTY_MULTI_BONUS_TILE_SUB_HEADER);
+        unlock.setText("Unlock and start earning");
+        unlock.setVisibility(View.GONE);
+        copy.addView(unlock, new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
+
+        visible.addView(copy, new LinearLayout.LayoutParams(
+                0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
+
+        com.mcdonalds.mcduikit.widget.SquareImageView arrow =
+                new com.mcdonalds.mcduikit.widget.SquareImageView(mContext);
+        arrow.setId(MCD_ID_LOYALTY_BONUS_TILE_NEXT_ARROW);
+        arrow.setBackgroundColor(0xFFDA291C);
+        visible.addView(arrow, new LinearLayout.LayoutParams(44, 44));
+        root.addView(visible, new androidx.constraintlayout.widget.ConstraintLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
+
+        androidx.constraintlayout.widget.ConstraintLayout progressContainer =
+                new androidx.constraintlayout.widget.ConstraintLayout(mContext);
+        progressContainer.setId(MCD_ID_MULTI_STEP_PROGRESSBAR_CONTAINER);
+        progressContainer.setVisibility(View.GONE);
+
+        androidx.constraintlayout.widget.ConstraintLayout anim =
+                new androidx.constraintlayout.widget.ConstraintLayout(mContext);
+        anim.setId(MCD_ID_ANIM_CONTAINER);
+        com.mcdonalds.offer.MultiStepBonusProgressBar progress =
+                new com.mcdonalds.offer.MultiStepBonusProgressBar(mContext);
+        progress.setId(MCD_ID_LOYALTY_DASHBOARD_POINTS_PROGRESS_BAR);
+        anim.addView(progress, new androidx.constraintlayout.widget.ConstraintLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, 24));
+        progressContainer.addView(anim, new androidx.constraintlayout.widget.ConstraintLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
+
+        androidx.constraintlayout.widget.Guideline endPoint =
+                new androidx.constraintlayout.widget.Guideline(mContext);
+        endPoint.setId(MCD_ID_END_POINT);
+        endPoint.setVisibility(View.GONE);
+        progressContainer.addView(endPoint, new androidx.constraintlayout.widget.ConstraintLayout.LayoutParams(
+                ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT));
+
+        androidx.constraintlayout.widget.Guideline startPoint =
+                new androidx.constraintlayout.widget.Guideline(mContext);
+        startPoint.setId(MCD_ID_START_POINT);
+        startPoint.setVisibility(View.GONE);
+        progressContainer.addView(startPoint, new androidx.constraintlayout.widget.ConstraintLayout.LayoutParams(
+                ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT));
+
+        androidx.constraintlayout.widget.Guideline topPoint =
+                new androidx.constraintlayout.widget.Guideline(mContext);
+        topPoint.setId(MCD_ID_TOP_POINT);
+        topPoint.setVisibility(View.GONE);
+        progressContainer.addView(topPoint, new androidx.constraintlayout.widget.ConstraintLayout.LayoutParams(
+                ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT));
+        root.addView(progressContainer, new androidx.constraintlayout.widget.ConstraintLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
+
+        androidx.constraintlayout.widget.ConstraintLayout warning =
+                new androidx.constraintlayout.widget.ConstraintLayout(mContext);
+        warning.setId(MCD_ID_WARNING_MESSAGE_CONTAINER);
+        warning.setVisibility(View.GONE);
+        android.widget.ImageView warningIcon = new android.widget.ImageView(mContext);
+        warningIcon.setId(MCD_ID_WARNING_ICON);
+        warning.addView(warningIcon, new androidx.constraintlayout.widget.ConstraintLayout.LayoutParams(
+                20, 20));
+        TextView warningText = new TextView(mContext);
+        warningText.setId(MCD_ID_TEXT_WITH_ICON);
+        warningText.setText("Select a participating restaurant");
+        warning.addView(warningText, new androidx.constraintlayout.widget.ConstraintLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
+        root.addView(warning, new androidx.constraintlayout.widget.ConstraintLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
+
+        card.addView(root, new FrameLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
+        return card;
     }
 
     /**
@@ -1144,6 +3269,8 @@ public class LayoutInflater {
 
         // Strategies 2-4: obtain binary AXML bytes, then inflate via XmlPullParser
         byte[] axmlData = null;
+        String knownLayoutName = knownMcdLayoutName(resource);
+        String knownLayoutFile = layoutXmlPathFromName(knownLayoutName);
         try {
             diag("[LayoutInflater] inflate(0x" + Integer.toHexString(resource) + ")");
         } catch (Throwable ignored) {
@@ -1157,6 +3284,7 @@ public class LayoutInflater {
                     axmlData = res.getLayoutBytes(resource);
                     if (axmlData != null) {
                         diag("[LayoutInflater] Strategy 2: getLayoutBytes OK (" + axmlData.length + " bytes)");
+                        axmlData = requireBinaryAxml(axmlData, "Strategy 2", resource);
                     }
                 }
             } catch (Throwable t) {
@@ -1191,10 +3319,28 @@ public class LayoutInflater {
                             axmlData = loadLayoutXml(layoutFile);
                             if (axmlData != null) {
                                 diag("[LayoutInflater] Strategy 3: OK (" + axmlData.length + " bytes)");
+                                axmlData = requireBinaryAxml(axmlData, "Strategy 3 table", resource);
+                            }
+                        }
+                        if (axmlData == null && knownLayoutFile != null
+                                && !knownLayoutFile.equals(layoutFile)) {
+                            axmlData = loadLayoutXml(knownLayoutFile);
+                            if (axmlData != null) {
+                                diag("[LayoutInflater] Strategy 3 known: OK " + knownLayoutFile
+                                        + " (" + axmlData.length + " bytes)");
+                                axmlData = requireBinaryAxml(axmlData, "Strategy 3 known", resource);
                             }
                         }
                     } else {
                         diag("[LayoutInflater] Strategy 3: no ResourceTable");
+                        if (knownLayoutFile != null) {
+                            axmlData = loadLayoutXml(knownLayoutFile);
+                            if (axmlData != null) {
+                                diag("[LayoutInflater] Strategy 3 known/no-table: OK "
+                                        + knownLayoutFile + " (" + axmlData.length + " bytes)");
+                                axmlData = requireBinaryAxml(axmlData, "Strategy 3 known/no-table", resource);
+                            }
+                        }
                     }
                 }
             } catch (Throwable t) {
@@ -1222,14 +3368,32 @@ public class LayoutInflater {
                             java.io.File f = new java.io.File(resDir, filePath);
                             if (f.exists()) {
                                 try {
-                                    java.io.FileInputStream fis = new java.io.FileInputStream(f);
-                                    axmlData = new byte[(int) f.length()];
-                                    fis.read(axmlData);
-                                    fis.close();
-                                    diag("[LayoutInflater] Strategy 3.5: loaded " + filePath + " (" + axmlData.length + " bytes)");
+                                    axmlData = readFile(f);
+                                    diag("[LayoutInflater] Strategy 3.5: loaded " + filePath
+                                            + " (" + (axmlData != null ? axmlData.length : 0)
+                                            + " bytes)");
+                                    axmlData = requireBinaryAxml(axmlData, "Strategy 3.5 table", resource);
                                 } catch (Exception e) {
                                     diag("[LayoutInflater] Strategy 3.5: read failed: " + e.getMessage());
                                 }
+                            }
+                        }
+                    }
+                    if (axmlData == null && knownLayoutFile != null) {
+                        java.io.File f = new java.io.File(resDir, knownLayoutFile);
+                        if (!f.exists() && knownLayoutFile.startsWith("res/")) {
+                            f = new java.io.File(resDir, knownLayoutFile.substring(4));
+                        }
+                        if (f.exists()) {
+                            try {
+                                axmlData = readFile(f);
+                                diag("[LayoutInflater] Strategy 3.5 known: loaded "
+                                        + knownLayoutFile + " ("
+                                        + (axmlData != null ? axmlData.length : 0)
+                                        + " bytes)");
+                                axmlData = requireBinaryAxml(axmlData, "Strategy 3.5 known", resource);
+                            } catch (Exception e) {
+                                diag("[LayoutInflater] Strategy 3.5 known: read failed: " + e.getMessage());
                             }
                         }
                     }
@@ -1255,6 +3419,7 @@ public class LayoutInflater {
                     axmlData = ApkResourceLoader.loadLayout(res, resource);
                     if (axmlData != null) {
                         diag("[LayoutInflater] Strategy 4: OK (" + axmlData.length + " bytes)");
+                        axmlData = requireBinaryAxml(axmlData, "Strategy 4", resource);
                     }
                 }
             } catch (Throwable t) {
@@ -1299,6 +3464,8 @@ public class LayoutInflater {
                     diag("[LayoutInflater] Inflated 0x"
                             + Integer.toHexString(resource)
                             + " -> " + classNameOf(view));
+                    markRealMcdXmlInflated(resource, knownLayoutName, view);
+                    enhanceMcdInflatedLayout(resource, view);
                     return view;
                 }
             } catch (Throwable e) {
@@ -1411,6 +3578,9 @@ public class LayoutInflater {
         if (current == null) {
             return true;
         }
+        if (isMcdPdpDataBindingLayout(resource)) {
+            return true;
+        }
         if (resource == MCD_LAYOUT_APPLICATION_NOTIFICATION
                 || resource == MCD_LAYOUT_CAMPAIGN_APPLICATION_NOTIFICATION
                 || "layout/application_notification_0".equals(expected)
@@ -1421,6 +3591,36 @@ public class LayoutInflater {
             return false;
         }
         return false;
+    }
+
+    private boolean isMcdPdpDataBindingLayout(int resource) {
+        return resource == MCD_LAYOUT_FRAGMENT_ORDER_PDP
+                || resource == MCD_LAYOUT_ORDER_PDP_BUTTON_LAYOUT
+                || resource == MCD_LAYOUT_ORDER_PDP_EDIT_BOTTOM_LAYOUT
+                || resource == MCD_LAYOUT_ORDER_PDP_MEAL_BOTTOM_LAYOUT
+                || resource == MCD_LAYOUT_ORDER_PDP_MEAL_EDIT_BOTTOM_LAYOUT
+                || resource == MCD_LAYOUT_PDP_MEAL_CHOICE_BOTTOM_LAYOUT
+                || resource == MCD_LAYOUT_SKELETON_ORDER_PDP_DEFAULT
+                || resource == MCD_LAYOUT_SKELETON_ORDER_PDP_CHOICE_CUSTOMIZATION
+                || resource == MCD_LAYOUT_SKELETON_ORDER_PDP_SMALL_GRID;
+    }
+
+    private void markMcdPdpIncludeBinding(int layoutId, int includeId, View included) {
+        if (!isMcdPdpDataBindingLayout(layoutId)) {
+            return;
+        }
+        try {
+            String expected = deriveDataBindingTag(layoutId);
+            Object tag = included != null ? included.getTag() : null;
+            com.westlake.engine.WestlakeLauncher.marker(
+                    "MCD_PDP_INCLUDE_BINDING layout=0x"
+                            + Integer.toHexString(layoutId)
+                            + " includeId=0x" + Integer.toHexString(includeId)
+                            + " expected=" + safeMcdMarkerToken(expected)
+                            + " tag=" + safeMcdMarkerToken(String.valueOf(tag))
+                            + " ok=" + (expected != null && expected.equals(tag)));
+        } catch (Throwable ignored) {
+        }
     }
 
     private String deriveDataBindingTag(int resource) {
@@ -1480,11 +3680,20 @@ public class LayoutInflater {
         if (resource == MCD_LAYOUT_ACTIVITY_HOME_DASHBOARD) {
             return "layout/activity_home_dashboard";
         }
+        if (resource == MCD_LAYOUT_ACTIVITY_SIMPLE_PRODUCT) {
+            return "layout/activity_simple_product";
+        }
+        if (resource == MCD_LAYOUT_ACTIVITY_SIMPLE_PRODUCT_V2) {
+            return "layout/activity_simple_product_v2";
+        }
         if (resource == MCD_LAYOUT_APPLICATION_NOTIFICATION) {
             return "layout/application_notification";
         }
         if (resource == MCD_LAYOUT_BASE) {
             return "layout/base_layout";
+        }
+        if (resource == MCD_LAYOUT_BASKET_HOLDER) {
+            return "layout/basket_holder";
         }
         if (resource == MCD_LAYOUT_BOTTOM_BAG_BAR) {
             return "layout/bottom_bag_bar";
@@ -1495,8 +3704,92 @@ public class LayoutInflater {
         if (resource == MCD_LAYOUT_CAMPAIGN_APPLICATION_NOTIFICATION) {
             return "layout/campaign_application_notification";
         }
+        if (resource == MCD_LAYOUT_FRAGMENT_DEAL_SECTION) {
+            return "layout/fragment_deal_section";
+        }
+        if (resource == MCD_LAYOUT_FRAGMENT_DEAL_SECTION_LAYOUT_HEADER) {
+            return "layout/fragment_deal_section_layout_header";
+        }
+        if (resource == MCD_LAYOUT_FRAGMENT_DEAL_SECTION_LOYALTY) {
+            return "layout/fragment_deal_section_loyalty";
+        }
         if (resource == MCD_LAYOUT_FRAGMENT_HOME_DASHBOARD) {
             return "layout/fragment_home_dashboard";
+        }
+        if (resource == MCD_LAYOUT_FRAGMENT_HOME_DASHBOARD_HERO_SECTION) {
+            return "layout/fragment_home_dashboard_hero_section";
+        }
+        if (resource == MCD_LAYOUT_FRAGMENT_HOME_DASHBOARD_HERO_SECTION_UPDATED) {
+            return "layout/fragment_home_dashboard_hero_section_updated";
+        }
+        if (resource == MCD_LAYOUT_FRAGMENT_MENU_SECTION) {
+            return "layout/fragment_menu_section";
+        }
+        if (resource == MCD_LAYOUT_FRAGMENT_ORDER) {
+            return "layout/fragment_order";
+        }
+	        if (resource == MCD_LAYOUT_FRAGMENT_ORDER_PDP) {
+	            return "layout/fragment_order_pdp";
+	        }
+        if (resource == MCD_LAYOUT_ORDER_PDP_BUTTON_LAYOUT) {
+            return "layout/order_pdp_button_layout";
+        }
+        if (resource == MCD_LAYOUT_ORDER_PDP_EDIT_BOTTOM_LAYOUT) {
+            return "layout/order_pdp_edit_bottom_layout";
+        }
+        if (resource == MCD_LAYOUT_ORDER_PDP_MEAL_BOTTOM_LAYOUT) {
+            return "layout/order_pdp_meal_bottom_layout";
+        }
+        if (resource == MCD_LAYOUT_ORDER_PDP_MEAL_EDIT_BOTTOM_LAYOUT) {
+            return "layout/order_pdp_meal_edit_bottom_layout";
+        }
+        if (resource == MCD_LAYOUT_PDP_MEAL_CHOICE_BOTTOM_LAYOUT) {
+            return "layout/pdp_meal_choice_bottom_layout";
+        }
+        if (resource == MCD_LAYOUT_SKELETON_ORDER_PDP_DEFAULT) {
+            return "layout/skeleton_order_pdp_default";
+        }
+        if (resource == MCD_LAYOUT_SKELETON_ORDER_PDP_CHOICE_CUSTOMIZATION) {
+            return "layout/skeleton_order_pdp_choice_customization";
+        }
+        if (resource == MCD_LAYOUT_SKELETON_ORDER_PDP_SMALL_GRID) {
+            return "layout/skeleton_order_pdp_small_grid";
+        }
+	        if (resource == MCD_LAYOUT_FRAGMENT_POPULAR_SECTION) {
+	            return "layout/fragment_popular_section";
+	        }
+        if (resource == MCD_LAYOUT_FRAGMENT_PROMOTION_SECTION) {
+            return "layout/fragment_promotion_section";
+        }
+        if (resource == MCD_LAYOUT_HOME_DASHBOARD_SECTION) {
+            return "layout/home_dashboard_section";
+        }
+        if (resource == MCD_LAYOUT_HOME_MENU_GUEST_USER) {
+            return "layout/home_menu_guest_user";
+        }
+        if (resource == MCD_LAYOUT_HOME_MENU_SECTION_FULL_MENU_ITEM) {
+            return "layout/home_menu_section_full_menu_item";
+        }
+        if (resource == MCD_LAYOUT_HOME_MENU_SECTION_ITEM) {
+            return "layout/home_menu_section_item";
+        }
+        if (resource == MCD_LAYOUT_CATEGORY_LIST_ITEM) {
+            return "layout/category_list_item";
+        }
+        if (resource == MCD_LAYOUT_NEW_PLP_PRODUCT_ITEM) {
+            return "layout/new_plp_product_item";
+        }
+        if (resource == MCD_LAYOUT_HOME_POPULAR_ITEM_ADAPTER) {
+            return "layout/home_popular_item_adapter";
+        }
+        if (resource == MCD_LAYOUT_HOME_PROMOTION_ITEM) {
+            return "layout/home_promotion_item";
+        }
+        if (resource == MCD_LAYOUT_HOME_PROMOTION_ITEM_UPDATED) {
+            return "layout/home_promotion_item_updated";
+        }
+        if (resource == MCD_LAYOUT_BONUS_TILE_FRAGMENT) {
+            return "layout/layout_bonus_tile_fragment";
         }
         return null;
     }
@@ -1823,6 +4116,20 @@ public class LayoutInflater {
         if (parser instanceof BinaryXmlParser) {
             BinaryXmlParser bxp = (BinaryXmlParser) parser;
             int count = bxp.getAttributeCount();
+            int includeId = View.NO_ID;
+            ViewGroup.LayoutParams includeParams = generateLayoutParams(parent, parser);
+            for (int i = 0; i < count; i++) {
+                int nsRes = 0;
+                try { nsRes = bxp.getAttributeNameResource(i); } catch (Throwable t) {}
+                String name = bxp.getAttributeName(i);
+                if ("id".equals(name) || nsRes == ATTR_ID) {
+                    includeId = bxp.getAttributeResourceValue(i, View.NO_ID);
+                    if (includeId == View.NO_ID) {
+                        includeId = bxp.getAttributeValueData(i);
+                    }
+                    break;
+                }
+            }
             for (int i = 0; i < count; i++) {
                 String name = bxp.getAttributeName(i);
                 int nsRes = 0;
@@ -1833,7 +4140,15 @@ public class LayoutInflater {
                     if (resId != 0) {
                         View included = inflate(resId, parent, false);
                         if (included != null) {
-                            parent.addView(included);
+                            applyIncludeOverrides(bxp, included, includeId);
+                            ensureDataBindingTag(included, resId);
+                            markMcdPdpIncludeBinding(resId, includeId, included);
+                            if (includeParams != null) {
+                                parent.addView(included, includeParams);
+                            } else {
+                                parent.addView(included);
+                            }
+                            markIncludeInflated(resId, includeId, included, parent);
                         }
                     }
                     break;
@@ -1841,6 +4156,55 @@ public class LayoutInflater {
             }
         }
         skipToEndTag(parser);
+    }
+
+    private void applyIncludeOverrides(BinaryXmlParser parser, View included, int includeId) {
+        if (parser == null || included == null) {
+            return;
+        }
+        if (includeId != View.NO_ID && includeId != 0) {
+            included.setId(includeId);
+        }
+        int count = parser.getAttributeCount();
+        for (int i = 0; i < count; i++) {
+            int resId = 0;
+            try {
+                resId = parser.getAttributeNameResource(i);
+            } catch (Throwable ignored) {
+            }
+            String name = parser.getAttributeName(i);
+            int type = parser.getAttributeValueType(i);
+            int data = parser.getAttributeValueData(i);
+            if (resId == ATTR_VISIBILITY || "visibility".equals(name)) {
+                included.setVisibility(data);
+            } else if (resId == ATTR_TAG || "tag".equals(name)) {
+                String tag = resolveStringAttr(parser, i,
+                        mContext != null ? mContext.getResources() : null);
+                if (tag != null) {
+                    included.setTag(tag);
+                }
+            } else if (resId == ATTR_BACKGROUND || "background".equals(name)) {
+                if (type == 0x1c || type == 0x1d || type == 0x1e || type == 0x1f
+                        || type == 0x11) {
+                    included.setBackgroundColor(data);
+                }
+            }
+        }
+    }
+
+    private void markIncludeInflated(int layoutId, int includeId, View included, ViewGroup parent) {
+        try {
+            Object tag = included != null ? included.getTag() : null;
+            com.westlake.engine.WestlakeLauncher.marker(
+                    "LAYOUT_INCLUDE_INFLATED layout=0x" + Integer.toHexString(layoutId)
+                            + " includeId=0x" + Integer.toHexString(includeId)
+                            + " view=" + simpleClassNameOf(included)
+                            + " id=0x" + Integer.toHexString(
+                                    included != null ? included.getId() : View.NO_ID)
+                            + " tag=" + safeMcdMarkerToken(String.valueOf(tag))
+                            + " parent=" + simpleClassNameOf(parent));
+        } catch (Throwable ignored) {
+        }
     }
 
     /**
@@ -2403,18 +4767,88 @@ public class LayoutInflater {
         return null;
     }
 
+    private String layoutXmlPathFromName(String layoutName) {
+        if (layoutName == null || layoutName.length() == 0) {
+            return null;
+        }
+        String normalized = normalizeLayoutResourceName(layoutName);
+        if (normalized == null) {
+            return null;
+        }
+        return "res/" + normalized + ".xml";
+    }
+
+    private byte[] requireBinaryAxml(byte[] data, String source, int resource) {
+        if (data == null) {
+            return null;
+        }
+        if (isBinaryAxml(data)) {
+            return data;
+        }
+        try {
+            diag("[LayoutInflater] " + source + ": non-binary XML for 0x"
+                    + Integer.toHexString(resource) + " (" + data.length
+                    + " bytes), continuing");
+            com.westlake.engine.WestlakeLauncher.marker(
+                    "LAYOUT_INFLATER_AXML_NON_BINARY resource=0x"
+                            + Integer.toHexString(resource)
+                            + " source=" + safeMcdMarkerToken(source)
+                            + " bytes=" + data.length);
+        } catch (Throwable ignored) {
+        }
+        return null;
+    }
+
+    private boolean isBinaryAxml(byte[] data) {
+        return data != null
+                && data.length >= 4
+                && (data[0] & 0xFF) == 0x03
+                && (data[1] & 0xFF) == 0x00
+                && (data[2] & 0xFF) == 0x08
+                && (data[3] & 0xFF) == 0x00;
+    }
+
     private static byte[] readFile(java.io.File file) {
         try (java.io.FileInputStream fis = new java.io.FileInputStream(file)) {
-            byte[] data = new byte[(int) file.length()];
-            int offset = 0;
-            while (offset < data.length) {
-                int n = fis.read(data, offset, data.length - offset);
-                if (n < 0) break;
-                offset += n;
+            java.io.ByteArrayOutputStream out = new java.io.ByteArrayOutputStream(4096);
+            byte[] buffer = new byte[4096];
+            while (true) {
+                int n = fis.read(buffer);
+                if (n < 0) {
+                    break;
+                }
+                if (n > 0) {
+                    out.write(buffer, 0, n);
+                }
             }
-            return data;
+            return out.toByteArray();
         } catch (Exception e) {
             return null;
+        }
+    }
+
+    private static void markRealMcdXmlInflated(int resource, String layoutName, View view) {
+        if (layoutName == null || view == null) {
+            return;
+        }
+        if (!layoutName.startsWith("layout/fragment_home_dashboard_hero_section")
+                && !layoutName.startsWith("layout/fragment_menu_section")
+                && !layoutName.startsWith("layout/home_menu_guest_user")
+                && !layoutName.startsWith("layout/fragment_promotion_section")
+                && !layoutName.startsWith("layout/fragment_popular_section")
+                && !layoutName.startsWith("layout/home_promotion_item")
+                && !layoutName.startsWith("layout/home_popular_item_adapter")
+                && !layoutName.startsWith("layout/fragment_order")
+                && !layoutName.startsWith("layout/category_list_item")
+                && !layoutName.startsWith("layout/new_plp_product_item")) {
+            return;
+        }
+        try {
+            com.westlake.engine.WestlakeLauncher.marker(
+                    "MCD_REAL_XML_INFLATED layout=" + safeMcdMarkerToken(layoutName)
+                            + " resource=0x" + Integer.toHexString(resource)
+                            + " root=" + simpleClassNameOf(view));
+        } catch (Throwable ignored) {
         }
     }
 

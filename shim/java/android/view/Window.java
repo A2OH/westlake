@@ -249,7 +249,7 @@ public class Window {
     public long getTransitionBackgroundFadeDuration() { return 0L; }
     public TransitionManager getTransitionManager() { return null; }
     public int getVolumeControlStream() { return 0; }
-    public WindowManager getWindowManager() { return null; }
+    public WindowManager getWindowManager() { return WindowManagerGlobal.getInstance(); }
     public TypedArray getWindowStyle() { return null; }
     public boolean hasChildren() { return false; }
     public boolean hasFeature(int p0) { return (mFeatures & (1 << p0)) != 0; }
@@ -351,6 +351,21 @@ public class Window {
             try {
                 if (mDecorView instanceof ViewGroup && mDecorView != p0) {
                     com.westlake.engine.WestlakeLauncher.marker("PF301 strict Window setContentView childInstall call");
+                    ViewGroup.LayoutParams lp;
+                    if (mDecorView instanceof android.widget.FrameLayout) {
+                        lp = new android.widget.FrameLayout.LayoutParams(
+                                ViewGroup.LayoutParams.MATCH_PARENT,
+                                ViewGroup.LayoutParams.MATCH_PARENT);
+                    } else if (mDecorView instanceof android.widget.LinearLayout) {
+                        lp = new android.widget.LinearLayout.LayoutParams(
+                                ViewGroup.LayoutParams.MATCH_PARENT,
+                                ViewGroup.LayoutParams.MATCH_PARENT);
+                    } else {
+                        lp = new ViewGroup.LayoutParams(
+                                ViewGroup.LayoutParams.MATCH_PARENT,
+                                ViewGroup.LayoutParams.MATCH_PARENT);
+                    }
+                    p0.setLayoutParams(lp);
                     ((ViewGroup) mDecorView).installStandaloneChild(p0);
                     com.westlake.engine.WestlakeLauncher.marker("PF301 strict Window setContentView childInstall returned");
                 } else {

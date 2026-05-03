@@ -44,9 +44,26 @@ public final class StrictMode {
         private ThreadPolicy() {}
 
         public static final class Builder {
+            public Builder() {}
+            public Builder(ThreadPolicy policy) {}
+            public Builder detectNetwork() { return this; }
+            public Builder detectDiskReads() { return this; }
+            public Builder detectDiskWrites() { return this; }
+            public Builder detectCustomSlowCalls() { return this; }
+            public Builder detectResourceMismatches() { return this; }
             public Builder detectAll()  { return this; }
             public Builder penaltyLog() { return this; }
+            public Builder penaltyDialog() { return this; }
             public Builder penaltyDeath() { return this; }
+            public Builder penaltyDeathOnNetwork() { return this; }
+            public Builder penaltyDropBox() { return this; }
+            public Builder penaltyFlashScreen() { return this; }
+            public Builder permitNetwork() { return this; }
+            public Builder permitDiskReads() { return this; }
+            public Builder permitDiskWrites() { return this; }
+            public Builder permitCustomSlowCalls() { return this; }
+            public Builder permitUnbufferedIo() { return this; }
+            public Builder detectUnbufferedIo() { return this; }
             public Builder permitAll()  { return this; }
             public ThreadPolicy build() { return new ThreadPolicy(); }
         }
@@ -59,8 +76,25 @@ public final class StrictMode {
         private VmPolicy() {}
 
         public static final class Builder {
+            public Builder() {}
+            public Builder(VmPolicy policy) {}
+            public Builder detectAll() { return this; }
+            public Builder detectActivityLeaks() { return this; }
+            public Builder detectCleartextNetwork() { return this; }
+            public Builder detectContentUriWithoutPermission() { return this; }
+            public Builder detectCredentialProtectedWhileLocked() { return this; }
+            public Builder detectFileUriExposure() { return this; }
             public Builder detectLeakedSqlLiteObjects() { return this; }
             public Builder detectLeakedClosableObjects() { return this; }
+            public Builder detectLeakedRegistrationObjects() { return this; }
+            public Builder detectNonSdkApiUsage() { return this; }
+            public Builder detectResourceMismatches() { return this; }
+            public Builder detectUnsafeIntentLaunch() { return this; }
+            public Builder permitNonSdkApiUsage() { return this; }
+            public Builder permitUnsafeIntentLaunch() { return this; }
+            public Builder penaltyDeath() { return this; }
+            public Builder penaltyDropBox() { return this; }
+            public Builder penaltyLog() { return this; }
             public VmPolicy build() { return new VmPolicy(); }
         }
     }
