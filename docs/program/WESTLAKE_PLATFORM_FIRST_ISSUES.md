@@ -2,6 +2,8 @@
 
 Last updated: 2026-05-02
 
+> **Note (2026-05-03):** Earlier sections may contain superseded status flips. Look for `[SUPERSEDED — see <update>]` annotations. The canonical current status is in the most recent dated PT update for each PF-* tag, and a consolidated current view is in `docs/program/WESTLAKE_FULL_MCD_GAP_REPORT_20260503.md`.
+
 This file mirrors the active platform-first issue structure used for execution.
 
 Southbound API contract:
@@ -2282,6 +2284,7 @@ The current unsafe crash map is
 - `PF-623` is green for the current McD PDP Add proof. The normal artifact
   records `mcd_full_app_generic_pdp_input_gate count=5`. Keep hardening this
   into generic View dispatch, but do not block PF-625 on more input probes.
+> *[GREEN BUT REGRESSION-PRONE; see WESTLAKE_FULL_MCD_GAP_REPORT_20260503.md §4 PF-624]*
 - `PF-624` is green/yellow. Telemetry seeding works for Add continuation:
   `MCD_TELEMETRY_MANAGER_SEED` is present and no
   `Telemetry not initialized` abort occurs after `BasketAPIHandler.A1(...)`.
@@ -2413,6 +2416,7 @@ Issue states after the latest probe:
 - `PF-626` is partly green: subprocess purity and real guest proof pass, but
   the checker must count `MCD_PDP_REALMLIST_HYDRATE` and still keep unsafe
   probes from closing PF-621.
+> *[SUPERSEDED 2026-05-03 — see 18:10 PT update; PF-620 is green]*
 - `PF-620` remains red: McD GraphQL/network calls still return status `599`.
 
 Execution details for the next workers:
@@ -2449,16 +2453,19 @@ artifacts/real-mcd/20260502_162934_mcd_48h_product_stock_hydrate_no_observer_pro
 
 Issue state changes:
 
+> *[SUBTAG COLLAPSED INTO PARENT IN 18:10 PT UPDATE]*
 - `PF-625B product stock` moves to green for the diagnostic path:
   `maxQttyZero=0` and `MCD_PDP_CART_GATE ... maxQtty=99`.
 - `PF-626 proof` moves one step forward: `MCD_PDP_REALMLIST_HYDRATE` is now a
   valid CartProduct list-hydration proof when `choicesNullNpe=0`.
+> *[SUBTAG COLLAPSED INTO PARENT IN 18:10 PT UPDATE]*
 - `PF-625A cart persistence` remains the top red implementation issue:
   stock basket commit is reached with `sigbus=0`, but cart/bag counters remain
   zero.
 - `PF-622 lifecycle` remains red:
   `lifecycleState=null`, `fragment_resumed=0`.
 - `PF-623 generic PDP input` is green in the latest proof.
+> *[SUPERSEDED 2026-05-03 — see 18:10 PT update; PF-620 is green]*
 - `PF-620 network` remains red with status `599`.
 
 Next execution instructions:
@@ -2494,18 +2501,21 @@ shim sha256: 6c47dbceac413fd86b32658f6602d948754235a54266f3a1db3e3b2d55e0be60
 
 Issue state changes:
 
+> *[SUBTAG COLLAPSED INTO PARENT IN 18:10 PT UPDATE]*
 - `PF-625A Realm/BaseCart` is split:
   - green: BaseCart active query row identity now returns `row=0`;
   - green: `OsList.nativeAddRow` readback for `BaseCart.cartProducts` shows
     `size=1`;
   - red: app-visible cart projection remains
     `cartSizeWithoutOffers=0 totalBagCount=0`.
+> *[SUBTAG COLLAPSED INTO PARENT IN 18:10 PT UPDATE]*
 - `PF-625C OsObjectBuilder object-list persistence` is now the immediate P0.
   The McD generated `BaseCartRealmProxy.insertOrUpdate(...)` path can write
   object lists through `OsObjectBuilder.nativeAddObjectList(...)`, so the
   runtime must persist those link lists into the same row/link-list store.
 - `PF-622 lifecycle` remains red with `lifecycleState=null` and
   `fragment_resumed=0` despite the AndroidX alias patch being deployed.
+> *[SUPERSEDED 2026-05-03 — see 18:10 PT update; PF-620 is green]*
 - `PF-620 network` remains red with McD network status `599`.
 - `PF-621 final acceptance` remains red until unsafe files are absent and a
   normal gate proves real cart mutation or exact stock rejection.
@@ -2546,17 +2556,22 @@ shim sha256: 6c47dbceac413fd86b32658f6602d948754235a54266f3a1db3e3b2d55e0be60
 
 Issue state:
 
+> *[SUBTAG COLLAPSED INTO PARENT IN 18:10 PT UPDATE]*
 - `PF-625A Realm direct list persistence`: green for this route.
   `nativeAddRow` persists `BaseCart.cartProducts` and later list creation
   rehydrates `size=1`.
+> *[SUBTAG COLLAPSED INTO PARENT IN 18:10 PT UPDATE]*
 - `PF-625C OsObjectBuilder object-list`: implemented in runtime, but not
   observed on the current McD Add route. Keep it as covered surface, not the
   active blocker.
+> *[SUBTAG COLLAPSED INTO PARENT IN 18:10 PT UPDATE]*
 - `PF-625D CartInfo/CartViewModel projection`: new immediate P0. The app runs
   stock `model_x` and basket commit but visible counters remain zero.
+> *[STILL OPEN — masked by compatibility marker; see WESTLAKE_FULL_MCD_GAP_REPORT_20260503.md §3 B5]*
 - `PF-622 lifecycle proof`: still red, but narrowed. App Fragment state is
   `mState=7`; the marker must query app AndroidX `LifecycleRegistry.d()` and
   `isResumed()` before claiming lifecycle is null.
+> *[SUPERSEDED 2026-05-03 — see 18:10 PT update; PF-620 is green]*
 - `PF-620 network`: unchanged red, status `599`.
 - `PF-621 final acceptance`: red until a no-unsafe gate shows lifecycle plus
   cart mutation or exact stock rejection.
@@ -2604,6 +2619,7 @@ Issue state changes:
   - Direct `OsList` persistence is green.
   - Downstream basket commit reaches stock code with `sigbus=0`.
   - `BasketAPIHandler.p2()` returns positive `CartInfo`.
+> *[SUBTAG COLLAPSED INTO PARENT IN 18:10 PT UPDATE]*
 - `PF-625D CartInfo/CartViewModel projection`: yellow.
   - The bridge proves the stock cart exists and can update the app singleton.
   - The final architecture should make the stock observer/model route perform
@@ -2611,6 +2627,7 @@ Issue state changes:
 - `PF-622 lifecycle proof`: green for this app build using compatibility
   signals (`fragmentState=7` / resumed marker). Keep generic AndroidX
   lifecycle as P1.
+> *[SUPERSEDED 2026-05-03 — see 18:10 PT update; PF-620 is green]*
 - `PF-620 network`: immediate P0 red.
   - Direct WSL curl to McD GraphQL returns HTTP 200.
   - Phone gate was configuring `adb reverse` and
