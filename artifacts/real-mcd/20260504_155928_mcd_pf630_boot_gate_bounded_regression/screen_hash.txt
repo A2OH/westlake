@@ -1,0 +1,1 @@
+8bc2a2448bfcf7327752753fc0e55114454fe8c074ec0e00aee4a1db94690a11  $HOME/android-to-openharmony-migration/artifacts/real-mcd/20260504_155928_mcd_pf630_boot_gate_bounded_regression/screen.png

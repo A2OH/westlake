@@ -1,0 +1,40 @@
+artifact=$HOME/android-to-openharmony-migration/artifacts/real-mcd/20260504_155928_mcd_pf630_boot_gate_bounded_regression
+log=$HOME/android-to-openharmony-migration/artifacts/real-mcd/20260504_155928_mcd_pf630_boot_gate_bounded_regression/logcat.txt
+PASS proof_unsafe_flags_off markers=0 flags=0 artifact=20260504_155928_mcd_pf630_boot_gate_bounded_regression
+PASS proof_logcat_streamed source=logcat-stream.txt bytes=1831270
+PASS proof_logcat_dump_present bytes=1835621
+PASS proof_current_local_shim_hash hash=da24e7a3773df3ef2e32618f80eda4bc782837adeb55d26e7afee4e68a00fd57
+PASS proof_local_runtime_hashes_present aosp_shim=da24e7a3773df3ef2e32618f80eda4bc782837adeb55d26e7afee4e68a00fd57
+PASS proof_phone_runtime_hashes_current aosp_shim=da24e7a3773df3ef2e32618f80eda4bc782837adeb55d26e7afee4e68a00fd57
+screen_sha=8bc2a2448bfcf7327752753fc0e55114454fe8c074ec0e00aee4a1db94690a11
+screen_bytes=131847
+PASS westlake_subprocess_purity host_pid=12668 vm_pid=12723 vm_ppid=12668 direct_mcd_processes=0
+PASS proof_real_mcd_guest_dalvikvm package=com.mcdonalds.app apk=com_mcdonalds_app.apk classes=com_mcdonalds_app_classes.dex
+FAIL no_fatal_failed_requirement count=2
+05-04 12:00:36.738 12668 12729 I WestlakeVM: VM: [WestlakeInstrumentation] McD onCreate failure: java.lang.ArrayStoreException: java.lang.String cannot be stored in an array of type java.lang.String[]
+PASS dashboard_active count=1 root_select=2
+FAIL network_bridge_or_urlconnection newrelic=0 westlake_bridge=0 urlconnection_noop=0
+network_attempt_markers=0
+network_success_markers=0
+network_error_markers=2
+PASS http_urlconnection_no_setrequestmethod_npe count=0
+PASS endpointsetting_no_npe count=0
+PASS orderingconfiguration_no_npe count=0
+WARN mcd_stock_dashboard_projection_incomplete root_select=2 fallback_false=2 promo_item_xml=0 popular_item_xml=0 promo_adapter=0 popular_adapter=0 strict_frames=2 rows=4
+PASS mcd_stock_dashboard_view_attached count=1
+FAIL mcd_u6_section_placeholders_seeded count=0
+FAIL mcd_sections_ready count=0
+FAIL mcd_real_hero_xml_inflated count=0
+FAIL mcd_real_menu_guest_xml_inflated count=0
+FAIL mcd_real_promotion_section_xml_inflated count=0
+FAIL mcd_real_popular_section_xml_inflated count=0
+WARN mcd_real_promotion_item_xml_inflated count=0
+WARN mcd_real_popular_item_xml_inflated count=0
+FAIL mcd_real_child_fragment_views sections=0 missing=HERO,MENU,PROMOTION,POPULAR
+PASS mcd_no_section_layout_fallback_attached count=0
+PASS mcd_no_dashboard_fallback_or_real_view_failure count=0
+strict_frame_last=05-04 12:00:40.552 12668 12729 I WestlakeVM: VM: [WestlakeLauncher] Strict dashboard frame reason=dashboard-renderLoop root=android.widget.LinearLayout bytes=1734 views=4 texts=0 buttons=0 images=0 rows=4 rowImages=0 rowImageBytes=0 overlays=0
+strict_frame_count=2 bytes=1734 views=4 texts=0 buttons=0 images=0 rows=4
+PASS strict_dashboard_frame_present count=2
+FAIL strict_dashboard_frame_sparse bytes=1734 views=4
+gate_status=FAIL

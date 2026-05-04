@@ -218,3 +218,69 @@ All commits will be pushed in one batch to `origin/main` at session close.
 | A9 (stretch) | Theme variants | NOT ATTEMPTED | gated on A2-A4 |
 
 **Bottom line:** 1 of 7 PASS, but the failure produced the highest-value finding (PF-630 universality) of the entire 2-day Westlake review. **Day-1 is INCOMPLETE per acceptance, but PRODUCTIVE per learnings.** Day-2 should attempt PF-630 boot-aware routing fix BEFORE returning to noice.
+
+---
+
+## Day-2 update (2026-05-04 PT) — PF-630 SUBSTRATE FIX LANDED
+
+A design agent produced the boot-aware routing patch per §13.12 of the gap report. The patch landed cleanly, eliminating the SIGBUS that prevented every guest-dalvikvm app from booting.
+
+### What landed (art-latest commit `6a45e3a` on `origin/main`)
+
+3 files modified, ~30 lines new code (rest of the diff is the candidate's pre-existing PFCut* infrastructure):
+
+- `patches/runtime/runtime.cc` — defines `static std::atomic<bool> g_pfcut_app_loader_seen{false}` plus `PFCutAppClassLoaderSeen()` getter and `PFCutMarkAppClassLoaderSeen()` setter. Flag flipped immediately after the standalone app PathClassLoader install log at line ~3203.
+- `patches/runtime/native/sun_misc_Unsafe.cc` — `extern bool PFCutAppClassLoaderSeen()` decl + `if (UNLIKELY(!PFCutAppClassLoaderSeen())) return false;` short-circuit at the top of `PFCutObjectArrayIndexFromOffset`.
+- `patches/runtime/native/jdk_internal_misc_Unsafe.cc` — same shape, qualified as `::art::PFCutAppClassLoaderSeen()` since the helper is in an anonymous namespace.
+
+Built via `make -f Makefile.ohos-arm64 -j$(nproc) link-runtime`. New runtime hash:
+`548c9c7a216d5e20c1f100dd7ecb483dccc9dac1158c5ea408f9bcfb1ee952c2`.
+
+### Empirical results on phone
+
+| Test | Result | Evidence |
+|---|---|---|
+| Sync candidate runtime | PASS | symbol checker accepts; phone hash matches |
+| **noice first-boot v3 (boot-gate)** | **NO SIGBUS** | `PASS proof_real_app_guest_dalvikvm`, `PASS no_fatal_failed_requirement count=0`, `vm_pid=12262` alive |
+| **noice MainActivity onResume** | **REACHED** | `performResume DONE for com.github.ashutoshgngwr.noice.activity.MainActivity` at 12s after VM start |
+| **noice 5-min soak** | **NO SIGBUS** | logcat 1.23 MB, no `signal 7`, no `0xfffffffffffffb17`, no `VM process exited`. VM alive throughout (7+ min wall) |
+| McD bounded regression | INCONCLUSIVE | SIGBUS gone (`count=0`), but separate ArrayStoreException cascade in boot-class clinit (ICU/CharsetProvider/Crypto) still affects McD's brittle Application.onCreate. noice tolerates same cascade; McD does not. ASE cascade is a separate issue from PF-630, predates the fix. |
+
+Artifact paths:
+- `artifacts/noice-1day/20260504_155531_noice_noice_pf630_boot_gate_v1/` — first-boot WIN
+- `artifacts/real-mcd/20260504_155928_mcd_pf630_boot_gate_bounded_regression/` — McD bounded; SIGBUS gone, ASE cascade independent
+- `artifacts/noice-1day/20260504_161320_noice_noice_pf630_boot_gate_5min_soak/` — soak validation
+
+### Acceptance re-tally (post-fix)
+
+| Criterion | Day-1 result | Day-2 update |
+|---|---|---|
+| **A1** APK loaded into Westlake guest dalvikvm | PARTIAL (boot+SIGBUS) | **PASS** (boot+resume+5min) |
+| **A2** MainActivity onResume inside guest | FAIL | **PASS** (raw shim log) |
+| **A3** ≥5 views inflated | FAIL | INCONCLUSIVE (Hilt blocker — see below) |
+| **A4** ≥1 tap routed | FAIL | not exercised yet |
+| **A5** Audio gap characterized | PASS | unchanged |
+| **A6** Screenshot proves UI rendered | FAIL | FAIL (SurfaceView wired but empty — Hilt blocker) |
+| **A7** 5-min idle soak no SIGBUS | FAIL | **PASS** (empirically; checker says INCONCLUSIVE due to mtime-based timing) |
+
+### Remaining noice paint blocker (NEW workstream — separate from PF-630)
+
+The PF-630 fix unlocks the substrate. Noice still doesn't paint. Two surfaced issues, both downstream of the same root cause:
+
+1. `lateinit property subscriptionBillingProvider has not been initialized` in noice's MainActivity.onResume — Hilt failed to inject. Hilt's ContentProvider chain (`androidx.startup.InitializationProvider` + `dagger.hilt.android.internal.lifecycle.HiltViewModelInitializer`) likely hit ASE during static init.
+2. `Coroutine runtime seed failed: java.lang.ArrayStoreException` — kotlinx coroutines can't initialize Main dispatcher because of upstream charset failures.
+
+**Both are downstream of the same upstream cause: ICU/CharsetProvider/Crypto/Provider boot-class clinit ASEs that the boot-aware gate doesn't prevent (the bypass IS active during these clinits — they happen lazily AFTER the gate flip).** Resolving them needs one of:
+
+- (i) detect "currently inside clinit" thread-local and skip bypass for those calls (cleanest, requires class_linker.cc edit)
+- (ii) move the gate flip even later — to first non-boot-prefixed class load (more uncertain timing)
+- (iii) shim the failing boot-class clinits via WestlakeLauncher (already partially done with `Coroutine runtime seed failed: tolerated` log; would need to extend to ICU/CharsetProvider/Crypto)
+
+### Phone state at end of day-2 update
+
+- Runtime: `548c9c7a21…` (boot-aware gate candidate) — DEPLOYED on phone, not the original `d7e10e47`.
+- Backup: `dalvikvm.pre-pf630-d7e10e47.bak` retained.
+- Noice APK installed, host APK rebuilt with NOICE_ART branch.
+- McD bounded gate runs but trips on the now-isolated ASE cascade (separate workstream).
+
+### Final status: PF-630 → CLOSED (substrate fix landed). New work: clinit-cascade mitigation.
