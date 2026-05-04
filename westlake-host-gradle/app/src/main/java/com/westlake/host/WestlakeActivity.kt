@@ -166,6 +166,17 @@ class WestlakeActivity : ComponentActivity() {
             setContent { WestlakeVMApkScreen(config) }
             return
         }
+        if (className == "WESTLAKE_ART_NOICE") {
+            Log.i(TAG, "Launching Noice via Westlake ART VM")
+            val config = ApkVmConfig(
+                packageName = "com.github.ashutoshgngwr.noice",
+                activityName = "com.github.ashutoshgngwr.noice.activity.MainActivity",
+                displayName = "Noice (ART)",
+                allowRealFrameworkFallback = false
+            )
+            setContent { WestlakeVMApkScreen(config) }
+            return
+        }
         if (className == "WESTLAKE_VM_MCD") {
             Log.i(TAG, "Launching McDonald's VM (raw SurfaceView)")
             // Disable edge-to-edge to prevent SurfaceView destruction during window setup
@@ -409,8 +420,8 @@ class WestlakeActivity : ComponentActivity() {
             }
         }
 
-        // Load engine DEX files in background (skip for McD raw SurfaceView mode)
-        if (autoLaunch != "WESTLAKE_VM_MCD" && autoLaunch != "WESTLAKE_ART_MCD") {
+        // Load engine DEX files in background (skip for McD raw SurfaceView mode + ART branches)
+        if (autoLaunch != "WESTLAKE_VM_MCD" && autoLaunch != "WESTLAKE_ART_MCD" && autoLaunch != "WESTLAKE_ART_NOICE") {
             Thread(Runnable { loadEngine() }, "WestlakeEngine").start()
         }
     }
