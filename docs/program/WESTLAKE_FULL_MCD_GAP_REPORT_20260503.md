@@ -781,7 +781,131 @@ If A==C and B==D structurally, the flag is conclusively irrelevant for these mar
 - The `pdp_add_cart_gate=PASS` doesn't need an unsafe path; it needs a **tap-settle protocol** in the gate harness so the second tap reliably catches `h_168` (the layout state where `pdpAddToBagButton.contains(350,960)` is true).
 - Real PF-628 acceptance still requires `MCD_PDP_OBSERVER_DISPATCH ... invoked=true count≥1` (real observer dispatch fires) — that requires both flags AND a working PF-630 fix.
 
-### 13.11 Updated artifacts table
+### 13.12 PF-630 narrow-fix attempts (all 3 failed — narrowing the gate predicate is the right next angle)
+
+After §13.7 identified `PFCutPf625EntryLooksInvalid` widening + Unsafe `SetWithoutChecks` as the regression cause, this session attempted three progressively-deeper surgical fixes. **All three regressed the bounded baseline with identical boot-class ArrayStoreException cascade.**
+
+#### Candidate A: narrow `PFCutPf625EntryLooksInvalid` revert only
+
+- Edit: `$HOME/art-latest/patches/runtime/interpreter/interpreter_common.cc:107-119` — restored to single-sentinel `value == kPFCutPf625StaleNativeEntry`. ~10 lines changed.
+- Build: succeeded — `make -f Makefile.ohos-arm64 -j$(nproc) link-runtime`
+- Hash: `b1e815983b5ad1bdf31c1ce9d449b495c4cbf1007db54ce24989b56b62bfdd6f`
+- Bounded gate: **FAIL** — `artifacts/real-mcd/20260503_211420_mcd_pf630_narrow_fix_bounded_regression/`. ArrayStoreException cascade in ICUBinary, CoderResult, Providers, Crypto. Identical failure mode to original candidate.
+- Conclusion: narrowing the routing predicate doesn't help — boot-time `Unsafe.compareAndSwapObject` callers still hit the bypass when their array path goes through `PFCutUnsafeSetObjectArraySlot` directly (not via the predicate-redirected interpreter JNI fallback).
+
+#### Candidate B: revert both Unsafe natives to git HEAD
+
+- Edit: `git checkout HEAD -- patches/runtime/native/sun_misc_Unsafe.cc patches/runtime/native/jdk_internal_misc_Unsafe.cc` plus the candidate A `interpreter_common.cc` edit.
+- Build: succeeded
+- Hash: `1a3958b37eeeb8476bbb693c6dd078b6a165e2cdf629f946349b3522ab7030eb`
+- Sync: **REJECTED by symbol checker** with 3 unresolved strong symbols:
+  - `art::Unsafe_arrayBaseOffset(_JNIEnv*, _jobject*, _jclass*)`
+  - `art::Unsafe_arrayIndexScale(_JNIEnv*, _jobject*, _jclass*)`
+  - `art::Unsafe_objectFieldOffset(_JNIEnv*, _jobject*, _jobject*)`
+- Conclusion: the patched Unsafe.cc files contain function definitions that other compilation units reference. Reverting them entirely is not viable without a wider revert.
+
+#### Candidate C: surgical `SetWithoutChecks → Set` (type-checked) in `PFCutUnsafeSetObjectArraySlot`
+
+- Edit: kept Unsafe.cc files in candidate state (so symbols resolve), changed two lines:
+  - `sun_misc_Unsafe.cc:154`: `SetWithoutChecks` → `Set` inside `PFCutUnsafeSetObjectArraySlot`
+  - `jdk_internal_misc_Unsafe.cc:154`: same
+- Plus retained candidate A's `interpreter_common.cc` narrow predicate revert.
+- Build: succeeded
+- Hash: `88d7a643ec53c2ffe24b0548206e1ca6fe1419944fb7e3afa3128c7acd99551c`
+- Sync: passed symbol check.
+- Bounded gate: **FAIL** — `artifacts/real-mcd/20260503_213808_mcd_pf630_typed_set_bounded_regression/`. Same ArrayStoreException cascade. The type check now fires AT THE WRITE SITE instead of being bypassed, but boot-class clinit still fails the same way (the calling code calls `compareAndSwapObject` with wrong-typed values during boot regardless of which variant of slot-set is used).
+
+#### Diagnosis (consolidated)
+
+The fundamental problem is that the patched `Unsafe_compareAndSwapObject` flow routes ARRAY-backed access through `PFCutUnsafe[Get|Set]ObjectArraySlot` even during early boot, when boot-class clinit is using `Unsafe.compareAndSwapObject(stringArray, offset, expected, newValue)` with values that the stock dalvikvm path would handle differently (presumably `SetFieldObjectVolatile` or similar with built-in type semantics that don't trip).
+
+Switching the slot accessor between `SetWithoutChecks` (silently corrupts) and `Set` (throws ASE at write site) is just choosing which way to fail — the call path itself is the problem. **The right fix per Agent C's option 2 is to narrow the routing gate to apply only AFTER `Runtime::Current()->IsStarted()` AND `app_class_loader_seen`**, so boot-class Unsafe calls fall through to the stock path. That requires:
+- Reading the existing call sites that route to `PFCutUnsafeSetObjectArraySlot` (3 in `sun_misc_Unsafe.cc`, similar in `jdk_internal_misc_Unsafe.cc`)
+- Wrapping each with a "boot complete" predicate that gates the routing
+- Compiling, syncing, testing
+- This is a meaningful patch to runtime native code — I did NOT attempt it in this session because the necessary code-reading + design discussion is beyond a same-session blind iteration.
+
+#### art-latest source state at session end (uncommitted relative to HEAD)
+
+The next agent will see these uncommitted edits in `$HOME/art-latest/`:
+- `patches/runtime/interpreter/interpreter_common.cc` — narrow `PFCutPf625EntryLooksInvalid` revert (single-sentinel only, lines ~107-119)
+- `patches/runtime/native/sun_misc_Unsafe.cc` — `PFCutUnsafeSetObjectArraySlot` uses typed `Set` (line ~154)
+- `patches/runtime/native/jdk_internal_misc_Unsafe.cc` — same as above (line ~154)
+- `Makefile.ohos-arm64` — pre-existing modification, not from this session
+
+Backups for clean-slate restoration:
+- `/tmp/interpreter_common.cc.pre-narrow-fix.bak` — original candidate `interpreter_common.cc`
+- `/tmp/sun_misc_Unsafe.cc.pre-revert.bak` — original candidate `sun_misc_Unsafe.cc`
+- `/tmp/jdk_internal_misc_Unsafe.cc.pre-revert.bak` — original candidate `jdk_internal_misc_Unsafe.cc`
+
+To restore to original candidate state:
+```bash
+cp /tmp/interpreter_common.cc.pre-narrow-fix.bak \
+   $HOME/art-latest/patches/runtime/interpreter/interpreter_common.cc
+cp /tmp/sun_misc_Unsafe.cc.pre-revert.bak \
+   $HOME/art-latest/patches/runtime/native/sun_misc_Unsafe.cc
+cp /tmp/jdk_internal_misc_Unsafe.cc.pre-revert.bak \
+   $HOME/art-latest/patches/runtime/native/jdk_internal_misc_Unsafe.cc
+```
+
+#### Phone state at session end
+
+- Runtime: rolled back to original `d7e10e47ff5ae0a8c0b103ea975f37fb2aa1ade474fac52f68ff03da95d9d872`
+- Backup retained: `$HOME/westlake-runtime-backups/dalvikvm.pre-pf630-d7e10e47.bak`
+- All other artifacts on phone unchanged (`aosp-shim.dex`, `core-*.jar`, etc.)
+- No verification gate run after this final rollback (rollback mechanism validated 3× today; original baseline is itself sporadically unstable — 12:15 PT PASS, 15:48 PT FAIL with quantity_plus, 21:25 PT FAIL with bounded). Don't expect a clean re-baseline today without a phone reboot or `pm clear com.mcdonalds.app`.
+
+#### Updated next-agent prompt for PF-630
+
+```
+PRECONDITION: art-latest patches/ contains the failed narrow + typed-Set
+edits from session 2026-05-03 PT (see §13.12). Optionally restore to
+original candidate state via the cp commands in §13.12 if you want a
+clean diff against HEAD.
+
+The right surgical angle (per Agent C option 2 + this session's empirical
+evidence): the boot-time problem is the routing path itself, not the slot
+accessor variant. Narrow the routing gate so PFCutUnsafe[Get|Set]ObjectArraySlot
+is only invoked AFTER boot is complete:
+
+1. Identify all callers of PFCutUnsafeSetObjectArraySlot in:
+     $HOME/art-latest/patches/runtime/native/sun_misc_Unsafe.cc:462,487,513
+     $HOME/art-latest/patches/runtime/native/jdk_internal_misc_Unsafe.cc (~analogous)
+2. Wrap each call site with a predicate:
+     if (Runtime::Current()->IsStarted() && PFCutAppClassLoaderSeen())
+3. Where !predicate, fall through to the stock Unsafe path (SetFieldObject etc.).
+4. Implement PFCutAppClassLoaderSeen() as a thread-local flag set by the
+   first observed non-boot ClassLoader, OR check ART's IsBootClassLoader() chain
+   for the calling stack frame.
+5. Build, sync (DALVIKVM_SRC=…), bounded regression FIRST (must PASS), then
+   long-soak (PF-630 acceptance).
+6. The phone may need a reboot or pm clear com.mcdonalds.app between runs
+   today — the original baseline is sporadically unstable. Force-stop the app
+   and clear data before each gate to reduce variance.
+
+Skip the simpler fixes (single-function revert, swap WithoutChecks→typed):
+both empirically failed this session (§13.12 candidates A/B/C).
+
+Build path:
+  cd $HOME/art-latest && make -f Makefile.ohos-arm64 -j$(nproc) link-runtime
+Output: $HOME/art-latest/build-ohos-arm64/bin/dalvikvm
+
+Sync path: env DALVIKVM_SRC=… ./scripts/sync-westlake-phone-runtime.sh
+Symbol-check is enforced — keep all patched function definitions.
+
+Backup before deploy:
+  adb pull /data/local/tmp/westlake/dalvikvm \
+    $HOME/westlake-runtime-backups/dalvikvm.pre-pf630-vN.bak
+```
+
+#### Updated PF-630 status
+
+- Original candidate runtime is **NOT a usable starting point as-is** — it regresses bounded baseline.
+- The Realm in-process emulation in the patch (~3000 lines, `interpreter_common.cc:+5694..+8704`) is in scope and probably correct; preserve it.
+- The bypassed-check Unsafe slot accessors are the regression source. They need to be CONDITIONALLY routed (boot-aware), not blindly typed.
+- Phone session retains a sporadically-unstable original baseline. Variance reduction (force-stop McD between runs, possible phone reboot) should be standard for next session.
+
+### 13.13 Updated artifacts table
 
 | Artifact | Result | Notable |
 |---|---|---|
@@ -789,7 +913,10 @@ If A==C and B==D structurally, the flag is conclusively irrelevant for these mar
 | `20260503_121537_mcd_baseline_post_pf630_rollback` | PASS | Confirms rollback restored baseline |
 | `20260503_122359_mcd_pf629_quantity_plus_cart2_gate` | FAIL | Short waits — PDP never loaded |
 | `20260503_154816_mcd_pf629_quantity_plus_cart2_bounded_waits` | FAIL | Bounded waits — PDP loaded, then PF-630 SIGBUS at 12th basket commit |
-| `20260503_155711_mcd_unsafe_pf628_observer_dispatch_probe_pre_pf630` | PASS — strongest of the session | Two-flag reframe confirmed; checker gap surfaced |
+| `20260503_155711_mcd_unsafe_pf628_observer_dispatch_probe_pre_pf630` | PASS — accidentally strongest of the session (resolved in §13.10 as tap-timing coincidence) | Two-flag reframe confirmed; checker gap surfaced |
+| `20260503_211420_mcd_pf630_narrow_fix_bounded_regression` | FAIL | Candidate A (`b1e815983b…`) — narrow `PFCutPf625EntryLooksInvalid` revert, same boot-class ASE cascade |
+| `20260503_212548_mcd_baseline_post_narrow_fix_rollback` | FAIL | Original `d7e10e47` runtime hit PF-630 SIGBUS at basketCommit=12 — original baseline is sporadically unstable |
+| `20260503_213808_mcd_pf630_typed_set_bounded_regression` | FAIL | Candidate C (`88d7a643ec…`) — `SetWithoutChecks → Set`, same ASE cascade — call path is the problem, not the slot accessor variant |
 
 **Next-agent prompt for PF-630 (replaces the §4 prompt):**
 ```
