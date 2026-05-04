@@ -710,7 +710,9 @@ Artifact: `artifacts/real-mcd/20260503_155711_mcd_unsafe_pf628_observer_dispatch
 
 The second probe is what would empirically validate whether the dispatch path itself works — but it would also expose the PF-630 SIGBUS chain, so it requires a working PF-630 fix first.
 
-**Surprise #1 — strongest green proof of the session.** Despite the dispatch gate still blocking, the run achieved:
+**Surprise #1 — apparent strongest green proof, but the flag is a red herring (resolved in §13.10).**
+
+Despite the dispatch gate still blocking, the run achieved:
 
 | Marker | Original 17:57 baseline | This unsafe probe |
 |---|---|---|
@@ -737,7 +739,49 @@ The second probe is what would empirically validate whether the dispatch path it
 
 **Probe cleanup verified:** `/data/local/tmp/westlake/westlake_mcd_unsafe_observer_dispatch.txt` removed post-run; `ls` confirms no such file.
 
-### 13.9 Updated artifacts table
+### 13.10 Surprise #1 RESOLVED — the flag is irrelevant; the win was a shim/tap-timing coincidence
+
+A follow-up code-investigation agent (read `WestlakeLauncher.java` end-to-end + per-marker counts across 4 artifacts) showed:
+
+- `westlake_mcd_unsafe_observer_dispatch.txt` has **exactly one consumer** in the entire codebase: `shim/java/com/westlake/engine/WestlakeLauncher.java:20001` (`isMcdUnsafeObserverDispatchEnabled()` sets `observerAllowed`). When `!allowed`, the function `maybeDispatchMcdPdpStockAddObserver` returns at line 20029. **No other side-effects** — no observer attach, no extra reflection, no lifecycle bookkeeping. The flag flips only the `reason` string between `observer_dispatch_opt_in_required` and `storage_sigbus_risk`.
+- `isMcdUnsafeStorageCommitEnabled()` (`:299`) is also called once at `:20002`. `isMcdUnsafeModelCommitEnabled()` (`:279`) is defined but **never called**.
+
+**The actual cause of the unsafe probe's "strongest green":**
+
+| Marker | 5/2 old-shim baseline (`51ba606b…`) | 5/3 new-shim no-flag (`da24e7a3…`) | 5/3 new-shim unsafe probe (`da24e7a3…`) |
+|---|---|---|---|
+| `MCD_PDP_FRAGMENT_RESUMED` direct | 3 | 3 | 6 |
+| `fragmentState=7 fragmentResumed=true` | 6 | 6 | 12 |
+| `lifecycleState=RESUMED` | 6 | 6 | 12 |
+| `MCD_PDP_OBSERVER_DISPATCH_GATE` | 1 | 1 | 2 |
+| `MCD_ORDER_PDP_GENERIC_HIT_PROBE` | 1 (`contains=false`) | 1 (`contains=false`) | 2 (one `contains=true`) |
+| `cartOrBagMutated` | 2 | 2 | 7 |
+
+**Two factors, neither involving the flag:**
+1. **Different shim binary** between 5/2 and 5/3 (`51ba606b…` → `da24e7a3…`) stabilized post-resume bookkeeping. The 5/3 no-flag baseline already has the same per-tap counts as the 5/3 unsafe probe.
+2. **Tap-timing luck** in the unsafe probe — the unsafe probe is exactly 2× the per-tap pattern of the no-flag run. The mechanism: the shimmer-state `pdpAddToBagButton` alternates height between `h_112` and `h_168`. The second tap at `(350, 960)` landed during `h_168` state, giving `contains=true` instead of `contains=false`. That second successful tap drove a full second pass through `routeMcdPdpGenericAddHitClick` → `performMcdPdpStockButtonClick` → `mcdPdpFragmentDepsReady` → `resumeMcdPdpFragmentIfReady` → `logMcdPdpAddLiveDataState` → `finishMcdPdpStockViewClickContinuation`. **All flag-independent.**
+
+**Implications (significant):**
+- **PF-628 "strongest green" is a tap-timing coincidence, NOT evidence of an unsafe path being load-bearing.** The flag does not unlock anything useful for the bounded acceptance.
+- **PF-622 mislabel surface is also explained**: there is no hidden generic-lifecycle path that needs ungating. `MCD_PDP_FRAGMENT_RESUMED` already fires whenever `mcdPdpFragmentDepsReady` runs through `resumeMcdPdpFragmentIfReady` — entirely flag-free. The 5/3 shim's improved counts vs 5/2 are due to stabilized bookkeeping in `aosp-shim.dex`, not lifecycle plumbing changes.
+- **A "safe" variant of the strongest green = today's existing post-rollback baseline.** No flag work needed. To deterministically reach `cartOrBagMutated≥2` in every run, the gate harness would need to tap twice (with settle) when the button is in `h_168`, retry until `contains=true`, or wait for shimmer hydration before tapping (`MCD_DASH_SECTIONS_READY`-style wait keyed on `pdpAddToBagButton` height).
+
+**Suggested follow-up probe** — a 2×2 matrix on the current shim (`da24e7a3…`):
+
+| Cell | Flag | Taps | Predicted result |
+|---|---|---|---|
+| A | absent | 1 tap @ `(350,960)` | 3 RESUMED, 1 GATE, 1 PROBE(`contains=false`), `cartOrBagMutated=1` |
+| B | absent | 2 taps @ `(350,960)` w/ 2s settle | 6 RESUMED, 2 GATE, 2 PROBE (one `contains=true`), `cartOrBagMutated≥2` |
+| C | present | 1 tap | identical to A except `reason=storage_sigbus_risk` |
+| D | present | 2 taps + settle | identical to B except `reason=storage_sigbus_risk` |
+
+If A==C and B==D structurally, the flag is conclusively irrelevant for these markers — gate criteria can then be tightened to require `cartOrBagMutated` via a per-tap settle protocol rather than treat it as unsafe-flag evidence.
+
+**Updated PF-628 acceptance refinement** (supersedes the §13.8 refinement):
+- The `pdp_add_cart_gate=PASS` doesn't need an unsafe path; it needs a **tap-settle protocol** in the gate harness so the second tap reliably catches `h_168` (the layout state where `pdpAddToBagButton.contains(350,960)` is true).
+- Real PF-628 acceptance still requires `MCD_PDP_OBSERVER_DISPATCH ... invoked=true count≥1` (real observer dispatch fires) — that requires both flags AND a working PF-630 fix.
+
+### 13.11 Updated artifacts table
 
 | Artifact | Result | Notable |
 |---|---|---|
