@@ -1,0 +1,72 @@
+== Noice APK provenance ==
+
+Acquisition timestamp: 2026-05-03T19:15:00-07:00 (PT)
+Acquired by: Agent 1 (APK acquisition) per WESTLAKE_NOICE_1DAY_CONTRACT_20260503.md §4
+
+== APK identity ==
+Source URL:        https://f-droid.org/repo/com.github.ashutoshgngwr.noice_72.apk
+Source page:       https://f-droid.org/packages/com.github.ashutoshgngwr.noice/
+Distribution:      F-Droid (signed by F-Droid build server)
+Package name:      com.github.ashutoshgngwr.noice  (verified from binary AndroidManifest.xml strings)
+Version name:      2.5.7
+Version code:      72
+Suggested:         yes (F-Droid "suggested" badge)
+Added to F-Droid:  Jun 05, 2024
+Local APK path:    /tmp/noice-apk/noice.apk
+Phone APK path:    /data/local/tmp/westlake/noice.apk
+APK size:          5100016 bytes (~4.86 MiB)
+APK sha256:        8e11b3136977e9f5dc897de85c26add9a219ea61884feabcbcd4e33566d5d2ca
+File type:         Android package (APK), with gradle app-metadata.properties, with APK Signing Block
+
+== DEX inventory ==
+Multidex:          NO (single classes.dex)
+classes.dex size:  4880620 bytes (~4.65 MiB)
+classes.dex sha256: 77ab8c57a6f3172dd22d3fd5eda83dfb8df335299588a629e93efb938d7901ff
+Phone DEX path:    /data/local/tmp/westlake/noice_classes.dex
+
+== Manifest survey (selected entries observed in binary AndroidManifest.xml) ==
+Application class: com.github.ashutoshgngwr.noice.NoiceApplication
+Main activity:     com.github.ashutoshgngwr.noice.activity.MainActivity
+Other activities:
+  - com.github.ashutoshgngwr.noice.activity.AlarmRingerActivity
+  - com.github.ashutoshgngwr.noice.activity.AppIntroActivity
+  - com.github.ashutoshgngwr.noice.activity.PresetShortcutHandlerActivity
+  - com.github.ashutoshgngwr.noice.activity.SetAlarmHandlerActivity
+  - com.github.ashutoshgngwr.noice.activity.SignInLinkHandlerActivity
+  - com.github.ashutoshgngwr.noice.billing.StripeCheckoutSessionCallbackActivity
+Services:
+  - com.github.ashutoshgngwr.noice.service.AlarmRingerService
+  - com.github.ashutoshgngwr.noice.service.SoundDownloadService
+  - com.github.ashutoshgngwr.noice.service.SoundPlaybackService
+  - com.github.ashutoshgngwr.noice.service.SubscriptionStatusPollService
+Receivers:
+  - com.github.ashutoshgngwr.noice.receiver.AlarmInitReceiver
+Notable references in manifest:
+  - androidx-startup
+  - com.google.android.exoplayer.downloadService.action.RESTART  (ExoPlayer for media)
+  - SCHEDULE_EXACT_ALARM_PERMISSION_STATE_CHANGED
+  - android.intent.action.SET_ALARM
+  - android.intent.action.BOOT_COMPLETED
+  - foregroundServiceType (foreground media service, expected per contract)
+
+== Notes ==
+- Picked the legacy package (com.github.ashutoshgngwr.noice) per the
+  contract preference: smaller, simpler, no auth deps required for basic UI.
+- Single-DEX (no multidex), so the gate harness only needs to push one
+  noice_classes.dex to the phone (already pushed as
+  /data/local/tmp/westlake/noice_classes.dex).
+- Signed by F-Droid build infrastructure (APK Signing Block present;
+  signature itself not separately verified — F-Droid serves over HTTPS
+  and the URL was obtained directly from the F-Droid package page).
+- Expected dependencies surfaced in the manifest: ExoPlayer (audio),
+  Stripe (billing — should be inert without network), AndroidX startup,
+  notifications/foreground service. Audio APIs will be characterized in
+  artifact A5 (Agent 4).
+- Acquisition was direct download via curl, no proxy.
+- APK has NOT been launched yet on the phone — only staged for the gate
+  harness (per contract step 4).
+
+== Verification ==
+On-phone sha256 verification (from `adb shell sha256sum`):
+  /data/local/tmp/westlake/noice.apk          8e11b3136977e9f5dc897de85c26add9a219ea61884feabcbcd4e33566d5d2ca  (MATCHES local)
+  /data/local/tmp/westlake/noice_classes.dex  77ab8c57a6f3172dd22d3fd5eda83dfb8df335299588a629e93efb938d7901ff  (MATCHES local)

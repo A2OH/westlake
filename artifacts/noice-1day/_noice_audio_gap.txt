@@ -1,0 +1,398 @@
+== Noice audio API call inventory ==
+Source: /tmp/noice-apk/noice_classes.dex (sha256 77ab8c57a6f3172dd22d3fd5eda83dfb8df335299588a629e93efb938d7901ff, 4880620 bytes)
+Note: spec referenced /tmp/noice_classes.dex; that path does not exist on this host. The
+canonical Agent-1 dex with the matching sha256 lives at /tmp/noice-apk/noice_classes.dex.
+APK: /tmp/noice-apk/noice.apk (sha256 8e11b3136977e9f5dc897de85c26add9a219ea61884feabcbcd4e33566d5d2ca,
+     5100016 bytes)
+Generated: 2026-05-04T06:23:36Z
+Method: `strings -10 noice_classes.dex | grep '^Landroid/media/...|^Landroidx/media...'`
+        plus targeted greps for AudioFocus/PowerManager/Notification surfaces.
+
+--- platform classes (android.media.*) referenced from dex ---
+Landroid/media/AudioAttributes;
+Landroid/media/AudioAttributes$Builder;
+Landroid/media/AudioDeviceInfo;
+Landroid/media/AudioFocusRequest;
+Landroid/media/AudioFocusRequest$Builder;
+Landroid/media/AudioFormat;
+Landroid/media/AudioFormat$Builder;
+Landroid/media/AudioManager;
+Landroid/media/AudioManager$OnAudioFocusChangeListener;
+Landroid/media/AudioTimestamp;
+Landroid/media/AudioTrack;
+Landroid/media/AudioTrack$Builder;
+Landroid/media/AudioTrack$StreamEventCallback;
+Landroid/media/MediaCodec;
+Landroid/media/MediaCodec$BufferInfo;
+Landroid/media/MediaCodec$Callback;
+Landroid/media/MediaCodec$CodecException;
+Landroid/media/MediaCodec$CryptoException;
+Landroid/media/MediaCodec$CryptoInfo;
+Landroid/media/MediaCodec$CryptoInfo$Pattern;
+Landroid/media/MediaCodecInfo;
+Landroid/media/MediaCodecInfo$AudioCapabilities;
+Landroid/media/MediaCodecInfo$CodecCapabilities;
+Landroid/media/MediaCodecInfo$CodecProfileLevel;
+Landroid/media/MediaCodecInfo$VideoCapabilities;
+Landroid/media/MediaCodecInfo$VideoCapabilities$PerformancePoint;
+Landroid/media/MediaCodecList;
+Landroid/media/MediaCrypto;          (DRM, unused at runtime by noice)
+Landroid/media/MediaDescription;
+Landroid/media/MediaDescription$Builder;
+Landroid/media/MediaDrm;             (DRM family — unused at runtime)
+Landroid/media/MediaFormat;
+Landroid/media/MediaMetadata;
+Landroid/media/MediaMetadataRetriever;
+Landroid/media/MediaPlayer;          (only ambient ref via Media3, not directly instantiated by noice)
+Landroid/media/MediaRouter;
+Landroid/media/PlaybackParams;
+Landroid/media/RingtoneManager;      (used by AlarmRingerService for default-alarm fallback)
+Landroid/media/Spatializer;
+Landroid/media/Spatializer$OnSpatializerStateChangedListener;
+Landroid/media/VolumeProvider;
+Landroid/media/metrics/MediaMetricsManager; (+Builder/Event subclasses)
+Landroid/media/projection/MediaProjectionManager;
+Landroid/media/session/MediaController;
+Landroid/media/session/MediaSession;
+Landroid/media/session/MediaSession$Callback;
+Landroid/media/session/MediaSession$QueueItem;
+Landroid/media/session/MediaSession$Token;
+Landroid/media/session/MediaSessionManager;
+Landroid/media/session/MediaSessionManager$RemoteUserInfo;
+Landroid/media/session/PlaybackState;
+Landroid/media/session/PlaybackState$Builder;
+Landroid/media/session/PlaybackState$CustomAction;
+Landroid/media/session/PlaybackState$CustomAction$Builder;
+Landroid/media/tv/TvInputManager;     (cast/mediarouter compat — unused)
+
+--- androidx.media compat references ---
+Landroidx/media/AudioAttributesCompat;
+Landroidx/media/AudioAttributesImpl;
+Landroidx/media/AudioAttributesImplBase;
+Landroidx/media/AudioAttributesImplApi21;
+Landroidx/media/AudioAttributesImplApi26;
+(+Parcelizer variants for each above)
+
+--- androidx.media3 (= Media3 / new ExoPlayer namespace) audio surfaces ---
+Landroidx/media3/exoplayer/audio/AudioSink$ConfigurationException;
+Landroidx/media3/exoplayer/audio/AudioSink$InitializationException;
+Landroidx/media3/exoplayer/audio/AudioSink$WriteException;
+Landroidx/media3/exoplayer/audio/AudioSink$UnexpectedDiscontinuityException;
+Landroidx/media3/exoplayer/audio/DefaultAudioSink$InvalidAudioTrackTimestampException;
+Landroidx/media3/common/audio/AudioProcessor$UnhandledAudioFormatException;
+Landroidx/media3/exoplayer/mediacodec/MediaCodecRenderer$DecoderInitializationException;
+Landroidx/media3/exoplayer/mediacodec/MediaCodecDecoderException;
+Landroidx/media3/exoplayer/mediacodec/MediaCodecUtil$DecoderQueryException;
+Landroidx/media3/exoplayer/audio/MediaCodecAudioRenderer (referenced; class def lives in dex)
+(plus DefaultAudioSink, AudioCapabilities, AudioFocusManager, etc — all pure Java
+sitting on top of the platform classes above)
+
+--- noice's own audio wrapper classes (where outbound calls originate) ---
+Lcom/github/ashutoshgngwr/noice/service/SoundPlaybackService;
+  → instantiates androidx.media3 ExoPlayer + holds MediaSessionCompat
+  → has $audioFocusManager, $notificationManager, $localSoundPlayerFactory
+Lcom/github/ashutoshgngwr/noice/service/AlarmRingerService;
+  → uses RingtoneManager + WakeLock + AudioFocus + Vibrator
+  → independent of SoundPlaybackService (alarm path)
+Lcom/github/ashutoshgngwr/noice/service/SoundDownloadService;
+  → ExoPlayer offline DownloadService (no audio playback, just data fetch)
+Lcom/github/ashutoshgngwr/noice/engine/LocalSoundPlayer;
+Lcom/github/ashutoshgngwr/noice/engine/SoundPlayer;
+Lcom/github/ashutoshgngwr/noice/engine/SoundPlayerManager;
+Lcom/github/ashutoshgngwr/noice/engine/media/MediaPlayer;
+  ↑ NB: this is noice's own MediaPlayer wrapper class, NOT android.media.MediaPlayer.
+    It internally drives a Media3 ExoPlayer instance. Naming collides with the
+    framework class but is unrelated.
+
+--- power / notification / focus surface (used by every playback path) ---
+Landroid/os/PowerManager;
+Landroid/os/PowerManager$WakeLock;            (newWakeLock + acquire/release)
+Landroid/app/NotificationManager;
+Landroid/app/NotificationChannel;
+Landroid/app/NotificationChannelGroup;
+Landroid/app/Notification + $Builder + $MediaStyle + $Action      (foreground-svc nfn)
+Landroid/app/Service;                          (fg service base class)
+Landroidx/core/app/NotificationCompat (and androidx.media-app variant — for media style)
+Landroid/support/v4/media/session/MediaSessionCompat (+Token, +QueueItem)
+Manifest permissions confirm the picture: android.permission.WAKE_LOCK,
+FOREGROUND_SERVICE, FOREGROUND_SERVICE_MEDIA_PLAYBACK, POST_NOTIFICATIONS,
+android.hardware.audio.output (uses-feature).
+
+== APK-bundled native libraries ==
+APK: /tmp/noice-apk/noice.apk (sha256 8e11b313...)
+NONE.  `unzip -l noice.apk | grep '\.so$'` → no matches across 1250 entries.
+The APK ships only classes.dex + assets + resources. Confirmed no `lib/arm64-v8a/`
+or `lib/armeabi-v7a/` directories at all. There is also no legacy
+`com/google/android/exoplayer2` namespace and no `LibflacAudioRenderer` /
+`LibopusAudioRenderer` class in the dex — so noice has chosen to rely entirely on
+the platform's MediaCodec for decoding (FLAC/Opus/AAC/Vorbis are decoded by
+android.media.MediaCodec, not by APK-side native code).
+
+Implication: there is no APK-bundled JNI to load — the entire audio data path is
+Media3 (Java) → android.media.MediaCodec (platform JNI) → android.media.AudioTrack
+(platform JNI). Anything we don't intercept ends up at libmedia / libaudioclient
+on the phone's bionic layer.
+
+== Westlake current state per call ==
+Bridge file:        $HOME/art-latest/stubs/ohbridge_stub.c (1332 lines)
+Registration entry: OHBridge_JNI_OnLoad_Impl @ line 1040
+                    JNI_OnLoad / JNI_OnLoad_ohbridge_real @ lines 1285-1290
+
+What IS bridged (RegisterNatives call sites):
+  com/ohos/shim/bridge/OHBridge   line 1066   (Westlake's own wrapper class)
+  android/os/MessageQueue         line 1082
+  android/util/Log                line 1101
+  android/os/Binder               line 1116
+  android/os/SystemClock          line 1131
+  android/os/Trace                line 1146
+  android/content/res/ApkAssets   line 1161
+  android/content/res/XmlBlock    line 1181
+  android/content/res/StringBlock line 1203
+  android/content/res/AssetManager line 1220
+  com/android/internal/os/BinderInternal line 1245
+  android/os/SystemProperties     line 1256
+
+What is NOT bridged at all (no FindClass / no RegisterNatives anywhere):
+  android/media/AudioTrack          ← the load-bearing one for noice
+  android/media/AudioManager        ← audio-focus + volume queries
+  android/media/AudioAttributes
+  android/media/AudioFocusRequest
+  android/media/AudioFormat
+  android/media/MediaCodec          ← decoder for FLAC/Opus/AAC/Vorbis
+  android/media/MediaCodecList
+  android/media/MediaCodecInfo*
+  android/media/MediaPlayer         (the framework one)
+  android/media/MediaFormat
+  android/media/MediaMetadata
+  android/media/MediaMetadataRetriever
+  android/media/MediaCrypto / android/media/MediaDrm
+  android/media/RingtoneManager
+  android/media/Spatializer
+  android/media/session/MediaSession
+  android/media/session/MediaSessionManager
+  android/media/session/PlaybackState
+  android/os/PowerManager$WakeLock  (newWakeLock / acquire / release native paths)
+  android/app/NotificationManager   (publish / channel native paths)
+
+What is half-bridged but NOT useful for noice:
+  ohbridge_stub.c lines 541-561 declare `audioGetStreamVolume`,
+  `audioGetStreamMaxVolume`, `audioSetStreamVolume`, `audioGetRingerMode`,
+  `audioSetRingerMode`, `audioIsMusicActive`, `mediaPlayerCreate`,
+  `mediaPlayerSetDataSource`, `mediaPlayerPrepare`, `mediaPlayerStart`,
+  `mediaPlayerPause`, `mediaPlayerStop`, `mediaPlayerRelease`,
+  `mediaPlayerSeekTo`, `mediaPlayerReset`, `mediaPlayerGetDuration`,
+  `mediaPlayerGetCurrentPosition`, `mediaPlayerIsPlaying`,
+  `mediaPlayerSetVolume`, `mediaPlayerSetLooping`.
+  These are registered against `com/ohos/shim/bridge/OHBridge` (line 1066) — they
+  are stubs that return constants (volume=8, max=15, ringer=NORMAL, isMusicActive
+  = false) for OpenHarmony shim callers (e.g., MockDonalds-style apps that go
+  through OHBridge.audio*). Noice does NOT call OHBridge.* — it goes straight to
+  the platform classes — so these stubs are dead code for the noice case.
+
+Per-call status for the top noice audio entry points:
+
+  android.media.AudioTrack.<init> / write / play / stop / pause / release
+    → currently UNHANDLED. ART tries to resolve the native methods
+      (`native_setup`, `native_write_byte_array`, `native_write_short_array`,
+      `native_play`, `native_stop`, `native_pause`, `native_release`,
+      `native_get_min_buffer_size`, `native_set_volume`, `native_get_timestamp`)
+      via `dalvik.system.BaseDexClassLoader → System.loadLibrary("media_jni")`.
+      On the OnePlus 6 phone running Westlake, the platform `libmedia_jni.so`
+      from the OEM Android 11 lives at /system/lib64/, so dlopen succeeds —
+      but it pulls in `android::AudioSystem`, `BinderManager`, and
+      `IAudioFlinger` which need a real SystemServer + audio HAL link. Result:
+      either UnsatisfiedLinkError (if the device's media_jni won't link in
+      our process), or AudioTrack init returns ERROR (-3) and Java throws
+      `IllegalStateException`.
+      Status: unknown until runtime probe — needs to be tested on phone.
+
+  android.media.MediaCodec.* (createByCodecName, configure, queueInputBuffer,
+  dequeueOutputBuffer, releaseOutputBuffer, getOutputFormat, ...)
+    → same situation as AudioTrack: depends on whether the platform's
+      libmedia_jni.so + libstagefright will dlopen and link inside our
+      isolated dalvikvm64 process. Likely "loads but fails first call" because
+      MediaCodec talks to the mediaserver via Binder and our process is not
+      an Android-system process from the framework's POV.
+      Status: unknown until runtime probe.
+
+  android.media.AudioManager.requestAudioFocus / abandonAudioFocus /
+  getStreamVolume / setStreamVolume
+    → noice uses `androidx.media.AudioFocusRequestCompat` which delegates to
+      AudioManager via reflection on framework code. AudioManager methods are
+      almost all pure Java that Binder-call into AudioService running in
+      system_server. In our Westlake host process, those Binder calls fail
+      → noice gets `AUDIOFOCUS_REQUEST_FAILED`. The
+      `onAudioFocusChange: gained audio focus` log line never fires →
+      SoundPlaybackService refuses to start playback even before AudioTrack
+      is touched.
+      Status: unhandled; this is the FIRST gate noice fails.
+
+  android.os.PowerManager.newWakeLock / WakeLock.acquire / release
+    → Pure Java that Binder-calls into PowerManagerService. In our process
+      Binder is faked (via ohbridge `binder.getContextObject` returning a
+      stub IBinder), so PowerManager.newWakeLock returns a non-null WakeLock
+      object whose acquire/release silently no-op. No crash, but no actual
+      wake-lock — fine for a foreground app whose Activity is up.
+      Status: implicitly handled by Binder stub — adequate.
+
+  android.app.NotificationManager.notify / createNotificationChannel
+    → Same Binder shape. Calls succeed silently but no notification appears.
+      Foreground-service start (`startForeground`) on Android 14+ requires
+      a real notification, so `Service.startForeground` will throw
+      `ForegroundServiceDidNotStartInTimeException` after 10s.
+      Status: blocking for SoundPlaybackService lifecycle; needs minimal
+      stubbing of NotificationManager's three native methods (enqueueNotification,
+      cancelNotification, notifyAsPackage) at minimum.
+
+  android.media.session.MediaSession.<init> / setCallback / setPlaybackState
+    → Binder-calls MediaSessionManagerService. Currently fails silently.
+      Status: not a blocker for sound playback itself, but media-style
+      notification is broken without it.
+
+== Effort estimate ==
+Premise: target environment is the OnePlus 6 phone running Westlake's own
+ART11 inside dalvikvm64, with libohbridge.so as the JNI surface (per
+project_dalvikvm64_bridge memory). Phone is arm64-v8a; the device's own
+/system/lib64/libmedia_jni.so + libaudioclient.so are usable IF we can
+dlopen them and provide the right context.
+
+1. Audio focus stub  — 0.5-1 day
+   Add three FindClass+RegisterNatives blocks for android.media.AudioManager
+   (`native_requestAudioFocus`, `native_abandonAudioFocus`, `native_setMode`,
+   `native_getStreamVolume`, `native_getStreamMaxVolume`). Make
+   requestAudioFocus return AUDIOFOCUS_REQUEST_GRANTED unconditionally. This
+   unblocks the FIRST gate noice currently fails — without it, no audio
+   path ever runs.
+   Risk: low. Pure no-op stub that just satisfies the focus contract.
+
+2. NotificationManager stub for foreground service  — 1-2 days
+   Stub `enqueueNotificationWithTag`, `cancelNotificationWithTag`,
+   `createNotificationChannelsForPackage`, plus
+   `ActivityManager.startForegroundService` shim. Required to prevent
+   `Service.startForeground` ANR on Android 14+ targetSdk.
+   Risk: low. Same model as existing ApkAssets / SystemProperties stubs.
+
+3. AudioTrack JNI bridge (the load-bearing one) — 1-2 weeks
+   Two paths:
+   (a) Best-effort: dlopen the phone's /system/lib64/libmedia_jni.so and let
+       its native_setup do its thing. On Pixel 7 Pro / OnePlus 6 this requires
+       the process to have ACCESS_AUDIO permission AND a real Context binder
+       — which we don't. Likely fails with E/AudioFlinger linker dlsym errors.
+   (b) Reimplement the seven-method native_setup/native_write/native_play/
+       native_stop/native_pause/native_release/native_get_min_buffer_size
+       surface against AAudio (libaaudio.so on Android 8+, available on
+       OnePlus 6). AAudio is a userland library, no SystemServer dependency,
+       and gives us a stream we can write PCM into. This is the realistic
+       1-2 week path. Stereo PCM 44.1/48kHz, S16/F32 — that covers ~all of
+       Media3's DefaultAudioSink output formats.
+   Risk: medium. Well-known shape of seven JNI methods; AAudio is documented.
+   Output: noice plays sound (silence vs sound boundary).
+
+4. MediaCodec JNI bridge (decoders) — 2-4 weeks for FOSS coverage
+   Wide surface (~30 native methods). Two routes:
+   (a) Wrap the phone's libmedia_jni.so MediaCodec entry points (same
+       SystemServer dependency problem as AudioTrack option a).
+   (b) Replace the codec backend with ExoPlayer's own NDK decoders (LibFLAC,
+       LibOpus, LibVorbis, LibAv1) bundled as separate .so files in our
+       installed app dir, and SUBSTITUTE noice's MediaCodecAudioRenderer with
+       a FfmpegAudioRenderer at the Java level (not possible without
+       repackaging the APK — out of scope for the read-only proof).
+   (c) Pure stub that returns "no codec found" → noice's
+       `MediaCodecRenderer.maybeInitCodec` throws
+       `MediaCodecRenderer$DecoderInitializationException`. If we instead
+       return success and accept-then-discard the decoded frames, we get
+       silent playback which still progresses through the player state
+       machine — useful as a smoke test.
+   Effort to actually decode FLAC (the format noice uses for sound files):
+   2-3 weeks if option (a) works on phone, 4+ weeks for option (b) if we
+   need to write a custom AudioRenderer.
+   Risk: high. This is the real bottleneck.
+
+5. WakeLock / PowerManager  — already adequate (Binder stub); 0 days net
+6. MediaSession / MediaSessionManager — 3-5 days for media-style notification
+7. RingtoneManager (alarm path)  — 2-3 days; uses MediaPlayer under the hood,
+   so blocked on item 4. AlarmRingerService can fall back to a hardcoded
+   "ring.ogg" playback.
+
+== Recommended day-2+ work order ==
+Day 2 (1-day budget):
+  - Add AudioManager + AudioFocus no-op stubs (~30 lines of C)
+  - Add NotificationManager.enqueueNotificationWithTag stub (~20 lines)
+  Result: noice's SoundPlaybackService can start as a foreground service and
+  attempt playback. AudioTrack init will then fail; that's the visible next
+  gate.
+
+Week 1:
+  - Implement AudioTrack via AAudio backend (option 3b above)
+  - Stub MediaCodec to "always succeeds, discards frames" (option 4c) so
+    that ExoPlayer's pipeline runs end-to-end with silent output
+  Result: noice's UI fully usable, transport state changes, all sounds
+  "play" but with no audible output (proves the gap is purely in the
+  decoder, not in the rest of the audio chain).
+
+Week 2:
+  - Bridge MediaCodec to phone's libmedia_jni.so (option 4a) — try in the
+    Westlake process first; if the SystemServer-dependent paths fail,
+    decide between (b) and (c).
+  - Add MediaSession + media-style notification.
+  Result: actual sound from FLAC files. This is the proof-of-audio milestone.
+
+Week 3+:
+  - AlarmRingerService end-to-end (RingtoneManager → MediaPlayer JNI bridge,
+    ~3 days on top of MediaCodec work).
+  - Multi-stream mix (noice plays up to ~12 sounds simultaneously — Media3's
+    DefaultAudioSink does this in Java, but we need to make sure AAudio
+    handles 12 concurrent streams or we need a software mixer).
+  - Audio effects (noice has crossfade + EQ — pure Java; will Just Work
+    once AudioTrack does).
+
+== Noice-specific quirks ==
+
+1. Noice's own internal class is named
+   Lcom/github/ashutoshgngwr/noice/engine/media/MediaPlayer; — same simple name
+   as android.media.MediaPlayer. Anyone grep-ing for "MediaPlayer" will hit
+   noice's wrapper. The framework MediaPlayer class IS referenced in the dex
+   table, but as far as I can see noice's wrapper drives a Media3 ExoPlayer
+   instance under the hood, not android.media.MediaPlayer. This is consistent
+   with Media3 best practices for sound apps that need crossfade.
+
+2. **ZERO bundled native libraries.** Most ExoPlayer apps ship libflac.so,
+   libopus.so, libffmpeg_jni.so to handle non-platform formats. Noice does
+   not — they rely entirely on the platform's MediaCodec for decoding. This
+   means there is no "load the bundled .so and it Just Works" easy path;
+   the audio decode side is 100% on the phone's libmedia_jni.so.
+
+3. AlarmRingerService is independent of SoundPlaybackService and uses
+   RingtoneManager (not Media3). For a 1-day proof we can ignore it — but
+   if the user's actual workflow is "alarm goes off and noice rings", we'll
+   need the MediaPlayer JNI surface working too.
+
+4. Noice uses Media3 (`androidx.media3.*`), NOT the legacy
+   `com.google.android.exoplayer2.*` namespace. APIs are similar but class
+   names differ — any ExoPlayer-specific docs from before Mar-2022 won't
+   match the dex strings.
+
+5. The strings dump shows AudioFocusManager / DefaultAudioSink / AudioCapabilities
+   are all in the dex as concrete classes. So at runtime, noice WILL execute
+   these Java code paths — there's no Media3 lazy class-load that we can
+   short-circuit by "just not creating the player".
+
+6. `android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK` is in the manifest,
+   meaning targetSdk >= 34 enforcement applies. Without the foreground-service
+   notification trick (item 2 in effort estimate), noice will be killed by
+   the framework within 10s of start.
+
+7. `android.hardware.audio.output` is a `uses-feature` requirement. Westlake's
+   PackageInfoStub must report this hardware as present, or
+   PackageManager.hasSystemFeature() will return false and noice's
+   onboarding-flow will refuse to proceed.
+
+== Summary of the gap ==
+Closing the audio gap on day 1 is impossible — there is zero JNI bridging for
+any android.media.* class today, and noice has 50+ android.media class refs
+plus the entire androidx.media3 stack. A useful 1-day deliverable is the
+two-stub patch (AudioFocus + NotificationManager) that lets noice's
+foreground service successfully start and reach the AudioTrack-init gate.
+Real audio output is a 1-2 week effort (AudioTrack via AAudio) plus a
+2-4 week effort for MediaCodec decode coverage, with the 4-week worst case
+if noice's FLAC path can't reuse the phone's libmedia_jni.so.

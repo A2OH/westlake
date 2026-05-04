@@ -1,0 +1,1 @@
+$HOME/android-to-openharmony-migration/artifacts/noice-1day/20260503_232600_noice_noice_first_boot_v2

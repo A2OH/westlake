@@ -1,0 +1,3 @@
+05-03 19:26:32.581 10666 10718 I WestlakeVM: VM: [shim-log] D/MiniActivityManager:   performCreate app factoryClass failed: ClassNotFoundException: kotlinx.coroutines.android.AndroidDispatcherFactory
+05-03 19:26:32.607 10666 10718 I WestlakeVM: VM: [shim-log] D/MiniActivityManager:   performCreate thread factoryClass failed: ClassNotFoundException: kotlinx.coroutines.android.AndroidDispatcherFactory
+05-03 19:26:33.687 10666 10718 I WestlakeVM: VM: Fatal signal 7 (SIGBUS), code 1 (BUS_ADRALN) fault addr 0xfffffffffffffb17

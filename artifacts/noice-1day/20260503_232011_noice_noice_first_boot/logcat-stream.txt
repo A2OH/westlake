@@ -1,0 +1,1121 @@
+--------- beginning of kernel
+05-03 19:20:09.830     0     0 I logd    : logdr: UID=2000 GID=2000 PID=10149 b tail=0 logMask=99 pid=0 start=0ns deadline=0ns
+--------- beginning of main
+05-03 19:20:09.982  3704  3747 W HidlServiceManagement: Waited one second for vendor.qti.hardware.cacert@1.0::IService/default
+05-03 19:20:09.985   660   660 I hwservicemanager: Since vendor.qti.hardware.cacert@1.0::IService/default is not registered, trying to start it as a lazy HAL (if it's not configured to be a lazy HAL, it may be stuck starting or still starting).
+05-03 19:20:09.986  3704  3747 I HidlServiceManagement: getService: Trying again for vendor.qti.hardware.cacert@1.0::IService/default...
+05-03 19:20:09.991   660 10152 W libc    : Unable to set property "ctl.interface_start" to "vendor.qti.hardware.cacert@1.0::IService/default": PROP_ERROR_HANDLE_CONTROL_MESSAGE (0x20)
+05-03 19:20:09.992   660 10152 I hwservicemanager: Tried to start vendor.qti.hardware.cacert@1.0::IService/default as a lazy service, but was unable to. Usually this happens when a service is not installed, but if the service is intended to be used as a lazy service, then it may be configured incorrectly.
+05-03 19:20:09.903     0     0 E init    : Control message: Could not find 'vendor.qti.hardware.cacert@1.0::IService/default' for ctl.interface_start from pid: 660 (/system/system_ext/bin/hwservicemanager)
+05-03 19:20:10.426     0     0 I binder  : 10156:10156 ioctl 40046210 7fe0beec34 returned -22
+--------- beginning of system
+05-03 19:20:10.522   307 21605 I ActivityManager: Force stopping com.westlake.host appid=10218 user=0: from pid 10156
+05-03 19:20:10.528   307   780 D BackgroundInstallControlService: Package event received: 0
+05-03 19:20:10.528   307   780 D BackgroundInstallControlService: Package event received: 0
+05-03 19:20:10.528   307   780 D BackgroundInstallControlService: Package event received: 0
+05-03 19:20:10.528   307   780 D BackgroundInstallControlService: Package event received: 0
+05-03 19:20:10.528   307   780 D BackgroundInstallControlService: Package event received: 0
+05-03 19:20:10.528   307   780 D BackgroundInstallControlService: Package event received: 0
+05-03 19:20:10.529   307   780 D BackgroundInstallControlService: Package event received: 0
+05-03 19:20:10.531   307   767 I AppWidgetServiceImpl: Received broadcast: android.intent.action.PACKAGE_RESTARTED on user 0
+05-03 19:20:10.531   307   767 I AppWidgetServiceImpl: Updating package stopped masked state for uid 10218 package com.westlake.host isStopped true
+05-03 19:20:10.533  1166  1166 D CarrierSvcBindHelper: onHandleForceStop: [com.westlake.host]
+05-03 19:20:10.538  1166  1166 D CarrierSvcBindHelper: No carrier app for: 0
+05-03 19:20:10.539  1166  1166 D CarrierSvcBindHelper: No carrier app for: 1
+05-03 19:20:10.986  3704  3747 W HidlServiceManagement: Waited one second for vendor.qti.hardware.cacert@1.0::IService/default
+05-03 19:20:10.988   660   660 I hwservicemanager: Since vendor.qti.hardware.cacert@1.0::IService/default is not registered, trying to start it as a lazy HAL (if it's not configured to be a lazy HAL, it may be stuck starting or still starting).
+05-03 19:20:10.989  3704  3747 I HidlServiceManagement: getService: Trying again for vendor.qti.hardware.cacert@1.0::IService/default...
+05-03 19:20:10.992   660 10167 W libc    : Unable to set property "ctl.interface_start" to "vendor.qti.hardware.cacert@1.0::IService/default": PROP_ERROR_HANDLE_CONTROL_MESSAGE (0x20)
+05-03 19:20:10.992   660 10167 I hwservicemanager: Tried to start vendor.qti.hardware.cacert@1.0::IService/default as a lazy service, but was unable to. Usually this happens when a service is not installed, but if the service is intended to be used as a lazy service, then it may be configured incorrectly.
+05-03 19:20:10.905     0     0 E init    : Control message: Could not find 'vendor.qti.hardware.cacert@1.0::IService/default' for ctl.interface_start from pid: 660 (/system/system_ext/bin/hwservicemanager)
+05-03 19:20:11.175     0     0 I binder  : 10172:10172 ioctl 40046210 7fe69267b4 returned -22
+05-03 19:20:11.267   307 21605 I ActivityManager: Force stopping com.westlake.host appid=10218 user=0: from pid 10172
+05-03 19:20:11.277  1166  1166 D CarrierSvcBindHelper: onHandleForceStop: [com.westlake.host]
+05-03 19:20:11.277   307   767 I AppWidgetServiceImpl: Received broadcast: android.intent.action.PACKAGE_RESTARTED on user 0
+05-03 19:20:11.277   307   767 I AppWidgetServiceImpl: Updating package stopped masked state for uid 10218 package com.westlake.host isStopped true
+05-03 19:20:11.278  1166  1166 D CarrierSvcBindHelper: No carrier app for: 0
+05-03 19:20:11.279  1166  1166 D CarrierSvcBindHelper: No carrier app for: 1
+05-03 19:20:11.388     0     0 I QCOM-BATT: pl_fcc_vote_callback: total_fcc_ua=1950000
+05-03 19:20:11.388     0     0 I QCOM-BATT: pl_fv_vote_callback: fv_uv=4400000
+05-03 19:20:11.527   307 21605 W ActivityTaskManager: callingPackage for (uid=2000, pid=10172) has no WPC
+05-03 19:20:11.533   307 21605 V GrammaticalInflectionUtils: AttributionSource: AttributionSource { uid = 10218, packageName = null, attributionTag = null, token = android.os.Binder@a81f694, deviceId = 0, next = null } does not have READ_SYSTEM_GRAMMATICAL_GENDER permission.
+05-03 19:20:11.535   307 21605 W OptProp : Cannot read opt property android.window.PROPERTY_COMPAT_ALLOW_RESIZEABLE_ACTIVITY_OVERRIDES
+05-03 19:20:11.536   307 21605 W OptProp : Cannot read opt property android.window.PROPERTY_COMPAT_ALLOW_MIN_ASPECT_RATIO_OVERRIDE
+05-03 19:20:11.548   307 21605 W OptProp : Cannot read opt property android.window.PROPERTY_COMPAT_ALLOW_ORIENTATION_OVERRIDE
+05-03 19:20:11.549  3320  3359 I BpBinder: onLastStrongRef automatically unlinking death recipients: 
+05-03 19:20:11.552   307 21605 V SplashScreenExceptionList: SplashScreen checking exception for package com.westlake.host (target sdk:28) -> false
+05-03 19:20:11.553  3220  3220 I android.hardware.power-service-qti: Power setMode: 5 to: 1
+05-03 19:20:11.557  3267  3300 E ANDR-PERF-UTIL: Failed to read /sys/class/mmc_host/mmc0/clk_scaling/enable
+05-03 19:20:11.557  3267  3300 E ANDR-PERF-OPTSHANDLER: Failed to read /sys/class/mmc_host/mmc0/clk_scaling/enable
+05-03 19:20:11.557  3267  3300 E ANDR-PERF-RESOURCEQS: Failed to apply optimization [11, 4]
+05-03 19:20:11.559   307 21605 I ActivityTaskManager: START u0 {flg=0x10000000 cmp=com.westlake.host/.WestlakeActivity (has extras)} with LAUNCH_MULTIPLE from uid 2000 (BAL_ALLOW_PERMISSION) result code=0
+05-03 19:20:11.559   960   982 V WindowManagerShell: Transition requested (#4352): android.os.BinderProxy@60c410a TransitionRequestInfo { type = OPEN, triggerTask = TaskInfo{userId=0 taskId=2243 effectiveUid=10218 displayId=0 isRunning=true baseIntent=Intent { flg=0x10000000 cmp=com.westlake.host/.WestlakeActivity } baseActivity=ComponentInfo{com.westlake.host/com.westlake.host.WestlakeActivity} topActivity=ComponentInfo{com.westlake.host/com.westlake.host.WestlakeActivity} origActivity=null realActivity=ComponentInfo{com.westlake.host/com.westlake.host.WestlakeActivity} numActivities=1 lastActiveTime=2098204125 supportsMultiWindow=true resizeMode=1 isResizeable=true minWidth=-1 minHeight=-1 defaultMinSize=220 token=WCT{android.window.IWindowContainerToken$Stub$Proxy@6c4ed7b} topActivityType=1 pictureInPictureParams=null shouldDockBigOverlays=false launchIntoPipHostTaskId=-1 lastParentTaskIdBeforePip=-1 displayCutoutSafeInsets=Rect(0, 80 - 0, 0) topActivityInfo=ActivityInfo{a56c798 com.westlake.host.WestlakeActivity} launchCookies=[] positionInParent=Point(0, 0) parentTaskId=-1 isFocused=false isVisible=false isVisibleRequested=false isTopActivityNoDisplay=false isSleeping=false locusId=null displayAreaFeatureId=1 isTopActivityTransparent=false isActivityStackTransparent=false lastNonFullscreenBounds=Rect(267, 606 - 814, 1686) capturedLink=null capturedLinkTimestamp=0 requestedVisibleTypes=-9 topActivityRequestOpenInBrowserEducationTimestamp=0 appCompatTaskInfo=AppCompatTaskInfo { topActivityInSizeCompat=false eligibleForLetterboxEducation= false isLetterboxEducationEnabled= false isLetterboxDoubleTapEnabled= false eligibleForUserAspectRatioButton= false topActivityBoundsLetterboxed= false isFromLetterboxDoubleTap= false topActivityLetterboxVerticalPosition= -1 topActivityLetterboxHorizontalPosition= -1 topActivityLetterboxWidth=-1 topActivityLetterboxHeight=-1 topActivityLetterboxAppWidth=-1 topActivityLetterboxAppHeight=-1 isUserFullscreenOverrideEnabled=false isSystemFullscreenOverrideEnabled=false hasMinAspectRatioOverride=false topActivityLetterboxBounds=null cameraCompatTaskInfo=CameraCompatTaskInfo { freeformCameraCompatMode=inactive}} topActivityMainWindowFrame=null}, pipChange = null, remoteTransition = null, displayChange = null, flags = 0, debugId = 4352 }
+05-03 19:20:11.560   960   982 D ShellSplitScreen: logExit: no-op, mLoggerSessionId is null
+05-03 19:20:11.560   960  1004 I ndroid.systemui: AssetManager2(0x7bd46db138) locale list changing from [] to [en-US]
+05-03 19:20:11.563  1230  1230 W SplitSelectStateCtor: Missing session instanceIds
+05-03 19:20:11.563  1230  1230 D StatsLog: LAUNCHER_SPLIT_SELECTION_EXIT_INTERRUPTED
+05-03 19:20:11.565   960  1005 D SplashScreenView: Build android.window.SplashScreenView{62ae657 V.E...... ......ID 0,0-0,0}
+05-03 19:20:11.565   960  1005 D SplashScreenView: Icon: view: android.widget.ImageView{bcc544 V.ED..... ......I. 0,0-0,0 #1020525 android:id/splashscreen_icon_view} drawable: com.android.wm.shell.startingsurface.SplashscreenIconDrawableFactory$ImmobileIconDrawable@b12e62d size: 450
+05-03 19:20:11.565   960  1005 D SplashScreenView: Branding: view: android.view.View{cfbe762 G.ED..... ......I. 0,0-0,0 #1020524 android:id/splashscreen_branding_view} drawable: null size w: 0 h: 0
+05-03 19:20:11.565  3320  3320 I BpBinder: onLastStrongRef automatically unlinking death recipients: 
+05-03 19:20:11.569   960   982 D WindowManagerShell: setLauncherKeepClearAreaHeight: visible=false, height=292
+05-03 19:20:11.574   307   421 V GrammaticalInflectionUtils: AttributionSource: AttributionSource { uid = 10218, packageName = null, attributionTag = null, token = android.os.Binder@a81f694, deviceId = 0, next = null } does not have READ_SYSTEM_GRAMMATICAL_GENDER permission.
+05-03 19:20:11.575  3080 29189 I netd    : tetherGetStats() -> {[]} <4.44ms>
+05-03 19:20:11.585   307   767 I AppWidgetServiceImpl: Received broadcast: android.intent.action.PACKAGE_UNSTOPPED on user 0
+05-03 19:20:11.586   307   767 I AppWidgetServiceImpl: Updating package stopped masked state for uid 10218 package com.westlake.host isStopped false
+05-03 19:20:11.588   307  1401 D CoreBackPreview: Window{ece0e5a u0 Splash Screen com.westlake.host}: Setting back callback OnBackInvokedCallbackInfo{mCallback=android.window.IOnBackInvokedCallback$Stub$Proxy@3306581, mPriority=0, mIsAnimationCallback=false, mOverrideBehavior=0}
+05-03 19:20:11.600  1650 32677 D ForegroundUtils: Foreground UID status:
+05-03 19:20:11.600  1650 32677 D ForegroundUtils: UID: 10130 is in foreground: false
+05-03 19:20:11.600  1650 32677 D ForegroundUtils: UID: 10152 is in foreground: true
+05-03 19:20:11.600  1650 32677 D ForegroundUtils: UID: 10159 is in foreground: true
+05-03 19:20:11.600  1650 32677 D ForegroundUtils: UID: 10173 is in foreground: true
+05-03 19:20:11.600  1650 32677 D ForegroundUtils: UID: 10190 is in foreground: true
+05-03 19:20:11.600  1650 32677 D ForegroundUtils: UID: 10193 is in foreground: false
+05-03 19:20:11.601   307   780 D BackgroundInstallControlService: Package event received: 0
+05-03 19:20:11.605 32752 32752 D Zygote  : Forked child process 10178
+05-03 19:20:11.606   307   526 I ActivityManager: Start proc 10178:com.westlake.host/u0a218 for next-top-activity {com.westlake.host/com.westlake.host.WestlakeActivity}
+05-03 19:20:11.619   307   388 V WindowManager: Sent Transition (#4352) createdAt=05-03 19:20:11.538 via request=TransitionRequestInfo { type = OPEN, triggerTask = TaskInfo{userId=0 taskId=2243 effectiveUid=10218 displayId=0 isRunning=true baseIntent=Intent { flg=0x10000000 cmp=com.westlake.host/.WestlakeActivity } baseActivity=ComponentInfo{com.westlake.host/com.westlake.host.WestlakeActivity} topActivity=ComponentInfo{com.westlake.host/com.westlake.host.WestlakeActivity} origActivity=null realActivity=ComponentInfo{com.westlake.host/com.westlake.host.WestlakeActivity} numActivities=1 lastActiveTime=2098204125 supportsMultiWindow=true resizeMode=1 isResizeable=true minWidth=-1 minHeight=-1 defaultMinSize=220 token=WCT{RemoteToken{e3d3180 Task{c1d3649 #2243 type=standard A=10218:com.westlake.host}}} topActivityType=1 pictureInPictureParams=null shouldDockBigOverlays=false launchIntoPipHostTaskId=-1 lastParentTaskIdBeforePip=-1 displayCutoutSafeInsets=Rect(0, 80 - 0, 0) topActivityInfo=ActivityInfo{e2343b9 com.westlake.host.WestlakeActivity} launchCookies=[] positionInParent=Point(0, 0) parentTaskId=-1 isFocused=false isVisible=false isVisibleRequested=false isTopActivityNoDisplay=false isSleeping=false locusId=null displayAreaFeatureId=1 isTopActivityTransparent=false isActivityStackTransparent=false lastNonFullscreenBounds=Rect(267, 606 - 814, 1686) capturedLink=null capturedLinkTimestamp=0 requestedVisibleTypes=-9 topActivityRequestOpenInBrowserEducationTimestamp=0 appCompatTaskInfo=AppCompatTaskInfo { topActivityInSizeCompat=false eligibleForLetterboxEducation= false isLetterboxEducationEnabled= false isLetterboxDoubleTapEnabled= false eligibleForUserAspectRatioButton= false topActivityBoundsLetterboxed= false isFromLetterboxDoubleTap= false topActivityLetterboxVerticalPosition= -1 topActivityLetterboxHorizontalPosition= -1 topActivityLetterboxWidth=-1 topActivityLetterboxHeight=-1 topActivityLetterboxAppWidth=-1 topActivityLetterboxAppHeight=-1 isUserFullscreenOverrideEnabled=false isSystemFullscreenOverrideEnabled=false hasMinAspectRatioOverride=false topActivityLetterboxBounds=null cameraCompatTaskInfo=CameraCompatTaskInfo { freeformCameraCompatMode=inactive}} topActivityMainWindowFrame=null}, pipChange = null, remoteTransition = null, displayChange = null, flags = 0, debugId = 4352 }
+05-03 19:20:11.619   307   388 V WindowManager:     startWCT=WindowContainerTransaction { changes= {} hops= [] errorCallbackToken=null taskFragmentOrganizer=null }
+05-03 19:20:11.619 10178 10178 I Zygote  : seccomp disabled by setenforce 0
+05-03 19:20:11.619   307   388 V WindowManager:     info={id=4352 t=OPEN f=0x0 trk=0 r=[0@Point(0, 0)] c=[
+05-03 19:20:11.619   307   388 V WindowManager:         {WCT{RemoteToken{e3d3180 Task{c1d3649 #2243 type=standard A=10218:com.westlake.host}}} m=OPEN f=NONE leash=Surface(name=Task=2243)/@0xde00eb2 sb=Rect(0, 0 - 1080, 2280) eb=Rect(0, 0 - 1080, 2280) epz=Point(1080, 2280) d=0 taskParent=-1},
+05-03 19:20:11.619   307   388 V WindowManager:         {WCT{RemoteToken{cb0a3c2 Task{a516ecc #1 type=home}}} m=TO_BACK f=SHOW_WALLPAPER leash=Surface(name=Task=1)/@0xdc03e5b sb=Rect(0, 0 - 1080, 2280) eb=Rect(0, 0 - 1080, 2280) epz=Point(1080, 2280) d=0 taskParent=-1}
+05-03 19:20:11.619   307   388 V WindowManager:     ]}
+05-03 19:20:11.620   960 25344 V WindowManagerShell: onTransitionReady(transaction=1318555123107)
+05-03 19:20:11.621   960   982 V WindowManagerShell: onTransitionReady (#4352) android.os.BinderProxy@60c410a: {id=4352 t=OPEN f=0x0 trk=0 r=[0@Point(0, 0)] c=[
+05-03 19:20:11.621   960   982 V WindowManagerShell:         {m=OPEN f=NONE leash=Surface(name=Task=2243)/@0xffe0774 sb=Rect(0, 0 - 1080, 2280) eb=Rect(0, 0 - 1080, 2280) epz=Point(1080, 2280) d=0 taskParent=-1},
+05-03 19:20:11.621   960   982 V WindowManagerShell:         {m=TO_BACK f=SHOW_WALLPAPER leash=Surface(name=Task=1)/@0xd26b49d sb=Rect(0, 0 - 1080, 2280) eb=Rect(0, 0 - 1080, 2280) epz=Point(1080, 2280) d=0 taskParent=-1}
+05-03 19:20:11.621   960   982 V WindowManagerShell:     ]}
+05-03 19:20:11.621   960   982 V WindowManagerShell: Playing animation for (#4352) android.os.BinderProxy@60c410a@0
+05-03 19:20:11.621   960   982 V ShellRecents: RecentsTransitionHandler.startAnimation: no controller found
+05-03 19:20:11.621   960   982 V WindowManagerShell: Transition doesn't have explicit remote, search filters for match for {id=4352 t=OPEN f=0x0 trk=0 r=[0@Point(0, 0)] c=[{m=OPEN f=NONE leash=Surface(name=Task=2243)/@0xffe0774 sb=Rect(0, 0 - 1080, 2280) eb=Rect(0, 0 - 1080, 2280) epz=Point(1080, 2280) d=0 taskParent=-1},{m=TO_BACK f=SHOW_WALLPAPER leash=Surface(name=Task=1)/@0xd26b49d sb=Rect(0, 0 - 1080, 2280) eb=Rect(0, 0 - 1080, 2280) epz=Point(1080, 2280) d=0 taskParent=-1}]}
+05-03 19:20:11.621   960   982 V WindowManagerShell:  Checking filter Pair{{types=[] flags=0x0] notFlags=0x100 checks=[{atype=home independent=true modes=[OPEN,TO_FRONT] flags=NONE mustBeTask=false order=TOP topActivity=ComponentInfo{com.android.launcher3/com.android.launcher3.uioverrides.QuickstepLauncher} launchCookie=null windowingMode=undefined},{atype=standard independent=true modes=[CLOSE,TO_BACK] flags=NONE mustBeTask=false order=ANY topActivity=null launchCookie=null windowingMode=undefined},{NOT atype=undefined independent=true modes=[] flags=NONE mustBeTask=true order=ANY topActivity=null launchCookie=null customAnim=true windowingMode=undefined}]} RemoteTransition { remoteTransition = android.window.IRemoteTransition$Stub$Proxy@ae59c67, appThread = android.app.IApplicationThread$Stub$Proxy@8152a14, debugName = QuickstepLaunchHome }}
+05-03 19:20:11.621   960   982 V WindowManagerShell:  Delegate animation for (#4352) to null
+05-03 19:20:11.621   960   982 V WindowManagerShell: start default transition animation, info = {id=4352 t=OPEN f=0x0 trk=0 r=[0@Point(0, 0)] c=[{m=OPEN f=NONE leash=Surface(name=Task=2243)/@0xffe0774 sb=Rect(0, 0 - 1080, 2280) eb=Rect(0, 0 - 1080, 2280) epz=Point(1080, 2280) d=0 taskParent=-1},{m=TO_BACK f=SHOW_WALLPAPER leash=Surface(name=Task=1)/@0xd26b49d sb=Rect(0, 0 - 1080, 2280) eb=Rect(0, 0 - 1080, 2280) epz=Point(1080, 2280) d=0 taskParent=-1}]}
+05-03 19:20:11.622   960   982 V WindowManagerShell: loadAnimation: anim=android.view.animation.AnimationSet@b3efd99 animAttr=0x13 type=OPEN isEntrance=false
+05-03 19:20:11.623   960   982 V WindowManagerShell: loadAnimation: anim=android.view.animation.AnimationSet@4f8da55 animAttr=0x12 type=OPEN isEntrance=true
+05-03 19:20:11.623   307 21409 W UserManagerService: Requested status bar icon for non-badged user 0
+05-03 19:20:11.624   960   982 V WindowManagerShell:  animated by com.android.wm.shell.transition.DefaultTransitionHandler@6c3a7ac
+05-03 19:20:11.631 10178 10178 I m.westlake.host: Late-enabling -Xcheck:jni
+05-03 19:20:11.687 10178 10178 I m.westlake.host: Using CollectorTypeCC GC.
+05-03 19:20:11.695 23361 23366 I adbd    : jdwp connection from 10178
+05-03 19:20:11.706 10178 10178 D nativeloader: Load libframework-connectivity-tiramisu-jni.so using APEX ns com_android_tethering for caller /apex/com.android.tethering/javalib/framework-connectivity-t.jar: ok
+05-03 19:20:11.620     0     0 I binder  : 10178:10178 ioctl 40046210 7fd4a812f4 returned -22
+05-03 19:20:11.724   307   780 D BackgroundInstallControlService: Package event received: 0
+05-03 19:20:11.727  1650 32677 D ForegroundUtils: Foreground UID status:
+05-03 19:20:11.727  1650 32677 D ForegroundUtils: UID: 10130 is in foreground: false
+05-03 19:20:11.727  1650 32677 D ForegroundUtils: UID: 10152 is in foreground: true
+05-03 19:20:11.727  1650 32677 D ForegroundUtils: UID: 10159 is in foreground: true
+05-03 19:20:11.727  1650 32677 D ForegroundUtils: UID: 10173 is in foreground: true
+05-03 19:20:11.727  1650 32677 D ForegroundUtils: UID: 10190 is in foreground: true
+05-03 19:20:11.727  1650 32677 D ForegroundUtils: UID: 10193 is in foreground: false
+05-03 19:20:11.727  1650 32677 D ForegroundUtils: UID: 10218 is in foreground: true
+05-03 19:20:11.749 10178 10178 D nativeloader: Load libstats_jni.so using APEX ns com_android_os_statsd for caller /apex/com.android.os.statsd/javalib/framework-statsd.jar: ok
+05-03 19:20:11.787 10178 10178 D ApplicationLoaders: Returning zygote-cached class loader: /system/framework/android.test.base.jar
+05-03 19:20:11.789 10178 10178 W ziparchive: Unable to open '/data/app/~~OrZBy72vIXZo61ol8Z-mJg==/com.westlake.host-1a2sRaoqlyMgNAsqJLbj-w==/base.dm': No such file or directory
+05-03 19:20:11.789 10178 10178 W ziparchive: Unable to open '/data/app/~~OrZBy72vIXZo61ol8Z-mJg==/com.westlake.host-1a2sRaoqlyMgNAsqJLbj-w==/base.dm': No such file or directory
+05-03 19:20:11.754     0     0 E FG      : fg_psy_get_property: unsupported property 79
+05-03 19:20:11.765     0     0 E FG      : fg_psy_get_property: unsupported property 79
+05-03 19:20:11.868  1126  1126 D QtiCarrierConfigHelper: WARNING, no carrier configs on phone Id: 0
+05-03 19:20:11.773     0     0 W healthd : battery l=100 v=3174 t=25.5 h=2 st=5 c=0 fc=2831000 chg=u
+05-03 19:20:11.870   960  1373 D PowerUI : can't show warning due to - plugged: true status unknown: false
+05-03 19:20:11.794     0     0 E FG      : fg_psy_get_property: unsupported property 79
+05-03 19:20:11.913   960   982 V WindowManagerShell: Transition animation finished (aborted=false), notifying core (#4352) android.os.BinderProxy@60c410a@0
+05-03 19:20:11.915   307   388 V WindowManager: Finish Transition (#4352): created at 05-03 19:20:11.538 collect-started=0.145ms request-sent=20.281ms started=22.297ms ready=77.773ms sent=79.936ms finished=377.23ms
+05-03 19:20:11.917  1230  1230 D VRI[QuickstepLauncher]: visibilityChanged oldVisibility=true newVisibility=false
+05-03 19:20:11.919   960   982 V WindowManagerShell: Track 0 became idle
+05-03 19:20:11.919   960   982 V WindowManagerShell: All active transition animations finished
+05-03 19:20:11.920   307 26419 W UserManagerService: Requested status bar icon for non-badged user 0
+05-03 19:20:11.921   307 26419 W UserManagerService: Requested status bar icon for non-badged user 0
+05-03 19:20:11.990  3704  3747 W HidlServiceManagement: Waited one second for vendor.qti.hardware.cacert@1.0::IService/default
+05-03 19:20:11.990   660   660 I hwservicemanager: Since vendor.qti.hardware.cacert@1.0::IService/default is not registered, trying to start it as a lazy HAL (if it's not configured to be a lazy HAL, it may be stuck starting or still starting).
+05-03 19:20:11.990  3704  3747 I HidlServiceManagement: getService: Trying again for vendor.qti.hardware.cacert@1.0::IService/default...
+05-03 19:20:11.992   660 10191 W libc    : Unable to set property "ctl.interface_start" to "vendor.qti.hardware.cacert@1.0::IService/default": PROP_ERROR_HANDLE_CONTROL_MESSAGE (0x20)
+05-03 19:20:11.992   660 10191 I hwservicemanager: Tried to start vendor.qti.hardware.cacert@1.0::IService/default as a lazy service, but was unable to. Usually this happens when a service is not installed, but if the service is intended to be used as a lazy service, then it may be configured incorrectly.
+05-03 19:20:11.905     0     0 E init    : Control message: Could not find 'vendor.qti.hardware.cacert@1.0::IService/default' for ctl.interface_start from pid: 660 (/system/system_ext/bin/hwservicemanager)
+05-03 19:20:12.359  3750  3789 E QMI_FW  : qmi_cci_get_ref: ref count increased 2
+05-03 19:20:12.907 10178 10178 D nativeloader: Configuring clns-7 for other apk /data/app/~~OrZBy72vIXZo61ol8Z-mJg==/com.westlake.host-1a2sRaoqlyMgNAsqJLbj-w==/base.apk. target_sdk_version=28, uses_libraries=, library_path=/data/app/~~OrZBy72vIXZo61ol8Z-mJg==/com.westlake.host-1a2sRaoqlyMgNAsqJLbj-w==/lib/arm64:/data/app/~~OrZBy72vIXZo61ol8Z-mJg==/com.westlake.host-1a2sRaoqlyMgNAsqJLbj-w==/base.apk!/lib/arm64-v8a, permitted_path=/data:/mnt/expand:/data/user/0/com.westlake.host
+05-03 19:20:12.916 10178 10178 I m.westlake.host: AssetManager2(0x7bd463b4f8) locale list changing from [] to [en-US]
+05-03 19:20:12.930 10178 10178 V GraphicsEnvironment: Currently set values for:
+05-03 19:20:12.930 10178 10178 V GraphicsEnvironment:   angle_gl_driver_selection_pkgs=[]
+05-03 19:20:12.930 10178 10178 V GraphicsEnvironment:   angle_gl_driver_selection_values=[]
+05-03 19:20:12.930 10178 10178 V GraphicsEnvironment: com.westlake.host is not listed in per-application setting
+05-03 19:20:12.931 10178 10178 V GraphicsEnvironment: Neither updatable production driver nor prerelease driver is supported.
+05-03 19:20:12.990   307   780 D BackgroundInstallControlService: Package event received: 0
+05-03 19:20:12.990   307   780 D BackgroundInstallControlService: Package event received: 0
+05-03 19:20:12.991  3704  3747 W HidlServiceManagement: Waited one second for vendor.qti.hardware.cacert@1.0::IService/default
+05-03 19:20:12.991   660   660 I hwservicemanager: Since vendor.qti.hardware.cacert@1.0::IService/default is not registered, trying to start it as a lazy HAL (if it's not configured to be a lazy HAL, it may be stuck starting or still starting).
+05-03 19:20:12.992  3704  3747 I HidlServiceManagement: getService: Trying again for vendor.qti.hardware.cacert@1.0::IService/default...
+05-03 19:20:12.992   660 10195 W libc    : Unable to set property "ctl.interface_start" to "vendor.qti.hardware.cacert@1.0::IService/default": PROP_ERROR_HANDLE_CONTROL_MESSAGE (0x20)
+05-03 19:20:12.993   660 10195 I hwservicemanager: Tried to start vendor.qti.hardware.cacert@1.0::IService/default as a lazy service, but was unable to. Usually this happens when a service is not installed, but if the service is intended to be used as a lazy service, then it may be configured incorrectly.
+05-03 19:20:12.906     0     0 E init    : Control message: Could not find 'vendor.qti.hardware.cacert@1.0::IService/default' for ctl.interface_start from pid: 660 (/system/system_ext/bin/hwservicemanager)
+05-03 19:20:13.002 10178 10178 I m.westlake.host: AssetManager2(0x7bd463fff8) locale list changing from [] to [en-US]
+05-03 19:20:13.051 10178 10178 I Westlake: WestlakeActivity onCreate (ComponentActivity + Compose)
+05-03 19:20:13.051 10178 10178 I Westlake: Auto-launching: WESTLAKE_ART_NOICE
+05-03 19:20:13.060 10178 10178 E Westlake: launchCustomApp: engineClassLoader is null!
+05-03 19:20:13.061 10178 10199 I Westlake: Extracting DEX files...
+05-03 19:20:13.079 10178 10178 D DesktopModeFlagsUtil: Toggle override initialized to: OVERRIDE_UNSET
+05-03 19:20:13.163 10178 10178 D InsetsController: Setting requestedVisibleTypes to -10 (was -9)
+05-03 19:20:13.165   307 26419 W WindowManager: Failed looking up window session=Session{17cc074 10178:u0a10218} callers=com.android.server.wm.WindowManagerService.windowForClientLocked:6324 com.android.server.wm.Session.updateRequestedVisibleTypes:699 android.view.IWindowSession$Stub.onTransact:1023 
+05-03 19:20:13.189   307  4369 D CoreBackPreview: Window{ddf6fe0 u0 com.westlake.host/com.westlake.host.WestlakeActivity}: Setting back callback OnBackInvokedCallbackInfo{mCallback=android.window.IOnBackInvokedCallback$Stub$Proxy@98db95e, mPriority=0, mIsAnimationCallback=false, mOverrideBehavior=0}
+05-03 19:20:13.208 10178 10196 I AdrenoGLES-0: QUALCOMM build                   : 8e5405b, I57aaec3440
+05-03 19:20:13.208 10178 10196 I AdrenoGLES-0: Build Date                       : 05/21/21
+05-03 19:20:13.208 10178 10196 I AdrenoGLES-0: OpenGL ES Shader Compiler Version: EV031.32.02.10
+05-03 19:20:13.208 10178 10196 I AdrenoGLES-0: Local Branch                     : mybranchebba1dbe-451b-f160-ac81-1458d0b52ae8
+05-03 19:20:13.208 10178 10196 I AdrenoGLES-0: Remote Branch                    : quic/gfx-adreno.lnx.1.0.r135-rel
+05-03 19:20:13.208 10178 10196 I AdrenoGLES-0: Remote Branch                    : NONE
+05-03 19:20:13.208 10178 10196 I AdrenoGLES-0: Reconstruct Branch               : NOTHING
+05-03 19:20:13.208 10178 10196 I AdrenoGLES-0: Build Config                     : S P 10.0.7 AArch64
+05-03 19:20:13.208 10178 10196 I AdrenoGLES-0: Driver Path                      : /vendor/lib64/egl/libGLESv2_adreno.so
+05-03 19:20:13.215 10178 10196 I AdrenoGLES-0: PFP: 0x016ee190, ME: 0x00000000
+05-03 19:20:13.238  3320  3359 E HWComposer: getSupportedContentTypes: getSupportedContentTypes failed for display 4630946883826275713: UNSUPPORTED (8)
+05-03 19:20:13.241   660   660 I hwservicemanager: getTransport: Cannot find entry android.hardware.graphics.mapper@4.0::IMapper/default in either framework or device VINTF manifest.
+05-03 19:20:13.242 10178 10202 I Gralloc4: mapper 4.x is not supported
+05-03 19:20:13.242   660   660 I hwservicemanager: getTransport: Cannot find entry android.hardware.graphics.mapper@3.0::IMapper/default in either framework or device VINTF manifest.
+05-03 19:20:13.243 10178 10202 W Gralloc3: mapper 3.x is not supported
+05-03 19:20:13.154     0     0 I servicemanager: Caller(pid=10178,uid=10218,sid=u:r:untrusted_app_27:s0:c218,c256,c512,c768) Could not find android.hardware.graphics.allocator.IAllocator/default in the VINTF manifest. No alternative instances declared in VINTF.
+05-03 19:20:13.154     0     0 I binder  : 10178:10202 ioctl 40046210 7a85148094 returned -22
+05-03 19:20:13.251 10178 10202 I Gralloc2: Adding additional valid usage bits: 0x8202000
+05-03 19:20:13.255 10178 10199 E m.westlake.host: Attempt to load writable dex file: /data/user/0/com.westlake.host/cache/aosp-shim.dex
+05-03 19:20:13.255 10178 10199 W m.westlake.host: Unsupported class loader
+05-03 19:20:13.330   307   388 W ziparchive: Unable to open '/data/app/~~OrZBy72vIXZo61ol8Z-mJg==/com.westlake.host-1a2sRaoqlyMgNAsqJLbj-w==/base.dm': No such file or directory
+05-03 19:20:13.336   307   388 I ActivityTaskManager: Displayed com.westlake.host/.WestlakeActivity for user 0: +1s803ms
+05-03 19:20:13.346 10178 10199 E m.westlake.host: Attempt to load writable dex file: /data/user/0/com.westlake.host/cache/app.dex
+05-03 19:20:13.347 10178 10199 W m.westlake.host: Unsupported class loader
+05-03 19:20:13.357   307   656 I ImeTracker: com.westlake.host:ef3623d5: onRequestHide at ORIGIN_SERVER reason HIDE_UNSPECIFIED_WINDOW fromUser false
+05-03 19:20:13.361  3220  3220 I android.hardware.power-service-qti: Power setMode: 5 to: 0
+05-03 19:20:13.362 10178 10178 D InsetsController: hide(ime(), fromIme=false)
+05-03 19:20:13.364 10178 10178 I ImeTracker: com.westlake.host:ef3623d5: onCancelled at PHASE_CLIENT_ALREADY_HIDDEN
+05-03 19:20:13.368  1230  1230 D BaseDepthController: setSurface:
+05-03 19:20:13.368  1230  1230 D BaseDepthController: 	mWaitingOnSurfaceValidity: false
+05-03 19:20:13.368  1230  1230 D BaseDepthController: 	mSurface: null
+05-03 19:20:13.370  1230  1230 D StateManager: goToState - fromState: Normal, toState: Normal, partial trace:
+05-03 19:20:13.370  1230  1230 D StateManager: 	at com.android.launcher3.statemanager.StateManager.moveToRestState(StateManager.java:465)
+05-03 19:20:13.370  1230  1230 D StateManager: 	at com.android.launcher3.statemanager.StateManager.moveToRestState(StateManager.java:456)
+05-03 19:20:13.370  1230  1230 D StateManager: 	at com.android.launcher3.statemanager.StatefulActivity.onStop(StatefulActivity.java:136)
+05-03 19:20:13.370  1230  1230 D StatsLog: LAUNCHER_ONSTOP
+05-03 19:20:13.370   307  4369 I AppWidgetServiceImpl: setAppWidgetHidden() 0
+05-03 19:20:13.377   307   780 D BackgroundInstallControlService: Package event received: 0
+05-03 19:20:13.378  1650 32677 D ForegroundUtils: Foreground UID status:
+05-03 19:20:13.379  1650 32677 D ForegroundUtils: UID: 10130 is in foreground: false
+05-03 19:20:13.379  1650 32677 D ForegroundUtils: UID: 10152 is in foreground: false
+05-03 19:20:13.379  1650 32677 D ForegroundUtils: UID: 10159 is in foreground: true
+05-03 19:20:13.379  1650 32677 D ForegroundUtils: UID: 10173 is in foreground: true
+05-03 19:20:13.379  1650 32677 D ForegroundUtils: UID: 10190 is in foreground: true
+05-03 19:20:13.379  1650 32677 D ForegroundUtils: UID: 10193 is in foreground: false
+05-03 19:20:13.379  1650 32677 D ForegroundUtils: UID: 10218 is in foreground: true
+05-03 19:20:13.382  3080 29189 I netd    : tetherGetStats() -> {[]} <1.80ms>
+05-03 19:20:13.460 10178 10199 W m.westlake.host: Unsupported class loader
+05-03 19:20:13.563 10178 10199 E m.westlake.host: No implementation found for java.lang.String com.westlake.engine.WestlakeLauncher.nativeVmProperty(java.lang.String) (tried Java_com_westlake_engine_WestlakeLauncher_nativeVmProperty and Java_com_westlake_engine_WestlakeLauncher_nativeVmProperty__Ljava_lang_String_2) - is the library loaded, e.g. System.loadLibrary?
+05-03 19:20:13.564 10178 10199 E m.westlake.host: No implementation found for byte[] com.westlake.engine.WestlakeLauncher.nativeReadFileBytes(java.lang.String) (tried Java_com_westlake_engine_WestlakeLauncher_nativeReadFileBytes and Java_com_westlake_engine_WestlakeLauncher_nativeReadFileBytes__Ljava_lang_String_2) - is the library loaded, e.g. System.loadLibrary?
+05-03 19:20:13.566 10178 10199 E m.westlake.host: No implementation found for void com.westlake.engine.WestlakeLauncher.nativeLog(java.lang.String) (tried Java_com_westlake_engine_WestlakeLauncher_nativeLog and Java_com_westlake_engine_WestlakeLauncher_nativeLog__Ljava_lang_String_2) - is the library loaded, e.g. System.loadLibrary?
+05-03 19:20:13.568 10178 10199 D nativeloader: Configuring clns-8 for other apk . target_sdk_version=28, uses_libraries=ALL, library_path=/data/app/~~OrZBy72vIXZo61ol8Z-mJg==/com.westlake.host-1a2sRaoqlyMgNAsqJLbj-w==/lib/arm64, permitted_path=/data:/mnt/expand
+05-03 19:20:13.571 10178 10199 D nativeloader: Load /data/local/tmp/westlake/liboh_bridge.so using isolated ns clns-8 (caller=/data/user/0/com.westlake.host/cache/aosp-shim.dex): ok
+05-03 19:20:13.572 10178 10199 I OHBridge: libohbridge_native loaded
+05-03 19:20:13.562 10178 10178 W WestlakeEngine: type=1400 audit(0.0:56200): avc:  granted  { execute } for  path="/data/local/tmp/westlake/liboh_bridge.so" dev="sda17" ino=1973263 scontext=u:r:untrusted_app_27:s0:c218,c256,c512,c768 tcontext=u:object_r:app_data_file:s0:c218,c256,c512,c768 tclass=file app=com.westlake.host
+05-03 19:20:13.573 10178 10199 E m.westlake.host: No implementation found for void com.ohos.shim.bridge.OHBridge.logInfo(java.lang.String, java.lang.String) (tried Java_com_ohos_shim_bridge_OHBridge_logInfo and Java_com_ohos_shim_bridge_OHBridge_logInfo__Ljava_lang_String_2Ljava_lang_String_2) - is the library loaded, e.g. System.loadLibrary?
+05-03 19:20:13.573 10178 10199 I Westlake: HostBridge: host set to WestlakeActivity
+05-03 19:20:13.573 10178 10199 I Westlake: Engine DEX loaded (child-first DexClassLoader)
+05-03 19:20:13.709 10178 10207 W InteractionJankMonitor: Initializing without READ_DEVICE_CONFIG permission. enabled=true, interval=1, missedFrameThreshold=3, frameTimeThreshold=64, package=com.westlake.host
+05-03 19:20:13.710   960  1004 W WindowOnBackDispatcher: sendCancelIfRunning: isInProgress=false callback=android.view.ViewRootImpl$$ExternalSyntheticLambda13@8e7ade5
+05-03 19:20:13.710   307  4369 D CoreBackPreview: Window{ece0e5a u0 Splash Screen com.westlake.host EXITING}: Setting back callback null
+05-03 19:20:13.715  3220  3220 I android.hardware.power-service-qti: Power setBoost: 0, duration: 0
+05-03 19:20:13.760   960  1004 W FrameTracker: Missing SF jank callback for vsyncId: 93539940, CUJ=J<SPLASHSCREEN_EXIT_ANIM>
+05-03 19:20:13.760   960  1004 W FrameTracker: Missing SF jank callback for vsyncId: 93539976, CUJ=J<SPLASHSCREEN_EXIT_ANIM>
+05-03 19:20:13.760   960  1004 W FrameTracker: Missing SF jank callback for vsyncId: 93540015, CUJ=J<SPLASHSCREEN_EXIT_ANIM>
+05-03 19:20:13.760   960  1004 W FrameTracker: Missing SF jank callback for vsyncId: 93540059, CUJ=J<SPLASHSCREEN_EXIT_ANIM>
+05-03 19:20:13.760   960  1004 W FrameTracker: Missing SF jank callback for vsyncId: 93540078, CUJ=J<SPLASHSCREEN_EXIT_ANIM>
+05-03 19:20:13.760   960  1004 W FrameTracker: Missing SF jank callback for vsyncId: 93540097, CUJ=J<SPLASHSCREEN_EXIT_ANIM>
+05-03 19:20:13.760   960  1004 W FrameTracker: Missing SF jank callback for vsyncId: 93540116, CUJ=J<SPLASHSCREEN_EXIT_ANIM>
+05-03 19:20:13.761   960  1004 W FrameTracker: Missing SF jank callback for vsyncId: 93540135, CUJ=J<SPLASHSCREEN_EXIT_ANIM>
+05-03 19:20:13.761   960  1004 W FrameTracker: Missing SF jank callback for vsyncId: 93540173, CUJ=J<SPLASHSCREEN_EXIT_ANIM>
+05-03 19:20:13.761   960  1004 W FrameTracker: Missing SF jank callback for vsyncId: 93540186, CUJ=J<SPLASHSCREEN_EXIT_ANIM>
+05-03 19:20:13.761   960  1004 W FrameTracker: Missing SF jank callback for vsyncId: 93540199, CUJ=J<SPLASHSCREEN_EXIT_ANIM>
+05-03 19:20:13.761   960  1004 W FrameTracker: Missing SF jank callback for vsyncId: 93540212, CUJ=J<SPLASHSCREEN_EXIT_ANIM>
+05-03 19:20:13.762   960  1004 W FrameTracker: Missing SF jank callback for vsyncId: 93540225, CUJ=J<SPLASHSCREEN_EXIT_ANIM>
+05-03 19:20:13.762   960  1004 W FrameTracker: Missing SF jank callback for vsyncId: 93540238, CUJ=J<SPLASHSCREEN_EXIT_ANIM>
+05-03 19:20:13.762   960  1004 W FrameTracker: Missing SF jank callback for vsyncId: 93540251, CUJ=J<SPLASHSCREEN_EXIT_ANIM>
+05-03 19:20:13.762   960  1004 W FrameTracker: Missing SF jank callback for vsyncId: 93540264, CUJ=J<SPLASHSCREEN_EXIT_ANIM>
+05-03 19:20:13.762   960  1004 W FrameTracker: Missing SF jank callback for vsyncId: 93540277, CUJ=J<SPLASHSCREEN_EXIT_ANIM>
+05-03 19:20:13.992  3704  3747 W HidlServiceManagement: Waited one second for vendor.qti.hardware.cacert@1.0::IService/default
+05-03 19:20:13.994   660   660 I hwservicemanager: Since vendor.qti.hardware.cacert@1.0::IService/default is not registered, trying to start it as a lazy HAL (if it's not configured to be a lazy HAL, it may be stuck starting or still starting).
+05-03 19:20:13.995  3704  3747 I HidlServiceManagement: getService: Trying again for vendor.qti.hardware.cacert@1.0::IService/default...
+05-03 19:20:14.000   660 10212 W libc    : Unable to set property "ctl.interface_start" to "vendor.qti.hardware.cacert@1.0::IService/default": PROP_ERROR_HANDLE_CONTROL_MESSAGE (0x20)
+05-03 19:20:14.000   660 10212 I hwservicemanager: Tried to start vendor.qti.hardware.cacert@1.0::IService/default as a lazy service, but was unable to. Usually this happens when a service is not installed, but if the service is intended to be used as a lazy service, then it may be configured incorrectly.
+05-03 19:20:13.913     0     0 E init    : Control message: Could not find 'vendor.qti.hardware.cacert@1.0::IService/default' for ctl.interface_start from pid: 660 (/system/system_ext/bin/hwservicemanager)
+05-03 19:20:14.995  3704  3747 W HidlServiceManagement: Waited one second for vendor.qti.hardware.cacert@1.0::IService/default
+05-03 19:20:14.996   660   660 I hwservicemanager: Since vendor.qti.hardware.cacert@1.0::IService/default is not registered, trying to start it as a lazy HAL (if it's not configured to be a lazy HAL, it may be stuck starting or still starting).
+05-03 19:20:14.998  3704  3747 I HidlServiceManagement: getService: Trying again for vendor.qti.hardware.cacert@1.0::IService/default...
+05-03 19:20:14.912     0     0 E init    : Control message: Could not find 'vendor.qti.hardware.cacert@1.0::IService/default' for ctl.interface_start from pid: 660 (/system/system_ext/bin/hwservicemanager)
+05-03 19:20:14.999   660 10213 W libc    : Unable to set property "ctl.interface_start" to "vendor.qti.hardware.cacert@1.0::IService/default": PROP_ERROR_HANDLE_CONTROL_MESSAGE (0x20)
+05-03 19:20:14.999   660 10213 I hwservicemanager: Tried to start vendor.qti.hardware.cacert@1.0::IService/default as a lazy service, but was unable to. Usually this happens when a service is not installed, but if the service is intended to be used as a lazy service, then it may be configured incorrectly.
+05-03 19:20:15.998  3704  3747 W HidlServiceManagement: Waited one second for vendor.qti.hardware.cacert@1.0::IService/default
+05-03 19:20:16.000   660   660 I hwservicemanager: Since vendor.qti.hardware.cacert@1.0::IService/default is not registered, trying to start it as a lazy HAL (if it's not configured to be a lazy HAL, it may be stuck starting or still starting).
+05-03 19:20:16.002  3704  3747 I HidlServiceManagement: getService: Trying again for vendor.qti.hardware.cacert@1.0::IService/default...
+05-03 19:20:16.006   660 10214 W libc    : Unable to set property "ctl.interface_start" to "vendor.qti.hardware.cacert@1.0::IService/default": PROP_ERROR_HANDLE_CONTROL_MESSAGE (0x20)
+05-03 19:20:16.006   660 10214 I hwservicemanager: Tried to start vendor.qti.hardware.cacert@1.0::IService/default as a lazy service, but was unable to. Usually this happens when a service is not installed, but if the service is intended to be used as a lazy service, then it may be configured incorrectly.
+05-03 19:20:15.919     0     0 E init    : Control message: Could not find 'vendor.qti.hardware.cacert@1.0::IService/default' for ctl.interface_start from pid: 660 (/system/system_ext/bin/hwservicemanager)
+05-03 19:20:17.002  3704  3747 W HidlServiceManagement: Waited one second for vendor.qti.hardware.cacert@1.0::IService/default
+05-03 19:20:17.006   660   660 I hwservicemanager: Since vendor.qti.hardware.cacert@1.0::IService/default is not registered, trying to start it as a lazy HAL (if it's not configured to be a lazy HAL, it may be stuck starting or still starting).
+05-03 19:20:17.008  3704  3747 I HidlServiceManagement: getService: Trying again for vendor.qti.hardware.cacert@1.0::IService/default...
+05-03 19:20:17.011   660 10215 W libc    : Unable to set property "ctl.interface_start" to "vendor.qti.hardware.cacert@1.0::IService/default": PROP_ERROR_HANDLE_CONTROL_MESSAGE (0x20)
+05-03 19:20:17.011   660 10215 I hwservicemanager: Tried to start vendor.qti.hardware.cacert@1.0::IService/default as a lazy service, but was unable to. Usually this happens when a service is not installed, but if the service is intended to be used as a lazy service, then it may be configured incorrectly.
+05-03 19:20:16.924     0     0 E init    : Control message: Could not find 'vendor.qti.hardware.cacert@1.0::IService/default' for ctl.interface_start from pid: 660 (/system/system_ext/bin/hwservicemanager)
+05-03 19:20:17.787     0     0 I QCOM-BATT: pl_fcc_vote_callback: total_fcc_ua=1950000
+05-03 19:20:17.787     0     0 I QCOM-BATT: pl_fv_vote_callback: fv_uv=4400000
+05-03 19:20:18.008  3704  3747 W HidlServiceManagement: Waited one second for vendor.qti.hardware.cacert@1.0::IService/default
+05-03 19:20:18.010   660   660 I hwservicemanager: Since vendor.qti.hardware.cacert@1.0::IService/default is not registered, trying to start it as a lazy HAL (if it's not configured to be a lazy HAL, it may be stuck starting or still starting).
+05-03 19:20:18.011  3704  3747 I HidlServiceManagement: getService: Trying again for vendor.qti.hardware.cacert@1.0::IService/default...
+05-03 19:20:17.927     0     0 E init    : Control message: Could not find 'vendor.qti.hardware.cacert@1.0::IService/default' for ctl.interface_start from pid: 660 (/system/system_ext/bin/hwservicemanager)
+05-03 19:20:18.015   660 10216 W libc    : Unable to set property "ctl.interface_start" to "vendor.qti.hardware.cacert@1.0::IService/default": PROP_ERROR_HANDLE_CONTROL_MESSAGE (0x20)
+05-03 19:20:18.015   660 10216 I hwservicemanager: Tried to start vendor.qti.hardware.cacert@1.0::IService/default as a lazy service, but was unable to. Usually this happens when a service is not installed, but if the service is intended to be used as a lazy service, then it may be configured incorrectly.
+05-03 19:20:18.198 10178 10217 D ProfileInstaller: Installing profile for com.westlake.host
+05-03 19:20:18.145     0     0 E FG      : fg_psy_get_property: unsupported property 79
+05-03 19:20:18.152     0     0 E FG      : fg_psy_get_property: unsupported property 79
+05-03 19:20:18.157     0     0 W healthd : battery l=100 v=3175 t=25.4 h=2 st=5 c=0 fc=2831000 chg=u
+05-03 19:20:18.251  1126  1126 D QtiCarrierConfigHelper: WARNING, no carrier configs on phone Id: 0
+05-03 19:20:18.253   960  2050 D PowerUI : can't show warning due to - plugged: true status unknown: false
+05-03 19:20:18.166     0     0 E FG      : fg_psy_get_property: unsupported property 79
+05-03 19:20:19.005  1088  1265 E bluetooth: system/gd/os/linux_generic/files.cc:223 FileCreatedTime: unable to read '/data/misc/bluetooth/logs/btsnooz_hci.log' file metadata, error: No such file or directory
+05-03 19:20:19.011  3704  3747 W HidlServiceManagement: Waited one second for vendor.qti.hardware.cacert@1.0::IService/default
+05-03 19:20:19.012   660   660 I hwservicemanager: Since vendor.qti.hardware.cacert@1.0::IService/default is not registered, trying to start it as a lazy HAL (if it's not configured to be a lazy HAL, it may be stuck starting or still starting).
+05-03 19:20:19.013  3704  3747 I HidlServiceManagement: getService: Trying again for vendor.qti.hardware.cacert@1.0::IService/default...
+05-03 19:20:19.017   660 10219 W libc    : Unable to set property "ctl.interface_start" to "vendor.qti.hardware.cacert@1.0::IService/default": PROP_ERROR_HANDLE_CONTROL_MESSAGE (0x20)
+05-03 19:20:19.017   660 10219 I hwservicemanager: Tried to start vendor.qti.hardware.cacert@1.0::IService/default as a lazy service, but was unable to. Usually this happens when a service is not installed, but if the service is intended to be used as a lazy service, then it may be configured incorrectly.
+05-03 19:20:18.929     0     0 E init    : Control message: Could not find 'vendor.qti.hardware.cacert@1.0::IService/default' for ctl.interface_start from pid: 660 (/system/system_ext/bin/hwservicemanager)
+05-03 19:20:20.014  3704  3747 W HidlServiceManagement: Waited one second for vendor.qti.hardware.cacert@1.0::IService/default
+05-03 19:20:20.015   660   660 I hwservicemanager: Since vendor.qti.hardware.cacert@1.0::IService/default is not registered, trying to start it as a lazy HAL (if it's not configured to be a lazy HAL, it may be stuck starting or still starting).
+05-03 19:20:20.016  3704  3747 I HidlServiceManagement: getService: Trying again for vendor.qti.hardware.cacert@1.0::IService/default...
+05-03 19:20:20.019   660 10220 W libc    : Unable to set property "ctl.interface_start" to "vendor.qti.hardware.cacert@1.0::IService/default": PROP_ERROR_HANDLE_CONTROL_MESSAGE (0x20)
+05-03 19:20:20.020   660 10220 I hwservicemanager: Tried to start vendor.qti.hardware.cacert@1.0::IService/default as a lazy service, but was unable to. Usually this happens when a service is not installed, but if the service is intended to be used as a lazy service, then it may be configured incorrectly.
+05-03 19:20:19.932     0     0 E init    : Control message: Could not find 'vendor.qti.hardware.cacert@1.0::IService/default' for ctl.interface_start from pid: 660 (/system/system_ext/bin/hwservicemanager)
+05-03 19:20:21.016  3704  3747 W HidlServiceManagement: Waited one second for vendor.qti.hardware.cacert@1.0::IService/default
+05-03 19:20:21.018   660   660 I hwservicemanager: Since vendor.qti.hardware.cacert@1.0::IService/default is not registered, trying to start it as a lazy HAL (if it's not configured to be a lazy HAL, it may be stuck starting or still starting).
+05-03 19:20:21.020  3704  3747 I HidlServiceManagement: getService: Trying again for vendor.qti.hardware.cacert@1.0::IService/default...
+05-03 19:20:21.023   660 10221 W libc    : Unable to set property "ctl.interface_start" to "vendor.qti.hardware.cacert@1.0::IService/default": PROP_ERROR_HANDLE_CONTROL_MESSAGE (0x20)
+05-03 19:20:21.023   660 10221 I hwservicemanager: Tried to start vendor.qti.hardware.cacert@1.0::IService/default as a lazy service, but was unable to. Usually this happens when a service is not installed, but if the service is intended to be used as a lazy service, then it may be configured incorrectly.
+05-03 19:20:20.936     0     0 E init    : Control message: Could not find 'vendor.qti.hardware.cacert@1.0::IService/default' for ctl.interface_start from pid: 660 (/system/system_ext/bin/hwservicemanager)
+05-03 19:20:22.021  3704  3747 W HidlServiceManagement: Waited one second for vendor.qti.hardware.cacert@1.0::IService/default
+05-03 19:20:22.022   660   660 I hwservicemanager: Since vendor.qti.hardware.cacert@1.0::IService/default is not registered, trying to start it as a lazy HAL (if it's not configured to be a lazy HAL, it may be stuck starting or still starting).
+05-03 19:20:22.023  3704  3747 I HidlServiceManagement: getService: Trying again for vendor.qti.hardware.cacert@1.0::IService/default...
+05-03 19:20:21.938     0     0 E init    : Control message: Could not find 'vendor.qti.hardware.cacert@1.0::IService/default' for ctl.interface_start from pid: 660 (/system/system_ext/bin/hwservicemanager)
+05-03 19:20:22.025   660 10222 W libc    : Unable to set property "ctl.interface_start" to "vendor.qti.hardware.cacert@1.0::IService/default": PROP_ERROR_HANDLE_CONTROL_MESSAGE (0x20)
+05-03 19:20:22.026   660 10222 I hwservicemanager: Tried to start vendor.qti.hardware.cacert@1.0::IService/default as a lazy service, but was unable to. Usually this happens when a service is not installed, but if the service is intended to be used as a lazy service, then it may be configured incorrectly.
+05-03 19:20:23.023  3704  3747 W HidlServiceManagement: Waited one second for vendor.qti.hardware.cacert@1.0::IService/default
+05-03 19:20:23.025   660   660 I hwservicemanager: Since vendor.qti.hardware.cacert@1.0::IService/default is not registered, trying to start it as a lazy HAL (if it's not configured to be a lazy HAL, it may be stuck starting or still starting).
+05-03 19:20:23.026  3704  3747 I HidlServiceManagement: getService: Trying again for vendor.qti.hardware.cacert@1.0::IService/default...
+05-03 19:20:23.028   660 10223 W libc    : Unable to set property "ctl.interface_start" to "vendor.qti.hardware.cacert@1.0::IService/default": PROP_ERROR_HANDLE_CONTROL_MESSAGE (0x20)
+05-03 19:20:23.029   660 10223 I hwservicemanager: Tried to start vendor.qti.hardware.cacert@1.0::IService/default as a lazy service, but was unable to. Usually this happens when a service is not installed, but if the service is intended to be used as a lazy service, then it may be configured incorrectly.
+05-03 19:20:22.941     0     0 E init    : Control message: Could not find 'vendor.qti.hardware.cacert@1.0::IService/default' for ctl.interface_start from pid: 660 (/system/system_ext/bin/hwservicemanager)
+05-03 19:20:24.026  3704  3747 W HidlServiceManagement: Waited one second for vendor.qti.hardware.cacert@1.0::IService/default
+05-03 19:20:24.027   660   660 I hwservicemanager: Since vendor.qti.hardware.cacert@1.0::IService/default is not registered, trying to start it as a lazy HAL (if it's not configured to be a lazy HAL, it may be stuck starting or still starting).
+05-03 19:20:24.027  3704  3747 I HidlServiceManagement: getService: Trying again for vendor.qti.hardware.cacert@1.0::IService/default...
+05-03 19:20:24.029   660 10224 W libc    : Unable to set property "ctl.interface_start" to "vendor.qti.hardware.cacert@1.0::IService/default": PROP_ERROR_HANDLE_CONTROL_MESSAGE (0x20)
+05-03 19:20:24.029   660 10224 I hwservicemanager: Tried to start vendor.qti.hardware.cacert@1.0::IService/default as a lazy service, but was unable to. Usually this happens when a service is not installed, but if the service is intended to be used as a lazy service, then it may be configured incorrectly.
+05-03 19:20:23.942     0     0 E init    : Control message: Could not find 'vendor.qti.hardware.cacert@1.0::IService/default' for ctl.interface_start from pid: 660 (/system/system_ext/bin/hwservicemanager)
+05-03 19:20:24.827     0     0 I QCOM-BATT: pl_fcc_vote_callback: total_fcc_ua=1950000
+05-03 19:20:24.827     0     0 I QCOM-BATT: pl_fv_vote_callback: fv_uv=4400000
+05-03 19:20:25.028  3704  3747 W HidlServiceManagement: Waited one second for vendor.qti.hardware.cacert@1.0::IService/default
+05-03 19:20:25.028   660   660 I hwservicemanager: Since vendor.qti.hardware.cacert@1.0::IService/default is not registered, trying to start it as a lazy HAL (if it's not configured to be a lazy HAL, it may be stuck starting or still starting).
+05-03 19:20:25.030  3704  3747 I HidlServiceManagement: getService: Trying again for vendor.qti.hardware.cacert@1.0::IService/default...
+05-03 19:20:25.033   660 10225 W libc    : Unable to set property "ctl.interface_start" to "vendor.qti.hardware.cacert@1.0::IService/default": PROP_ERROR_HANDLE_CONTROL_MESSAGE (0x20)
+05-03 19:20:25.033   660 10225 I hwservicemanager: Tried to start vendor.qti.hardware.cacert@1.0::IService/default as a lazy service, but was unable to. Usually this happens when a service is not installed, but if the service is intended to be used as a lazy service, then it may be configured incorrectly.
+05-03 19:20:24.945     0     0 E init    : Control message: Could not find 'vendor.qti.hardware.cacert@1.0::IService/default' for ctl.interface_start from pid: 660 (/system/system_ext/bin/hwservicemanager)
+05-03 19:20:25.186     0     0 E FG      : fg_psy_get_property: unsupported property 79
+05-03 19:20:25.197     0     0 E FG      : fg_psy_get_property: unsupported property 79
+05-03 19:20:25.202     0     0 W healthd : battery l=100 v=3175 t=25.4 h=2 st=5 c=0 fc=2831000 chg=u
+05-03 19:20:25.299  1126  1126 D QtiCarrierConfigHelper: WARNING, no carrier configs on phone Id: 0
+05-03 19:20:25.209     0     0 E FG      : fg_psy_get_property: unsupported property 79
+05-03 19:20:25.300   960  2657 D PowerUI : can't show warning due to - plugged: true status unknown: false
+05-03 19:20:26.031  3704  3747 W HidlServiceManagement: Waited one second for vendor.qti.hardware.cacert@1.0::IService/default
+05-03 19:20:26.033   660   660 I hwservicemanager: Since vendor.qti.hardware.cacert@1.0::IService/default is not registered, trying to start it as a lazy HAL (if it's not configured to be a lazy HAL, it may be stuck starting or still starting).
+05-03 19:20:26.036  3704  3747 I HidlServiceManagement: getService: Trying again for vendor.qti.hardware.cacert@1.0::IService/default...
+05-03 19:20:26.037   660 10226 W libc    : Unable to set property "ctl.interface_start" to "vendor.qti.hardware.cacert@1.0::IService/default": PROP_ERROR_HANDLE_CONTROL_MESSAGE (0x20)
+05-03 19:20:26.038   660 10226 I hwservicemanager: Tried to start vendor.qti.hardware.cacert@1.0::IService/default as a lazy service, but was unable to. Usually this happens when a service is not installed, but if the service is intended to be used as a lazy service, then it may be configured incorrectly.
+05-03 19:20:25.951     0     0 E init    : Control message: Could not find 'vendor.qti.hardware.cacert@1.0::IService/default' for ctl.interface_start from pid: 660 (/system/system_ext/bin/hwservicemanager)
+05-03 19:20:27.036  3704  3747 W HidlServiceManagement: Waited one second for vendor.qti.hardware.cacert@1.0::IService/default
+05-03 19:20:27.038   660   660 I hwservicemanager: Since vendor.qti.hardware.cacert@1.0::IService/default is not registered, trying to start it as a lazy HAL (if it's not configured to be a lazy HAL, it may be stuck starting or still starting).
+05-03 19:20:27.039  3704  3747 I HidlServiceManagement: getService: Trying again for vendor.qti.hardware.cacert@1.0::IService/default...
+05-03 19:20:27.043   660 10227 W libc    : Unable to set property "ctl.interface_start" to "vendor.qti.hardware.cacert@1.0::IService/default": PROP_ERROR_HANDLE_CONTROL_MESSAGE (0x20)
+05-03 19:20:27.044   660 10227 I hwservicemanager: Tried to start vendor.qti.hardware.cacert@1.0::IService/default as a lazy service, but was unable to. Usually this happens when a service is not installed, but if the service is intended to be used as a lazy service, then it may be configured incorrectly.
+05-03 19:20:26.956     0     0 E init    : Control message: Could not find 'vendor.qti.hardware.cacert@1.0::IService/default' for ctl.interface_start from pid: 660 (/system/system_ext/bin/hwservicemanager)
+05-03 19:20:28.039  3704  3747 W HidlServiceManagement: Waited one second for vendor.qti.hardware.cacert@1.0::IService/default
+05-03 19:20:28.040   660   660 I hwservicemanager: Since vendor.qti.hardware.cacert@1.0::IService/default is not registered, trying to start it as a lazy HAL (if it's not configured to be a lazy HAL, it may be stuck starting or still starting).
+05-03 19:20:28.041  3704  3747 I HidlServiceManagement: getService: Trying again for vendor.qti.hardware.cacert@1.0::IService/default...
+05-03 19:20:28.043   660 10228 W libc    : Unable to set property "ctl.interface_start" to "vendor.qti.hardware.cacert@1.0::IService/default": PROP_ERROR_HANDLE_CONTROL_MESSAGE (0x20)
+05-03 19:20:28.043   660 10228 I hwservicemanager: Tried to start vendor.qti.hardware.cacert@1.0::IService/default as a lazy service, but was unable to. Usually this happens when a service is not installed, but if the service is intended to be used as a lazy service, then it may be configured incorrectly.
+05-03 19:20:27.956     0     0 E init    : Control message: Could not find 'vendor.qti.hardware.cacert@1.0::IService/default' for ctl.interface_start from pid: 660 (/system/system_ext/bin/hwservicemanager)
+05-03 19:20:29.042  3704  3747 W HidlServiceManagement: Waited one second for vendor.qti.hardware.cacert@1.0::IService/default
+05-03 19:20:29.043   660   660 I hwservicemanager: Since vendor.qti.hardware.cacert@1.0::IService/default is not registered, trying to start it as a lazy HAL (if it's not configured to be a lazy HAL, it may be stuck starting or still starting).
+05-03 19:20:29.044  3704  3747 I HidlServiceManagement: getService: Trying again for vendor.qti.hardware.cacert@1.0::IService/default...
+05-03 19:20:29.048   660 10229 W libc    : Unable to set property "ctl.interface_start" to "vendor.qti.hardware.cacert@1.0::IService/default": PROP_ERROR_HANDLE_CONTROL_MESSAGE (0x20)
+05-03 19:20:29.048   660 10229 I hwservicemanager: Tried to start vendor.qti.hardware.cacert@1.0::IService/default as a lazy service, but was unable to. Usually this happens when a service is not installed, but if the service is intended to be used as a lazy service, then it may be configured incorrectly.
+05-03 19:20:28.961     0     0 E init    : Control message: Could not find 'vendor.qti.hardware.cacert@1.0::IService/default' for ctl.interface_start from pid: 660 (/system/system_ext/bin/hwservicemanager)
+05-03 19:20:30.045  3704  3747 W HidlServiceManagement: Waited one second for vendor.qti.hardware.cacert@1.0::IService/default
+05-03 19:20:30.046   660   660 I hwservicemanager: Since vendor.qti.hardware.cacert@1.0::IService/default is not registered, trying to start it as a lazy HAL (if it's not configured to be a lazy HAL, it may be stuck starting or still starting).
+05-03 19:20:30.047  3704  3747 I HidlServiceManagement: getService: Trying again for vendor.qti.hardware.cacert@1.0::IService/default...
+05-03 19:20:30.049   660 10230 W libc    : Unable to set property "ctl.interface_start" to "vendor.qti.hardware.cacert@1.0::IService/default": PROP_ERROR_HANDLE_CONTROL_MESSAGE (0x20)
+05-03 19:20:30.050   660 10230 I hwservicemanager: Tried to start vendor.qti.hardware.cacert@1.0::IService/default as a lazy service, but was unable to. Usually this happens when a service is not installed, but if the service is intended to be used as a lazy service, then it may be configured incorrectly.
+05-03 19:20:29.963     0     0 E init    : Control message: Could not find 'vendor.qti.hardware.cacert@1.0::IService/default' for ctl.interface_start from pid: 660 (/system/system_ext/bin/hwservicemanager)
+05-03 19:20:31.047  3704  3747 W HidlServiceManagement: Waited one second for vendor.qti.hardware.cacert@1.0::IService/default
+05-03 19:20:31.048   660   660 I hwservicemanager: Since vendor.qti.hardware.cacert@1.0::IService/default is not registered, trying to start it as a lazy HAL (if it's not configured to be a lazy HAL, it may be stuck starting or still starting).
+05-03 19:20:31.049  3704  3747 I HidlServiceManagement: getService: Trying again for vendor.qti.hardware.cacert@1.0::IService/default...
+05-03 19:20:31.052   660 10231 W libc    : Unable to set property "ctl.interface_start" to "vendor.qti.hardware.cacert@1.0::IService/default": PROP_ERROR_HANDLE_CONTROL_MESSAGE (0x20)
+05-03 19:20:31.053   660 10231 I hwservicemanager: Tried to start vendor.qti.hardware.cacert@1.0::IService/default as a lazy service, but was unable to. Usually this happens when a service is not installed, but if the service is intended to be used as a lazy service, then it may be configured incorrectly.
+05-03 19:20:30.965     0     0 E init    : Control message: Could not find 'vendor.qti.hardware.cacert@1.0::IService/default' for ctl.interface_start from pid: 660 (/system/system_ext/bin/hwservicemanager)
+05-03 19:20:31.867     0     0 I QCOM-BATT: pl_fcc_vote_callback: total_fcc_ua=1950000
+05-03 19:20:31.867     0     0 I QCOM-BATT: pl_fv_vote_callback: fv_uv=4400000
+05-03 19:20:32.049  3704  3747 W HidlServiceManagement: Waited one second for vendor.qti.hardware.cacert@1.0::IService/default
+05-03 19:20:32.050   660   660 I hwservicemanager: Since vendor.qti.hardware.cacert@1.0::IService/default is not registered, trying to start it as a lazy HAL (if it's not configured to be a lazy HAL, it may be stuck starting or still starting).
+05-03 19:20:32.051  3704  3747 I HidlServiceManagement: getService: Trying again for vendor.qti.hardware.cacert@1.0::IService/default...
+05-03 19:20:32.052   660 10232 W libc    : Unable to set property "ctl.interface_start" to "vendor.qti.hardware.cacert@1.0::IService/default": PROP_ERROR_HANDLE_CONTROL_MESSAGE (0x20)
+05-03 19:20:32.053   660 10232 I hwservicemanager: Tried to start vendor.qti.hardware.cacert@1.0::IService/default as a lazy service, but was unable to. Usually this happens when a service is not installed, but if the service is intended to be used as a lazy service, then it may be configured incorrectly.
+05-03 19:20:31.966     0     0 E init    : Control message: Could not find 'vendor.qti.hardware.cacert@1.0::IService/default' for ctl.interface_start from pid: 660 (/system/system_ext/bin/hwservicemanager)
+05-03 19:20:32.226     0     0 E FG      : fg_psy_get_property: unsupported property 79
+05-03 19:20:32.235     0     0 E FG      : fg_psy_get_property: unsupported property 79
+05-03 19:20:32.241     0     0 W healthd : battery l=100 v=3175 t=25.4 h=2 st=5 c=0 fc=2831000 chg=u
+05-03 19:20:32.249     0     0 E FG      : fg_psy_get_property: unsupported property 79
+05-03 19:20:32.335  1126  1126 D QtiCarrierConfigHelper: WARNING, no carrier configs on phone Id: 0
+05-03 19:20:32.341   960  2676 D PowerUI : can't show warning due to - plugged: true status unknown: false
+05-03 19:20:33.051  3704  3747 W HidlServiceManagement: Waited one second for vendor.qti.hardware.cacert@1.0::IService/default
+05-03 19:20:33.053   660   660 I hwservicemanager: Since vendor.qti.hardware.cacert@1.0::IService/default is not registered, trying to start it as a lazy HAL (if it's not configured to be a lazy HAL, it may be stuck starting or still starting).
+05-03 19:20:33.055  3704  3747 I HidlServiceManagement: getService: Trying again for vendor.qti.hardware.cacert@1.0::IService/default...
+05-03 19:20:33.059   660 10233 W libc    : Unable to set property "ctl.interface_start" to "vendor.qti.hardware.cacert@1.0::IService/default": PROP_ERROR_HANDLE_CONTROL_MESSAGE (0x20)
+05-03 19:20:33.059   660 10233 I hwservicemanager: Tried to start vendor.qti.hardware.cacert@1.0::IService/default as a lazy service, but was unable to. Usually this happens when a service is not installed, but if the service is intended to be used as a lazy service, then it may be configured incorrectly.
+05-03 19:20:32.972     0     0 E init    : Control message: Could not find 'vendor.qti.hardware.cacert@1.0::IService/default' for ctl.interface_start from pid: 660 (/system/system_ext/bin/hwservicemanager)
+05-03 19:20:33.250  3512  3691 I ThermalEngine: Monitor : quiet_therm = 26834, msm_therm = 28027, xo_therm = 27935, battery_therm = 254,current_now = 0 
+05-03 19:20:34.055  3704  3747 W HidlServiceManagement: Waited one second for vendor.qti.hardware.cacert@1.0::IService/default
+05-03 19:20:34.056   660   660 I hwservicemanager: Since vendor.qti.hardware.cacert@1.0::IService/default is not registered, trying to start it as a lazy HAL (if it's not configured to be a lazy HAL, it may be stuck starting or still starting).
+05-03 19:20:34.058  3704  3747 I HidlServiceManagement: getService: Trying again for vendor.qti.hardware.cacert@1.0::IService/default...
+05-03 19:20:34.061   660 10234 W libc    : Unable to set property "ctl.interface_start" to "vendor.qti.hardware.cacert@1.0::IService/default": PROP_ERROR_HANDLE_CONTROL_MESSAGE (0x20)
+05-03 19:20:34.061   660 10234 I hwservicemanager: Tried to start vendor.qti.hardware.cacert@1.0::IService/default as a lazy service, but was unable to. Usually this happens when a service is not installed, but if the service is intended to be used as a lazy service, then it may be configured incorrectly.
+05-03 19:20:33.973     0     0 E init    : Control message: Could not find 'vendor.qti.hardware.cacert@1.0::IService/default' for ctl.interface_start from pid: 660 (/system/system_ext/bin/hwservicemanager)
+05-03 19:20:34.497     0     0 E FG      : fg_psy_get_property: unsupported property 79
+05-03 19:20:34.504     0     0 W healthd : battery l=100 v=3174 t=25.4 h=2 st=5 c=0 fc=2831000 chg=u
+05-03 19:20:34.513     0     0 E FG      : fg_psy_get_property: unsupported property 79
+05-03 19:20:34.606  1126  1126 D QtiCarrierConfigHelper: WARNING, no carrier configs on phone Id: 0
+05-03 19:20:34.615   960  2694 D PowerUI : can't show warning due to - plugged: true status unknown: false
+05-03 19:20:35.059  3704  3747 W HidlServiceManagement: Waited one second for vendor.qti.hardware.cacert@1.0::IService/default
+05-03 19:20:35.060   660   660 I hwservicemanager: Since vendor.qti.hardware.cacert@1.0::IService/default is not registered, trying to start it as a lazy HAL (if it's not configured to be a lazy HAL, it may be stuck starting or still starting).
+05-03 19:20:35.061  3704  3747 I HidlServiceManagement: getService: Trying again for vendor.qti.hardware.cacert@1.0::IService/default...
+05-03 19:20:35.066   660 10235 W libc    : Unable to set property "ctl.interface_start" to "vendor.qti.hardware.cacert@1.0::IService/default": PROP_ERROR_HANDLE_CONTROL_MESSAGE (0x20)
+05-03 19:20:35.067   660 10235 I hwservicemanager: Tried to start vendor.qti.hardware.cacert@1.0::IService/default as a lazy service, but was unable to. Usually this happens when a service is not installed, but if the service is intended to be used as a lazy service, then it may be configured incorrectly.
+05-03 19:20:34.979     0     0 E init    : Control message: Could not find 'vendor.qti.hardware.cacert@1.0::IService/default' for ctl.interface_start from pid: 660 (/system/system_ext/bin/hwservicemanager)
+05-03 19:20:36.062  3704  3747 W HidlServiceManagement: Waited one second for vendor.qti.hardware.cacert@1.0::IService/default
+05-03 19:20:36.064   660   660 I hwservicemanager: Since vendor.qti.hardware.cacert@1.0::IService/default is not registered, trying to start it as a lazy HAL (if it's not configured to be a lazy HAL, it may be stuck starting or still starting).
+05-03 19:20:36.065  3704  3747 I HidlServiceManagement: getService: Trying again for vendor.qti.hardware.cacert@1.0::IService/default...
+05-03 19:20:36.068   660 10236 W libc    : Unable to set property "ctl.interface_start" to "vendor.qti.hardware.cacert@1.0::IService/default": PROP_ERROR_HANDLE_CONTROL_MESSAGE (0x20)
+05-03 19:20:36.068   660 10236 I hwservicemanager: Tried to start vendor.qti.hardware.cacert@1.0::IService/default as a lazy service, but was unable to. Usually this happens when a service is not installed, but if the service is intended to be used as a lazy service, then it may be configured incorrectly.
+05-03 19:20:35.981     0     0 E init    : Control message: Could not find 'vendor.qti.hardware.cacert@1.0::IService/default' for ctl.interface_start from pid: 660 (/system/system_ext/bin/hwservicemanager)
+05-03 19:20:37.066  3704  3747 W HidlServiceManagement: Waited one second for vendor.qti.hardware.cacert@1.0::IService/default
+05-03 19:20:37.067   660   660 I hwservicemanager: Since vendor.qti.hardware.cacert@1.0::IService/default is not registered, trying to start it as a lazy HAL (if it's not configured to be a lazy HAL, it may be stuck starting or still starting).
+05-03 19:20:37.068  3704  3747 I HidlServiceManagement: getService: Trying again for vendor.qti.hardware.cacert@1.0::IService/default...
+05-03 19:20:36.984     0     0 E init    : Control message: Could not find 'vendor.qti.hardware.cacert@1.0::IService/default' for ctl.interface_start from pid: 660 (/system/system_ext/bin/hwservicemanager)
+05-03 19:20:37.075   660 10237 W libc    : Unable to set property "ctl.interface_start" to "vendor.qti.hardware.cacert@1.0::IService/default": PROP_ERROR_HANDLE_CONTROL_MESSAGE (0x20)
+05-03 19:20:37.075   660 10237 I hwservicemanager: Tried to start vendor.qti.hardware.cacert@1.0::IService/default as a lazy service, but was unable to. Usually this happens when a service is not installed, but if the service is intended to be used as a lazy service, then it may be configured incorrectly.
+05-03 19:20:38.069  3704  3747 W HidlServiceManagement: Waited one second for vendor.qti.hardware.cacert@1.0::IService/default
+05-03 19:20:38.070   660   660 I hwservicemanager: Since vendor.qti.hardware.cacert@1.0::IService/default is not registered, trying to start it as a lazy HAL (if it's not configured to be a lazy HAL, it may be stuck starting or still starting).
+05-03 19:20:38.070  3704  3747 I HidlServiceManagement: getService: Trying again for vendor.qti.hardware.cacert@1.0::IService/default...
+05-03 19:20:38.073   660 10238 W libc    : Unable to set property "ctl.interface_start" to "vendor.qti.hardware.cacert@1.0::IService/default": PROP_ERROR_HANDLE_CONTROL_MESSAGE (0x20)
+05-03 19:20:38.073   660 10238 I hwservicemanager: Tried to start vendor.qti.hardware.cacert@1.0::IService/default as a lazy service, but was unable to. Usually this happens when a service is not installed, but if the service is intended to be used as a lazy service, then it may be configured incorrectly.
+05-03 19:20:37.986     0     0 E init    : Control message: Could not find 'vendor.qti.hardware.cacert@1.0::IService/default' for ctl.interface_start from pid: 660 (/system/system_ext/bin/hwservicemanager)
+05-03 19:20:38.907     0     0 I QCOM-BATT: pl_fcc_vote_callback: total_fcc_ua=1950000
+05-03 19:20:38.907     0     0 I QCOM-BATT: pl_fv_vote_callback: fv_uv=4400000
+05-03 19:20:39.071  3704  3747 W HidlServiceManagement: Waited one second for vendor.qti.hardware.cacert@1.0::IService/default
+05-03 19:20:39.073   660   660 I hwservicemanager: Since vendor.qti.hardware.cacert@1.0::IService/default is not registered, trying to start it as a lazy HAL (if it's not configured to be a lazy HAL, it may be stuck starting or still starting).
+05-03 19:20:39.075  3704  3747 I HidlServiceManagement: getService: Trying again for vendor.qti.hardware.cacert@1.0::IService/default...
+05-03 19:20:39.080   660 10239 W libc    : Unable to set property "ctl.interface_start" to "vendor.qti.hardware.cacert@1.0::IService/default": PROP_ERROR_HANDLE_CONTROL_MESSAGE (0x20)
+05-03 19:20:39.081   660 10239 I hwservicemanager: Tried to start vendor.qti.hardware.cacert@1.0::IService/default as a lazy service, but was unable to. Usually this happens when a service is not installed, but if the service is intended to be used as a lazy service, then it may be configured incorrectly.
+05-03 19:20:38.993     0     0 E init    : Control message: Could not find 'vendor.qti.hardware.cacert@1.0::IService/default' for ctl.interface_start from pid: 660 (/system/system_ext/bin/hwservicemanager)
+05-03 19:20:39.266     0     0 E FG      : fg_psy_get_property: unsupported property 79
+05-03 19:20:39.274     0     0 E FG      : fg_psy_get_property: unsupported property 79
+05-03 19:20:39.374  1126  1126 D QtiCarrierConfigHelper: WARNING, no carrier configs on phone Id: 0
+05-03 19:20:39.281     0     0 W healthd : battery l=100 v=3174 t=25.4 h=2 st=5 c=0 fc=2831000 chg=u
+05-03 19:20:39.290     0     0 E FG      : fg_psy_get_property: unsupported property 79
+05-03 19:20:39.380   960  2692 D PowerUI : can't show warning due to - plugged: true status unknown: false
+05-03 19:20:40.075  3704  3747 W HidlServiceManagement: Waited one second for vendor.qti.hardware.cacert@1.0::IService/default
+05-03 19:20:40.077   660   660 I hwservicemanager: Since vendor.qti.hardware.cacert@1.0::IService/default is not registered, trying to start it as a lazy HAL (if it's not configured to be a lazy HAL, it may be stuck starting or still starting).
+05-03 19:20:40.079  3704  3747 I HidlServiceManagement: getService: Trying again for vendor.qti.hardware.cacert@1.0::IService/default...
+05-03 19:20:40.082   660 10240 W libc    : Unable to set property "ctl.interface_start" to "vendor.qti.hardware.cacert@1.0::IService/default": PROP_ERROR_HANDLE_CONTROL_MESSAGE (0x20)
+05-03 19:20:40.082   660 10240 I hwservicemanager: Tried to start vendor.qti.hardware.cacert@1.0::IService/default as a lazy service, but was unable to. Usually this happens when a service is not installed, but if the service is intended to be used as a lazy service, then it may be configured incorrectly.
+05-03 19:20:39.994     0     0 E init    : Control message: Could not find 'vendor.qti.hardware.cacert@1.0::IService/default' for ctl.interface_start from pid: 660 (/system/system_ext/bin/hwservicemanager)
+05-03 19:20:41.079  3704  3747 W HidlServiceManagement: Waited one second for vendor.qti.hardware.cacert@1.0::IService/default
+05-03 19:20:41.080   660   660 I hwservicemanager: Since vendor.qti.hardware.cacert@1.0::IService/default is not registered, trying to start it as a lazy HAL (if it's not configured to be a lazy HAL, it may be stuck starting or still starting).
+05-03 19:20:41.081  3704  3747 I HidlServiceManagement: getService: Trying again for vendor.qti.hardware.cacert@1.0::IService/default...
+05-03 19:20:40.997     0     0 E init    : Control message: Could not find 'vendor.qti.hardware.cacert@1.0::IService/default' for ctl.interface_start from pid: 660 (/system/system_ext/bin/hwservicemanager)
+05-03 19:20:41.085   660 10241 W libc    : Unable to set property "ctl.interface_start" to "vendor.qti.hardware.cacert@1.0::IService/default": PROP_ERROR_HANDLE_CONTROL_MESSAGE (0x20)
+05-03 19:20:41.085   660 10241 I hwservicemanager: Tried to start vendor.qti.hardware.cacert@1.0::IService/default as a lazy service, but was unable to. Usually this happens when a service is not installed, but if the service is intended to be used as a lazy service, then it may be configured incorrectly.
+05-03 19:20:42.082  3704  3747 W HidlServiceManagement: Waited one second for vendor.qti.hardware.cacert@1.0::IService/default
+05-03 19:20:42.084   660   660 I hwservicemanager: Since vendor.qti.hardware.cacert@1.0::IService/default is not registered, trying to start it as a lazy HAL (if it's not configured to be a lazy HAL, it may be stuck starting or still starting).
+05-03 19:20:42.085  3704  3747 I HidlServiceManagement: getService: Trying again for vendor.qti.hardware.cacert@1.0::IService/default...
+05-03 19:20:42.088   660 10242 W libc    : Unable to set property "ctl.interface_start" to "vendor.qti.hardware.cacert@1.0::IService/default": PROP_ERROR_HANDLE_CONTROL_MESSAGE (0x20)
+05-03 19:20:42.088   660 10242 I hwservicemanager: Tried to start vendor.qti.hardware.cacert@1.0::IService/default as a lazy service, but was unable to. Usually this happens when a service is not installed, but if the service is intended to be used as a lazy service, then it may be configured incorrectly.
+05-03 19:20:42.001     0     0 E init    : Control message: Could not find 'vendor.qti.hardware.cacert@1.0::IService/default' for ctl.interface_start from pid: 660 (/system/system_ext/bin/hwservicemanager)
+05-03 19:20:43.086  3704  3747 W HidlServiceManagement: Waited one second for vendor.qti.hardware.cacert@1.0::IService/default
+05-03 19:20:43.087   660   660 I hwservicemanager: Since vendor.qti.hardware.cacert@1.0::IService/default is not registered, trying to start it as a lazy HAL (if it's not configured to be a lazy HAL, it may be stuck starting or still starting).
+05-03 19:20:43.089  3704  3747 I HidlServiceManagement: getService: Trying again for vendor.qti.hardware.cacert@1.0::IService/default...
+05-03 19:20:43.091   660 10243 W libc    : Unable to set property "ctl.interface_start" to "vendor.qti.hardware.cacert@1.0::IService/default": PROP_ERROR_HANDLE_CONTROL_MESSAGE (0x20)
+05-03 19:20:43.092   660 10243 I hwservicemanager: Tried to start vendor.qti.hardware.cacert@1.0::IService/default as a lazy service, but was unable to. Usually this happens when a service is not installed, but if the service is intended to be used as a lazy service, then it may be configured incorrectly.
+05-03 19:20:43.004     0     0 E init    : Control message: Could not find 'vendor.qti.hardware.cacert@1.0::IService/default' for ctl.interface_start from pid: 660 (/system/system_ext/bin/hwservicemanager)
+05-03 19:20:44.090  3704  3747 W HidlServiceManagement: Waited one second for vendor.qti.hardware.cacert@1.0::IService/default
+05-03 19:20:44.091   660   660 I hwservicemanager: Since vendor.qti.hardware.cacert@1.0::IService/default is not registered, trying to start it as a lazy HAL (if it's not configured to be a lazy HAL, it may be stuck starting or still starting).
+05-03 19:20:44.092  3704  3747 I HidlServiceManagement: getService: Trying again for vendor.qti.hardware.cacert@1.0::IService/default...
+05-03 19:20:44.008     0     0 E init    : Control message: Could not find 'vendor.qti.hardware.cacert@1.0::IService/default' for ctl.interface_start from pid: 660 (/system/system_ext/bin/hwservicemanager)
+05-03 19:20:44.095   660 10244 W libc    : Unable to set property "ctl.interface_start" to "vendor.qti.hardware.cacert@1.0::IService/default": PROP_ERROR_HANDLE_CONTROL_MESSAGE (0x20)
+05-03 19:20:44.095   660 10244 I hwservicemanager: Tried to start vendor.qti.hardware.cacert@1.0::IService/default as a lazy service, but was unable to. Usually this happens when a service is not installed, but if the service is intended to be used as a lazy service, then it may be configured incorrectly.
+05-03 19:20:45.092  3704  3747 W HidlServiceManagement: Waited one second for vendor.qti.hardware.cacert@1.0::IService/default
+05-03 19:20:45.093   660   660 I hwservicemanager: Since vendor.qti.hardware.cacert@1.0::IService/default is not registered, trying to start it as a lazy HAL (if it's not configured to be a lazy HAL, it may be stuck starting or still starting).
+05-03 19:20:45.094  3704  3747 I HidlServiceManagement: getService: Trying again for vendor.qti.hardware.cacert@1.0::IService/default...
+05-03 19:20:45.098   660 10245 W libc    : Unable to set property "ctl.interface_start" to "vendor.qti.hardware.cacert@1.0::IService/default": PROP_ERROR_HANDLE_CONTROL_MESSAGE (0x20)
+05-03 19:20:45.099   660 10245 I hwservicemanager: Tried to start vendor.qti.hardware.cacert@1.0::IService/default as a lazy service, but was unable to. Usually this happens when a service is not installed, but if the service is intended to be used as a lazy service, then it may be configured incorrectly.
+05-03 19:20:45.011     0     0 E init    : Control message: Could not find 'vendor.qti.hardware.cacert@1.0::IService/default' for ctl.interface_start from pid: 660 (/system/system_ext/bin/hwservicemanager)
+05-03 19:20:45.948     0     0 I QCOM-BATT: pl_fcc_vote_callback: total_fcc_ua=1950000
+05-03 19:20:45.948     0     0 I QCOM-BATT: pl_fv_vote_callback: fv_uv=4400000
+05-03 19:20:46.095  3704  3747 W HidlServiceManagement: Waited one second for vendor.qti.hardware.cacert@1.0::IService/default
+05-03 19:20:46.096   660   660 I hwservicemanager: Since vendor.qti.hardware.cacert@1.0::IService/default is not registered, trying to start it as a lazy HAL (if it's not configured to be a lazy HAL, it may be stuck starting or still starting).
+05-03 19:20:46.097  3704  3747 I HidlServiceManagement: getService: Trying again for vendor.qti.hardware.cacert@1.0::IService/default...
+05-03 19:20:46.100   660 10246 W libc    : Unable to set property "ctl.interface_start" to "vendor.qti.hardware.cacert@1.0::IService/default": PROP_ERROR_HANDLE_CONTROL_MESSAGE (0x20)
+05-03 19:20:46.100   660 10246 I hwservicemanager: Tried to start vendor.qti.hardware.cacert@1.0::IService/default as a lazy service, but was unable to. Usually this happens when a service is not installed, but if the service is intended to be used as a lazy service, then it may be configured incorrectly.
+05-03 19:20:46.013     0     0 E init    : Control message: Could not find 'vendor.qti.hardware.cacert@1.0::IService/default' for ctl.interface_start from pid: 660 (/system/system_ext/bin/hwservicemanager)
+05-03 19:20:46.306     0     0 E FG      : fg_psy_get_property: unsupported property 79
+05-03 19:20:46.315     0     0 E FG      : fg_psy_get_property: unsupported property 79
+05-03 19:20:46.413  1126  1126 D QtiCarrierConfigHelper: WARNING, no carrier configs on phone Id: 0
+05-03 19:20:46.320     0     0 W healthd : battery l=100 v=3175 t=25.4 h=2 st=5 c=0 fc=2831000 chg=u
+05-03 19:20:46.419   960  2713 D PowerUI : can't show warning due to - plugged: true status unknown: false
+05-03 19:20:46.331     0     0 E FG      : fg_psy_get_property: unsupported property 79
+05-03 19:20:47.097  3704  3747 W HidlServiceManagement: Waited one second for vendor.qti.hardware.cacert@1.0::IService/default
+05-03 19:20:47.099   660   660 I hwservicemanager: Since vendor.qti.hardware.cacert@1.0::IService/default is not registered, trying to start it as a lazy HAL (if it's not configured to be a lazy HAL, it may be stuck starting or still starting).
+05-03 19:20:47.100  3704  3747 I HidlServiceManagement: getService: Trying again for vendor.qti.hardware.cacert@1.0::IService/default...
+05-03 19:20:47.017     0     0 E init    : Control message: Could not find 'vendor.qti.hardware.cacert@1.0::IService/default' for ctl.interface_start from pid: 660 (/system/system_ext/bin/hwservicemanager)
+05-03 19:20:47.105   660 10247 W libc    : Unable to set property "ctl.interface_start" to "vendor.qti.hardware.cacert@1.0::IService/default": PROP_ERROR_HANDLE_CONTROL_MESSAGE (0x20)
+05-03 19:20:47.105   660 10247 I hwservicemanager: Tried to start vendor.qti.hardware.cacert@1.0::IService/default as a lazy service, but was unable to. Usually this happens when a service is not installed, but if the service is intended to be used as a lazy service, then it may be configured incorrectly.
+05-03 19:20:48.101  3704  3747 W HidlServiceManagement: Waited one second for vendor.qti.hardware.cacert@1.0::IService/default
+05-03 19:20:48.102   660   660 I hwservicemanager: Since vendor.qti.hardware.cacert@1.0::IService/default is not registered, trying to start it as a lazy HAL (if it's not configured to be a lazy HAL, it may be stuck starting or still starting).
+05-03 19:20:48.103  3704  3747 I HidlServiceManagement: getService: Trying again for vendor.qti.hardware.cacert@1.0::IService/default...
+05-03 19:20:48.107   660 10248 W libc    : Unable to set property "ctl.interface_start" to "vendor.qti.hardware.cacert@1.0::IService/default": PROP_ERROR_HANDLE_CONTROL_MESSAGE (0x20)
+05-03 19:20:48.107   660 10248 I hwservicemanager: Tried to start vendor.qti.hardware.cacert@1.0::IService/default as a lazy service, but was unable to. Usually this happens when a service is not installed, but if the service is intended to be used as a lazy service, then it may be configured incorrectly.
+05-03 19:20:48.020     0     0 E init    : Control message: Could not find 'vendor.qti.hardware.cacert@1.0::IService/default' for ctl.interface_start from pid: 660 (/system/system_ext/bin/hwservicemanager)
+05-03 19:20:49.104  3704  3747 W HidlServiceManagement: Waited one second for vendor.qti.hardware.cacert@1.0::IService/default
+05-03 19:20:49.105   660   660 I hwservicemanager: Since vendor.qti.hardware.cacert@1.0::IService/default is not registered, trying to start it as a lazy HAL (if it's not configured to be a lazy HAL, it may be stuck starting or still starting).
+05-03 19:20:49.106  3704  3747 I HidlServiceManagement: getService: Trying again for vendor.qti.hardware.cacert@1.0::IService/default...
+05-03 19:20:49.110   660 10249 W libc    : Unable to set property "ctl.interface_start" to "vendor.qti.hardware.cacert@1.0::IService/default": PROP_ERROR_HANDLE_CONTROL_MESSAGE (0x20)
+05-03 19:20:49.110   660 10249 I hwservicemanager: Tried to start vendor.qti.hardware.cacert@1.0::IService/default as a lazy service, but was unable to. Usually this happens when a service is not installed, but if the service is intended to be used as a lazy service, then it may be configured incorrectly.
+05-03 19:20:49.022     0     0 E init    : Control message: Could not find 'vendor.qti.hardware.cacert@1.0::IService/default' for ctl.interface_start from pid: 660 (/system/system_ext/bin/hwservicemanager)
+05-03 19:20:50.107  3704  3747 W HidlServiceManagement: Waited one second for vendor.qti.hardware.cacert@1.0::IService/default
+05-03 19:20:50.108   660   660 I hwservicemanager: Since vendor.qti.hardware.cacert@1.0::IService/default is not registered, trying to start it as a lazy HAL (if it's not configured to be a lazy HAL, it may be stuck starting or still starting).
+05-03 19:20:50.109  3704  3747 I HidlServiceManagement: getService: Trying again for vendor.qti.hardware.cacert@1.0::IService/default...
+05-03 19:20:50.111   660 10250 W libc    : Unable to set property "ctl.interface_start" to "vendor.qti.hardware.cacert@1.0::IService/default": PROP_ERROR_HANDLE_CONTROL_MESSAGE (0x20)
+05-03 19:20:50.111   660 10250 I hwservicemanager: Tried to start vendor.qti.hardware.cacert@1.0::IService/default as a lazy service, but was unable to. Usually this happens when a service is not installed, but if the service is intended to be used as a lazy service, then it may be configured incorrectly.
+05-03 19:20:50.024     0     0 E init    : Control message: Could not find 'vendor.qti.hardware.cacert@1.0::IService/default' for ctl.interface_start from pid: 660 (/system/system_ext/bin/hwservicemanager)
+05-03 19:20:51.110  3704  3747 W HidlServiceManagement: Waited one second for vendor.qti.hardware.cacert@1.0::IService/default
+05-03 19:20:51.111   660   660 I hwservicemanager: Since vendor.qti.hardware.cacert@1.0::IService/default is not registered, trying to start it as a lazy HAL (if it's not configured to be a lazy HAL, it may be stuck starting or still starting).
+05-03 19:20:51.111  3704  3747 I HidlServiceManagement: getService: Trying again for vendor.qti.hardware.cacert@1.0::IService/default...
+05-03 19:20:51.028     0     0 E init    : Control message: Could not find 'vendor.qti.hardware.cacert@1.0::IService/default' for ctl.interface_start from pid: 660 (/system/system_ext/bin/hwservicemanager)
+05-03 19:20:51.115   660 10251 W libc    : Unable to set property "ctl.interface_start" to "vendor.qti.hardware.cacert@1.0::IService/default": PROP_ERROR_HANDLE_CONTROL_MESSAGE (0x20)
+05-03 19:20:51.115   660 10251 I hwservicemanager: Tried to start vendor.qti.hardware.cacert@1.0::IService/default as a lazy service, but was unable to. Usually this happens when a service is not installed, but if the service is intended to be used as a lazy service, then it may be configured incorrectly.
+05-03 19:20:52.112  3704  3747 W HidlServiceManagement: Waited one second for vendor.qti.hardware.cacert@1.0::IService/default
+05-03 19:20:52.113   660   660 I hwservicemanager: Since vendor.qti.hardware.cacert@1.0::IService/default is not registered, trying to start it as a lazy HAL (if it's not configured to be a lazy HAL, it may be stuck starting or still starting).
+05-03 19:20:52.113  3704  3747 I HidlServiceManagement: getService: Trying again for vendor.qti.hardware.cacert@1.0::IService/default...
+05-03 19:20:52.116   660 10252 W libc    : Unable to set property "ctl.interface_start" to "vendor.qti.hardware.cacert@1.0::IService/default": PROP_ERROR_HANDLE_CONTROL_MESSAGE (0x20)
+05-03 19:20:52.117   660 10252 I hwservicemanager: Tried to start vendor.qti.hardware.cacert@1.0::IService/default as a lazy service, but was unable to. Usually this happens when a service is not installed, but if the service is intended to be used as a lazy service, then it may be configured incorrectly.
+05-03 19:20:52.029     0     0 E init    : Control message: Could not find 'vendor.qti.hardware.cacert@1.0::IService/default' for ctl.interface_start from pid: 660 (/system/system_ext/bin/hwservicemanager)
+05-03 19:20:52.987     0     0 I QCOM-BATT: pl_fcc_vote_callback: total_fcc_ua=1950000
+05-03 19:20:52.987     0     0 I QCOM-BATT: pl_fv_vote_callback: fv_uv=4400000
+05-03 19:20:53.114  3704  3747 W HidlServiceManagement: Waited one second for vendor.qti.hardware.cacert@1.0::IService/default
+05-03 19:20:53.115   660   660 I hwservicemanager: Since vendor.qti.hardware.cacert@1.0::IService/default is not registered, trying to start it as a lazy HAL (if it's not configured to be a lazy HAL, it may be stuck starting or still starting).
+05-03 19:20:53.117  3704  3747 I HidlServiceManagement: getService: Trying again for vendor.qti.hardware.cacert@1.0::IService/default...
+05-03 19:20:53.121   660 10253 W libc    : Unable to set property "ctl.interface_start" to "vendor.qti.hardware.cacert@1.0::IService/default": PROP_ERROR_HANDLE_CONTROL_MESSAGE (0x20)
+05-03 19:20:53.121   660 10253 I hwservicemanager: Tried to start vendor.qti.hardware.cacert@1.0::IService/default as a lazy service, but was unable to. Usually this happens when a service is not installed, but if the service is intended to be used as a lazy service, then it may be configured incorrectly.
+05-03 19:20:53.034     0     0 E init    : Control message: Could not find 'vendor.qti.hardware.cacert@1.0::IService/default' for ctl.interface_start from pid: 660 (/system/system_ext/bin/hwservicemanager)
+05-03 19:20:53.346     0     0 E FG      : fg_psy_get_property: unsupported property 79
+05-03 19:20:53.354     0     0 E FG      : fg_psy_get_property: unsupported property 79
+05-03 19:20:53.361     0     0 W healthd : battery l=100 v=3175 t=25.4 h=2 st=5 c=0 fc=2831000 chg=u
+05-03 19:20:53.454  1126  1126 D QtiCarrierConfigHelper: WARNING, no carrier configs on phone Id: 0
+05-03 19:20:53.459   960  2704 D PowerUI : can't show warning due to - plugged: true status unknown: false
+05-03 19:20:53.373     0     0 E FG      : fg_psy_get_property: unsupported property 79
+05-03 19:20:54.117  3704  3747 W HidlServiceManagement: Waited one second for vendor.qti.hardware.cacert@1.0::IService/default
+05-03 19:20:54.119   660   660 I hwservicemanager: Since vendor.qti.hardware.cacert@1.0::IService/default is not registered, trying to start it as a lazy HAL (if it's not configured to be a lazy HAL, it may be stuck starting or still starting).
+05-03 19:20:54.120  3704  3747 I HidlServiceManagement: getService: Trying again for vendor.qti.hardware.cacert@1.0::IService/default...
+05-03 19:20:54.037     0     0 E init    : Control message: Could not find 'vendor.qti.hardware.cacert@1.0::IService/default' for ctl.interface_start from pid: 660 (/system/system_ext/bin/hwservicemanager)
+05-03 19:20:54.126   660 10254 W libc    : Unable to set property "ctl.interface_start" to "vendor.qti.hardware.cacert@1.0::IService/default": PROP_ERROR_HANDLE_CONTROL_MESSAGE (0x20)
+05-03 19:20:54.126   660 10254 I hwservicemanager: Tried to start vendor.qti.hardware.cacert@1.0::IService/default as a lazy service, but was unable to. Usually this happens when a service is not installed, but if the service is intended to be used as a lazy service, then it may be configured incorrectly.
+05-03 19:20:55.120  3704  3747 W HidlServiceManagement: Waited one second for vendor.qti.hardware.cacert@1.0::IService/default
+05-03 19:20:55.122   660   660 I hwservicemanager: Since vendor.qti.hardware.cacert@1.0::IService/default is not registered, trying to start it as a lazy HAL (if it's not configured to be a lazy HAL, it may be stuck starting or still starting).
+05-03 19:20:55.123  3704  3747 I HidlServiceManagement: getService: Trying again for vendor.qti.hardware.cacert@1.0::IService/default...
+05-03 19:20:55.128   660 10255 W libc    : Unable to set property "ctl.interface_start" to "vendor.qti.hardware.cacert@1.0::IService/default": PROP_ERROR_HANDLE_CONTROL_MESSAGE (0x20)
+05-03 19:20:55.128   660 10255 I hwservicemanager: Tried to start vendor.qti.hardware.cacert@1.0::IService/default as a lazy service, but was unable to. Usually this happens when a service is not installed, but if the service is intended to be used as a lazy service, then it may be configured incorrectly.
+05-03 19:20:55.041     0     0 E init    : Control message: Could not find 'vendor.qti.hardware.cacert@1.0::IService/default' for ctl.interface_start from pid: 660 (/system/system_ext/bin/hwservicemanager)
+05-03 19:20:56.123  3704  3747 W HidlServiceManagement: Waited one second for vendor.qti.hardware.cacert@1.0::IService/default
+05-03 19:20:56.125   660   660 I hwservicemanager: Since vendor.qti.hardware.cacert@1.0::IService/default is not registered, trying to start it as a lazy HAL (if it's not configured to be a lazy HAL, it may be stuck starting or still starting).
+05-03 19:20:56.125  3704  3747 I HidlServiceManagement: getService: Trying again for vendor.qti.hardware.cacert@1.0::IService/default...
+05-03 19:20:56.128   660 10256 W libc    : Unable to set property "ctl.interface_start" to "vendor.qti.hardware.cacert@1.0::IService/default": PROP_ERROR_HANDLE_CONTROL_MESSAGE (0x20)
+05-03 19:20:56.128   660 10256 I hwservicemanager: Tried to start vendor.qti.hardware.cacert@1.0::IService/default as a lazy service, but was unable to. Usually this happens when a service is not installed, but if the service is intended to be used as a lazy service, then it may be configured incorrectly.
+05-03 19:20:56.041     0     0 E init    : Control message: Could not find 'vendor.qti.hardware.cacert@1.0::IService/default' for ctl.interface_start from pid: 660 (/system/system_ext/bin/hwservicemanager)
+05-03 19:20:57.126  3704  3747 W HidlServiceManagement: Waited one second for vendor.qti.hardware.cacert@1.0::IService/default
+05-03 19:20:57.128   660   660 I hwservicemanager: Since vendor.qti.hardware.cacert@1.0::IService/default is not registered, trying to start it as a lazy HAL (if it's not configured to be a lazy HAL, it may be stuck starting or still starting).
+05-03 19:20:57.129  3704  3747 I HidlServiceManagement: getService: Trying again for vendor.qti.hardware.cacert@1.0::IService/default...
+05-03 19:20:57.133   660 10257 W libc    : Unable to set property "ctl.interface_start" to "vendor.qti.hardware.cacert@1.0::IService/default": PROP_ERROR_HANDLE_CONTROL_MESSAGE (0x20)
+05-03 19:20:57.133   660 10257 I hwservicemanager: Tried to start vendor.qti.hardware.cacert@1.0::IService/default as a lazy service, but was unable to. Usually this happens when a service is not installed, but if the service is intended to be used as a lazy service, then it may be configured incorrectly.
+05-03 19:20:57.045     0     0 E init    : Control message: Could not find 'vendor.qti.hardware.cacert@1.0::IService/default' for ctl.interface_start from pid: 660 (/system/system_ext/bin/hwservicemanager)
+05-03 19:20:58.129  3704  3747 W HidlServiceManagement: Waited one second for vendor.qti.hardware.cacert@1.0::IService/default
+05-03 19:20:58.131   660   660 I hwservicemanager: Since vendor.qti.hardware.cacert@1.0::IService/default is not registered, trying to start it as a lazy HAL (if it's not configured to be a lazy HAL, it may be stuck starting or still starting).
+05-03 19:20:58.132  3704  3747 I HidlServiceManagement: getService: Trying again for vendor.qti.hardware.cacert@1.0::IService/default...
+05-03 19:20:58.135   660 10258 W libc    : Unable to set property "ctl.interface_start" to "vendor.qti.hardware.cacert@1.0::IService/default": PROP_ERROR_HANDLE_CONTROL_MESSAGE (0x20)
+05-03 19:20:58.048     0     0 E init    : Control message: Could not find 'vendor.qti.hardware.cacert@1.0::IService/default' for ctl.interface_start from pid: 660 (/system/system_ext/bin/hwservicemanager)
+05-03 19:20:58.136   660 10258 I hwservicemanager: Tried to start vendor.qti.hardware.cacert@1.0::IService/default as a lazy service, but was unable to. Usually this happens when a service is not installed, but if the service is intended to be used as a lazy service, then it may be configured incorrectly.
+05-03 19:20:59.132  3704  3747 W HidlServiceManagement: Waited one second for vendor.qti.hardware.cacert@1.0::IService/default
+05-03 19:20:59.134   660   660 I hwservicemanager: Since vendor.qti.hardware.cacert@1.0::IService/default is not registered, trying to start it as a lazy HAL (if it's not configured to be a lazy HAL, it may be stuck starting or still starting).
+05-03 19:20:59.135  3704  3747 I HidlServiceManagement: getService: Trying again for vendor.qti.hardware.cacert@1.0::IService/default...
+05-03 19:20:59.139   660 10259 W libc    : Unable to set property "ctl.interface_start" to "vendor.qti.hardware.cacert@1.0::IService/default": PROP_ERROR_HANDLE_CONTROL_MESSAGE (0x20)
+05-03 19:20:59.139   660 10259 I hwservicemanager: Tried to start vendor.qti.hardware.cacert@1.0::IService/default as a lazy service, but was unable to. Usually this happens when a service is not installed, but if the service is intended to be used as a lazy service, then it may be configured incorrectly.
+05-03 19:20:59.052     0     0 E init    : Control message: Could not find 'vendor.qti.hardware.cacert@1.0::IService/default' for ctl.interface_start from pid: 660 (/system/system_ext/bin/hwservicemanager)
+05-03 19:20:59.387     0     0 I QCOM-BATT: pl_fcc_vote_callback: total_fcc_ua=1950000
+05-03 19:20:59.387     0     0 I QCOM-BATT: pl_fv_vote_callback: fv_uv=4400000
+05-03 19:20:59.746     0     0 E FG      : fg_psy_get_property: unsupported property 79
+05-03 19:20:59.755     0     0 E FG      : fg_psy_get_property: unsupported property 79
+05-03 19:20:59.761     0     0 W healthd : battery l=100 v=3175 t=25.4 h=2 st=5 c=0 fc=2831000 chg=u
+05-03 19:20:59.768     0     0 E FG      : fg_psy_get_property: unsupported property 79
+05-03 19:20:59.854  1126  1126 D QtiCarrierConfigHelper: WARNING, no carrier configs on phone Id: 0
+05-03 19:20:59.861   960  1373 D PowerUI : can't show warning due to - plugged: true status unknown: false
+05-03 19:21:00.135  3704  3747 W HidlServiceManagement: Waited one second for vendor.qti.hardware.cacert@1.0::IService/default
+05-03 19:21:00.137   660   660 I hwservicemanager: Since vendor.qti.hardware.cacert@1.0::IService/default is not registered, trying to start it as a lazy HAL (if it's not configured to be a lazy HAL, it may be stuck starting or still starting).
+05-03 19:21:00.138  3704  3747 I HidlServiceManagement: getService: Trying again for vendor.qti.hardware.cacert@1.0::IService/default...
+05-03 19:21:00.141   660 10260 W libc    : Unable to set property "ctl.interface_start" to "vendor.qti.hardware.cacert@1.0::IService/default": PROP_ERROR_HANDLE_CONTROL_MESSAGE (0x20)
+05-03 19:21:00.142   660 10260 I hwservicemanager: Tried to start vendor.qti.hardware.cacert@1.0::IService/default as a lazy service, but was unable to. Usually this happens when a service is not installed, but if the service is intended to be used as a lazy service, then it may be configured incorrectly.
+05-03 19:21:00.054     0     0 E init    : Control message: Could not find 'vendor.qti.hardware.cacert@1.0::IService/default' for ctl.interface_start from pid: 660 (/system/system_ext/bin/hwservicemanager)
+05-03 19:21:01.138  3704  3747 W HidlServiceManagement: Waited one second for vendor.qti.hardware.cacert@1.0::IService/default
+05-03 19:21:01.140   660   660 I hwservicemanager: Since vendor.qti.hardware.cacert@1.0::IService/default is not registered, trying to start it as a lazy HAL (if it's not configured to be a lazy HAL, it may be stuck starting or still starting).
+05-03 19:21:01.140  3704  3747 I HidlServiceManagement: getService: Trying again for vendor.qti.hardware.cacert@1.0::IService/default...
+05-03 19:21:01.058     0     0 E init    : Control message: Could not find 'vendor.qti.hardware.cacert@1.0::IService/default' for ctl.interface_start from pid: 660 (/system/system_ext/bin/hwservicemanager)
+05-03 19:21:01.145   660 10261 W libc    : Unable to set property "ctl.interface_start" to "vendor.qti.hardware.cacert@1.0::IService/default": PROP_ERROR_HANDLE_CONTROL_MESSAGE (0x20)
+05-03 19:21:01.145   660 10261 I hwservicemanager: Tried to start vendor.qti.hardware.cacert@1.0::IService/default as a lazy service, but was unable to. Usually this happens when a service is not installed, but if the service is intended to be used as a lazy service, then it may be configured incorrectly.
+05-03 19:21:02.141  3704  3747 W HidlServiceManagement: Waited one second for vendor.qti.hardware.cacert@1.0::IService/default
+05-03 19:21:02.142   660   660 I hwservicemanager: Since vendor.qti.hardware.cacert@1.0::IService/default is not registered, trying to start it as a lazy HAL (if it's not configured to be a lazy HAL, it may be stuck starting or still starting).
+05-03 19:21:02.142  3704  3747 I HidlServiceManagement: getService: Trying again for vendor.qti.hardware.cacert@1.0::IService/default...
+05-03 19:21:02.059     0     0 E init    : Control message: Could not find 'vendor.qti.hardware.cacert@1.0::IService/default' for ctl.interface_start from pid: 660 (/system/system_ext/bin/hwservicemanager)
+05-03 19:21:02.145   660 10262 W libc    : Unable to set property "ctl.interface_start" to "vendor.qti.hardware.cacert@1.0::IService/default": PROP_ERROR_HANDLE_CONTROL_MESSAGE (0x20)
+05-03 19:21:02.146   660 10262 I hwservicemanager: Tried to start vendor.qti.hardware.cacert@1.0::IService/default as a lazy service, but was unable to. Usually this happens when a service is not installed, but if the service is intended to be used as a lazy service, then it may be configured incorrectly.
+05-03 19:21:03.143  3704  3747 W HidlServiceManagement: Waited one second for vendor.qti.hardware.cacert@1.0::IService/default
+05-03 19:21:03.144   660   660 I hwservicemanager: Since vendor.qti.hardware.cacert@1.0::IService/default is not registered, trying to start it as a lazy HAL (if it's not configured to be a lazy HAL, it may be stuck starting or still starting).
+05-03 19:21:03.145  3704  3747 I HidlServiceManagement: getService: Trying again for vendor.qti.hardware.cacert@1.0::IService/default...
+05-03 19:21:03.147   660 10263 W libc    : Unable to set property "ctl.interface_start" to "vendor.qti.hardware.cacert@1.0::IService/default": PROP_ERROR_HANDLE_CONTROL_MESSAGE (0x20)
+05-03 19:21:03.148   660 10263 I hwservicemanager: Tried to start vendor.qti.hardware.cacert@1.0::IService/default as a lazy service, but was unable to. Usually this happens when a service is not installed, but if the service is intended to be used as a lazy service, then it may be configured incorrectly.
+05-03 19:21:03.060     0     0 E init    : Control message: Could not find 'vendor.qti.hardware.cacert@1.0::IService/default' for ctl.interface_start from pid: 660 (/system/system_ext/bin/hwservicemanager)
+05-03 19:21:04.145  3704  3747 W HidlServiceManagement: Waited one second for vendor.qti.hardware.cacert@1.0::IService/default
+05-03 19:21:04.146   660   660 I hwservicemanager: Since vendor.qti.hardware.cacert@1.0::IService/default is not registered, trying to start it as a lazy HAL (if it's not configured to be a lazy HAL, it may be stuck starting or still starting).
+05-03 19:21:04.148  3704  3747 I HidlServiceManagement: getService: Trying again for vendor.qti.hardware.cacert@1.0::IService/default...
+05-03 19:21:04.150   660 10264 W libc    : Unable to set property "ctl.interface_start" to "vendor.qti.hardware.cacert@1.0::IService/default": PROP_ERROR_HANDLE_CONTROL_MESSAGE (0x20)
+05-03 19:21:04.150   660 10264 I hwservicemanager: Tried to start vendor.qti.hardware.cacert@1.0::IService/default as a lazy service, but was unable to. Usually this happens when a service is not installed, but if the service is intended to be used as a lazy service, then it may be configured incorrectly.
+05-03 19:21:04.062     0     0 E init    : Control message: Could not find 'vendor.qti.hardware.cacert@1.0::IService/default' for ctl.interface_start from pid: 660 (/system/system_ext/bin/hwservicemanager)
+05-03 19:21:05.149  3704  3747 W HidlServiceManagement: Waited one second for vendor.qti.hardware.cacert@1.0::IService/default
+05-03 19:21:05.150   660   660 I hwservicemanager: Since vendor.qti.hardware.cacert@1.0::IService/default is not registered, trying to start it as a lazy HAL (if it's not configured to be a lazy HAL, it may be stuck starting or still starting).
+05-03 19:21:05.150  3704  3747 I HidlServiceManagement: getService: Trying again for vendor.qti.hardware.cacert@1.0::IService/default...
+05-03 19:21:05.153   660 10265 W libc    : Unable to set property "ctl.interface_start" to "vendor.qti.hardware.cacert@1.0::IService/default": PROP_ERROR_HANDLE_CONTROL_MESSAGE (0x20)
+05-03 19:21:05.153   660 10265 I hwservicemanager: Tried to start vendor.qti.hardware.cacert@1.0::IService/default as a lazy service, but was unable to. Usually this happens when a service is not installed, but if the service is intended to be used as a lazy service, then it may be configured incorrectly.
+05-03 19:21:05.066     0     0 E init    : Control message: Could not find 'vendor.qti.hardware.cacert@1.0::IService/default' for ctl.interface_start from pid: 660 (/system/system_ext/bin/hwservicemanager)
+05-03 19:21:05.787     0     0 I QCOM-BATT: pl_fcc_vote_callback: total_fcc_ua=1950000
+05-03 19:21:05.787     0     0 I QCOM-BATT: pl_fv_vote_callback: fv_uv=4400000
+05-03 19:21:06.151  3704  3747 W HidlServiceManagement: Waited one second for vendor.qti.hardware.cacert@1.0::IService/default
+05-03 19:21:06.152   660   660 I hwservicemanager: Since vendor.qti.hardware.cacert@1.0::IService/default is not registered, trying to start it as a lazy HAL (if it's not configured to be a lazy HAL, it may be stuck starting or still starting).
+05-03 19:21:06.153  3704  3747 I HidlServiceManagement: getService: Trying again for vendor.qti.hardware.cacert@1.0::IService/default...
+05-03 19:21:06.068     0     0 E init    : Control message: Could not find 'vendor.qti.hardware.cacert@1.0::IService/default' for ctl.interface_start from pid: 660 (/system/system_ext/bin/hwservicemanager)
+05-03 19:21:06.156   660 10266 W libc    : Unable to set property "ctl.interface_start" to "vendor.qti.hardware.cacert@1.0::IService/default": PROP_ERROR_HANDLE_CONTROL_MESSAGE (0x20)
+05-03 19:21:06.156   660 10266 I hwservicemanager: Tried to start vendor.qti.hardware.cacert@1.0::IService/default as a lazy service, but was unable to. Usually this happens when a service is not installed, but if the service is intended to be used as a lazy service, then it may be configured incorrectly.
+05-03 19:21:06.147     0     0 E FG      : fg_psy_get_property: unsupported property 79
+05-03 19:21:06.156     0     0 E FG      : fg_psy_get_property: unsupported property 79
+05-03 19:21:06.258  1126  1126 D QtiCarrierConfigHelper: WARNING, no carrier configs on phone Id: 0
+05-03 19:21:06.162     0     0 W healthd : battery l=100 v=3175 t=25.4 h=2 st=5 c=0 fc=2831000 chg=u
+05-03 19:21:06.169     0     0 E FG      : fg_psy_get_property: unsupported property 79
+05-03 19:21:06.260   960  2050 D PowerUI : can't show warning due to - plugged: true status unknown: false
+05-03 19:21:07.155  3704  3747 W HidlServiceManagement: Waited one second for vendor.qti.hardware.cacert@1.0::IService/default
+05-03 19:21:07.157   660   660 I hwservicemanager: Since vendor.qti.hardware.cacert@1.0::IService/default is not registered, trying to start it as a lazy HAL (if it's not configured to be a lazy HAL, it may be stuck starting or still starting).
+05-03 19:21:07.158  3704  3747 I HidlServiceManagement: getService: Trying again for vendor.qti.hardware.cacert@1.0::IService/default...
+05-03 19:21:07.162   660 10267 W libc    : Unable to set property "ctl.interface_start" to "vendor.qti.hardware.cacert@1.0::IService/default": PROP_ERROR_HANDLE_CONTROL_MESSAGE (0x20)
+05-03 19:21:07.162   660 10267 I hwservicemanager: Tried to start vendor.qti.hardware.cacert@1.0::IService/default as a lazy service, but was unable to. Usually this happens when a service is not installed, but if the service is intended to be used as a lazy service, then it may be configured incorrectly.
+05-03 19:21:07.075     0     0 E init    : Control message: Could not find 'vendor.qti.hardware.cacert@1.0::IService/default' for ctl.interface_start from pid: 660 (/system/system_ext/bin/hwservicemanager)
+05-03 19:21:08.158  3704  3747 W HidlServiceManagement: Waited one second for vendor.qti.hardware.cacert@1.0::IService/default
+05-03 19:21:08.159   660   660 I hwservicemanager: Since vendor.qti.hardware.cacert@1.0::IService/default is not registered, trying to start it as a lazy HAL (if it's not configured to be a lazy HAL, it may be stuck starting or still starting).
+05-03 19:21:08.161  3704  3747 I HidlServiceManagement: getService: Trying again for vendor.qti.hardware.cacert@1.0::IService/default...
+05-03 19:21:08.162   660 10268 W libc    : Unable to set property "ctl.interface_start" to "vendor.qti.hardware.cacert@1.0::IService/default": PROP_ERROR_HANDLE_CONTROL_MESSAGE (0x20)
+05-03 19:21:08.163   660 10268 I hwservicemanager: Tried to start vendor.qti.hardware.cacert@1.0::IService/default as a lazy service, but was unable to. Usually this happens when a service is not installed, but if the service is intended to be used as a lazy service, then it may be configured incorrectly.
+05-03 19:21:08.076     0     0 E init    : Control message: Could not find 'vendor.qti.hardware.cacert@1.0::IService/default' for ctl.interface_start from pid: 660 (/system/system_ext/bin/hwservicemanager)
+05-03 19:21:09.161  3704  3747 W HidlServiceManagement: Waited one second for vendor.qti.hardware.cacert@1.0::IService/default
+05-03 19:21:09.162   660   660 I hwservicemanager: Since vendor.qti.hardware.cacert@1.0::IService/default is not registered, trying to start it as a lazy HAL (if it's not configured to be a lazy HAL, it may be stuck starting or still starting).
+05-03 19:21:09.164  3704  3747 I HidlServiceManagement: getService: Trying again for vendor.qti.hardware.cacert@1.0::IService/default...
+05-03 19:21:09.167   660 10269 W libc    : Unable to set property "ctl.interface_start" to "vendor.qti.hardware.cacert@1.0::IService/default": PROP_ERROR_HANDLE_CONTROL_MESSAGE (0x20)
+05-03 19:21:09.167   660 10269 I hwservicemanager: Tried to start vendor.qti.hardware.cacert@1.0::IService/default as a lazy service, but was unable to. Usually this happens when a service is not installed, but if the service is intended to be used as a lazy service, then it may be configured incorrectly.
+05-03 19:21:09.079     0     0 E init    : Control message: Could not find 'vendor.qti.hardware.cacert@1.0::IService/default' for ctl.interface_start from pid: 660 (/system/system_ext/bin/hwservicemanager)
+05-03 19:21:10.165  3704  3747 W HidlServiceManagement: Waited one second for vendor.qti.hardware.cacert@1.0::IService/default
+05-03 19:21:10.165   660   660 I hwservicemanager: Since vendor.qti.hardware.cacert@1.0::IService/default is not registered, trying to start it as a lazy HAL (if it's not configured to be a lazy HAL, it may be stuck starting or still starting).
+05-03 19:21:10.167  3704  3747 I HidlServiceManagement: getService: Trying again for vendor.qti.hardware.cacert@1.0::IService/default...
+05-03 19:21:10.081     0     0 E init    : Control message: Could not find 'vendor.qti.hardware.cacert@1.0::IService/default' for ctl.interface_start from pid: 660 (/system/system_ext/bin/hwservicemanager)
+05-03 19:21:10.168   660 10270 W libc    : Unable to set property "ctl.interface_start" to "vendor.qti.hardware.cacert@1.0::IService/default": PROP_ERROR_HANDLE_CONTROL_MESSAGE (0x20)
+05-03 19:21:10.168   660 10270 I hwservicemanager: Tried to start vendor.qti.hardware.cacert@1.0::IService/default as a lazy service, but was unable to. Usually this happens when a service is not installed, but if the service is intended to be used as a lazy service, then it may be configured incorrectly.
+05-03 19:21:11.168  3704  3747 W HidlServiceManagement: Waited one second for vendor.qti.hardware.cacert@1.0::IService/default
+05-03 19:21:11.168   660   660 I hwservicemanager: Since vendor.qti.hardware.cacert@1.0::IService/default is not registered, trying to start it as a lazy HAL (if it's not configured to be a lazy HAL, it may be stuck starting or still starting).
+05-03 19:21:11.170  3704  3747 I HidlServiceManagement: getService: Trying again for vendor.qti.hardware.cacert@1.0::IService/default...
+05-03 19:21:11.172   660 10271 W libc    : Unable to set property "ctl.interface_start" to "vendor.qti.hardware.cacert@1.0::IService/default": PROP_ERROR_HANDLE_CONTROL_MESSAGE (0x20)
+05-03 19:21:11.172   660 10271 I hwservicemanager: Tried to start vendor.qti.hardware.cacert@1.0::IService/default as a lazy service, but was unable to. Usually this happens when a service is not installed, but if the service is intended to be used as a lazy service, then it may be configured incorrectly.
+05-03 19:21:11.084     0     0 E init    : Control message: Could not find 'vendor.qti.hardware.cacert@1.0::IService/default' for ctl.interface_start from pid: 660 (/system/system_ext/bin/hwservicemanager)
+05-03 19:21:11.587   307   717 E WifiStaIfaceAidlImpl: getCachedScanData failed with service-specific exception: android.os.ServiceSpecificException:  (code 4)
+05-03 19:21:11.599  3080 29189 I netd    : tetherGetStats() -> {[]} <4.15ms>
+05-03 19:21:11.608  3199  3199 D vendor.qti.bluetooth@1.0-ibs_handler: SerialClockVote: vote for UART CLK ON
+05-03 19:21:11.610  3199  3199 D vendor.qti.bluetooth@1.0-wake_lock: Acquire wakelock is acquired 
+05-03 19:21:11.610  3199  3199 I vendor.qti.bluetooth@1.0-ibs_handler: DeviceWakeUp: Writing IBS_WAKE_IND
+05-03 19:21:11.614  3199  1483 I vendor.qti.bluetooth@1.0-ibs_handler: ProcessIbsCmd: Received IBS_WAKE_ACK: 0xFC
+05-03 19:21:11.614  3199  1483 I vendor.qti.bluetooth@1.0-ibs_handler: ProcessIbsCmd: Signal wack_cond_
+05-03 19:21:11.614  3199  3199 D vendor.qti.bluetooth@1.0-ibs_handler: DeviceWakeUp: Unblocked from waiting for FC
+05-03 19:21:11.615  3199  1483 I vendor.qti.bluetooth@1.0-ibs_handler: ProcessIbsCmd: Received IBS_WAKE_IND: 0xFD
+05-03 19:21:11.615  3199  1483 I vendor.qti.bluetooth@1.0-ibs_handler: ProcessIbsCmd: Writing IBS_WAKE_ACK
+05-03 19:21:11.656  3199  1483 I vendor.qti.bluetooth@1.0-ibs_handler: ProcessIbsCmd: Received IBS_SLEEP_IND: 0xFE
+05-03 19:21:12.170  3704  3747 W HidlServiceManagement: Waited one second for vendor.qti.hardware.cacert@1.0::IService/default
+05-03 19:21:12.172   660   660 I hwservicemanager: Since vendor.qti.hardware.cacert@1.0::IService/default is not registered, trying to start it as a lazy HAL (if it's not configured to be a lazy HAL, it may be stuck starting or still starting).
+05-03 19:21:12.173  3704  3747 I HidlServiceManagement: getService: Trying again for vendor.qti.hardware.cacert@1.0::IService/default...
+05-03 19:21:12.178   660 10272 W libc    : Unable to set property "ctl.interface_start" to "vendor.qti.hardware.cacert@1.0::IService/default": PROP_ERROR_HANDLE_CONTROL_MESSAGE (0x20)
+05-03 19:21:12.178   660 10272 I hwservicemanager: Tried to start vendor.qti.hardware.cacert@1.0::IService/default as a lazy service, but was unable to. Usually this happens when a service is not installed, but if the service is intended to be used as a lazy service, then it may be configured incorrectly.
+05-03 19:21:12.091     0     0 E init    : Control message: Could not find 'vendor.qti.hardware.cacert@1.0::IService/default' for ctl.interface_start from pid: 660 (/system/system_ext/bin/hwservicemanager)
+05-03 19:21:12.615  3199  1487 I vendor.qti.bluetooth@1.0-ibs_handler: DeviceSleep: TX Awake, Sending SLEEP_IND
+05-03 19:21:12.615  3199  1487 D vendor.qti.bluetooth@1.0-ibs_handler: SerialClockVote: vote for UART CLK OFF
+05-03 19:21:12.766  3199  1283 D vendor.qti.bluetooth@1.0-wake_lock: Release wakelock is released 
+05-03 19:21:12.827     0     0 I QCOM-BATT: pl_fcc_vote_callback: total_fcc_ua=1950000
+05-03 19:21:12.827     0     0 I QCOM-BATT: pl_fv_vote_callback: fv_uv=4400000
+05-03 19:21:13.174  3704  3747 W HidlServiceManagement: Waited one second for vendor.qti.hardware.cacert@1.0::IService/default
+05-03 19:21:13.175   660   660 I hwservicemanager: Since vendor.qti.hardware.cacert@1.0::IService/default is not registered, trying to start it as a lazy HAL (if it's not configured to be a lazy HAL, it may be stuck starting or still starting).
+05-03 19:21:13.176  3704  3747 I HidlServiceManagement: getService: Trying again for vendor.qti.hardware.cacert@1.0::IService/default...
+05-03 19:21:13.179   660 10273 W libc    : Unable to set property "ctl.interface_start" to "vendor.qti.hardware.cacert@1.0::IService/default": PROP_ERROR_HANDLE_CONTROL_MESSAGE (0x20)
+05-03 19:21:13.179   660 10273 I hwservicemanager: Tried to start vendor.qti.hardware.cacert@1.0::IService/default as a lazy service, but was unable to. Usually this happens when a service is not installed, but if the service is intended to be used as a lazy service, then it may be configured incorrectly.
+05-03 19:21:13.092     0     0 E init    : Control message: Could not find 'vendor.qti.hardware.cacert@1.0::IService/default' for ctl.interface_start from pid: 660 (/system/system_ext/bin/hwservicemanager)
+05-03 19:21:13.187     0     0 E FG      : fg_psy_get_property: unsupported property 79
+05-03 19:21:13.195     0     0 E FG      : fg_psy_get_property: unsupported property 79
+05-03 19:21:13.201     0     0 W healthd : battery l=100 v=3175 t=25.4 h=2 st=5 c=0 fc=2831000 chg=u
+05-03 19:21:13.208     0     0 E FG      : fg_psy_get_property: unsupported property 79
+05-03 19:21:13.296  1126  1126 D QtiCarrierConfigHelper: WARNING, no carrier configs on phone Id: 0
+05-03 19:21:13.302   960  2657 D PowerUI : can't show warning due to - plugged: true status unknown: false
+05-03 19:21:14.177  3704  3747 W HidlServiceManagement: Waited one second for vendor.qti.hardware.cacert@1.0::IService/default
+05-03 19:21:14.178   660   660 I hwservicemanager: Since vendor.qti.hardware.cacert@1.0::IService/default is not registered, trying to start it as a lazy HAL (if it's not configured to be a lazy HAL, it may be stuck starting or still starting).
+05-03 19:21:14.179  3704  3747 I HidlServiceManagement: getService: Trying again for vendor.qti.hardware.cacert@1.0::IService/default...
+05-03 19:21:14.182   660 10274 W libc    : Unable to set property "ctl.interface_start" to "vendor.qti.hardware.cacert@1.0::IService/default": PROP_ERROR_HANDLE_CONTROL_MESSAGE (0x20)
+05-03 19:21:14.182   660 10274 I hwservicemanager: Tried to start vendor.qti.hardware.cacert@1.0::IService/default as a lazy service, but was unable to. Usually this happens when a service is not installed, but if the service is intended to be used as a lazy service, then it may be configured incorrectly.
+05-03 19:21:14.094     0     0 E init    : Control message: Could not find 'vendor.qti.hardware.cacert@1.0::IService/default' for ctl.interface_start from pid: 660 (/system/system_ext/bin/hwservicemanager)
+05-03 19:21:15.179  3704  3747 W HidlServiceManagement: Waited one second for vendor.qti.hardware.cacert@1.0::IService/default
+05-03 19:21:15.180   660   660 I hwservicemanager: Since vendor.qti.hardware.cacert@1.0::IService/default is not registered, trying to start it as a lazy HAL (if it's not configured to be a lazy HAL, it may be stuck starting or still starting).
+05-03 19:21:15.181  3704  3747 I HidlServiceManagement: getService: Trying again for vendor.qti.hardware.cacert@1.0::IService/default...
+05-03 19:21:15.098     0     0 E init    : Control message: Could not find 'vendor.qti.hardware.cacert@1.0::IService/default' for ctl.interface_start from pid: 660 (/system/system_ext/bin/hwservicemanager)
+05-03 19:21:15.185   660 10275 W libc    : Unable to set property "ctl.interface_start" to "vendor.qti.hardware.cacert@1.0::IService/default": PROP_ERROR_HANDLE_CONTROL_MESSAGE (0x20)
+05-03 19:21:15.185   660 10275 I hwservicemanager: Tried to start vendor.qti.hardware.cacert@1.0::IService/default as a lazy service, but was unable to. Usually this happens when a service is not installed, but if the service is intended to be used as a lazy service, then it may be configured incorrectly.
+05-03 19:21:16.182  3704  3747 W HidlServiceManagement: Waited one second for vendor.qti.hardware.cacert@1.0::IService/default
+05-03 19:21:16.182   660   660 I hwservicemanager: Since vendor.qti.hardware.cacert@1.0::IService/default is not registered, trying to start it as a lazy HAL (if it's not configured to be a lazy HAL, it may be stuck starting or still starting).
+05-03 19:21:16.184  3704  3747 I HidlServiceManagement: getService: Trying again for vendor.qti.hardware.cacert@1.0::IService/default...
+05-03 19:21:16.187   660 10276 W libc    : Unable to set property "ctl.interface_start" to "vendor.qti.hardware.cacert@1.0::IService/default": PROP_ERROR_HANDLE_CONTROL_MESSAGE (0x20)
+05-03 19:21:16.187   660 10276 I hwservicemanager: Tried to start vendor.qti.hardware.cacert@1.0::IService/default as a lazy service, but was unable to. Usually this happens when a service is not installed, but if the service is intended to be used as a lazy service, then it may be configured incorrectly.
+05-03 19:21:16.100     0     0 E init    : Control message: Could not find 'vendor.qti.hardware.cacert@1.0::IService/default' for ctl.interface_start from pid: 660 (/system/system_ext/bin/hwservicemanager)
+05-03 19:21:17.184  3704  3747 W HidlServiceManagement: Waited one second for vendor.qti.hardware.cacert@1.0::IService/default
+05-03 19:21:17.185   660   660 I hwservicemanager: Since vendor.qti.hardware.cacert@1.0::IService/default is not registered, trying to start it as a lazy HAL (if it's not configured to be a lazy HAL, it may be stuck starting or still starting).
+05-03 19:21:17.186  3704  3747 I HidlServiceManagement: getService: Trying again for vendor.qti.hardware.cacert@1.0::IService/default...
+05-03 19:21:17.187   660 10277 W libc    : Unable to set property "ctl.interface_start" to "vendor.qti.hardware.cacert@1.0::IService/default": PROP_ERROR_HANDLE_CONTROL_MESSAGE (0x20)
+05-03 19:21:17.187   660 10277 I hwservicemanager: Tried to start vendor.qti.hardware.cacert@1.0::IService/default as a lazy service, but was unable to. Usually this happens when a service is not installed, but if the service is intended to be used as a lazy service, then it may be configured incorrectly.
+05-03 19:21:17.100     0     0 E init    : Control message: Could not find 'vendor.qti.hardware.cacert@1.0::IService/default' for ctl.interface_start from pid: 660 (/system/system_ext/bin/hwservicemanager)
+05-03 19:21:18.187  3704  3747 W HidlServiceManagement: Waited one second for vendor.qti.hardware.cacert@1.0::IService/default
+05-03 19:21:18.188   660   660 I hwservicemanager: Since vendor.qti.hardware.cacert@1.0::IService/default is not registered, trying to start it as a lazy HAL (if it's not configured to be a lazy HAL, it may be stuck starting or still starting).
+05-03 19:21:18.188  3704  3747 I HidlServiceManagement: getService: Trying again for vendor.qti.hardware.cacert@1.0::IService/default...
+05-03 19:21:18.191   660 10278 W libc    : Unable to set property "ctl.interface_start" to "vendor.qti.hardware.cacert@1.0::IService/default": PROP_ERROR_HANDLE_CONTROL_MESSAGE (0x20)
+05-03 19:21:18.192   660 10278 I hwservicemanager: Tried to start vendor.qti.hardware.cacert@1.0::IService/default as a lazy service, but was unable to. Usually this happens when a service is not installed, but if the service is intended to be used as a lazy service, then it may be configured incorrectly.
+05-03 19:21:18.104     0     0 E init    : Control message: Could not find 'vendor.qti.hardware.cacert@1.0::IService/default' for ctl.interface_start from pid: 660 (/system/system_ext/bin/hwservicemanager)
+05-03 19:21:19.189  3704  3747 W HidlServiceManagement: Waited one second for vendor.qti.hardware.cacert@1.0::IService/default
+05-03 19:21:19.189   660   660 I hwservicemanager: Since vendor.qti.hardware.cacert@1.0::IService/default is not registered, trying to start it as a lazy HAL (if it's not configured to be a lazy HAL, it may be stuck starting or still starting).
+05-03 19:21:19.191  3704  3747 I HidlServiceManagement: getService: Trying again for vendor.qti.hardware.cacert@1.0::IService/default...
+05-03 19:21:19.192   660 10279 W libc    : Unable to set property "ctl.interface_start" to "vendor.qti.hardware.cacert@1.0::IService/default": PROP_ERROR_HANDLE_CONTROL_MESSAGE (0x20)
+05-03 19:21:19.193   660 10279 I hwservicemanager: Tried to start vendor.qti.hardware.cacert@1.0::IService/default as a lazy service, but was unable to. Usually this happens when a service is not installed, but if the service is intended to be used as a lazy service, then it may be configured incorrectly.
+05-03 19:21:19.105     0     0 E init    : Control message: Could not find 'vendor.qti.hardware.cacert@1.0::IService/default' for ctl.interface_start from pid: 660 (/system/system_ext/bin/hwservicemanager)
+05-03 19:21:19.867     0     0 I QCOM-BATT: pl_fcc_vote_callback: total_fcc_ua=1950000
+05-03 19:21:19.867     0     0 I QCOM-BATT: pl_fv_vote_callback: fv_uv=4400000
+05-03 19:21:20.191  3704  3747 W HidlServiceManagement: Waited one second for vendor.qti.hardware.cacert@1.0::IService/default
+05-03 19:21:20.192   660   660 I hwservicemanager: Since vendor.qti.hardware.cacert@1.0::IService/default is not registered, trying to start it as a lazy HAL (if it's not configured to be a lazy HAL, it may be stuck starting or still starting).
+05-03 19:21:20.193  3704  3747 I HidlServiceManagement: getService: Trying again for vendor.qti.hardware.cacert@1.0::IService/default...
+05-03 19:21:20.108     0     0 E init    : Control message: Could not find 'vendor.qti.hardware.cacert@1.0::IService/default' for ctl.interface_start from pid: 660 (/system/system_ext/bin/hwservicemanager)
+05-03 19:21:20.196   660 10280 W libc    : Unable to set property "ctl.interface_start" to "vendor.qti.hardware.cacert@1.0::IService/default": PROP_ERROR_HANDLE_CONTROL_MESSAGE (0x20)
+05-03 19:21:20.196   660 10280 I hwservicemanager: Tried to start vendor.qti.hardware.cacert@1.0::IService/default as a lazy service, but was unable to. Usually this happens when a service is not installed, but if the service is intended to be used as a lazy service, then it may be configured incorrectly.
+05-03 19:21:20.226     0     0 E FG      : fg_psy_get_property: unsupported property 79
+05-03 19:21:20.235     0     0 E FG      : fg_psy_get_property: unsupported property 79
+05-03 19:21:20.241     0     0 W healthd : battery l=100 v=3175 t=25.4 h=2 st=5 c=0 fc=2831000 chg=u
+05-03 19:21:20.336  1126  1126 D QtiCarrierConfigHelper: WARNING, no carrier configs on phone Id: 0
+05-03 19:21:20.339   960  2676 D PowerUI : can't show warning due to - plugged: true status unknown: false
+05-03 19:21:20.251     0     0 E FG      : fg_psy_get_property: unsupported property 79
+05-03 19:21:21.194  3704  3747 W HidlServiceManagement: Waited one second for vendor.qti.hardware.cacert@1.0::IService/default
+05-03 19:21:21.196   660   660 I hwservicemanager: Since vendor.qti.hardware.cacert@1.0::IService/default is not registered, trying to start it as a lazy HAL (if it's not configured to be a lazy HAL, it may be stuck starting or still starting).
+05-03 19:21:21.197  3704  3747 I HidlServiceManagement: getService: Trying again for vendor.qti.hardware.cacert@1.0::IService/default...
+05-03 19:21:21.202   660 10281 W libc    : Unable to set property "ctl.interface_start" to "vendor.qti.hardware.cacert@1.0::IService/default": PROP_ERROR_HANDLE_CONTROL_MESSAGE (0x20)
+05-03 19:21:21.203   660 10281 I hwservicemanager: Tried to start vendor.qti.hardware.cacert@1.0::IService/default as a lazy service, but was unable to. Usually this happens when a service is not installed, but if the service is intended to be used as a lazy service, then it may be configured incorrectly.
+05-03 19:21:21.116     0     0 E init    : Control message: Could not find 'vendor.qti.hardware.cacert@1.0::IService/default' for ctl.interface_start from pid: 660 (/system/system_ext/bin/hwservicemanager)
+05-03 19:21:22.198  3704  3747 W HidlServiceManagement: Waited one second for vendor.qti.hardware.cacert@1.0::IService/default
+05-03 19:21:22.199   660   660 I hwservicemanager: Since vendor.qti.hardware.cacert@1.0::IService/default is not registered, trying to start it as a lazy HAL (if it's not configured to be a lazy HAL, it may be stuck starting or still starting).
+05-03 19:21:22.200  3704  3747 I HidlServiceManagement: getService: Trying again for vendor.qti.hardware.cacert@1.0::IService/default...
+05-03 19:21:22.202   660 10282 W libc    : Unable to set property "ctl.interface_start" to "vendor.qti.hardware.cacert@1.0::IService/default": PROP_ERROR_HANDLE_CONTROL_MESSAGE (0x20)
+05-03 19:21:22.202   660 10282 I hwservicemanager: Tried to start vendor.qti.hardware.cacert@1.0::IService/default as a lazy service, but was unable to. Usually this happens when a service is not installed, but if the service is intended to be used as a lazy service, then it may be configured incorrectly.
+05-03 19:21:22.115     0     0 E init    : Control message: Could not find 'vendor.qti.hardware.cacert@1.0::IService/default' for ctl.interface_start from pid: 660 (/system/system_ext/bin/hwservicemanager)
+05-03 19:21:23.200  3704  3747 W HidlServiceManagement: Waited one second for vendor.qti.hardware.cacert@1.0::IService/default
+05-03 19:21:23.202   660   660 I hwservicemanager: Since vendor.qti.hardware.cacert@1.0::IService/default is not registered, trying to start it as a lazy HAL (if it's not configured to be a lazy HAL, it may be stuck starting or still starting).
+05-03 19:21:23.203  3704  3747 I HidlServiceManagement: getService: Trying again for vendor.qti.hardware.cacert@1.0::IService/default...
+05-03 19:21:23.207   660 10283 W libc    : Unable to set property "ctl.interface_start" to "vendor.qti.hardware.cacert@1.0::IService/default": PROP_ERROR_HANDLE_CONTROL_MESSAGE (0x20)
+05-03 19:21:23.207   660 10283 I hwservicemanager: Tried to start vendor.qti.hardware.cacert@1.0::IService/default as a lazy service, but was unable to. Usually this happens when a service is not installed, but if the service is intended to be used as a lazy service, then it may be configured incorrectly.
+05-03 19:21:23.120     0     0 E init    : Control message: Could not find 'vendor.qti.hardware.cacert@1.0::IService/default' for ctl.interface_start from pid: 660 (/system/system_ext/bin/hwservicemanager)
+05-03 19:21:24.204  3704  3747 W HidlServiceManagement: Waited one second for vendor.qti.hardware.cacert@1.0::IService/default
+05-03 19:21:24.205   660   660 I hwservicemanager: Since vendor.qti.hardware.cacert@1.0::IService/default is not registered, trying to start it as a lazy HAL (if it's not configured to be a lazy HAL, it may be stuck starting or still starting).
+05-03 19:21:24.205  3704  3747 I HidlServiceManagement: getService: Trying again for vendor.qti.hardware.cacert@1.0::IService/default...
+05-03 19:21:24.208   660 10284 W libc    : Unable to set property "ctl.interface_start" to "vendor.qti.hardware.cacert@1.0::IService/default": PROP_ERROR_HANDLE_CONTROL_MESSAGE (0x20)
+05-03 19:21:24.208   660 10284 I hwservicemanager: Tried to start vendor.qti.hardware.cacert@1.0::IService/default as a lazy service, but was unable to. Usually this happens when a service is not installed, but if the service is intended to be used as a lazy service, then it may be configured incorrectly.
+05-03 19:21:24.120     0     0 E init    : Control message: Could not find 'vendor.qti.hardware.cacert@1.0::IService/default' for ctl.interface_start from pid: 660 (/system/system_ext/bin/hwservicemanager)
+05-03 19:21:25.206  3704  3747 W HidlServiceManagement: Waited one second for vendor.qti.hardware.cacert@1.0::IService/default
+05-03 19:21:25.207   660   660 I hwservicemanager: Since vendor.qti.hardware.cacert@1.0::IService/default is not registered, trying to start it as a lazy HAL (if it's not configured to be a lazy HAL, it may be stuck starting or still starting).
+05-03 19:21:25.207  3704  3747 I HidlServiceManagement: getService: Trying again for vendor.qti.hardware.cacert@1.0::IService/default...
+05-03 19:21:25.210   660 10285 W libc    : Unable to set property "ctl.interface_start" to "vendor.qti.hardware.cacert@1.0::IService/default": PROP_ERROR_HANDLE_CONTROL_MESSAGE (0x20)
+05-03 19:21:25.210   660 10285 I hwservicemanager: Tried to start vendor.qti.hardware.cacert@1.0::IService/default as a lazy service, but was unable to. Usually this happens when a service is not installed, but if the service is intended to be used as a lazy service, then it may be configured incorrectly.
+05-03 19:21:25.123     0     0 E init    : Control message: Could not find 'vendor.qti.hardware.cacert@1.0::IService/default' for ctl.interface_start from pid: 660 (/system/system_ext/bin/hwservicemanager)
+05-03 19:21:26.208  3704  3747 W HidlServiceManagement: Waited one second for vendor.qti.hardware.cacert@1.0::IService/default
+05-03 19:21:26.209   660   660 I hwservicemanager: Since vendor.qti.hardware.cacert@1.0::IService/default is not registered, trying to start it as a lazy HAL (if it's not configured to be a lazy HAL, it may be stuck starting or still starting).
+05-03 19:21:26.209  3704  3747 I HidlServiceManagement: getService: Trying again for vendor.qti.hardware.cacert@1.0::IService/default...
+05-03 19:21:26.212   660 10286 W libc    : Unable to set property "ctl.interface_start" to "vendor.qti.hardware.cacert@1.0::IService/default": PROP_ERROR_HANDLE_CONTROL_MESSAGE (0x20)
+05-03 19:21:26.212   660 10286 I hwservicemanager: Tried to start vendor.qti.hardware.cacert@1.0::IService/default as a lazy service, but was unable to. Usually this happens when a service is not installed, but if the service is intended to be used as a lazy service, then it may be configured incorrectly.
+05-03 19:21:26.125     0     0 E init    : Control message: Could not find 'vendor.qti.hardware.cacert@1.0::IService/default' for ctl.interface_start from pid: 660 (/system/system_ext/bin/hwservicemanager)
+05-03 19:21:26.907     0     0 I QCOM-BATT: pl_fcc_vote_callback: total_fcc_ua=1950000
+05-03 19:21:26.907     0     0 I QCOM-BATT: pl_fv_vote_callback: fv_uv=4400000
+05-03 19:21:27.210  3704  3747 W HidlServiceManagement: Waited one second for vendor.qti.hardware.cacert@1.0::IService/default
+05-03 19:21:27.211   660   660 I hwservicemanager: Since vendor.qti.hardware.cacert@1.0::IService/default is not registered, trying to start it as a lazy HAL (if it's not configured to be a lazy HAL, it may be stuck starting or still starting).
+05-03 19:21:27.211  3704  3747 I HidlServiceManagement: getService: Trying again for vendor.qti.hardware.cacert@1.0::IService/default...
+05-03 19:21:27.127     0     0 E init    : Control message: Could not find 'vendor.qti.hardware.cacert@1.0::IService/default' for ctl.interface_start from pid: 660 (/system/system_ext/bin/hwservicemanager)
+05-03 19:21:27.215   660 10287 W libc    : Unable to set property "ctl.interface_start" to "vendor.qti.hardware.cacert@1.0::IService/default": PROP_ERROR_HANDLE_CONTROL_MESSAGE (0x20)
+05-03 19:21:27.215   660 10287 I hwservicemanager: Tried to start vendor.qti.hardware.cacert@1.0::IService/default as a lazy service, but was unable to. Usually this happens when a service is not installed, but if the service is intended to be used as a lazy service, then it may be configured incorrectly.
+05-03 19:21:27.266     0     0 E FG      : fg_psy_get_property: unsupported property 79
+05-03 19:21:27.275     0     0 E FG      : fg_psy_get_property: unsupported property 79
+05-03 19:21:27.281     0     0 W healthd : battery l=100 v=3174 t=25.4 h=2 st=5 c=0 fc=2831000 chg=u
+05-03 19:21:27.288     0     0 E FG      : fg_psy_get_property: unsupported property 79
+05-03 19:21:27.374  1126  1126 D QtiCarrierConfigHelper: WARNING, no carrier configs on phone Id: 0
+05-03 19:21:27.380   960  2694 D PowerUI : can't show warning due to - plugged: true status unknown: false
+05-03 19:21:28.212  3704  3747 W HidlServiceManagement: Waited one second for vendor.qti.hardware.cacert@1.0::IService/default
+05-03 19:21:28.214   660   660 I hwservicemanager: Since vendor.qti.hardware.cacert@1.0::IService/default is not registered, trying to start it as a lazy HAL (if it's not configured to be a lazy HAL, it may be stuck starting or still starting).
+05-03 19:21:28.215  3704  3747 I HidlServiceManagement: getService: Trying again for vendor.qti.hardware.cacert@1.0::IService/default...
+05-03 19:21:28.221   660 10288 W libc    : Unable to set property "ctl.interface_start" to "vendor.qti.hardware.cacert@1.0::IService/default": PROP_ERROR_HANDLE_CONTROL_MESSAGE (0x20)
+05-03 19:21:28.221   660 10288 I hwservicemanager: Tried to start vendor.qti.hardware.cacert@1.0::IService/default as a lazy service, but was unable to. Usually this happens when a service is not installed, but if the service is intended to be used as a lazy service, then it may be configured incorrectly.
+05-03 19:21:28.134     0     0 E init    : Control message: Could not find 'vendor.qti.hardware.cacert@1.0::IService/default' for ctl.interface_start from pid: 660 (/system/system_ext/bin/hwservicemanager)
+05-03 19:21:29.216  3704  3747 W HidlServiceManagement: Waited one second for vendor.qti.hardware.cacert@1.0::IService/default
+05-03 19:21:29.217   660   660 I hwservicemanager: Since vendor.qti.hardware.cacert@1.0::IService/default is not registered, trying to start it as a lazy HAL (if it's not configured to be a lazy HAL, it may be stuck starting or still starting).
+05-03 19:21:29.218  3704  3747 I HidlServiceManagement: getService: Trying again for vendor.qti.hardware.cacert@1.0::IService/default...
+05-03 19:21:29.221   660 10289 W libc    : Unable to set property "ctl.interface_start" to "vendor.qti.hardware.cacert@1.0::IService/default": PROP_ERROR_HANDLE_CONTROL_MESSAGE (0x20)
+05-03 19:21:29.221   660 10289 I hwservicemanager: Tried to start vendor.qti.hardware.cacert@1.0::IService/default as a lazy service, but was unable to. Usually this happens when a service is not installed, but if the service is intended to be used as a lazy service, then it may be configured incorrectly.
+05-03 19:21:29.133     0     0 E init    : Control message: Could not find 'vendor.qti.hardware.cacert@1.0::IService/default' for ctl.interface_start from pid: 660 (/system/system_ext/bin/hwservicemanager)
+05-03 19:21:30.219  3704  3747 W HidlServiceManagement: Waited one second for vendor.qti.hardware.cacert@1.0::IService/default
+05-03 19:21:30.220   660   660 I hwservicemanager: Since vendor.qti.hardware.cacert@1.0::IService/default is not registered, trying to start it as a lazy HAL (if it's not configured to be a lazy HAL, it may be stuck starting or still starting).
+05-03 19:21:30.220  3704  3747 I HidlServiceManagement: getService: Trying again for vendor.qti.hardware.cacert@1.0::IService/default...
+05-03 19:21:30.223   660 10290 W libc    : Unable to set property "ctl.interface_start" to "vendor.qti.hardware.cacert@1.0::IService/default": PROP_ERROR_HANDLE_CONTROL_MESSAGE (0x20)
+05-03 19:21:30.223   660 10290 I hwservicemanager: Tried to start vendor.qti.hardware.cacert@1.0::IService/default as a lazy service, but was unable to. Usually this happens when a service is not installed, but if the service is intended to be used as a lazy service, then it may be configured incorrectly.
+05-03 19:21:30.136     0     0 E init    : Control message: Could not find 'vendor.qti.hardware.cacert@1.0::IService/default' for ctl.interface_start from pid: 660 (/system/system_ext/bin/hwservicemanager)
+05-03 19:21:31.221  3704  3747 W HidlServiceManagement: Waited one second for vendor.qti.hardware.cacert@1.0::IService/default
+05-03 19:21:31.221   660   660 I hwservicemanager: Since vendor.qti.hardware.cacert@1.0::IService/default is not registered, trying to start it as a lazy HAL (if it's not configured to be a lazy HAL, it may be stuck starting or still starting).
+05-03 19:21:31.223  3704  3747 I HidlServiceManagement: getService: Trying again for vendor.qti.hardware.cacert@1.0::IService/default...
+05-03 19:21:31.137     0     0 E init    : Control message: Could not find 'vendor.qti.hardware.cacert@1.0::IService/default' for ctl.interface_start from pid: 660 (/system/system_ext/bin/hwservicemanager)
+05-03 19:21:31.225   660 10291 W libc    : Unable to set property "ctl.interface_start" to "vendor.qti.hardware.cacert@1.0::IService/default": PROP_ERROR_HANDLE_CONTROL_MESSAGE (0x20)
+05-03 19:21:31.225   660 10291 I hwservicemanager: Tried to start vendor.qti.hardware.cacert@1.0::IService/default as a lazy service, but was unable to. Usually this happens when a service is not installed, but if the service is intended to be used as a lazy service, then it may be configured incorrectly.
+05-03 19:21:32.223  3704  3747 W HidlServiceManagement: Waited one second for vendor.qti.hardware.cacert@1.0::IService/default
+05-03 19:21:32.225   660   660 I hwservicemanager: Since vendor.qti.hardware.cacert@1.0::IService/default is not registered, trying to start it as a lazy HAL (if it's not configured to be a lazy HAL, it may be stuck starting or still starting).
+05-03 19:21:32.225  3704  3747 I HidlServiceManagement: getService: Trying again for vendor.qti.hardware.cacert@1.0::IService/default...
+05-03 19:21:32.142     0     0 E init    : Control message: Could not find 'vendor.qti.hardware.cacert@1.0::IService/default' for ctl.interface_start from pid: 660 (/system/system_ext/bin/hwservicemanager)
+05-03 19:21:32.235   660 10293 W libc    : Unable to set property "ctl.interface_start" to "vendor.qti.hardware.cacert@1.0::IService/default": PROP_ERROR_HANDLE_CONTROL_MESSAGE (0x20)
+05-03 19:21:32.235   660 10293 I hwservicemanager: Tried to start vendor.qti.hardware.cacert@1.0::IService/default as a lazy service, but was unable to. Usually this happens when a service is not installed, but if the service is intended to be used as a lazy service, then it may be configured incorrectly.
+05-03 19:21:33.226  3704  3747 W HidlServiceManagement: Waited one second for vendor.qti.hardware.cacert@1.0::IService/default
+05-03 19:21:33.227   660   660 I hwservicemanager: Since vendor.qti.hardware.cacert@1.0::IService/default is not registered, trying to start it as a lazy HAL (if it's not configured to be a lazy HAL, it may be stuck starting or still starting).
+05-03 19:21:33.228  3704  3747 I HidlServiceManagement: getService: Trying again for vendor.qti.hardware.cacert@1.0::IService/default...
+05-03 19:21:33.230   660 10294 W libc    : Unable to set property "ctl.interface_start" to "vendor.qti.hardware.cacert@1.0::IService/default": PROP_ERROR_HANDLE_CONTROL_MESSAGE (0x20)
+05-03 19:21:33.230   660 10294 I hwservicemanager: Tried to start vendor.qti.hardware.cacert@1.0::IService/default as a lazy service, but was unable to. Usually this happens when a service is not installed, but if the service is intended to be used as a lazy service, then it may be configured incorrectly.
+05-03 19:21:33.143     0     0 E init    : Control message: Could not find 'vendor.qti.hardware.cacert@1.0::IService/default' for ctl.interface_start from pid: 660 (/system/system_ext/bin/hwservicemanager)
+05-03 19:21:33.260  3512  3691 I ThermalEngine: Monitor : quiet_therm = 26788, msm_therm = 27798, xo_therm = 27706, battery_therm = 254,current_now = 0 
+05-03 19:21:33.946     0     0 I QCOM-BATT: pl_fcc_vote_callback: total_fcc_ua=1950000
+05-03 19:21:33.946     0     0 I QCOM-BATT: pl_fv_vote_callback: fv_uv=4400000
+05-03 19:21:34.228  3704  3747 W HidlServiceManagement: Waited one second for vendor.qti.hardware.cacert@1.0::IService/default
+05-03 19:21:34.230   660   660 I hwservicemanager: Since vendor.qti.hardware.cacert@1.0::IService/default is not registered, trying to start it as a lazy HAL (if it's not configured to be a lazy HAL, it may be stuck starting or still starting).
+05-03 19:21:34.231  3704  3747 I HidlServiceManagement: getService: Trying again for vendor.qti.hardware.cacert@1.0::IService/default...
+05-03 19:21:34.233   660 10295 W libc    : Unable to set property "ctl.interface_start" to "vendor.qti.hardware.cacert@1.0::IService/default": PROP_ERROR_HANDLE_CONTROL_MESSAGE (0x20)
+05-03 19:21:34.233   660 10295 I hwservicemanager: Tried to start vendor.qti.hardware.cacert@1.0::IService/default as a lazy service, but was unable to. Usually this happens when a service is not installed, but if the service is intended to be used as a lazy service, then it may be configured incorrectly.
+05-03 19:21:34.146     0     0 E init    : Control message: Could not find 'vendor.qti.hardware.cacert@1.0::IService/default' for ctl.interface_start from pid: 660 (/system/system_ext/bin/hwservicemanager)
+05-03 19:21:34.246     0     0 E FG      : fg_psy_get_property: unsupported property 79
+05-03 19:21:34.254     0     0 E FG      : fg_psy_get_property: unsupported property 79
+05-03 19:21:34.355  1126  1126 D QtiCarrierConfigHelper: WARNING, no carrier configs on phone Id: 0
+05-03 19:21:34.260     0     0 W healthd : battery l=100 v=3174 t=25.4 h=2 st=5 c=0 fc=2831000 chg=u
+05-03 19:21:34.359   960  2692 D PowerUI : can't show warning due to - plugged: true status unknown: false
+05-03 19:21:34.271     0     0 E FG      : fg_psy_get_property: unsupported property 79
+05-03 19:21:34.495     0     0 E FG      : fg_psy_get_property: unsupported property 79
+05-03 19:21:34.503     0     0 W healthd : battery l=100 v=3174 t=25.4 h=2 st=5 c=0 fc=2831000 chg=u
+05-03 19:21:34.510     0     0 E FG      : fg_psy_get_property: unsupported property 79
+05-03 19:21:35.232  3704  3747 W HidlServiceManagement: Waited one second for vendor.qti.hardware.cacert@1.0::IService/default
+05-03 19:21:35.235   660   660 I hwservicemanager: Since vendor.qti.hardware.cacert@1.0::IService/default is not registered, trying to start it as a lazy HAL (if it's not configured to be a lazy HAL, it may be stuck starting or still starting).
+05-03 19:21:35.237  3704  3747 I HidlServiceManagement: getService: Trying again for vendor.qti.hardware.cacert@1.0::IService/default...
+05-03 19:21:35.240   660 10296 W libc    : Unable to set property "ctl.interface_start" to "vendor.qti.hardware.cacert@1.0::IService/default": PROP_ERROR_HANDLE_CONTROL_MESSAGE (0x20)
+05-03 19:21:35.241   660 10296 I hwservicemanager: Tried to start vendor.qti.hardware.cacert@1.0::IService/default as a lazy service, but was unable to. Usually this happens when a service is not installed, but if the service is intended to be used as a lazy service, then it may be configured incorrectly.
+05-03 19:21:35.153     0     0 E init    : Control message: Could not find 'vendor.qti.hardware.cacert@1.0::IService/default' for ctl.interface_start from pid: 660 (/system/system_ext/bin/hwservicemanager)
+05-03 19:21:36.237  3704  3747 W HidlServiceManagement: Waited one second for vendor.qti.hardware.cacert@1.0::IService/default
+05-03 19:21:36.240   660   660 I hwservicemanager: Since vendor.qti.hardware.cacert@1.0::IService/default is not registered, trying to start it as a lazy HAL (if it's not configured to be a lazy HAL, it may be stuck starting or still starting).
+05-03 19:21:36.241  3704  3747 I HidlServiceManagement: getService: Trying again for vendor.qti.hardware.cacert@1.0::IService/default...
+05-03 19:21:36.157     0     0 E init    : Control message: Could not find 'vendor.qti.hardware.cacert@1.0::IService/default' for ctl.interface_start from pid: 660 (/system/system_ext/bin/hwservicemanager)
+05-03 19:21:36.244   660 10297 W libc    : Unable to set property "ctl.interface_start" to "vendor.qti.hardware.cacert@1.0::IService/default": PROP_ERROR_HANDLE_CONTROL_MESSAGE (0x20)
+05-03 19:21:36.244   660 10297 I hwservicemanager: Tried to start vendor.qti.hardware.cacert@1.0::IService/default as a lazy service, but was unable to. Usually this happens when a service is not installed, but if the service is intended to be used as a lazy service, then it may be configured incorrectly.
+05-03 19:21:37.241  3704  3747 W HidlServiceManagement: Waited one second for vendor.qti.hardware.cacert@1.0::IService/default
+05-03 19:21:37.242   660   660 I hwservicemanager: Since vendor.qti.hardware.cacert@1.0::IService/default is not registered, trying to start it as a lazy HAL (if it's not configured to be a lazy HAL, it may be stuck starting or still starting).
+05-03 19:21:37.243  3704  3747 I HidlServiceManagement: getService: Trying again for vendor.qti.hardware.cacert@1.0::IService/default...
+05-03 19:21:37.245   660 10298 W libc    : Unable to set property "ctl.interface_start" to "vendor.qti.hardware.cacert@1.0::IService/default": PROP_ERROR_HANDLE_CONTROL_MESSAGE (0x20)
+05-03 19:21:37.245   660 10298 I hwservicemanager: Tried to start vendor.qti.hardware.cacert@1.0::IService/default as a lazy service, but was unable to. Usually this happens when a service is not installed, but if the service is intended to be used as a lazy service, then it may be configured incorrectly.
+05-03 19:21:37.158     0     0 E init    : Control message: Could not find 'vendor.qti.hardware.cacert@1.0::IService/default' for ctl.interface_start from pid: 660 (/system/system_ext/bin/hwservicemanager)
+05-03 19:21:38.244  3704  3747 W HidlServiceManagement: Waited one second for vendor.qti.hardware.cacert@1.0::IService/default
+05-03 19:21:38.245   660   660 I hwservicemanager: Since vendor.qti.hardware.cacert@1.0::IService/default is not registered, trying to start it as a lazy HAL (if it's not configured to be a lazy HAL, it may be stuck starting or still starting).
+05-03 19:21:38.245  3704  3747 I HidlServiceManagement: getService: Trying again for vendor.qti.hardware.cacert@1.0::IService/default...
+05-03 19:21:38.248   660 10299 W libc    : Unable to set property "ctl.interface_start" to "vendor.qti.hardware.cacert@1.0::IService/default": PROP_ERROR_HANDLE_CONTROL_MESSAGE (0x20)
+05-03 19:21:38.248   660 10299 I hwservicemanager: Tried to start vendor.qti.hardware.cacert@1.0::IService/default as a lazy service, but was unable to. Usually this happens when a service is not installed, but if the service is intended to be used as a lazy service, then it may be configured incorrectly.
+05-03 19:21:38.161     0     0 E init    : Control message: Could not find 'vendor.qti.hardware.cacert@1.0::IService/default' for ctl.interface_start from pid: 660 (/system/system_ext/bin/hwservicemanager)
+05-03 19:21:39.246  3704  3747 W HidlServiceManagement: Waited one second for vendor.qti.hardware.cacert@1.0::IService/default
+05-03 19:21:39.247   660   660 I hwservicemanager: Since vendor.qti.hardware.cacert@1.0::IService/default is not registered, trying to start it as a lazy HAL (if it's not configured to be a lazy HAL, it may be stuck starting or still starting).
+05-03 19:21:39.248  3704  3747 I HidlServiceManagement: getService: Trying again for vendor.qti.hardware.cacert@1.0::IService/default...
+05-03 19:21:39.251   660 10301 W libc    : Unable to set property "ctl.interface_start" to "vendor.qti.hardware.cacert@1.0::IService/default": PROP_ERROR_HANDLE_CONTROL_MESSAGE (0x20)
+05-03 19:21:39.251   660 10301 I hwservicemanager: Tried to start vendor.qti.hardware.cacert@1.0::IService/default as a lazy service, but was unable to. Usually this happens when a service is not installed, but if the service is intended to be used as a lazy service, then it may be configured incorrectly.
+05-03 19:21:39.164     0     0 E init    : Control message: Could not find 'vendor.qti.hardware.cacert@1.0::IService/default' for ctl.interface_start from pid: 660 (/system/system_ext/bin/hwservicemanager)
+05-03 19:21:40.248  3704  3747 W HidlServiceManagement: Waited one second for vendor.qti.hardware.cacert@1.0::IService/default
+05-03 19:21:40.249   660   660 I hwservicemanager: Since vendor.qti.hardware.cacert@1.0::IService/default is not registered, trying to start it as a lazy HAL (if it's not configured to be a lazy HAL, it may be stuck starting or still starting).
+05-03 19:21:40.250  3704  3747 I HidlServiceManagement: getService: Trying again for vendor.qti.hardware.cacert@1.0::IService/default...
+05-03 19:21:40.253   660 10302 W libc    : Unable to set property "ctl.interface_start" to "vendor.qti.hardware.cacert@1.0::IService/default": PROP_ERROR_HANDLE_CONTROL_MESSAGE (0x20)
+05-03 19:21:40.253   660 10302 I hwservicemanager: Tried to start vendor.qti.hardware.cacert@1.0::IService/default as a lazy service, but was unable to. Usually this happens when a service is not installed, but if the service is intended to be used as a lazy service, then it may be configured incorrectly.
+05-03 19:21:40.166     0     0 E init    : Control message: Could not find 'vendor.qti.hardware.cacert@1.0::IService/default' for ctl.interface_start from pid: 660 (/system/system_ext/bin/hwservicemanager)
+05-03 19:21:40.987     0     0 I QCOM-BATT: pl_fcc_vote_callback: total_fcc_ua=1950000
+05-03 19:21:40.987     0     0 I QCOM-BATT: pl_fv_vote_callback: fv_uv=4400000
+05-03 19:21:41.250  3704  3747 W HidlServiceManagement: Waited one second for vendor.qti.hardware.cacert@1.0::IService/default
+05-03 19:21:41.251   660   660 I hwservicemanager: Since vendor.qti.hardware.cacert@1.0::IService/default is not registered, trying to start it as a lazy HAL (if it's not configured to be a lazy HAL, it may be stuck starting or still starting).
+05-03 19:21:41.252  3704  3747 I HidlServiceManagement: getService: Trying again for vendor.qti.hardware.cacert@1.0::IService/default...
+05-03 19:21:41.167     0     0 E init    : Control message: Could not find 'vendor.qti.hardware.cacert@1.0::IService/default' for ctl.interface_start from pid: 660 (/system/system_ext/bin/hwservicemanager)
+05-03 19:21:41.254   660 10303 W libc    : Unable to set property "ctl.interface_start" to "vendor.qti.hardware.cacert@1.0::IService/default": PROP_ERROR_HANDLE_CONTROL_MESSAGE (0x20)
+05-03 19:21:41.255   660 10303 I hwservicemanager: Tried to start vendor.qti.hardware.cacert@1.0::IService/default as a lazy service, but was unable to. Usually this happens when a service is not installed, but if the service is intended to be used as a lazy service, then it may be configured incorrectly.
+05-03 19:21:41.346     0     0 E FG      : fg_psy_get_property: unsupported property 79
+05-03 19:21:41.355     0     0 E FG      : fg_psy_get_property: unsupported property 79
+05-03 19:21:41.455  1126  1126 D QtiCarrierConfigHelper: WARNING, no carrier configs on phone Id: 0
+05-03 19:21:41.361     0     0 W healthd : battery l=100 v=3175 t=25.4 h=2 st=5 c=0 fc=2831000 chg=u
+05-03 19:21:41.460   960  2713 D PowerUI : can't show warning due to - plugged: true status unknown: false
+05-03 19:21:41.374     0     0 E FG      : fg_psy_get_property: unsupported property 79
+05-03 19:21:42.252  3704  3747 W HidlServiceManagement: Waited one second for vendor.qti.hardware.cacert@1.0::IService/default
+05-03 19:21:42.254   660   660 I hwservicemanager: Since vendor.qti.hardware.cacert@1.0::IService/default is not registered, trying to start it as a lazy HAL (if it's not configured to be a lazy HAL, it may be stuck starting or still starting).
+05-03 19:21:42.255  3704  3747 I HidlServiceManagement: getService: Trying again for vendor.qti.hardware.cacert@1.0::IService/default...
+05-03 19:21:42.259   660 10304 W libc    : Unable to set property "ctl.interface_start" to "vendor.qti.hardware.cacert@1.0::IService/default": PROP_ERROR_HANDLE_CONTROL_MESSAGE (0x20)
+05-03 19:21:42.259   660 10304 I hwservicemanager: Tried to start vendor.qti.hardware.cacert@1.0::IService/default as a lazy service, but was unable to. Usually this happens when a service is not installed, but if the service is intended to be used as a lazy service, then it may be configured incorrectly.
+05-03 19:21:42.172     0     0 E init    : Control message: Could not find 'vendor.qti.hardware.cacert@1.0::IService/default' for ctl.interface_start from pid: 660 (/system/system_ext/bin/hwservicemanager)
+05-03 19:21:43.256  3704  3747 W HidlServiceManagement: Waited one second for vendor.qti.hardware.cacert@1.0::IService/default
+05-03 19:21:43.257   660   660 I hwservicemanager: Since vendor.qti.hardware.cacert@1.0::IService/default is not registered, trying to start it as a lazy HAL (if it's not configured to be a lazy HAL, it may be stuck starting or still starting).
+05-03 19:21:43.258  3704  3747 I HidlServiceManagement: getService: Trying again for vendor.qti.hardware.cacert@1.0::IService/default...
+05-03 19:21:43.261   660 10305 W libc    : Unable to set property "ctl.interface_start" to "vendor.qti.hardware.cacert@1.0::IService/default": PROP_ERROR_HANDLE_CONTROL_MESSAGE (0x20)
+05-03 19:21:43.262   660 10305 I hwservicemanager: Tried to start vendor.qti.hardware.cacert@1.0::IService/default as a lazy service, but was unable to. Usually this happens when a service is not installed, but if the service is intended to be used as a lazy service, then it may be configured incorrectly.
+05-03 19:21:43.174     0     0 E init    : Control message: Could not find 'vendor.qti.hardware.cacert@1.0::IService/default' for ctl.interface_start from pid: 660 (/system/system_ext/bin/hwservicemanager)
+05-03 19:21:44.258  3704  3747 W HidlServiceManagement: Waited one second for vendor.qti.hardware.cacert@1.0::IService/default
+05-03 19:21:44.261   660   660 I hwservicemanager: Since vendor.qti.hardware.cacert@1.0::IService/default is not registered, trying to start it as a lazy HAL (if it's not configured to be a lazy HAL, it may be stuck starting or still starting).
+05-03 19:21:44.261  3704  3747 I HidlServiceManagement: getService: Trying again for vendor.qti.hardware.cacert@1.0::IService/default...
+05-03 19:21:44.177     0     0 E init    : Control message: Could not find 'vendor.qti.hardware.cacert@1.0::IService/default' for ctl.interface_start from pid: 660 (/system/system_ext/bin/hwservicemanager)
+05-03 19:21:44.265   660 10306 W libc    : Unable to set property "ctl.interface_start" to "vendor.qti.hardware.cacert@1.0::IService/default": PROP_ERROR_HANDLE_CONTROL_MESSAGE (0x20)
+05-03 19:21:44.265   660 10306 I hwservicemanager: Tried to start vendor.qti.hardware.cacert@1.0::IService/default as a lazy service, but was unable to. Usually this happens when a service is not installed, but if the service is intended to be used as a lazy service, then it may be configured incorrectly.
+05-03 19:21:45.262  3704  3747 W HidlServiceManagement: Waited one second for vendor.qti.hardware.cacert@1.0::IService/default
+05-03 19:21:45.263   660   660 I hwservicemanager: Since vendor.qti.hardware.cacert@1.0::IService/default is not registered, trying to start it as a lazy HAL (if it's not configured to be a lazy HAL, it may be stuck starting or still starting).
+05-03 19:21:45.264  3704  3747 I HidlServiceManagement: getService: Trying again for vendor.qti.hardware.cacert@1.0::IService/default...
+05-03 19:21:45.267   660 10307 W libc    : Unable to set property "ctl.interface_start" to "vendor.qti.hardware.cacert@1.0::IService/default": PROP_ERROR_HANDLE_CONTROL_MESSAGE (0x20)
+05-03 19:21:45.267   660 10307 I hwservicemanager: Tried to start vendor.qti.hardware.cacert@1.0::IService/default as a lazy service, but was unable to. Usually this happens when a service is not installed, but if the service is intended to be used as a lazy service, then it may be configured incorrectly.
+05-03 19:21:45.180     0     0 E init    : Control message: Could not find 'vendor.qti.hardware.cacert@1.0::IService/default' for ctl.interface_start from pid: 660 (/system/system_ext/bin/hwservicemanager)
+05-03 19:21:46.264  3704  3747 W HidlServiceManagement: Waited one second for vendor.qti.hardware.cacert@1.0::IService/default
+05-03 19:21:46.265   660   660 I hwservicemanager: Since vendor.qti.hardware.cacert@1.0::IService/default is not registered, trying to start it as a lazy HAL (if it's not configured to be a lazy HAL, it may be stuck starting or still starting).
+05-03 19:21:46.266  3704  3747 I HidlServiceManagement: getService: Trying again for vendor.qti.hardware.cacert@1.0::IService/default...
+05-03 19:21:46.269   660 10308 W libc    : Unable to set property "ctl.interface_start" to "vendor.qti.hardware.cacert@1.0::IService/default": PROP_ERROR_HANDLE_CONTROL_MESSAGE (0x20)
+05-03 19:21:46.269   660 10308 I hwservicemanager: Tried to start vendor.qti.hardware.cacert@1.0::IService/default as a lazy service, but was unable to. Usually this happens when a service is not installed, but if the service is intended to be used as a lazy service, then it may be configured incorrectly.
+05-03 19:21:46.183     0     0 E init    : Control message: Could not find 'vendor.qti.hardware.cacert@1.0::IService/default' for ctl.interface_start from pid: 660 (/system/system_ext/bin/hwservicemanager)
+05-03 19:21:47.267  3704  3747 W HidlServiceManagement: Waited one second for vendor.qti.hardware.cacert@1.0::IService/default
+05-03 19:21:47.268   660   660 I hwservicemanager: Since vendor.qti.hardware.cacert@1.0::IService/default is not registered, trying to start it as a lazy HAL (if it's not configured to be a lazy HAL, it may be stuck starting or still starting).
+05-03 19:21:47.269  3704  3747 I HidlServiceManagement: getService: Trying again for vendor.qti.hardware.cacert@1.0::IService/default...
+05-03 19:21:47.270   660 10309 W libc    : Unable to set property "ctl.interface_start" to "vendor.qti.hardware.cacert@1.0::IService/default": PROP_ERROR_HANDLE_CONTROL_MESSAGE (0x20)
+05-03 19:21:47.270   660 10309 I hwservicemanager: Tried to start vendor.qti.hardware.cacert@1.0::IService/default as a lazy service, but was unable to. Usually this happens when a service is not installed, but if the service is intended to be used as a lazy service, then it may be configured incorrectly.
+05-03 19:21:47.183     0     0 E init    : Control message: Could not find 'vendor.qti.hardware.cacert@1.0::IService/default' for ctl.interface_start from pid: 660 (/system/system_ext/bin/hwservicemanager)
+05-03 19:21:47.387     0     0 I QCOM-BATT: pl_fcc_vote_callback: total_fcc_ua=1950000
+05-03 19:21:47.387     0     0 I QCOM-BATT: pl_fv_vote_callback: fv_uv=4400000
+05-03 19:21:47.746     0     0 E FG      : fg_psy_get_property: unsupported property 79
+05-03 19:21:47.755     0     0 E FG      : fg_psy_get_property: unsupported property 79
+05-03 19:21:47.855  1126  1126 D QtiCarrierConfigHelper: WARNING, no carrier configs on phone Id: 0
+05-03 19:21:47.761     0     0 W healthd : battery l=100 v=3175 t=25.4 h=2 st=5 c=0 fc=2831000 chg=u
+05-03 19:21:47.859   960  2704 D PowerUI : can't show warning due to - plugged: true status unknown: false
+05-03 19:21:47.773     0     0 E FG      : fg_psy_get_property: unsupported property 79
+05-03 19:21:48.269  3704  3747 W HidlServiceManagement: Waited one second for vendor.qti.hardware.cacert@1.0::IService/default
+05-03 19:21:48.272   660   660 I hwservicemanager: Since vendor.qti.hardware.cacert@1.0::IService/default is not registered, trying to start it as a lazy HAL (if it's not configured to be a lazy HAL, it may be stuck starting or still starting).
+05-03 19:21:48.273  3704  3747 I HidlServiceManagement: getService: Trying again for vendor.qti.hardware.cacert@1.0::IService/default...
+05-03 19:21:48.277   660 10310 W libc    : Unable to set property "ctl.interface_start" to "vendor.qti.hardware.cacert@1.0::IService/default": PROP_ERROR_HANDLE_CONTROL_MESSAGE (0x20)
+05-03 19:21:48.278   660 10310 I hwservicemanager: Tried to start vendor.qti.hardware.cacert@1.0::IService/default as a lazy service, but was unable to. Usually this happens when a service is not installed, but if the service is intended to be used as a lazy service, then it may be configured incorrectly.
+05-03 19:21:48.190     0     0 E init    : Control message: Could not find 'vendor.qti.hardware.cacert@1.0::IService/default' for ctl.interface_start from pid: 660 (/system/system_ext/bin/hwservicemanager)
+05-03 19:21:49.273  3704  3747 W HidlServiceManagement: Waited one second for vendor.qti.hardware.cacert@1.0::IService/default
+05-03 19:21:49.275   660   660 I hwservicemanager: Since vendor.qti.hardware.cacert@1.0::IService/default is not registered, trying to start it as a lazy HAL (if it's not configured to be a lazy HAL, it may be stuck starting or still starting).
+05-03 19:21:49.276  3704  3747 I HidlServiceManagement: getService: Trying again for vendor.qti.hardware.cacert@1.0::IService/default...
+05-03 19:21:49.280   660 10311 W libc    : Unable to set property "ctl.interface_start" to "vendor.qti.hardware.cacert@1.0::IService/default": PROP_ERROR_HANDLE_CONTROL_MESSAGE (0x20)
+05-03 19:21:49.280   660 10311 I hwservicemanager: Tried to start vendor.qti.hardware.cacert@1.0::IService/default as a lazy service, but was unable to. Usually this happens when a service is not installed, but if the service is intended to be used as a lazy service, then it may be configured incorrectly.
+05-03 19:21:49.192     0     0 E init    : Control message: Could not find 'vendor.qti.hardware.cacert@1.0::IService/default' for ctl.interface_start from pid: 660 (/system/system_ext/bin/hwservicemanager)
+05-03 19:21:50.277  3704  3747 W HidlServiceManagement: Waited one second for vendor.qti.hardware.cacert@1.0::IService/default
+05-03 19:21:50.278   660   660 I hwservicemanager: Since vendor.qti.hardware.cacert@1.0::IService/default is not registered, trying to start it as a lazy HAL (if it's not configured to be a lazy HAL, it may be stuck starting or still starting).
+05-03 19:21:50.278  3704  3747 I HidlServiceManagement: getService: Trying again for vendor.qti.hardware.cacert@1.0::IService/default...
+05-03 19:21:50.280   660 10312 W libc    : Unable to set property "ctl.interface_start" to "vendor.qti.hardware.cacert@1.0::IService/default": PROP_ERROR_HANDLE_CONTROL_MESSAGE (0x20)
+05-03 19:21:50.280   660 10312 I hwservicemanager: Tried to start vendor.qti.hardware.cacert@1.0::IService/default as a lazy service, but was unable to. Usually this happens when a service is not installed, but if the service is intended to be used as a lazy service, then it may be configured incorrectly.
+05-03 19:21:50.193     0     0 E init    : Control message: Could not find 'vendor.qti.hardware.cacert@1.0::IService/default' for ctl.interface_start from pid: 660 (/system/system_ext/bin/hwservicemanager)
+05-03 19:21:51.279  3704  3747 W HidlServiceManagement: Waited one second for vendor.qti.hardware.cacert@1.0::IService/default
+05-03 19:21:51.280   660   660 I hwservicemanager: Since vendor.qti.hardware.cacert@1.0::IService/default is not registered, trying to start it as a lazy HAL (if it's not configured to be a lazy HAL, it may be stuck starting or still starting).
+05-03 19:21:51.280  3704  3747 I HidlServiceManagement: getService: Trying again for vendor.qti.hardware.cacert@1.0::IService/default...
+05-03 19:21:51.282   660 10313 W libc    : Unable to set property "ctl.interface_start" to "vendor.qti.hardware.cacert@1.0::IService/default": PROP_ERROR_HANDLE_CONTROL_MESSAGE (0x20)
+05-03 19:21:51.283   660 10313 I hwservicemanager: Tried to start vendor.qti.hardware.cacert@1.0::IService/default as a lazy service, but was unable to. Usually this happens when a service is not installed, but if the service is intended to be used as a lazy service, then it may be configured incorrectly.
+05-03 19:21:51.195     0     0 E init    : Control message: Could not find 'vendor.qti.hardware.cacert@1.0::IService/default' for ctl.interface_start from pid: 660 (/system/system_ext/bin/hwservicemanager)
+05-03 19:21:52.281  3704  3747 W HidlServiceManagement: Waited one second for vendor.qti.hardware.cacert@1.0::IService/default
+05-03 19:21:52.282   660   660 I hwservicemanager: Since vendor.qti.hardware.cacert@1.0::IService/default is not registered, trying to start it as a lazy HAL (if it's not configured to be a lazy HAL, it may be stuck starting or still starting).
+05-03 19:21:52.283  3704  3747 I HidlServiceManagement: getService: Trying again for vendor.qti.hardware.cacert@1.0::IService/default...
+05-03 19:21:52.287   660 10314 W libc    : Unable to set property "ctl.interface_start" to "vendor.qti.hardware.cacert@1.0::IService/default": PROP_ERROR_HANDLE_CONTROL_MESSAGE (0x20)
+05-03 19:21:52.287   660 10314 I hwservicemanager: Tried to start vendor.qti.hardware.cacert@1.0::IService/default as a lazy service, but was unable to. Usually this happens when a service is not installed, but if the service is intended to be used as a lazy service, then it may be configured incorrectly.
+05-03 19:21:52.199     0     0 E init    : Control message: Could not find 'vendor.qti.hardware.cacert@1.0::IService/default' for ctl.interface_start from pid: 660 (/system/system_ext/bin/hwservicemanager)
+05-03 19:21:53.283  3704  3747 W HidlServiceManagement: Waited one second for vendor.qti.hardware.cacert@1.0::IService/default
+05-03 19:21:53.285   660   660 I hwservicemanager: Since vendor.qti.hardware.cacert@1.0::IService/default is not registered, trying to start it as a lazy HAL (if it's not configured to be a lazy HAL, it may be stuck starting or still starting).
+05-03 19:21:53.286  3704  3747 I HidlServiceManagement: getService: Trying again for vendor.qti.hardware.cacert@1.0::IService/default...
+05-03 19:21:53.289   660 10315 W libc    : Unable to set property "ctl.interface_start" to "vendor.qti.hardware.cacert@1.0::IService/default": PROP_ERROR_HANDLE_CONTROL_MESSAGE (0x20)
+05-03 19:21:53.289   660 10315 I hwservicemanager: Tried to start vendor.qti.hardware.cacert@1.0::IService/default as a lazy service, but was unable to. Usually this happens when a service is not installed, but if the service is intended to be used as a lazy service, then it may be configured incorrectly.
+05-03 19:21:53.202     0     0 E init    : Control message: Could not find 'vendor.qti.hardware.cacert@1.0::IService/default' for ctl.interface_start from pid: 660 (/system/system_ext/bin/hwservicemanager)
+05-03 19:21:53.787     0     0 I QCOM-BATT: pl_fcc_vote_callback: total_fcc_ua=1950000
+05-03 19:21:53.787     0     0 I QCOM-BATT: pl_fv_vote_callback: fv_uv=4400000
+05-03 19:21:54.145     0     0 E FG      : fg_psy_get_property: unsupported property 79
+05-03 19:21:54.155     0     0 E FG      : fg_psy_get_property: unsupported property 79
+05-03 19:21:54.255  1126  1126 D QtiCarrierConfigHelper: WARNING, no carrier configs on phone Id: 0
+05-03 19:21:54.161     0     0 W healthd : battery l=100 v=3175 t=25.4 h=2 st=5 c=0 fc=2831000 chg=u
+05-03 19:21:54.168     0     0 E FG      : fg_psy_get_property: unsupported property 79
+05-03 19:21:54.260   960  1373 D PowerUI : can't show warning due to - plugged: true status unknown: false
+05-03 19:21:54.286  3704  3747 W HidlServiceManagement: Waited one second for vendor.qti.hardware.cacert@1.0::IService/default
+05-03 19:21:54.287   660   660 I hwservicemanager: Since vendor.qti.hardware.cacert@1.0::IService/default is not registered, trying to start it as a lazy HAL (if it's not configured to be a lazy HAL, it may be stuck starting or still starting).
+05-03 19:21:54.288  3704  3747 I HidlServiceManagement: getService: Trying again for vendor.qti.hardware.cacert@1.0::IService/default...
+05-03 19:21:54.290   660 10316 W libc    : Unable to set property "ctl.interface_start" to "vendor.qti.hardware.cacert@1.0::IService/default": PROP_ERROR_HANDLE_CONTROL_MESSAGE (0x20)
+05-03 19:21:54.290   660 10316 I hwservicemanager: Tried to start vendor.qti.hardware.cacert@1.0::IService/default as a lazy service, but was unable to. Usually this happens when a service is not installed, but if the service is intended to be used as a lazy service, then it may be configured incorrectly.
+05-03 19:21:54.203     0     0 E init    : Control message: Could not find 'vendor.qti.hardware.cacert@1.0::IService/default' for ctl.interface_start from pid: 660 (/system/system_ext/bin/hwservicemanager)
+05-03 19:21:55.288  3704  3747 W HidlServiceManagement: Waited one second for vendor.qti.hardware.cacert@1.0::IService/default
+05-03 19:21:55.290   660   660 I hwservicemanager: Since vendor.qti.hardware.cacert@1.0::IService/default is not registered, trying to start it as a lazy HAL (if it's not configured to be a lazy HAL, it may be stuck starting or still starting).
+05-03 19:21:55.292  3704  3747 I HidlServiceManagement: getService: Trying again for vendor.qti.hardware.cacert@1.0::IService/default...
+05-03 19:21:55.294   660 10317 W libc    : Unable to set property "ctl.interface_start" to "vendor.qti.hardware.cacert@1.0::IService/default": PROP_ERROR_HANDLE_CONTROL_MESSAGE (0x20)
+05-03 19:21:55.206     0     0 E init    : Control message: Could not find 'vendor.qti.hardware.cacert@1.0::IService/default' for ctl.interface_start from pid: 660 (/system/system_ext/bin/hwservicemanager)
+05-03 19:21:55.295   660 10317 I hwservicemanager: Tried to start vendor.qti.hardware.cacert@1.0::IService/default as a lazy service, but was unable to. Usually this happens when a service is not installed, but if the service is intended to be used as a lazy service, then it may be configured incorrectly.
+05-03 19:21:56.292  3704  3747 W HidlServiceManagement: Waited one second for vendor.qti.hardware.cacert@1.0::IService/default
+05-03 19:21:56.293   660   660 I hwservicemanager: Since vendor.qti.hardware.cacert@1.0::IService/default is not registered, trying to start it as a lazy HAL (if it's not configured to be a lazy HAL, it may be stuck starting or still starting).
+05-03 19:21:56.294  3704  3747 I HidlServiceManagement: getService: Trying again for vendor.qti.hardware.cacert@1.0::IService/default...
+05-03 19:21:56.297   660 10318 W libc    : Unable to set property "ctl.interface_start" to "vendor.qti.hardware.cacert@1.0::IService/default": PROP_ERROR_HANDLE_CONTROL_MESSAGE (0x20)
+05-03 19:21:56.297   660 10318 I hwservicemanager: Tried to start vendor.qti.hardware.cacert@1.0::IService/default as a lazy service, but was unable to. Usually this happens when a service is not installed, but if the service is intended to be used as a lazy service, then it may be configured incorrectly.
+05-03 19:21:56.209     0     0 E init    : Control message: Could not find 'vendor.qti.hardware.cacert@1.0::IService/default' for ctl.interface_start from pid: 660 (/system/system_ext/bin/hwservicemanager)
+05-03 19:21:57.295  3704  3747 W HidlServiceManagement: Waited one second for vendor.qti.hardware.cacert@1.0::IService/default
+05-03 19:21:57.295   660   660 I hwservicemanager: Since vendor.qti.hardware.cacert@1.0::IService/default is not registered, trying to start it as a lazy HAL (if it's not configured to be a lazy HAL, it may be stuck starting or still starting).
+05-03 19:21:57.296  3704  3747 I HidlServiceManagement: getService: Trying again for vendor.qti.hardware.cacert@1.0::IService/default...
+05-03 19:21:57.299   660 10319 W libc    : Unable to set property "ctl.interface_start" to "vendor.qti.hardware.cacert@1.0::IService/default": PROP_ERROR_HANDLE_CONTROL_MESSAGE (0x20)
+05-03 19:21:57.299   660 10319 I hwservicemanager: Tried to start vendor.qti.hardware.cacert@1.0::IService/default as a lazy service, but was unable to. Usually this happens when a service is not installed, but if the service is intended to be used as a lazy service, then it may be configured incorrectly.
+05-03 19:21:57.212     0     0 E init    : Control message: Could not find 'vendor.qti.hardware.cacert@1.0::IService/default' for ctl.interface_start from pid: 660 (/system/system_ext/bin/hwservicemanager)
+05-03 19:21:58.297  3704  3747 W HidlServiceManagement: Waited one second for vendor.qti.hardware.cacert@1.0::IService/default
+05-03 19:21:58.298   660   660 I hwservicemanager: Since vendor.qti.hardware.cacert@1.0::IService/default is not registered, trying to start it as a lazy HAL (if it's not configured to be a lazy HAL, it may be stuck starting or still starting).
+05-03 19:21:58.298  3704  3747 I HidlServiceManagement: getService: Trying again for vendor.qti.hardware.cacert@1.0::IService/default...
+05-03 19:21:58.302   660 10320 W libc    : Unable to set property "ctl.interface_start" to "vendor.qti.hardware.cacert@1.0::IService/default": PROP_ERROR_HANDLE_CONTROL_MESSAGE (0x20)
+05-03 19:21:58.302   660 10320 I hwservicemanager: Tried to start vendor.qti.hardware.cacert@1.0::IService/default as a lazy service, but was unable to. Usually this happens when a service is not installed, but if the service is intended to be used as a lazy service, then it may be configured incorrectly.
+05-03 19:21:58.215     0     0 E init    : Control message: Could not find 'vendor.qti.hardware.cacert@1.0::IService/default' for ctl.interface_start from pid: 660 (/system/system_ext/bin/hwservicemanager)
+05-03 19:21:59.299  3704  3747 W HidlServiceManagement: Waited one second for vendor.qti.hardware.cacert@1.0::IService/default
+05-03 19:21:59.300   660   660 I hwservicemanager: Since vendor.qti.hardware.cacert@1.0::IService/default is not registered, trying to start it as a lazy HAL (if it's not configured to be a lazy HAL, it may be stuck starting or still starting).
+05-03 19:21:59.301  3704  3747 I HidlServiceManagement: getService: Trying again for vendor.qti.hardware.cacert@1.0::IService/default...
+05-03 19:21:59.217     0     0 E init    : Control message: Could not find 'vendor.qti.hardware.cacert@1.0::IService/default' for ctl.interface_start from pid: 660 (/system/system_ext/bin/hwservicemanager)
+05-03 19:21:59.305   660 10321 W libc    : Unable to set property "ctl.interface_start" to "vendor.qti.hardware.cacert@1.0::IService/default": PROP_ERROR_HANDLE_CONTROL_MESSAGE (0x20)
+05-03 19:21:59.305   660 10321 I hwservicemanager: Tried to start vendor.qti.hardware.cacert@1.0::IService/default as a lazy service, but was unable to. Usually this happens when a service is not installed, but if the service is intended to be used as a lazy service, then it may be configured incorrectly.
+05-03 19:22:00.302  3704  3747 W HidlServiceManagement: Waited one second for vendor.qti.hardware.cacert@1.0::IService/default
+05-03 19:22:00.304   660   660 I hwservicemanager: Since vendor.qti.hardware.cacert@1.0::IService/default is not registered, trying to start it as a lazy HAL (if it's not configured to be a lazy HAL, it may be stuck starting or still starting).
+05-03 19:22:00.305  3704  3747 I HidlServiceManagement: getService: Trying again for vendor.qti.hardware.cacert@1.0::IService/default...
+05-03 19:22:00.311   660 10322 W libc    : Unable to set property "ctl.interface_start" to "vendor.qti.hardware.cacert@1.0::IService/default": PROP_ERROR_HANDLE_CONTROL_MESSAGE (0x20)
+05-03 19:22:00.311   660 10322 I hwservicemanager: Tried to start vendor.qti.hardware.cacert@1.0::IService/default as a lazy service, but was unable to. Usually this happens when a service is not installed, but if the service is intended to be used as a lazy service, then it may be configured incorrectly.
+05-03 19:22:00.223     0     0 E init    : Control message: Could not find 'vendor.qti.hardware.cacert@1.0::IService/default' for ctl.interface_start from pid: 660 (/system/system_ext/bin/hwservicemanager)
+05-03 19:22:00.827     0     0 I QCOM-BATT: pl_fcc_vote_callback: total_fcc_ua=1950000
+05-03 19:22:00.828     0     0 I QCOM-BATT: pl_fv_vote_callback: fv_uv=4400000
+05-03 19:22:01.186     0     0 E FG      : fg_psy_get_property: unsupported property 79
+05-03 19:22:01.195     0     0 E FG      : fg_psy_get_property: unsupported property 79
+05-03 19:22:01.201     0     0 W healthd : battery l=100 v=3174 t=25.4 h=2 st=5 c=0 fc=2831000 chg=u
+05-03 19:22:01.296  1126  1126 D QtiCarrierConfigHelper: WARNING, no carrier configs on phone Id: 0
+05-03 19:22:01.300   960  2050 D PowerUI : can't show warning due to - plugged: true status unknown: false
+05-03 19:22:01.306  3704  3747 W HidlServiceManagement: Waited one second for vendor.qti.hardware.cacert@1.0::IService/default
+05-03 19:22:01.306   660   660 I hwservicemanager: Since vendor.qti.hardware.cacert@1.0::IService/default is not registered, trying to start it as a lazy HAL (if it's not configured to be a lazy HAL, it may be stuck starting or still starting).
+05-03 19:22:01.307  3704  3747 I HidlServiceManagement: getService: Trying again for vendor.qti.hardware.cacert@1.0::IService/default...
+05-03 19:22:01.309   660 10323 W libc    : Unable to set property "ctl.interface_start" to "vendor.qti.hardware.cacert@1.0::IService/default": PROP_ERROR_HANDLE_CONTROL_MESSAGE (0x20)
+05-03 19:22:01.309   660 10323 I hwservicemanager: Tried to start vendor.qti.hardware.cacert@1.0::IService/default as a lazy service, but was unable to. Usually this happens when a service is not installed, but if the service is intended to be used as a lazy service, then it may be configured incorrectly.
+05-03 19:22:01.215     0     0 E FG      : fg_psy_get_property: unsupported property 79
+05-03 19:22:01.222     0     0 E init    : Control message: Could not find 'vendor.qti.hardware.cacert@1.0::IService/default' for ctl.interface_start from pid: 660 (/system/system_ext/bin/hwservicemanager)
+05-03 19:22:02.308  3704  3747 W HidlServiceManagement: Waited one second for vendor.qti.hardware.cacert@1.0::IService/default
+05-03 19:22:02.310   660   660 I hwservicemanager: Since vendor.qti.hardware.cacert@1.0::IService/default is not registered, trying to start it as a lazy HAL (if it's not configured to be a lazy HAL, it may be stuck starting or still starting).
+05-03 19:22:02.311  3704  3747 I HidlServiceManagement: getService: Trying again for vendor.qti.hardware.cacert@1.0::IService/default...
+05-03 19:22:02.229     0     0 E init    : Control message: Could not find 'vendor.qti.hardware.cacert@1.0::IService/default' for ctl.interface_start from pid: 660 (/system/system_ext/bin/hwservicemanager)
+05-03 19:22:02.316   660 10324 W libc    : Unable to set property "ctl.interface_start" to "vendor.qti.hardware.cacert@1.0::IService/default": PROP_ERROR_HANDLE_CONTROL_MESSAGE (0x20)
+05-03 19:22:02.317   660 10324 I hwservicemanager: Tried to start vendor.qti.hardware.cacert@1.0::IService/default as a lazy service, but was unable to. Usually this happens when a service is not installed, but if the service is intended to be used as a lazy service, then it may be configured incorrectly.
+05-03 19:22:03.311  3704  3747 W HidlServiceManagement: Waited one second for vendor.qti.hardware.cacert@1.0::IService/default
+05-03 19:22:03.313   660   660 I hwservicemanager: Since vendor.qti.hardware.cacert@1.0::IService/default is not registered, trying to start it as a lazy HAL (if it's not configured to be a lazy HAL, it may be stuck starting or still starting).
+05-03 19:22:03.313  3704  3747 I HidlServiceManagement: getService: Trying again for vendor.qti.hardware.cacert@1.0::IService/default...
+05-03 19:22:03.317   660 10325 W libc    : Unable to set property "ctl.interface_start" to "vendor.qti.hardware.cacert@1.0::IService/default": PROP_ERROR_HANDLE_CONTROL_MESSAGE (0x20)
+05-03 19:22:03.317   660 10325 I hwservicemanager: Tried to start vendor.qti.hardware.cacert@1.0::IService/default as a lazy service, but was unable to. Usually this happens when a service is not installed, but if the service is intended to be used as a lazy service, then it may be configured incorrectly.
+05-03 19:22:03.230     0     0 E init    : Control message: Could not find 'vendor.qti.hardware.cacert@1.0::IService/default' for ctl.interface_start from pid: 660 (/system/system_ext/bin/hwservicemanager)
+05-03 19:22:04.314  3704  3747 W HidlServiceManagement: Waited one second for vendor.qti.hardware.cacert@1.0::IService/default
+05-03 19:22:04.315   660   660 I hwservicemanager: Since vendor.qti.hardware.cacert@1.0::IService/default is not registered, trying to start it as a lazy HAL (if it's not configured to be a lazy HAL, it may be stuck starting or still starting).
+05-03 19:22:04.316  3704  3747 I HidlServiceManagement: getService: Trying again for vendor.qti.hardware.cacert@1.0::IService/default...
+05-03 19:22:04.318   660 10326 W libc    : Unable to set property "ctl.interface_start" to "vendor.qti.hardware.cacert@1.0::IService/default": PROP_ERROR_HANDLE_CONTROL_MESSAGE (0x20)
+05-03 19:22:04.318   660 10326 I hwservicemanager: Tried to start vendor.qti.hardware.cacert@1.0::IService/default as a lazy service, but was unable to. Usually this happens when a service is not installed, but if the service is intended to be used as a lazy service, then it may be configured incorrectly.
+05-03 19:22:04.231     0     0 E init    : Control message: Could not find 'vendor.qti.hardware.cacert@1.0::IService/default' for ctl.interface_start from pid: 660 (/system/system_ext/bin/hwservicemanager)
+05-03 19:22:05.316  3704  3747 W HidlServiceManagement: Waited one second for vendor.qti.hardware.cacert@1.0::IService/default
+05-03 19:22:05.317   660   660 I hwservicemanager: Since vendor.qti.hardware.cacert@1.0::IService/default is not registered, trying to start it as a lazy HAL (if it's not configured to be a lazy HAL, it may be stuck starting or still starting).
+05-03 19:22:05.318  3704  3747 I HidlServiceManagement: getService: Trying again for vendor.qti.hardware.cacert@1.0::IService/default...
+05-03 19:22:05.320   660 10327 W libc    : Unable to set property "ctl.interface_start" to "vendor.qti.hardware.cacert@1.0::IService/default": PROP_ERROR_HANDLE_CONTROL_MESSAGE (0x20)
+05-03 19:22:05.320   660 10327 I hwservicemanager: Tried to start vendor.qti.hardware.cacert@1.0::IService/default as a lazy service, but was unable to. Usually this happens when a service is not installed, but if the service is intended to be used as a lazy service, then it may be configured incorrectly.
+05-03 19:22:05.233     0     0 E init    : Control message: Could not find 'vendor.qti.hardware.cacert@1.0::IService/default' for ctl.interface_start from pid: 660 (/system/system_ext/bin/hwservicemanager)
+05-03 19:22:06.318  3704  3747 W HidlServiceManagement: Waited one second for vendor.qti.hardware.cacert@1.0::IService/default
+05-03 19:22:06.319   660   660 I hwservicemanager: Since vendor.qti.hardware.cacert@1.0::IService/default is not registered, trying to start it as a lazy HAL (if it's not configured to be a lazy HAL, it may be stuck starting or still starting).
+05-03 19:22:06.319  3704  3747 I HidlServiceManagement: getService: Trying again for vendor.qti.hardware.cacert@1.0::IService/default...
+05-03 19:22:06.322   660 10328 W libc    : Unable to set property "ctl.interface_start" to "vendor.qti.hardware.cacert@1.0::IService/default": PROP_ERROR_HANDLE_CONTROL_MESSAGE (0x20)
+05-03 19:22:06.322   660 10328 I hwservicemanager: Tried to start vendor.qti.hardware.cacert@1.0::IService/default as a lazy service, but was unable to. Usually this happens when a service is not installed, but if the service is intended to be used as a lazy service, then it may be configured incorrectly.
+05-03 19:22:06.235     0     0 E init    : Control message: Could not find 'vendor.qti.hardware.cacert@1.0::IService/default' for ctl.interface_start from pid: 660 (/system/system_ext/bin/hwservicemanager)
+05-03 19:22:07.320  3704  3747 W HidlServiceManagement: Waited one second for vendor.qti.hardware.cacert@1.0::IService/default
+05-03 19:22:07.321   660   660 I hwservicemanager: Since vendor.qti.hardware.cacert@1.0::IService/default is not registered, trying to start it as a lazy HAL (if it's not configured to be a lazy HAL, it may be stuck starting or still starting).
+05-03 19:22:07.323  3704  3747 I HidlServiceManagement: getService: Trying again for vendor.qti.hardware.cacert@1.0::IService/default...
+05-03 19:22:07.326   660 10329 W libc    : Unable to set property "ctl.interface_start" to "vendor.qti.hardware.cacert@1.0::IService/default": PROP_ERROR_HANDLE_CONTROL_MESSAGE (0x20)
+05-03 19:22:07.327   660 10329 I hwservicemanager: Tried to start vendor.qti.hardware.cacert@1.0::IService/default as a lazy service, but was unable to. Usually this happens when a service is not installed, but if the service is intended to be used as a lazy service, then it may be configured incorrectly.
+05-03 19:22:07.239     0     0 E init    : Control message: Could not find 'vendor.qti.hardware.cacert@1.0::IService/default' for ctl.interface_start from pid: 660 (/system/system_ext/bin/hwservicemanager)
+05-03 19:22:07.867     0     0 I QCOM-BATT: pl_fcc_vote_callback: total_fcc_ua=1950000
+05-03 19:22:07.867     0     0 I QCOM-BATT: pl_fv_vote_callback: fv_uv=4400000
+05-03 19:22:08.226     0     0 E FG      : fg_psy_get_property: unsupported property 79
+05-03 19:22:08.324  3704  3747 W HidlServiceManagement: Waited one second for vendor.qti.hardware.cacert@1.0::IService/default
+05-03 19:22:08.325   660   660 I hwservicemanager: Since vendor.qti.hardware.cacert@1.0::IService/default is not registered, trying to start it as a lazy HAL (if it's not configured to be a lazy HAL, it may be stuck starting or still starting).
+05-03 19:22:08.326  3704  3747 I HidlServiceManagement: getService: Trying again for vendor.qti.hardware.cacert@1.0::IService/default...
+05-03 19:22:08.330   660 10330 W libc    : Unable to set property "ctl.interface_start" to "vendor.qti.hardware.cacert@1.0::IService/default": PROP_ERROR_HANDLE_CONTROL_MESSAGE (0x20)
+05-03 19:22:08.330   660 10330 I hwservicemanager: Tried to start vendor.qti.hardware.cacert@1.0::IService/default as a lazy service, but was unable to. Usually this happens when a service is not installed, but if the service is intended to be used as a lazy service, then it may be configured incorrectly.
+05-03 19:22:08.243     0     0 E init    : Control message: Could not find 'vendor.qti.hardware.cacert@1.0::IService/default' for ctl.interface_start from pid: 660 (/system/system_ext/bin/hwservicemanager)
+05-03 19:22:08.244     0     0 E FG      : fg_psy_get_property: unsupported property 79
+05-03 19:22:08.252     0     0 W healthd : battery l=100 v=3174 t=25.4 h=2 st=5 c=0 fc=2831000 chg=u
+05-03 19:22:08.349  1126  1126 D QtiCarrierConfigHelper: WARNING, no carrier configs on phone Id: 0
+05-03 19:22:08.261     0     0 E FG      : fg_psy_get_property: unsupported property 79
+05-03 19:22:08.358   960  2657 D PowerUI : can't show warning due to - plugged: true status unknown: false
+05-03 19:22:09.327  3704  3747 W HidlServiceManagement: Waited one second for vendor.qti.hardware.cacert@1.0::IService/default
+05-03 19:22:09.329   660   660 I hwservicemanager: Since vendor.qti.hardware.cacert@1.0::IService/default is not registered, trying to start it as a lazy HAL (if it's not configured to be a lazy HAL, it may be stuck starting or still starting).
+05-03 19:22:09.330  3704  3747 I HidlServiceManagement: getService: Trying again for vendor.qti.hardware.cacert@1.0::IService/default...
+05-03 19:22:09.247     0     0 E init    : Control message: Could not find 'vendor.qti.hardware.cacert@1.0::IService/default' for ctl.interface_start from pid: 660 (/system/system_ext/bin/hwservicemanager)
+05-03 19:22:09.334   660 10331 W libc    : Unable to set property "ctl.interface_start" to "vendor.qti.hardware.cacert@1.0::IService/default": PROP_ERROR_HANDLE_CONTROL_MESSAGE (0x20)
+05-03 19:22:09.334   660 10331 I hwservicemanager: Tried to start vendor.qti.hardware.cacert@1.0::IService/default as a lazy service, but was unable to. Usually this happens when a service is not installed, but if the service is intended to be used as a lazy service, then it may be configured incorrectly.
+05-03 19:22:10.330  3704  3747 W HidlServiceManagement: Waited one second for vendor.qti.hardware.cacert@1.0::IService/default
+05-03 19:22:10.331   660   660 I hwservicemanager: Since vendor.qti.hardware.cacert@1.0::IService/default is not registered, trying to start it as a lazy HAL (if it's not configured to be a lazy HAL, it may be stuck starting or still starting).
+05-03 19:22:10.332  3704  3747 I HidlServiceManagement: getService: Trying again for vendor.qti.hardware.cacert@1.0::IService/default...
+05-03 19:22:10.334   660 10332 W libc    : Unable to set property "ctl.interface_start" to "vendor.qti.hardware.cacert@1.0::IService/default": PROP_ERROR_HANDLE_CONTROL_MESSAGE (0x20)
+05-03 19:22:10.334   660 10332 I hwservicemanager: Tried to start vendor.qti.hardware.cacert@1.0::IService/default as a lazy service, but was unable to. Usually this happens when a service is not installed, but if the service is intended to be used as a lazy service, then it may be configured incorrectly.
+05-03 19:22:10.246     0     0 E init    : Control message: Could not find 'vendor.qti.hardware.cacert@1.0::IService/default' for ctl.interface_start from pid: 660 (/system/system_ext/bin/hwservicemanager)
+05-03 19:22:11.332  3704  3747 W HidlServiceManagement: Waited one second for vendor.qti.hardware.cacert@1.0::IService/default
+05-03 19:22:11.333   660   660 I hwservicemanager: Since vendor.qti.hardware.cacert@1.0::IService/default is not registered, trying to start it as a lazy HAL (if it's not configured to be a lazy HAL, it may be stuck starting or still starting).
+05-03 19:22:11.334  3704  3747 I HidlServiceManagement: getService: Trying again for vendor.qti.hardware.cacert@1.0::IService/default...
+05-03 19:22:11.337   660 10333 W libc    : Unable to set property "ctl.interface_start" to "vendor.qti.hardware.cacert@1.0::IService/default": PROP_ERROR_HANDLE_CONTROL_MESSAGE (0x20)
+05-03 19:22:11.337   660 10333 I hwservicemanager: Tried to start vendor.qti.hardware.cacert@1.0::IService/default as a lazy service, but was unable to. Usually this happens when a service is not installed, but if the service is intended to be used as a lazy service, then it may be configured incorrectly.
+05-03 19:22:11.250     0     0 E init    : Control message: Could not find 'vendor.qti.hardware.cacert@1.0::IService/default' for ctl.interface_start from pid: 660 (/system/system_ext/bin/hwservicemanager)
+05-03 19:22:12.335  3704  3747 W HidlServiceManagement: Waited one second for vendor.qti.hardware.cacert@1.0::IService/default
+05-03 19:22:12.336   660   660 I hwservicemanager: Since vendor.qti.hardware.cacert@1.0::IService/default is not registered, trying to start it as a lazy HAL (if it's not configured to be a lazy HAL, it may be stuck starting or still starting).
+05-03 19:22:12.338  3704  3747 I HidlServiceManagement: getService: Trying again for vendor.qti.hardware.cacert@1.0::IService/default...
+05-03 19:22:12.339   660 10334 W libc    : Unable to set property "ctl.interface_start" to "vendor.qti.hardware.cacert@1.0::IService/default": PROP_ERROR_HANDLE_CONTROL_MESSAGE (0x20)
+05-03 19:22:12.339   660 10334 I hwservicemanager: Tried to start vendor.qti.hardware.cacert@1.0::IService/default as a lazy service, but was unable to. Usually this happens when a service is not installed, but if the service is intended to be used as a lazy service, then it may be configured incorrectly.
+05-03 19:22:12.252     0     0 E init    : Control message: Could not find 'vendor.qti.hardware.cacert@1.0::IService/default' for ctl.interface_start from pid: 660 (/system/system_ext/bin/hwservicemanager)
+05-03 19:22:13.338  3704  3747 W HidlServiceManagement: Waited one second for vendor.qti.hardware.cacert@1.0::IService/default
+05-03 19:22:13.339   660   660 I hwservicemanager: Since vendor.qti.hardware.cacert@1.0::IService/default is not registered, trying to start it as a lazy HAL (if it's not configured to be a lazy HAL, it may be stuck starting or still starting).
+05-03 19:22:13.341  3704  3747 I HidlServiceManagement: getService: Trying again for vendor.qti.hardware.cacert@1.0::IService/default...
+05-03 19:22:13.343   660 10335 W libc    : Unable to set property "ctl.interface_start" to "vendor.qti.hardware.cacert@1.0::IService/default": PROP_ERROR_HANDLE_CONTROL_MESSAGE (0x20)
+05-03 19:22:13.343   660 10335 I hwservicemanager: Tried to start vendor.qti.hardware.cacert@1.0::IService/default as a lazy service, but was unable to. Usually this happens when a service is not installed, but if the service is intended to be used as a lazy service, then it may be configured incorrectly.
+05-03 19:22:13.255     0     0 E init    : Control message: Could not find 'vendor.qti.hardware.cacert@1.0::IService/default' for ctl.interface_start from pid: 660 (/system/system_ext/bin/hwservicemanager)
