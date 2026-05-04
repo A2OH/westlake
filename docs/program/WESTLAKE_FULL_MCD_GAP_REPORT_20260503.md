@@ -950,3 +950,97 @@ test.
 12. If bounded REGRESSES again, roll back from the v2 backup, re-baseline, and
     surface the new failure mode.
 ```
+
+> **Note (2026-05-03 PT session close):** The recipe above was tried this session as candidates A/B/C in §13.12. All three regressed. **The next attempt should follow §13.12's "Updated next-agent prompt for PF-630" (boot-aware routing gate)**, not this earlier recipe.
+
+---
+
+## 14. Wrap-up & Forward Roadmap (2026-05-03 PT session close)
+
+This section is the authoritative end-of-session state. Where it conflicts with earlier sections, **§14 wins**.
+
+### 14.1 What landed today
+
+| | |
+|---|---|
+| Doc commits on `origin/main` | 9 (`5e5559e3..cff23b01`) |
+| Code commits on `origin/main` | 1 (`98719db2` — proof-checker `no_unsafe` coverage gap fix) |
+| Phone artifacts produced | 8 (see §13.13) |
+| Runtime candidates built | 3 (all in `$HOME/art-latest/build-ohos-arm64/bin/dalvikvm`) |
+| Subagent investigations | 5 (3 inventory agents + Surprise #1 + PF-630 dissection) |
+| Empirical findings net-new | PF-628 architectural reframe; PF-630 root cause; PF-622 mislabel resolved as bookkeeping; proof-checker coverage gap |
+
+### 14.2 Per-PF-issue status (canonical end-of-session view)
+
+| Issue | GH # | Pre-session status | End-of-session status | Next concrete step |
+|---|---|---|---|---|
+| **PF-630** Realm finalizer SIGBUS | #596 | Candidate built, not deployed | Candidate **regressed**; root cause identified; 3 narrow fixes failed; boot-aware routing is the next angle (§13.12 prompt) | Implement `PFCutAppClassLoaderSeen()` + wrap routing call sites; ~1-3 days work |
+| **PF-628** Remove CartInfo bridge | #594 | "Remove the bridge" was the framing | Architecturally reframed: dispatch gate is 2-flag opt-in; bounded green is reflective `setCartInfo`, not real observer (§13.2, §13.8) | Tighten `check-real-mcd-proof.sh` to require `MCD_PDP_OBSERVER_DISPATCH ... invoked=true count≥1`; needs PF-630 first |
+| **PF-629** Deeper stock routes | #595 | Quantity_plus probe pending | Failed both with handoff waits and bounded waits; both blocked on PF-630 SIGBUS at basketCommit=12 | Re-attempt after PF-630 fix lands; consider tap-settle protocol |
+| **PF-632** Framework API misses | #597 | `AlertDialog.Builder(Context,int)` shim assumed present | **Verified present** in source (`shim/java/android/app/AlertDialog.java:202-205`) and in shipped dex; empirical performClick proof still requires harness env hook | Add `WESTLAKE_GATE_PDP_FORCE_PERFORM_CLICK` to gate harness; tiny scope |
+| **PF-627** RecyclerView/Glide | #593 | Open | Untouched this session | Per §4 PF-627 prompt; widen ViewHolder + image pipeline coverage |
+| **PF-626** Full-flow proof + OHOS | #592 | Open | Untouched | OHOS adapter set is its own multi-quarter track |
+| **PF-625** Realm/cart fidelity | #591 | Sub-tags A-D collapsed | Annotation added (§13.4); broader Realm coherence still open | Per §4 PF-625 prompt; depends on PF-630 |
+| **PF-624** Telemetry regression gate | #590 | Marked green, no explicit gate | Annotated REGRESSION-PRONE (§13.4) | Per §4 PF-624 prompt; small harness change |
+| **PF-623** Generic View rendering | #589 | Open | Untouched | Defer until PF-627 widens View surface |
+| **PF-622** PDP Fragment lifecycle | #587 | Marked green via compatibility marker | Mislabel exposed (§13.10): the markers are bookkeeping; no hidden generic-lifecycle path to ungate | Re-open issue with clarified scope OR close as cosmetic; the actual lifecycle is fine |
+| **PF-608** OHOS/musl southbound | #581 | Open | Untouched (12 surfaces unwired) | Largest workstream; needs its own track |
+| **PF-607** Coroutine `JustFlipBase` shield | #580 | Open | Untouched; ruled out as cause of PF-628 (§13.10) | Per §4 PF-607 prompt; analysis-only first |
+| **PF-606** Material/AppCompat fidelity | #579 | Open | Untouched | Defer until PF-627 surfaces specific widgets |
+| **Proof checker `no_unsafe` gap** | (none — opened by review) | Unknown | **Fixed** in commit `98719db2` | None — landed and verified |
+| Stale-doc cleanup | (none) | Many superseded entries | 16 annotations landed in commit `78d4d098` | None — landed |
+
+### 14.3 Prioritized roadmap to address the gaps
+
+**P0 — runtime stability is the gate for everything else (1-2 weeks)**
+- **PF-630 boot-aware routing gate** (§13.12 prompt) — implement `PFCutAppClassLoaderSeen()`, wrap the 3 routing call sites, build, sync, bounded-regression-FIRST, long-soak. The previously-tried single-function revert and typed-Set swap are both empirically eliminated.
+- **Variance reduction** in gate harness — `pm clear com.mcdonalds.app` and ideally a `reboot` before each gate. Today's "known good" baseline is sporadically unstable; without variance reduction, even a working PF-630 fix won't be measurable.
+
+**P1 — close the McD-specific bridges (2-4 weeks, blocked on P0)**
+- **PF-628 with real observer dispatch** — once PF-630 stable, plant both unsafe flags (`unsafe_observer_dispatch.txt` + `unsafe_storage_commit.txt`) under explicit `unsafe_*` artifact naming, prove `MCD_PDP_OBSERVER_DISPATCH ... invoked=true`, then move the "unsafe" path into the default code path (remove the unsafe gate entirely after enough proof).
+- **Tighten `check-real-mcd-proof.sh`** — `pdp_cartinfo_bridge_positive` should NO LONGER be sufficient for `pdp_add_cart_gate=PASS`. Require `MCD_PDP_OBSERVER_DISPATCH .*invoked=true count≥1`.
+- **PF-629 deeper routes** — quantity_plus → customize → cart screen → checkout shell (each likely surfaces new PF-632 misses).
+
+**P2 — UI breadth (4-8 weeks, parallelizable with P1)**
+- **PF-627** RecyclerView/Glide image pipeline parity (sticky headers, multi-viewtype, real images)
+- **PF-606** Material/AppCompat fidelity (Snackbar, BottomSheet, theme parity)
+- **PF-625** Realm coherence across all McD tables (per-table soak)
+
+**P3 — production-grade subsystems (months, can run in parallel)**
+- **Auth**: AccountManager + FirebaseAuth + KeyStore + Google Sign-In + OAuth — each a substantial subsystem
+- **Push**: FCM bridge or alternative
+- **Payment**: GMS Pay or alt tokenization + secure storage
+- **Location**: real LocationManager backend
+- **WebView**: full WebView shim or alternative
+- **PF-607** coroutine SharedFlow shield removal (risky — needs deep analysis first)
+
+**P4 — OHOS portability (quarters, parallel track)**
+- **PF-608/PF-626** all 12 southbound surfaces (process launch, HTTP, frame transport, window, input, Realm-on-musl, AssetManager, telemetry, TLS, scheduling, system providers, storage breadth)
+
+### 14.4 Cleanup checklist for next agent
+
+**art-latest source state (`$HOME/art-latest/`):**
+- 3 uncommitted edits remain from this session's failed attempts (§13.12)
+- To restore to original candidate state: see cp commands in §13.12
+- To start clean from git HEAD: `git checkout HEAD -- patches/runtime/interpreter/interpreter_common.cc patches/runtime/native/sun_misc_Unsafe.cc patches/runtime/native/jdk_internal_misc_Unsafe.cc` (loses session edits but they're documented)
+- The build output `build-ohos-arm64/bin/dalvikvm` is currently `88d7a643ec…` (the typed-Set candidate, regressed). Rebuild after any source change.
+
+**Phone state:**
+- Runtime: `d7e10e47…` (original known-good, sporadically unstable today)
+- All other artifacts on phone unchanged
+- Backup at `$HOME/westlake-runtime-backups/dalvikvm.pre-pf630-d7e10e47.bak` (~26 MB)
+- Probe files cleaned up
+
+**Repo state:**
+- `origin/main` HEAD: `cff23b01` (this section will land as the next commit)
+- Working tree clean except for this doc edit
+- No open PRs from this session
+
+### 14.5 Pivot decision: noice (vs continuing McD)
+
+After today's experience, recommendation in `WESTLAKE_NOICE_1DAY_CONTRACT_20260503.md` (companion doc): **a noice-class app is a better proof vehicle for "Westlake runs unmodified Android apps"** than McD currently is. Reasons:
+- Bypasses PF-630, PF-628 architectural debt, all auth/payment/push/location/WebView gaps
+- Stresses Westlake's substrate linearly (audio bridge is a clean, scoped greenfield gap; not a tangled regression chain)
+- A 1-day proof of "noice UI inflates and tap navigation works" gives a credible "Westlake substrate is real" signal that the McD work currently does not (because the McD bounded green is propped up by reflective bridges).
+
+McD remains the strategic target per the platform-first contract. The noice pivot is **proof breadth**, not strategy change.
