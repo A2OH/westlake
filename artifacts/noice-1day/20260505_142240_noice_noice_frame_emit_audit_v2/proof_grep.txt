@@ -1,0 +1,2 @@
+05-05 10:23:08.145  9207  9259 I WestlakeVM: VM: [shim-log] D/MiniActivityManager:   performCreate app factoryClass failed: ClassNotFoundException: kotlinx.coroutines.android.AndroidDispatcherFactory
+05-05 10:23:08.167  9207  9259 I WestlakeVM: VM: [shim-log] D/MiniActivityManager:   performCreate thread factoryClass failed: ClassNotFoundException: kotlinx.coroutines.android.AndroidDispatcherFactory

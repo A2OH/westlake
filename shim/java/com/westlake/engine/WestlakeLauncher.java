@@ -4905,6 +4905,10 @@ public class WestlakeLauncher {
 
         // Try to get the launched activity even if errors occurred
         final boolean strictStandalone = !isRealFrameworkFallbackAllowed();
+        // PF-noice-010 (2026-05-05) FRAME_EMIT_TRACE markers — narrow down
+        // where launcher control flow halts when launchedActivity is null.
+        startupLog("FRAME_EMIT_TRACE post_launch_entry strictStandalone=" + strictStandalone
+                + " launchedActivity=" + (launchedActivity != null ? launchedActivity.getClass().getName() : "null"));
         if (launchedActivity == null) {
             if (strictStandalone) {
                 startupLog("PF301 strict launcher resumed fallback skipped");
@@ -4912,8 +4916,22 @@ public class WestlakeLauncher {
                 launchedActivity = am.getResumedActivity();
             }
         }
+        startupLog("FRAME_EMIT_TRACE post_launch_resumed_check launchedActivity="
+                + (launchedActivity != null ? launchedActivity.getClass().getName() : "null"));
         if (launchedActivity == null) {
             startupLog("[WestlakeLauncher] WARNING: No activity, rendering empty surface");
+            // PF-noice-014 escape valve: if the activity-launch path failed but
+            // we're in strict-standalone mode, emit a visible fallback frame
+            // directly. Avoids the "all-black SurfaceView" terminal state.
+            if (strictStandalone) {
+                startupLog("FRAME_EMIT_TRACE escape_valve_begin");
+                try {
+                    tryEmitNoiceFallbackFrame("no_activity");
+                    startupLog("FRAME_EMIT_TRACE escape_valve_returned");
+                } catch (Throwable t) {
+                    startupLog("FRAME_EMIT_TRACE escape_valve_threw " + t.getClass().getSimpleName());
+                }
+            }
         }
         if (launchedActivity != null) {
             if (strictStandalone) {
@@ -18651,6 +18669,42 @@ public class WestlakeLauncher {
         startupLog("[WestlakeLauncher] Render loop ended");
     }
 
+    // PF-noice-014 (2026-05-05): escape-valve helper — emit a visible
+    // fallback frame when the regular activity-launch path failed (e.g.,
+    // launcher hangs in startActivityDirect, or launchedActivity is null).
+    // Day-1 stub: just logs. Will be expanded once we confirm the call site
+    // is reachable.
+    private static void tryEmitNoiceFallbackFrame(String reason) {
+        startupLog("FRAME_EMIT_TRACE tryEmitNoiceFallbackFrame begin reason=" + reason);
+        try {
+            // Strategy: spawn a daemon thread that pumps a fallback frame
+            // every 500ms. This decouples the visible UI from the activity
+            // launch state.
+            Thread daemon = new Thread(new Runnable() {
+                @Override
+                public void run() {
+                    int tickCount = 0;
+                    while (tickCount < 60) {  // 30 seconds total, then exit
+                        try {
+                            startupLog("FRAME_EMIT_TRACE escape_tick=" + tickCount);
+                            Thread.sleep(500);
+                            tickCount++;
+                        } catch (InterruptedException ie) {
+                            return;
+                        } catch (Throwable t) {
+                            // swallow — escape valve can't fail
+                        }
+                    }
+                }
+            }, "WestlakeNoiceFallback");
+            daemon.setDaemon(true);
+            daemon.start();
+            startupLog("FRAME_EMIT_TRACE tryEmitNoiceFallbackFrame daemon_started");
+        } catch (Throwable t) {
+            startupLog("FRAME_EMIT_TRACE tryEmitNoiceFallbackFrame outer_threw " + t.getClass().getSimpleName());
+        }
+    }
+
     private static void runStrictStandaloneMainLoop(Activity initialActivity, MiniActivityManager am) {
         startupLog("PF301 strict launcher keepalive pump begin");
         Activity current = initialActivity;
@@ -18806,11 +18860,17 @@ public class WestlakeLauncher {
     }
 
     private static boolean writeStrictStandaloneViewFrame(Activity activity, String reason) {
+        // PF-noice-010 (2026-05-05) trace entry — confirm the function is
+        // reached for noice (was silent before; markers go to cutoff_canary
+        // not logcat).
+        startupLog("FRAME_EMIT_TRACE writeStrictStandaloneViewFrame entry reason=" + reason
+                + " activity=" + (activity != null ? activity.getClass().getName() : "null"));
         try {
             int height = isMcdonaldsActivity(activity) ? YELP_SURFACE_HEIGHT : SURFACE_HEIGHT;
             android.view.View decor = activity != null && activity.getWindow() != null
                     ? activity.getWindow().getDecorView() : null;
             if (decor == null) {
+                startupLog("FRAME_EMIT_TRACE writeStrictStandaloneViewFrame fail no_decor");
                 appendCutoffCanaryMarker("STRICT_VIEW_FRAME_FAIL reason="
                         + safeMarkerToken(reason) + " err=no_decor");
                 return false;
@@ -18897,6 +18957,7 @@ public class WestlakeLauncher {
             synchronized (sStrictFrameOutputLock) {
                 java.io.OutputStream out = strictFrameOutputStream();
                 if (out == null) {
+                    startupLog("FRAME_EMIT_TRACE writeStrictStandaloneViewFrame fail no_frame_output");
                     appendCutoffCanaryMarker("STRICT_VIEW_FRAME_FAIL reason="
                             + safeMarkerToken(reason) + " err=no_frame_output");
                     return false;
@@ -18905,6 +18966,8 @@ public class WestlakeLauncher {
                 writeIntLe(out, data.length);
                 out.write(data);
                 out.flush();
+                startupLog("FRAME_EMIT_TRACE writeStrictStandaloneViewFrame emit_ok bytes=" + data.length
+                        + " stream=" + out.getClass().getSimpleName());
             }
             appendCutoffCanaryMarker("STRICT_VIEW_FRAME_OK reason="
                     + safeMarkerToken(reason)

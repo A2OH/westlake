@@ -2533,6 +2533,19 @@ public class MiniActivityManager {
                         + activity.getClass().getName());
                 return;
             }
+            // PF-noice-011 (2026-05-05): noice's FragmentManager reflection
+            // hangs in Hilt's component-manager init (which deadlocks on
+            // stuck Unsafe.park-ing coroutine workers). Skip the generic
+            // fragment recovery path for noice — let the launcher's PF301
+            // fallback paint a visible fallback frame instead.
+            if (pkg != null
+                    && (pkg.startsWith("com.github.ashutoshgngwr.")
+                            || pkg.startsWith("com.trynoice."))) {
+                Log.d(TAG, "  tryRecoverFragments: skipping for noice "
+                        + activity.getClass().getName()
+                        + " (Hilt reflective init deadlock workaround)");
+                return;
+            }
 
             // Counter app special case: two fragments in a DrawerLayout
             // Main content (0x7f0a004a) = CounterFragment, Drawer (0x7f0a004b) = CountersListFragment
