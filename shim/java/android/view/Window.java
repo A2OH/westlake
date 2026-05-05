@@ -159,6 +159,39 @@ public class Window {
         if (content == null) {
             return false;
         }
+        // PF-noice (2026-05-04): instead of an EMPTY FrameLayout fallback,
+        // try to add a styled TextView child so the SurfaceView shows
+        // visible pixels confirming the guest is alive even when the app's
+        // own onCreate failed. Best-effort — if View construction fails
+        // (poisoned statics), falls back to empty content as before.
+        try {
+            Object tvRaw = com.westlake.engine.WestlakeLauncher.tryAllocInstance(android.widget.TextView.class);
+            if (tvRaw instanceof android.widget.TextView) {
+                android.widget.TextView tv = (android.widget.TextView) tvRaw;
+                if (tv.mContext == null) {
+                    tv.mContext = mContext;
+                }
+                String pkg = "<unknown>";
+                try {
+                    pkg = mContext.getPackageName();
+                } catch (Throwable ignored) {}
+                tv.setText("Westlake guest dalvikvm\nrunning " + pkg + "\n(host fallback content — app onCreate failed)");
+                tv.setTextColor(0xFFFFFFFF);
+                tv.setTextSize(android.util.TypedValue.COMPLEX_UNIT_DIP, 14.0f);
+                tv.setPadding(64, 128, 64, 64);
+                tv.setBackgroundColor(0xFF1A237E); // deep indigo
+                ((android.view.ViewGroup) content).addView(tv,
+                        new android.view.ViewGroup.LayoutParams(
+                                android.view.ViewGroup.LayoutParams.MATCH_PARENT,
+                                android.view.ViewGroup.LayoutParams.MATCH_PARENT));
+                content.setBackgroundColor(0xFF1A237E);
+                com.westlake.engine.WestlakeLauncher.marker("PF301 strict Window installContent textview added");
+            } else {
+                com.westlake.engine.WestlakeLauncher.marker("PF301 strict Window installContent textview alloc fail");
+            }
+        } catch (Throwable t) {
+            com.westlake.engine.WestlakeLauncher.marker("PF301 strict Window installContent textview err");
+        }
         com.westlake.engine.WestlakeLauncher.marker("PF301 strict Window installContent set call");
         setContentView(content, null);
         com.westlake.engine.WestlakeLauncher.marker("PF301 strict Window installContent set returned");
