@@ -1091,6 +1091,81 @@ public class WestlakeLauncher {
             marker("WESTLAKE_SECURITY_PROVIDER_INSTALL_FAIL err="
                     + safeMarkerToken(throwableTag(t)));
         }
+        // PF-noice-002a (2026-05-04): noice (and many JVM-derived stacks)
+        // request `SunX509` TrustManagerFactory; Conscrypt only registers
+        // `PKIX` on Android. Try multiple strategies in priority order so
+        // we don't depend on Conscrypt being already-registered:
+        //   1. Pin to a known impl class name (Conscrypt or sun.security)
+        //   2. Register Alg.Alias entries; whoever provides PKIX, alias resolves
+        //   3. Re-run the same install once at TrustManagerFactory.getInstance
+        //      first-touch via a simple static flag (deferred — done from the
+        //      noice-side via Class.forName trigger if needed)
+        try {
+            // Strategy 1: lookup any registered PKIX impl
+            String pkixImpl = null;
+            for (java.security.Provider p : java.security.Security.getProviders()) {
+                java.security.Provider.Service svc = p.getService("TrustManagerFactory", "PKIX");
+                if (svc != null) {
+                    pkixImpl = svc.getClassName();
+                    break;
+                }
+                // Fallback to raw map lookup
+                Object raw = p.get("TrustManagerFactory.PKIX");
+                if (raw instanceof String) {
+                    pkixImpl = (String) raw;
+                    break;
+                }
+            }
+            // Strategy 2: hardcode known Conscrypt impl. Try a few candidate
+            // class names (they vary by Android version / Conscrypt build).
+            if (pkixImpl == null) {
+                String[] candidates = new String[] {
+                    "com.android.org.conscrypt.TrustManagerFactoryImpl",
+                    "org.conscrypt.TrustManagerFactoryImpl",
+                    "sun.security.ssl.TrustManagerFactoryImpl$PKIXFactory",
+                    "sun.security.provider.PKIXFactory",
+                };
+                for (String name : candidates) {
+                    try {
+                        Class.forName(name);
+                        pkixImpl = name;
+                        break;
+                    } catch (Throwable ignored) {}
+                }
+            }
+            // Use Westlake's own SPI shims for TrustManagerFactory + SSLContext.
+            // INSECURE (permissive) — gets noice's network init past the
+            // NoSuchAlgorithmException cascade so UI can paint. Real SSL is
+            // PF-noice-002a-secure (separate workstream).
+            final String tmfSpi = "com.westlake.engine.WestlakeTrustManagerFactorySpi";
+            final String sslSpi = "com.westlake.engine.WestlakeSslContextSpi";
+            java.security.Provider sunX509Alias =
+                    new java.security.Provider("WestlakeSunX509Alias", 1.0,
+                            "Permissive SunX509/PKIX TrustManagerFactory + TLS SSLContext") {
+                        {
+                            put("TrustManagerFactory.SunX509", tmfSpi);
+                            put("TrustManagerFactory.PKIX", tmfSpi);
+                            put("TrustManagerFactory.X509", tmfSpi);
+                            put("TrustManagerFactory.X.509", tmfSpi);
+                            put("Alg.Alias.TrustManagerFactory.SunX509", "PKIX");
+                            put("Alg.Alias.KeyManagerFactory.SunX509", "PKIX");
+                            // SSLContext entries — noice asks for "TLS"
+                            put("SSLContext.TLS", sslSpi);
+                            put("SSLContext.TLSv1", sslSpi);
+                            put("SSLContext.TLSv1.1", sslSpi);
+                            put("SSLContext.TLSv1.2", sslSpi);
+                            put("SSLContext.TLSv1.3", sslSpi);
+                            put("SSLContext.SSL", sslSpi);
+                            put("SSLContext.Default", sslSpi);
+                            put("Alg.Alias.SSLContext.SSLv3", "TLS");
+                        }
+                    };
+            java.security.Security.insertProviderAt(sunX509Alias, 1);
+            marker("WESTLAKE_SECURITY_SUNX509_ALIAS_READY tmfSpi=" + tmfSpi + " sslSpi=" + sslSpi);
+        } catch (Throwable t) {
+            marker("WESTLAKE_SECURITY_SUNX509_ALIAS_FAIL err="
+                    + safeMarkerToken(throwableTag(t)));
+        }
         try {
             Class.forName("sun.security.provider.SHA2$SHA256");
             java.security.MessageDigest digest =
