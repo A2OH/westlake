@@ -1,0 +1,1 @@
+5fdb2c61af6cb6763dfb44af3b7ec19e150f64a1b32b9f861332432ab8363730  $HOME/android-to-openharmony-migration/aosp-shim.dex

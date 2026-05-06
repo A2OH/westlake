@@ -1,0 +1,27 @@
+artifact=$HOME/android-to-openharmony-migration/artifacts/noice-1day/20260505_170456_noice_noice_pf_016_abstract_proxy
+log=$HOME/android-to-openharmony-migration/artifacts/noice-1day/20260505_170456_noice_noice_pf_016_abstract_proxy/logcat.txt
+package=com.github.ashutoshgngwr.noice
+package_tag=noice
+apk_name=noice.apk
+dex_name=noice_classes.dex
+gate_taps=none
+soak_seconds=300
+PASS proof_unsafe_flags_off markers=0 flags=0 artifact=20260505_170456_noice_noice_pf_016_abstract_proxy
+PASS proof_logcat_streamed source=logcat-stream.txt bytes=1203399
+PASS proof_logcat_dump_present bytes=1207537
+PASS proof_current_local_shim_hash hash=5fdb2c61af6cb6763dfb44af3b7ec19e150f64a1b32b9f861332432ab8363730
+PASS proof_local_runtime_hashes_present aosp_shim=5fdb2c61af6cb6763dfb44af3b7ec19e150f64a1b32b9f861332432ab8363730
+PASS proof_phone_runtime_hashes_current aosp_shim=5fdb2c61af6cb6763dfb44af3b7ec19e150f64a1b32b9f861332432ab8363730
+screen_sha=f59e06c8c0341f27c6fe00d7977dda449e92bdf93699cb43d7bdbbf6625dede4
+screen_bytes=57034
+FAIL westlake_subprocess_purity host_pid=19560 vm_pid=19610 vm_ppid=19560 direct_noice_processes=1
+PASS proof_real_app_guest_dalvikvm package=com.github.ashutoshgngwr.noice apk=noice.apk classes=noice_classes.dex
+PASS no_fatal_failed_requirement count=0
+INCONCLUSIVE noice_main_activity_resumed count=0 required>=1 reason=launcher_emitter_missing_for_noice next_action=spawn_agent_5
+INCONCLUSIVE noice_views_inflated count=0 required>=5 reason=launcher_emitter_missing_for_noice next_action=spawn_agent_5
+INCONCLUSIVE noice_sound_card_click count=0 required>=1 gate_taps=none reason=not_applicable_for_this_tap_profile
+INCONCLUSIVE noice_idle_soak vm_pid=19610 soak=INCONCLUSIVE elapsed=0s required=300s
+noice_5min_soak_status=INCONCLUSIVE
+inconclusive_count=4
+gate_status_note=inconclusive_markers_do_not_fail_day_1 inconclusive=4
+gate_status=FAIL

@@ -2474,42 +2474,121 @@ public class MiniActivityManager {
      */
     private void fillNullFieldsWithProxies(Activity activity) {
         int filled = 0;
+        int filledAbstract = 0;
         try {
             Class<?> cls = activity.getClass();
             while (cls != null && cls != Object.class) {
                 for (java.lang.reflect.Field f : cls.getDeclaredFields()) {
                     if (java.lang.reflect.Modifier.isStatic(f.getModifiers())) continue;
                     Class<?> type = f.getType();
-                    if (!type.isInterface()) continue;
+                    if (type.isPrimitive()) continue;
+                    if (type == String.class) continue;
                     f.setAccessible(true);
                     if (f.get(activity) != null) continue;
-                    // Create a Proxy that returns null/0/false for all methods
-                    try {
-                        Object proxy = java.lang.reflect.Proxy.newProxyInstance(
-                            type.getClassLoader(),
-                            new Class<?>[]{ type },
-                            new java.lang.reflect.InvocationHandler() {
-                                @Override
-                                public Object invoke(Object p, java.lang.reflect.Method m, Object[] args) {
-                                    Class<?> rt = m.getReturnType();
-                                    if (rt == void.class) return null;
-                                    if (rt == boolean.class) return false;
-                                    if (rt == int.class) return 0;
-                                    if (rt == long.class) return 0L;
-                                    if (rt == float.class) return 0f;
-                                    if (rt == double.class) return 0.0;
-                                    if (rt == String.class) return "";
-                                    return null;
-                                }
-                            });
-                        f.set(activity, proxy);
-                        filled++;
-                    } catch (Throwable ex) { /* skip this field */ }
+
+                    if (type.isInterface()) {
+                        // Existing path: Proxy.newProxyInstance for interfaces
+                        try {
+                            Object proxy = java.lang.reflect.Proxy.newProxyInstance(
+                                type.getClassLoader(),
+                                new Class<?>[]{ type },
+                                new java.lang.reflect.InvocationHandler() {
+                                    @Override
+                                    public Object invoke(Object p, java.lang.reflect.Method m, Object[] args) {
+                                        Class<?> rt = m.getReturnType();
+                                        if (rt == void.class) return null;
+                                        if (rt == boolean.class) return false;
+                                        if (rt == int.class) return 0;
+                                        if (rt == long.class) return 0L;
+                                        if (rt == float.class) return 0f;
+                                        if (rt == double.class) return 0.0;
+                                        if (rt == String.class) return "";
+                                        return null;
+                                    }
+                                });
+                            f.set(activity, proxy);
+                            filled++;
+                        } catch (Throwable ex) { /* skip this field */ }
+                    } else if (java.lang.reflect.Modifier.isAbstract(type.getModifiers())
+                               || (type.getModifiers() & 0x0400) != 0) {
+                        // PF-noice-016 (2026-05-05): handle abstract class fields
+                        // (Kotlin lateinit on sealed/abstract types — e.g. noice's
+                        // subscriptionBillingProvider). Use Unsafe.allocateInstance
+                        // to get a zero-init non-null instance of the EXACT type
+                        // without running any constructor. Methods called on the
+                        // returned instance will likely NPE; that's OK because
+                        // the immediate goal is to satisfy the lateinit null-check
+                        // so onCreate's setContentView path can run.
+                        try {
+                            Object stub = unsafeAllocateInstanceShared(type);
+                            if (stub != null) {
+                                f.set(activity, stub);
+                                filledAbstract++;
+                            }
+                        } catch (Throwable ex) { /* skip */ }
+                    } else {
+                        // Non-abstract, non-interface, non-primitive object field.
+                        // Same Unsafe.allocateInstance fallback — covers concrete
+                        // classes without no-arg constructors (e.g. final classes
+                        // with @Inject fields). Lower priority than abstract since
+                        // these tend to have constructors that work via
+                        // newInstance, but try anyway.
+                        try {
+                            // First try a no-arg constructor if available
+                            try {
+                                java.lang.reflect.Constructor<?> ctor =
+                                        type.getDeclaredConstructor();
+                                ctor.setAccessible(true);
+                                Object stub = ctor.newInstance();
+                                f.set(activity, stub);
+                                filledAbstract++;
+                                continue;
+                            } catch (NoSuchMethodException | InstantiationException
+                                     | IllegalAccessException
+                                     | java.lang.reflect.InvocationTargetException ignored) {}
+                            // Fall back to Unsafe.allocateInstance
+                            Object stub = unsafeAllocateInstanceShared(type);
+                            if (stub != null) {
+                                f.set(activity, stub);
+                                filledAbstract++;
+                            }
+                        } catch (Throwable ex) { /* skip */ }
+                    }
                 }
                 cls = cls.getSuperclass();
             }
         } catch (Throwable t) { /* reflection failure */ }
-        if (filled > 0) Log.d(TAG, "  fillNullFieldsWithProxies: filled " + filled + " null interface fields");
+        if (filled > 0 || filledAbstract > 0) {
+            Log.d(TAG, "  fillNullFieldsWithProxies: filled " + filled + " interfaces, "
+                    + filledAbstract + " abstract/concrete fields");
+        }
+    }
+
+    // PF-noice-016 (2026-05-05): cached Unsafe.allocateInstance handle.
+    // sun.misc.Unsafe is hidden API on Android but exposed via reflection.
+    private static volatile Object sUnsafeInstance;
+    private static volatile java.lang.reflect.Method sUnsafeAllocateInstanceMethod;
+
+    private static Object unsafeAllocateInstanceShared(Class<?> type) throws Throwable {
+        if (sUnsafeAllocateInstanceMethod == null) {
+            synchronized (MiniActivityManager.class) {
+                if (sUnsafeAllocateInstanceMethod == null) {
+                    Class<?> unsafeClass = Class.forName("sun.misc.Unsafe");
+                    java.lang.reflect.Field theUnsafe =
+                            unsafeClass.getDeclaredField("theUnsafe");
+                    theUnsafe.setAccessible(true);
+                    sUnsafeInstance = theUnsafe.get(null);
+                    sUnsafeAllocateInstanceMethod =
+                            unsafeClass.getMethod("allocateInstance", Class.class);
+                }
+            }
+        }
+        try {
+            return sUnsafeAllocateInstanceMethod.invoke(sUnsafeInstance, type);
+        } catch (java.lang.reflect.InvocationTargetException ite) {
+            // Some abstract types reject allocateInstance; return null to skip
+            return null;
+        }
     }
 
     private void tryRecoverFragments(Activity activity) {

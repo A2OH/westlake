@@ -3485,35 +3485,61 @@ public class LayoutInflater {
             }
         }
 
-        // 5. Fallback: visible placeholder with app info
+        // 5. Fallback: visible placeholder with app info.
+        // PF-noice-017 (2026-05-05): de-McD-ify — the previous version was
+        // hardcoded McDonald's branding (yellow + red "McDonald's" text).
+        // Now app-aware: pick branding based on package, generic otherwise.
         if (view == null) {
+            String pkgProp = System.getProperty("westlake.apk.package", "");
+            String actProp = System.getProperty("westlake.apk.activity", "");
+            String shortAct = actProp.contains(".") ? simpleNameOf(actProp) : actProp;
+
+            int bgColor;
+            int titleColor;
+            String titleText;
+            if (pkgProp.startsWith("com.mcdonalds.")) {
+                bgColor = 0xFFFFCC00; // McDonald's yellow
+                titleColor = 0xFFDA291C; // McDonald's red
+                titleText = "McDonald's";
+            } else if (pkgProp.startsWith("com.github.ashutoshgngwr.")
+                    || pkgProp.startsWith("com.trynoice.")) {
+                bgColor = 0xFF1E1E1E; // dark grey (noice uses dark theme)
+                titleColor = 0xFFFAA13E; // noice orange
+                titleText = "Noice";
+            } else if (pkgProp.startsWith("com.westlake.")) {
+                bgColor = 0xFF263238; // blue-grey
+                titleColor = 0xFF80DEEA; // cyan
+                titleText = "Westlake";
+            } else {
+                bgColor = 0xFF1A237E; // deep indigo
+                titleColor = 0xFFFFFFFF;
+                titleText = pkgProp.isEmpty() ? "Guest App" : simpleNameOf(pkgProp);
+            }
+
             android.widget.LinearLayout ll = new android.widget.LinearLayout(mContext);
             ll.setOrientation(android.widget.LinearLayout.VERTICAL);
             ll.setId(resource);
-            ll.setBackgroundColor(0xFFFFCC00); // McDonald's yellow
+            ll.setBackgroundColor(bgColor);
             ll.setPadding(20, 60, 20, 20);
 
             android.widget.TextView title = new android.widget.TextView(mContext);
-            title.setText("McDonald's");
+            title.setText(titleText);
             title.setTextSize(28);
-            title.setTextColor(0xFFDA291C); // McDonald's red
+            title.setTextColor(titleColor);
             title.setGravity(android.view.Gravity.CENTER_HORIZONTAL);
             ll.addView(title);
 
             android.widget.TextView sub = new android.widget.TextView(mContext);
             sub.setText("Running on Westlake Engine");
             sub.setTextSize(14);
-            sub.setTextColor(0xFF333333);
+            sub.setTextColor(0xFFCCCCCC);
             sub.setGravity(android.view.Gravity.CENTER_HORIZONTAL);
             ll.addView(sub);
 
             android.widget.TextView status = new android.widget.TextView(mContext);
-            String pkg = System.getProperty("westlake.apk.package", "");
-            String act = System.getProperty("westlake.apk.activity", "");
-            if (act.contains(".")) act = simpleNameOf(act);
-            status.setText(pkg + "\n" + act + "\nLayout: 0x" + Integer.toHexString(resource));
+            status.setText(pkgProp + "\n" + shortAct + "\nLayout: 0x" + Integer.toHexString(resource));
             status.setTextSize(12);
-            status.setTextColor(0xFF666666);
+            status.setTextColor(0xFFAAAAAA);
             status.setGravity(android.view.Gravity.CENTER_HORIZONTAL);
             status.setPadding(0, 30, 0, 0);
             ll.addView(status);
