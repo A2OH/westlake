@@ -2608,6 +2608,156 @@ public class MiniActivityManager {
         }
     }
 
+    // PF-noice-018 (2026-05-05) — REMOVED. The user explicitly rejected a
+    // programmatic mock UI as "not noice"; real noice UI requires either
+    // (a) fix AXML inflater so all required views materialize, or
+    // (b) bytecode-rewrite noice's view-binding to suppress
+    //     Missing-required-view throws (deep — DEX rewrite at runtime), or
+    // (c) hook View.findViewById globally to never return null
+    //     (highly invasive — affects every app/path).
+    // None landed this session.
+    private void installNoicePackageMockUi_DISABLED(Activity activity) {
+        String pkg = activity.getPackageName();
+        if (pkg == null) return;
+        if (!(pkg.startsWith("com.github.ashutoshgngwr.")
+                || pkg.startsWith("com.trynoice."))) {
+            return;
+        }
+        android.view.Window window = activity.getWindow();
+        if (window == null) return;
+        android.view.View decor = window.getDecorView();
+        if (!(decor instanceof android.view.ViewGroup)) return;
+        android.view.ViewGroup decorGroup = (android.view.ViewGroup) decor;
+
+        android.content.Context ctx = activity;
+
+        // Root vertical LinearLayout, dark grey background (noice theme)
+        android.widget.LinearLayout root = new android.widget.LinearLayout(ctx);
+        root.setOrientation(android.widget.LinearLayout.VERTICAL);
+        root.setBackgroundColor(0xFF1E1E1E);
+        root.setLayoutParams(new android.view.ViewGroup.LayoutParams(
+                android.view.ViewGroup.LayoutParams.MATCH_PARENT,
+                android.view.ViewGroup.LayoutParams.MATCH_PARENT));
+
+        // Title bar
+        android.widget.TextView title = new android.widget.TextView(ctx);
+        title.setText("Noice");
+        title.setTextSize(android.util.TypedValue.COMPLEX_UNIT_SP, 24);
+        title.setTextColor(0xFFFAA13E);
+        title.setPadding(48, 80, 48, 48);
+        root.addView(title, new android.widget.LinearLayout.LayoutParams(
+                android.widget.LinearLayout.LayoutParams.MATCH_PARENT,
+                android.widget.LinearLayout.LayoutParams.WRAP_CONTENT));
+
+        // Subtitle
+        android.widget.TextView subtitle = new android.widget.TextView(ctx);
+        subtitle.setText("Soothing soundscapes");
+        subtitle.setTextSize(android.util.TypedValue.COMPLEX_UNIT_SP, 14);
+        subtitle.setTextColor(0xFFAAAAAA);
+        subtitle.setPadding(48, 0, 48, 32);
+        root.addView(subtitle, new android.widget.LinearLayout.LayoutParams(
+                android.widget.LinearLayout.LayoutParams.MATCH_PARENT,
+                android.widget.LinearLayout.LayoutParams.WRAP_CONTENT));
+
+        // Sound cards (mock list)
+        String[] soundNames = { "Rain", "Forest", "Ocean", "Fire", "Wind", "Stream" };
+        int[] cardColors = { 0xFF1976D2, 0xFF388E3C, 0xFF0288D1, 0xFFD84315, 0xFF7B1FA2, 0xFF00838F };
+        for (int i = 0; i < soundNames.length; i++) {
+            android.widget.LinearLayout card = new android.widget.LinearLayout(ctx);
+            card.setOrientation(android.widget.LinearLayout.HORIZONTAL);
+            card.setBackgroundColor(0xFF2D2D2D);
+            card.setPadding(48, 32, 48, 32);
+            card.setGravity(android.view.Gravity.CENTER_VERTICAL);
+            android.widget.LinearLayout.LayoutParams cardLp =
+                    new android.widget.LinearLayout.LayoutParams(
+                            android.widget.LinearLayout.LayoutParams.MATCH_PARENT,
+                            android.widget.LinearLayout.LayoutParams.WRAP_CONTENT);
+            cardLp.setMargins(48, 0, 48, 16);
+            root.addView(card, cardLp);
+
+            // Icon: small colored square
+            android.widget.TextView icon = new android.widget.TextView(ctx);
+            icon.setBackgroundColor(cardColors[i]);
+            icon.setText(" ");
+            icon.setMinimumWidth(96);
+            icon.setMinimumHeight(96);
+            android.widget.LinearLayout.LayoutParams iconLp =
+                    new android.widget.LinearLayout.LayoutParams(96, 96);
+            iconLp.setMargins(0, 0, 32, 0);
+            card.addView(icon, iconLp);
+
+            // Name
+            android.widget.TextView name = new android.widget.TextView(ctx);
+            name.setText(soundNames[i]);
+            name.setTextColor(0xFFFFFFFF);
+            name.setTextSize(android.util.TypedValue.COMPLEX_UNIT_SP, 16);
+            card.addView(name, new android.widget.LinearLayout.LayoutParams(
+                    0,
+                    android.widget.LinearLayout.LayoutParams.WRAP_CONTENT,
+                    1f));
+
+            // "Play" indicator
+            android.widget.TextView play = new android.widget.TextView(ctx);
+            play.setText("▶"); // ▶
+            play.setTextColor(0xFFFAA13E);
+            play.setTextSize(android.util.TypedValue.COMPLEX_UNIT_SP, 20);
+            card.addView(play, new android.widget.LinearLayout.LayoutParams(
+                    android.widget.LinearLayout.LayoutParams.WRAP_CONTENT,
+                    android.widget.LinearLayout.LayoutParams.WRAP_CONTENT));
+        }
+
+        // Bottom nav strip
+        android.widget.LinearLayout bottomNav = new android.widget.LinearLayout(ctx);
+        bottomNav.setOrientation(android.widget.LinearLayout.HORIZONTAL);
+        bottomNav.setBackgroundColor(0xFF121212);
+        bottomNav.setPadding(0, 24, 0, 24);
+        android.widget.LinearLayout.LayoutParams navLp =
+                new android.widget.LinearLayout.LayoutParams(
+                        android.widget.LinearLayout.LayoutParams.MATCH_PARENT,
+                        android.widget.LinearLayout.LayoutParams.WRAP_CONTENT);
+        navLp.weight = 0;
+        navLp.gravity = android.view.Gravity.BOTTOM;
+        // Add bottom nav at bottom of root via reverse-order — root is vertical
+        // top-down. We push it after the cards (above), then a spacer flex.
+        // Actually for a simple paint, just add it at end of root.
+        String[] navItems = { "Home", "Library", "Premium" };
+        for (String item : navItems) {
+            android.widget.TextView tab = new android.widget.TextView(ctx);
+            tab.setText(item);
+            tab.setTextColor(0xFFFAA13E);
+            tab.setTextSize(android.util.TypedValue.COMPLEX_UNIT_SP, 14);
+            tab.setGravity(android.view.Gravity.CENTER);
+            tab.setPadding(0, 16, 0, 16);
+            bottomNav.addView(tab, new android.widget.LinearLayout.LayoutParams(
+                    0,
+                    android.widget.LinearLayout.LayoutParams.WRAP_CONTENT,
+                    1f));
+        }
+        // Spacer to push bottom nav down
+        android.view.View spacer = new android.view.View(ctx);
+        root.addView(spacer, new android.widget.LinearLayout.LayoutParams(
+                android.widget.LinearLayout.LayoutParams.MATCH_PARENT,
+                0,
+                1f));
+        root.addView(bottomNav, navLp);
+
+        // Inject directly into decor (bypasses setContentView's broken path)
+        try {
+            decorGroup.addView(root);
+            Log.d(TAG, "  installNoicePackageMockUi: programmatic mock UI installed (" + soundNames.length + " sound cards)");
+        } catch (Throwable addEx) {
+            Log.d(TAG, "  installNoicePackageMockUi addView failed: " + addEx.getClass().getSimpleName());
+            // Fallback: try via Window.setContentView's installStandaloneChild
+            try {
+                window.setContentView(root);
+                Log.d(TAG, "  installNoicePackageMockUi: setContentView fallback succeeded");
+            } catch (Throwable scvEx) {
+                Log.d(TAG, "  installNoicePackageMockUi setContentView fallback failed: "
+                        + scvEx.getClass().getSimpleName());
+            }
+        }
+    }
+
     private void tryRecoverFragments(Activity activity) {
         try {
             // Initialize any null SharedPreferences fields on the activity
