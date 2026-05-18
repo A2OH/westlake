@@ -274,7 +274,8 @@ implicitly.
 | `scripts/run-noice-westlake.sh`                | V2 Android   | YES — uses /data/local/tmp/ only, no /system writes |
 | `scripts/run-mcd-westlake.sh`                  | V2 Android   | YES — same pattern as noice |
 | `scripts/sync-westlake-phone-runtime.sh`       | V2 Android   | YES — /data/local/tmp/westlake/ only |
-| `scripts/v3/deploy-hbc-to-dayu200.sh`          | V3 OHOS      | **PARTIAL** — pushes direct to /system, no staging area (TODO 2026-05-16) |
+| `scripts/v3/deploy-hbc-to-dayu200.sh`          | V3 OHOS      | **DEPRECATED 2026-05-18** — soft-bricked W2 attempt; preserved for forensic diff only. DO NOT re-run. |
+| `scripts/v3/deploy-hbc-to-dayu200-hardened.sh` | V3 OHOS      | YES — staging-only, G1-G7 hardened, 12 incremental stages. See `V3-DEPLOY-HARDENED-SOP.md`. |
 | `scripts/v3/aa-launch.sh`                      | V3 OHOS      | YES — only invokes `aa start`, no /system writes |
 | `scripts/v3/run-hbc-regression.sh`             | V3 OHOS      | YES (read-only — never pushes) |
 | `scripts/westlake-restore.sh --board-only`     | V3 OHOS      | YES — see W9 Pattern 3 |
