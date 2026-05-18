@@ -92,10 +92,11 @@ SKIP_BOARD=0
 
 for arg in "$@"; do
     case "$arg" in
-        --quick)     MODE="quick" ;;
-        --full)      MODE="full"  ;;
-        --no-color)  USE_COLOR=0  ;;
-        --no-board)  SKIP_BOARD=1 ;;
+        --quick)             MODE="quick" ;;
+        --full)              MODE="full"  ;;
+        --no-color)          USE_COLOR=0  ;;
+        --no-board)          SKIP_BOARD=1 ;;
+        --probe-stage=*)     : ;;   # handled later (W2-prep, 2026-05-18)
         -h|--help)
             sed -n '/^# ====/,/^# ====$/p' "$0" | sed 's/^# \{0,1\}//'
             exit 0
@@ -258,6 +259,77 @@ check_doc_v3_regression() {
     # doc isn't yet staged.
     check_expected_artifact "docs/engine/V3-REGRESSION.md" \
         "$REPO_ROOT/docs/engine/V3-REGRESSION.md"
+}
+
+# W2-PREP (2026-05-18, agent 55) — hardened deploy script presence probe.
+# Verifies scripts/v3/deploy-hbc-to-dayu200-hardened.sh exists, is executable,
+# and bash-parses clean. Required for the post-ROM-recovery W2 re-attempt.
+check_hardened_deploy_present() {
+    local p="$REPO_ROOT/scripts/v3/deploy-hbc-to-dayu200-hardened.sh"
+    if [ ! -f "$p" ]; then
+        echo "hardened deploy script missing: $p"
+        return 1
+    fi
+    if [ ! -x "$p" ]; then
+        echo "hardened deploy script present but not executable"
+        return 1
+    fi
+    if ! bash -n "$p" 2>/dev/null; then
+        echo "hardened deploy script has bash syntax errors"
+        return 1
+    fi
+    local lines; lines=$(wc -l < "$p" | tr -d ' ')
+    echo "hardened deploy script: present, executable, parses ($lines LOC)"
+    return 0
+}
+
+# W2-PREP (2026-05-18, agent 55) — hardened deploy script static lint.
+# Runs the hardened script's `--help` to exercise the help dispatch + bash
+# parse without touching the board. If the script's POSITIONAL parsing or
+# any HBC 全局三条 helper has a syntax regression, --help catches it.
+check_hardened_deploy_lint() {
+    local p="$REPO_ROOT/scripts/v3/deploy-hbc-to-dayu200-hardened.sh"
+    [ -x "$p" ] || { echo "hardened script not executable"; return 1; }
+    if ! bash "$p" --help >/dev/null 2>&1; then
+        echo "hardened deploy --help failed"
+        return 1
+    fi
+    # Quick grep for the 7 G1-G7 markers in source comments
+    local g
+    local missing=""
+    for g in G1 G2 G3 G4 G5 G6 G7; do
+        if ! grep -qE "\b${g}\b" "$p"; then
+            missing="${missing}${g} "
+        fi
+    done
+    if [ -n "$missing" ]; then
+        echo "WARN: G-marker(s) missing from script comments: $missing"
+        return 77
+    fi
+    # Verify the 2 new .so files are in the required-artifact allowlist
+    if ! grep -q 'lib/libinstalls.z.so' "$p"; then
+        echo "FAIL: libinstalls.z.so not in REQUIRED_ARTIFACTS"
+        return 1
+    fi
+    if ! grep -q 'lib/libappexecfwk_common.z.so' "$p"; then
+        echo "FAIL: libappexecfwk_common.z.so not in REQUIRED_ARTIFACTS"
+        return 1
+    fi
+    # Verify HBC 全局三条 abort enforcement (the 5 conditions)
+    if ! grep -q '_alive_probe' "$p"; then
+        echo "FAIL: _alive_probe sentinel missing (G1 not implemented)"
+        return 1
+    fi
+    if ! grep -q '_assert_no_fail_or_drwx' "$p"; then
+        echo "FAIL: _assert_no_fail_or_drwx helper missing"
+        return 1
+    fi
+    if ! grep -q 'chcon_verify' "$p"; then
+        echo "FAIL: chcon_verify helper missing (G2 not implemented)"
+        return 1
+    fi
+    echo "hardened deploy lint clean: G1-G7 present, 2 new .so in allowlist, abort helpers wired"
+    return 0
 }
 
 # W9 Pattern 2 (2026-05-16, CR-FF) — Deploy-SOP compliance probe.
@@ -428,6 +500,10 @@ smoke_v3_deployed() {
 w2_slot() {
     # W2 — Boot HBC runtime standalone on DAYU200.
     # Filled in: 2026-05-16 (agent 49, V3-WORKSTREAMS §W2, issue #627).
+    # AMENDED: 2026-05-18 (agent 55, W2-prep) — slot now ALSO checks that
+    # the hardened deploy script is in place, then probes board state.
+    # The hardened script is the post-ROM-recovery re-attempt driver;
+    # see docs/engine/V3-DEPLOY-HARDENED-SOP.md.
     #
     # Verdict policy:
     #   PASS           : /system/bin/appspawn-x is deployed AND
@@ -444,6 +520,17 @@ w2_slot() {
     #   * Some Windows hdc.exe builds silently drop `hdc shell` stdout. We
     #     detect that case (empty bin_size first) and fall back to a
     #     push-probe-recv pattern using /data/local/tmp/v3_w2_probe.{sh,out}.
+    #   * Authoritative deploy driver for re-attempt: hardened script (NOT old).
+
+    # First — guarantee hardened script is present. If absent the W2 re-attempt
+    # cannot run regardless of board state. Hardened-present is checked in
+    # Section 1, but we double-link here so a FAIL in the slot is actionable.
+    local hardened="$REPO_ROOT/scripts/v3/deploy-hbc-to-dayu200-hardened.sh"
+    if [ ! -x "$hardened" ]; then
+        echo "W2: hardened deploy script missing — re-attempt blocked (see Section 1)"
+        return 1
+    fi
+
     board_reachable || { echo "board not reachable"; return 99; }
 
     # Step 1: try plain hdc shell stdout.
@@ -478,7 +565,7 @@ PROBE
         cfg=$(echo "$probe_data"   | sed -n 's/^CFG=//p')
         state=$(echo "$probe_data" | sed -n 's/^STATE_DIR=//p')
         if [ "$bin" = "MISSING" ] || [ -z "$bin" ]; then
-            echo "W2: /system/bin/appspawn-x not deployed (run scripts/v3/deploy-hbc-to-dayu200.sh)"
+            echo "W2: /system/bin/appspawn-x not deployed (run scripts/v3/deploy-hbc-to-dayu200-hardened.sh)"
             return 1
         fi
         if [ "$pid" = "NONE" ] || [ -z "$pid" ]; then
@@ -584,6 +671,92 @@ w7_slot() {
 }
 
 # ============================================================================
+# Per-stage smoke probes (W2-prep, agent 55, 2026-05-18)
+#
+# These are invokable in isolation (`--probe-stage <N>`) so an operator can
+# exercise the hardened deploy script's preflight gates against the board
+# WITHOUT actually running the destructive parts. Each maps to one of the
+# hardened script's 12 stages and is READ-ONLY (no deploy, no chcon, no cp).
+# Used to validate the channel before queuing a real `--reboot` deploy.
+# ============================================================================
+
+probe_stage_0() {
+    board_reachable || { echo "board not reachable"; return 99; }
+    local ver
+    ver=$("$HDC" version 2>&1 | head -1 | tr -d '\r\n')
+    [ -n "$ver" ] || { echo "hdc version probe failed"; return 1; }
+    local alive
+    alive=$(hdc_shell "echo HBC_PROBE_$$" | tr -d '\r\n')
+    [ "$alive" = "HBC_PROBE_$$" ] || { echo "G1 sentinel mismatch (got '$alive')"; return 1; }
+    local has_android
+    has_android=$(hdc_shell "ls -d /system/android 2>&1" | tr -d '\r\n')
+    if ! echo "$has_android" | grep -q "No such"; then
+        echo "WARN: /system/android exists — not factory baseline"
+        return 77
+    fi
+    echo "stage-0 probe: hdc=$ver, G1 OK, factory baseline confirmed"
+    return 0
+}
+
+probe_stage_3_8() {
+    board_reachable || { echo "board not reachable"; return 99; }
+    # Triple sentinel — mirrors hardened script's Stage 3.8
+    local i out
+    for i in 1 2 3; do
+        out=$(hdc_shell "echo HBC_PROBE_38_${i}_$$" | tr -d '\r\n')
+        if [ "$out" != "HBC_PROBE_38_${i}_$$" ]; then
+            echo "G1 sentinel #$i mismatch (got '$out')"
+            return 1
+        fi
+    done
+    echo "stage-3.8 probe: 3/3 channel-alive sentinels OK"
+    return 0
+}
+
+probe_stage_5() {
+    board_reachable || { echo "board not reachable"; return 99; }
+    local missing="" p pid
+    for p in hdcd; do
+        pid=$(hdc_shell "pidof $p" | tr -d ' \r\n')
+        [ -n "$pid" ] || missing="$missing $p"
+    done
+    if [ -n "$missing" ]; then
+        echo "stage-5 probe: missing pidof for:$missing"
+        return 1
+    fi
+    # foundation/render_service may be off (pre-deploy) — warn-only
+    local soft="" pf pr pl
+    pf=$(hdc_shell "pidof foundation" | tr -d ' \r\n')
+    pr=$(hdc_shell "pidof render_service" | tr -d ' \r\n')
+    pl=$(hdc_shell "pidof com.ohos.launcher" | tr -d ' \r\n')
+    [ -n "$pf" ] || soft="$soft foundation"
+    [ -n "$pr" ] || soft="$soft render_service"
+    [ -n "$pl" ] || soft="$soft com.ohos.launcher"
+    if [ -n "$soft" ]; then
+        echo "stage-5 probe: hdcd OK; pre-deploy soft-missing:$soft"
+        return 77
+    fi
+    echo "stage-5 probe: hdcd + foundation + render_service + launcher all up"
+    return 0
+}
+
+# CLI hook: --probe-stage <N>  runs ONE probe in isolation, exits with its rc.
+for _arg in "$@"; do
+    case "$_arg" in
+        --probe-stage=*)
+            _stage="${_arg#--probe-stage=}"
+            case "$_stage" in
+                0)   probe_stage_0;   exit $? ;;
+                3.8) probe_stage_3_8; exit $? ;;
+                5)   probe_stage_5;   exit $? ;;
+                *)   echo "unknown probe stage: $_stage (valid: 0, 3.8, 5)"; exit 2 ;;
+            esac
+            ;;
+    esac
+done
+unset _arg _stage
+
+# ============================================================================
 # Suite execution
 # ============================================================================
 
@@ -606,6 +779,8 @@ run_check "doc: CR61_1_AMENDMENT_LIBIPC_VIA_HBC.md" check_doc_cr61_1
 run_check "doc: V3-REGRESSION.md"          check_doc_v3_regression
 run_check "doc: V3-DEPLOY-SOP.md"          check_doc_v3_deploy_sop
 run_check "deploy-hbc-to-dayu200.sh SOP-compliant" check_deploy_sop_compliance
+run_check "W2-prep: hardened deploy present"       check_hardened_deploy_present
+run_check "W2-prep: hardened deploy lints clean"   check_hardened_deploy_lint
 run_check "scripts/westlake-restore.sh present"    check_westlake_restore_sh
 run_check "doc: V3-RESTORE.md"             check_doc_v3_restore
 run_check "westlake-restore.sh --verify --tree-only" check_tree_drift
@@ -616,6 +791,9 @@ run_check "hdc list targets shows DAYU200" smoke_list_targets
 run_check "getconf LONG_BIT == 32"         smoke_long_bit
 run_check "getenforce == Enforcing"        smoke_selinux
 run_check "v3-hbc/ deployed under $BOARD_DIR" smoke_v3_deployed
+run_check "hardened stage-0 probe (preflight)" probe_stage_0
+run_check "hardened stage-3.8 probe (G1 ×3)"   probe_stage_3_8
+run_check "hardened stage-5 probe (post-reboot pids)" probe_stage_5
 echo
 
 if [ "$MODE" = "quick" ]; then
