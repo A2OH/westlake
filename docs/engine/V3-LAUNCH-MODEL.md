@@ -163,7 +163,7 @@ ohos-tests-gradle ohos-tests-gradle` restores it cleanly).
 | All call sites that depended on `OhosMvpLauncher` either removed (OHOS path) or marked Android-phone-only (V2 path) | DONE | `scripts/run-ohos-test.sh` deprecates 10 V2 subcommands with redirect to aa-launch.sh |
 | HBC's launch model documented in `docs/engine/V3-LAUNCH-MODEL.md` | DONE | this doc |
 | Westlake's launcher driver wrapper reduced to a thin shell | DONE | `scripts/v3/aa-launch.sh` ~250 LOC shell, ~60% comments |
-| HelloWorld.apk launches via this path on DAYU200, reproducing W2 result | PENDING W2 | aa-launch.sh ready; needs `scripts/deploy-hbc-to-dayu200.sh` (W2 deliverable) to push v3-hbc/ to the board first |
+| HelloWorld.apk launches via this path on DAYU200, reproducing W2 result | PENDING W2 RE-ATTEMPT | aa-launch.sh ready; needs `scripts/v3/deploy-hbc-to-dayu200-hardened.sh` (W2-prep deliverable, 2026-05-18; see `V3-DEPLOY-HARDENED-SOP.md`) to push v3-hbc/ to the board first. The legacy `scripts/v3/deploy-hbc-to-dayu200.sh` soft-bricked the board on first W2 attempt and is preserved for forensic diff only — DO NOT re-run it. |
 | Mock APK from W5 launches via this path | PENDING W5 | forward-link; W3 acceptance can be partial |
 | Macro-shim contract self-audit clean: no Unsafe / setAccessible / per-app branches in any new code | PASS | aa-launch.sh is shell; no Java; no per-app branches (the only per-app data passed is positional `<bundle> <ability>` args) |
 
