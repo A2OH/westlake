@@ -328,8 +328,11 @@ REQUIRED_MANIFEST=(
     "lib/liboh_hwui_shim.so=/system/lib/liboh_hwui_shim.so"
     "lib/liboh_android_runtime.so=/system/lib/liboh_android_runtime.so"
     "lib/liboh_skia_rtti_shim.so=/system/lib/liboh_skia_rtti_shim.so"
-    # ----- adapter bridges (single-path) -----
+    # ----- adapter bridges (dual-path 2026-05-19: agent 73 Phase 1b.2 finding —
+    # liboh_android_runtime.so chain-fails on liboh_adapter_bridge.so resolution
+    # when loaded from /system/android/lib/; dual-path matches lines 328-330) -----
     "lib/liboh_adapter_bridge.so=/system/lib/liboh_adapter_bridge.so"
+    "lib/liboh_adapter_bridge.so=/system/android/lib/liboh_adapter_bridge.so"
     "lib/libapk_installer.so=/system/lib/libapk_installer.so"
     "lib/libinstalls.z.so=/system/lib/libinstalls.z.so"
     # ----- framework jars (chroot-relative; ART boot image baked strings
@@ -349,6 +352,9 @@ REQUIRED_MANIFEST=(
     # ----- ICU + fonts -----
     "etc/icudt72l.dat=/system/android/etc/icu/icudt72l.dat"
     "etc/fonts.xml=/system/android/etc/fonts.xml"
+    # Dual-path 2026-05-19: SystemFonts.getSystemPreinstalledFontConfig
+    # hardcodes /system/etc/fonts.xml (agent 73 Phase 1b.2 finding).
+    "etc/fonts.xml=/system/etc/fonts.xml"
     # ----- boot image (9 segments × 3 ext = 27 files) -----
     "bcp/boot.art=/system/android/framework/arm/boot.art"
     "bcp/boot.oat=/system/android/framework/arm/boot.oat"
@@ -860,7 +866,7 @@ stage_env() {
 # Runs INSIDE the V3-HBC chroot. argv[1..] is forwarded to the inner command.
 set -u
 
-export LD_LIBRARY_PATH=/system/lib:/system/android/lib:/system/lib/platformsdk:/system/lib/chipset-sdk-sp:/system/lib/ndk
+export LD_LIBRARY_PATH=/system/lib:/system/android/lib:/system/lib/platformsdk:/system/lib/chipset-sdk:/system/lib/chipset-sdk-sp:/system/lib/ndk
 export ANDROID_ROOT=/system/android
 export ANDROID_DATA=/data
 export ANDROID_RUNTIME_ROOT=/system
