@@ -559,6 +559,7 @@ stage_setup() {
         "$V3_CHROOT_ROOT/proc"
         "$V3_CHROOT_ROOT/sys"
         "$V3_CHROOT_ROOT/dev"
+        "$V3_CHROOT_ROOT/lib"
         "$V3_CHROOT_ROOT/data"
         "$V3_CHROOT_ROOT/data/local"
         "$V3_CHROOT_ROOT/data/local/tmp"
@@ -770,6 +771,34 @@ stage_mount() {
         fi
     done
 
+    # Read-only bind-mount host libs so the chroot's dynamic ELFs (/system/bin/sh
+    # needs /lib/ld-musl-arm.so.1, plus appspawn-x needs /system/lib/* later)
+    # can resolve their interpreter + transitive deps. Agent 68 caught this:
+    # without /lib, kernel returns misleading ENOENT-on-missing-interp for
+    # `chroot ... /system/bin/sh`. Two-step bind+remount-ro is the Linux idiom.
+    local ro_mp
+    for ro_mp in lib system/lib; do
+        local src="/$ro_mp"
+        local dst="$V3_CHROOT_ROOT/$ro_mp"
+        if [ "$DRY_RUN" = "1" ]; then
+            log "[DRY] would: mount --bind $src $dst && mount -o remount,ro,bind $dst"
+            continue
+        fi
+        if hdc_shell_check "mountpoint -q $dst"; then
+            ok "$ro_mp already RO-mounted into chroot (idempotent)"
+        else
+            out=$(hdc_shell "mount --bind $src $dst 2>&1 && mount -o remount,ro,bind $dst 2>&1 && echo BIND_RO_OK")
+            _assert_no_fail_or_drwx "$out" "stage_mount RO $ro_mp"
+            if ! echo "$out" | grep -q BIND_RO_OK; then
+                abort "Stage 3: RO bind-mount $src failed: $out"
+            fi
+            if ! hdc_shell_check "mountpoint -q $dst"; then
+                abort "Stage 3: RO bind $src did NOT take effect"
+            fi
+            ok "mount --bind RO $src → $dst"
+        fi
+    done
+
     if [ "$DRY_RUN" = "0" ]; then
         # Summary
         local mounts
@@ -779,7 +808,7 @@ stage_mount() {
     fi
 
     _alive_probe
-    pass_msg "Stage 3 PASS — /proc /sys /dev bind-mounted into chroot"
+    pass_msg "Stage 3 PASS — /proc /sys /dev RW + /lib /system/lib RO bind-mounted into chroot"
 }
 
 # ============================================================================
@@ -1025,7 +1054,8 @@ stage_teardown() {
 
     # umount in reverse order. Each is best-effort but logged.
     local mp out
-    for mp in dev sys proc; do
+    # Reverse order; teardown both RW (proc/sys/dev) and RO (lib/system/lib) bind-mounts
+    for mp in system/lib lib dev sys proc; do
         if [ "$DRY_RUN" = "1" ]; then
             log "[DRY] would: umount $V3_CHROOT_ROOT/$mp"
             continue
