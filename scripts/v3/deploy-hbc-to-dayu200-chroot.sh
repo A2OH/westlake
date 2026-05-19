@@ -649,9 +649,20 @@ _push_one() {
     fi
     local win
     win=$(_to_win_path "$local_path")
+    # Two structural fixes (agent 71 finding 2026-05-19):
+    # (1) </dev/null — hdc.exe reads stdin when inside `while read`, gobbling
+    #     the iterator's remaining lines after the first push, terminating loop.
+    # (2) post-push verify via hdc_shell_check — `hdc file send` may return host
+    #     exit 0 with silent device-side failure (same class as hdc_shell bug).
     local out
-    out=$(hdc_raw file send "$win" "$device_path" 2>&1 | tr -d '\r')
+    out=$(hdc_raw file send "$win" "$device_path" </dev/null 2>&1 | tr -d '\r')
     _assert_no_fail_or_drwx "$out" "_push_one $device_rel"
+    # Verify the target actually landed (size > 0); aborts on silent failure
+    local local_sz
+    local_sz=$(stat -c '%s' "$local_path" 2>/dev/null)
+    if ! hdc_shell_check "test -s $device_path"; then
+        abort "_push_one: device target NOT present after push: $device_path (local=$local_path size=$local_sz)"
+    fi
 }
 
 stage_push() {
