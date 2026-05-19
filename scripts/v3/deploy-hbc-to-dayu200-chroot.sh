@@ -457,7 +457,8 @@ stage_preflight() {
     # Free space — chroot bundle is ~412 MB; require MIN_FREE_DATA_MB
     if [ "$DRY_RUN" = "0" ]; then
         local free_kb free_mb
-        free_kb=$(hdc_shell "df /data 2>/dev/null | awk 'NR==2 {print \$4}'" | tr -d ' \r\n')
+        # awk on host side — toybox on DAYU200 may lack awk; parse the raw df output here
+        free_kb=$(hdc_shell "df /data 2>/dev/null" | tr -d '\r' | awk 'NR==2 {print $4}' | tr -d ' \n')
         if [ -z "$free_kb" ] || ! [[ "$free_kb" =~ ^[0-9]+$ ]]; then
             warn "could not parse 'df /data' free space; got: '$free_kb'"
         else
@@ -541,6 +542,8 @@ stage_setup() {
         "$V3_CHROOT_ROOT/sys"
         "$V3_CHROOT_ROOT/dev"
         "$V3_CHROOT_ROOT/data"
+        "$V3_CHROOT_ROOT/data/local"
+        "$V3_CHROOT_ROOT/data/local/tmp"
         "$V3_CHROOT_ROOT/host_tmp"
         "$V3_CHROOT_ROOT/tmp"
     )
