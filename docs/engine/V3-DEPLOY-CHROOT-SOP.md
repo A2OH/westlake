@@ -133,7 +133,7 @@ Each stage is invocable alone and idempotent for the safe ones
 | Stage | Script command | Writes? | Channel sentinel | Notes |
 |-------|----------------|---------|------------------|-------|
 | 0     | `preflight`    | NO (READ-ONLY) | 2× | Verifies hdc reachable, 63 artifacts present, ≥600 MB free in `/data`, captures pre-state to `/tmp/v3-chroot-deploy-<TS>/board-state-pre.txt`. hdc version is LOGGED not GATED (probe report widens 3.2.0b). |
-| 1     | `setup`        | YES (mkdir 22 dirs under chroot) | 2× | `mkdir -p` is idempotent. Verifies each dir is a `directory` (catches the hdc 造目录 quirk if it ever fires here). |
+| 1     | `setup`        | YES (mkdir 22 dirs under chroot + board-internal `cp` of shell binary into `$V3_CHROOT_ROOT/system/bin/sh`) | 2× | `mkdir -p` is idempotent. Verifies each dir is a `directory` (catches the hdc 造目录 quirk if it ever fires here). Then auto-discovers the board's shell binary in this order: `/system/bin/sh` → `/system/bin/toybox` → `/system/bin/toolbox`. First-match is `cp`'d to `$V3_CHROOT_ROOT/system/bin/sh` (`chmod 755` + `test -x` verified). Aborts if none exist. Required for Stage 4/5 chroot exec to find an interpreter for `launch.sh`. |
 | 2     | `push`         | YES (~108 `hdc file send`) | every 25 files + 2× | Pushes 63 required + ~41 AOSP natives + 3 dual-path shims + 0-3 optional. Spot-size-checks 3 sentinel files. |
 | 3     | `mount`        | YES (mount --bind) | 2× | Idempotent (mountpoint check first). Mounts `/proc`, `/sys`, `/dev`. |
 | 4     | `env`          | YES (one file: `launch.sh`) | 2× | Generates launch.sh wrapper inside chroot with BOOTCLASSPATH, LD_LIBRARY_PATH, ANDROID_ROOT etc. Runs a chroot env-probe to confirm framework.jar visible. |
@@ -186,6 +186,48 @@ The marker the verify stage greps for is overridable via `MARKER` env
 (default: `[v3-chroot-launch]`; switch to `MainActivity.onCreate` for
 HBC HelloWorld validation).
 
+### 3.8 Log directory across invocations
+
+In the stage-by-stage flow (§3.2), each invocation needs to find logs
+written by previous invocations (specifically, `verify` reads
+`launch.log` written by `launch`). The script handles this via:
+
+* Default: writes to `/tmp/v3-chroot-deploy-<TS>/` and refreshes the
+  symlink `/tmp/v3-chroot-deploy-current → /tmp/v3-chroot-deploy-<TS>/`
+  on every invocation. The script's `$LOG_DIR` resolves through this
+  symlink, so subsequent invocations read the most-recent run.
+* Operator override: `export V3_CHROOT_LOG_DIR=/tmp/my-tagged-run` to
+  pin all invocations to a specific tagged directory (useful for
+  parallel experiments or named regressions). When set, the symlink is
+  NOT touched.
+
+Either way, forensic per-TS subdirs persist for diff across runs; only
+the symlink target rotates.
+
+```bash
+# Tagged run (all stages write to /tmp/my-run-1):
+export V3_CHROOT_LOG_DIR=/tmp/my-run-1
+bash scripts/v3/deploy-hbc-to-dayu200-chroot.sh launch --setenforce-0
+bash scripts/v3/deploy-hbc-to-dayu200-chroot.sh verify --setenforce-0
+unset V3_CHROOT_LOG_DIR
+```
+
+### 3.9 SELinux restore safety net
+
+When `--setenforce-0` is passed, the script registers an EXIT trap that
+restores SELinux to Enforcing if Stage 5 actually issued `setenforce 0`
+in this process. This covers:
+
+* Normal exit (Stage 6 verify happy path — explicit restore + redundant
+  trap fire as no-op).
+* Abort (e.g., `_alive_probe` exit-99 between launch and verify) — trap
+  restores before exit.
+* `teardown --setenforce-0` invocation — defense-in-depth: if board is
+  currently Permissive, restores Enforcing.
+
+Not covered: `kill -9` of the script process (the trap doesn't fire on
+SIGKILL). Operator manual recovery: `hdc shell setenforce 1`.
+
 ---
 
 ## 4. Failure modes + recovery
@@ -194,6 +236,9 @@ HBC HelloWorld validation).
 |---------|-----------|----------|
 | `Stage 0: DAYU200 ... not connected` | Board off, USB unplugged, hdcd dead | Plug in / power on / restart hdc.exe |
 | `Stage 0: G3 required missing` | W1 pull incomplete | Re-run W1 pull; verify file with `ls -la $V3_LOCAL/<rel>` |
+| `Stage 1: no shell binary found on board` | OHOS variant lacks `/system/bin/{sh,toybox,toolbox}` | STOP. Investigate which shell-like binary the board ships. Add it to the discovery list in `stage_setup` (line ~530). Without an in-chroot shell, chroot exec cannot find an interpreter for `launch.sh`. |
+| `Stage 1: shell copy did not emit CP_OK` | Board-internal `cp` failed (permission, disk full, source missing) | Inspect via `hdc shell ls -la /system/bin/sh`. If source exists, suspect FS quirk; try `teardown` + retry. |
+| `Stage 4: chroot env probe FAILED — saw 'No such'` | (NEW: now ABORTs not WARN) Either chroot `/system/bin/sh` is missing (Stage 1 regression) or framework.jar is not at expected path inside chroot | Inspect chroot contents: `hdc shell ls -la $V3_CHROOT_ROOT/system/bin/sh $V3_CHROOT_ROOT/system/android/framework/framework.jar`. Run `teardown` + restart from `setup`. |
 | `Stage 0: /data free space ...` | Disk full on board | Free space (`rm /data/local/tmp/<old-stuff>`) or run `teardown` first |
 | `[ABORT 99] G1: hdc shell silent` | hdc transport regressed (H2 candidate) | STOP. Capture state. Do NOT retry without investigation. |
 | `[ABORT 99] HBC全局三条 hit ([Fail])` | hdc reported a fatal | STOP. Examine the failing command. Run `teardown` to clear partial state, then start over. |
