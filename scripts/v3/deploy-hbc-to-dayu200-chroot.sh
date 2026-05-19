@@ -184,7 +184,13 @@ hdc_raw() {
         echo "[DRY] hdc -t $HDC_SERIAL $*"
         return 0
     fi
-    "$HDC" -t "$HDC_SERIAL" "$@"
+    # </dev/null on the hdc.exe invocation: prevents stdin-slurp when this
+    # helper runs inside a `while IFS= read` loop. hdc.exe (Windows build,
+    # 3.2.0b) consumes stdin even when no input is requested, which terminates
+    # the parent loop after iteration 1. Agent 71 caught this on _push_one;
+    # the same applies to every helper that wraps "$HDC" ... regardless of
+    # subcommand. See V3-W2-POSTMORTEM §H2.
+    "$HDC" -t "$HDC_SERIAL" "$@" </dev/null
 }
 
 hdc_shell() {
@@ -192,7 +198,10 @@ hdc_shell() {
         echo "[DRY] hdc shell $*"
         return 0
     fi
-    "$HDC" -t "$HDC_SERIAL" shell "$@" 2>&1 | tr -d '\r'
+    # See hdc_raw note re: </dev/null. Mandatory for stdin-isolation inside
+    # while-read loops (and harmless outside them — `hdc shell <cmd>` does
+    # not need stdin for forwarded execution).
+    "$HDC" -t "$HDC_SERIAL" shell "$@" </dev/null 2>&1 | tr -d '\r'
 }
 
 # hdc_shell_check — use ONLY when the boolean result of the remote command matters
@@ -205,7 +214,13 @@ hdc_shell_check() {
         return 0
     fi
     local out rc
-    out=$("$HDC" -t "$HDC_SERIAL" shell "( $* ); echo __EXIT__=\$?" 2>&1 | tr -d '\r')
+    # See hdc_raw note re: </dev/null. Without this, agent-72 found that
+    # `_push_one` calls hdc_shell_check from inside the AOSP-natives
+    # `while IFS= read` loop, and hdc.exe consumed the loop's process-sub
+    # stdin → loop terminated after iteration 1 (only 1 of 38 AOSP libs
+    # landed). This is the real Phase-1a-plus push silent-truncation bug
+    # (commit 0f4dc8be's _push_one </dev/null was necessary but insufficient).
+    out=$("$HDC" -t "$HDC_SERIAL" shell "( $* ); echo __EXIT__=\$?" </dev/null 2>&1 | tr -d '\r')
     rc=$(echo "$out" | grep '^__EXIT__=' | tail -1 | sed 's/__EXIT__=//')
     if [ -z "$rc" ] || ! [[ "$rc" =~ ^[0-9]+$ ]]; then
         return 127  # channel issue — no exit marker observed
@@ -221,7 +236,7 @@ _alive_probe() {
     fi
     local mark="V3CHROOT_$$_$(date +%s)_${RANDOM:-0}"
     local out
-    out=$("$HDC" -t "$HDC_SERIAL" shell "echo $mark" 2>&1 | tr -d '\r\n')
+    out=$("$HDC" -t "$HDC_SERIAL" shell "echo $mark" </dev/null 2>&1 | tr -d '\r\n')
     if [ -z "$out" ]; then
         abort "G1: hdc shell silent (empty stdout). HBC全局三条 abort condition. STOP."
     fi
@@ -845,7 +860,7 @@ stage_env() {
 # Runs INSIDE the V3-HBC chroot. argv[1..] is forwarded to the inner command.
 set -u
 
-export LD_LIBRARY_PATH=/system/lib:/system/android/lib:/system/lib/platformsdk
+export LD_LIBRARY_PATH=/system/lib:/system/android/lib:/system/lib/platformsdk:/system/lib/chipset-sdk-sp:/system/lib/ndk
 export ANDROID_ROOT=/system/android
 export ANDROID_DATA=/data
 export ANDROID_RUNTIME_ROOT=/system
