@@ -195,6 +195,24 @@ hdc_shell() {
     "$HDC" -t "$HDC_SERIAL" shell "$@" 2>&1 | tr -d '\r'
 }
 
+# hdc_shell_check — use ONLY when the boolean result of the remote command matters
+# (if/while/&&/||). hdc.exe always returns host exit 0, so `if hdc_shell "..."` is
+# permanently true — that's the 2026-05-19 retry halt mechanism. This helper wraps
+# the remote command and propagates the DEVICE-side exit code via a sentinel.
+# Anti-pattern this exists to prevent: silent-NOOP (control flow always taken).
+hdc_shell_check() {
+    if [ "$DRY_RUN" = "1" ]; then
+        return 0
+    fi
+    local out rc
+    out=$("$HDC" -t "$HDC_SERIAL" shell "( $* ); echo __EXIT__=\$?" 2>&1 | tr -d '\r')
+    rc=$(echo "$out" | grep '^__EXIT__=' | tail -1 | sed 's/__EXIT__=//')
+    if [ -z "$rc" ] || ! [[ "$rc" =~ ^[0-9]+$ ]]; then
+        return 127  # channel issue — no exit marker observed
+    fi
+    return "$rc"
+}
+
 # G1 — Channel-alive sentinel. Mandatory between every stage.
 _alive_probe() {
     if [ "$DRY_RUN" = "1" ]; then
@@ -739,13 +757,13 @@ stage_mount() {
             log "[DRY] would: $cmd || mount --bind /$mp $V3_CHROOT_ROOT/$mp"
             continue
         fi
-        if hdc_shell "$cmd" >/dev/null 2>&1; then
+        if hdc_shell_check "$cmd"; then
             ok "$mp already mounted into chroot (idempotent)"
         else
             out=$(hdc_shell "mount --bind /$mp $V3_CHROOT_ROOT/$mp 2>&1")
             _assert_no_fail_or_drwx "$out" "stage_mount $mp"
-            # Verify mount took effect
-            if ! hdc_shell "mountpoint -q $V3_CHROOT_ROOT/$mp" >/dev/null 2>&1; then
+            # Verify mount took effect — use hdc_shell_check (device-side exit code)
+            if ! hdc_shell_check "mountpoint -q $V3_CHROOT_ROOT/$mp"; then
                 abort "Stage 3: mount --bind /$mp did NOT take effect (mountpoint check failed)"
             fi
             ok "mount --bind /$mp → $V3_CHROOT_ROOT/$mp"
@@ -1012,8 +1030,8 @@ stage_teardown() {
             log "[DRY] would: umount $V3_CHROOT_ROOT/$mp"
             continue
         fi
-        # Check whether mountpoint first; only umount if mounted
-        if hdc_shell "mountpoint -q $V3_CHROOT_ROOT/$mp" >/dev/null 2>&1; then
+        # Check whether mountpoint first; only umount if mounted (device-side exit code)
+        if hdc_shell_check "mountpoint -q $V3_CHROOT_ROOT/$mp"; then
             out=$(hdc_shell "umount $V3_CHROOT_ROOT/$mp 2>&1")
             # We don't abort on umount messages (the recovery path must complete)
             # but we DO surface unexpected output.
