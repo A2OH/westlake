@@ -3,11 +3,14 @@
 # deploy-hbc-to-dayu200-chroot.sh — V3 HBC chroot-containment deploy
 #
 # BRICK-IMPOSSIBLE-BY-CONSTRUCTION variant of
-# `deploy-hbc-to-dayu200-hardened.sh`. Never writes to host /system. All
-# 563 HBC artifacts (~412 MB) land under
+# `deploy-hbc-to-dayu200-hardened.sh`. Never writes to host /system.
+# Phase-1 required subset = ~109 files (63 required + ~41 AOSP natives
+# via _iter_aosp_natives + 3 dual-path shims + 0-3 optional) land under
 #   /data/local/tmp/v3-hbc-chroot/
 # and are exec'd via chroot(2). Recovery is `rm -rf` the chroot — no
-# operator reflash needed.
+# operator reflash needed. The full 563-file bundle inventory lives in
+# `docs/engine/V3-HBC-ARTIFACT-MANIFEST.md`; Phase 1 deploys only the
+# 109 subset needed for headless first-light.
 #
 # Authored 2026-05-19 (agent 62) implementing
 # `docs/engine/V3-CHROOT-CONTAINMENT-PROPOSAL.md` §10 decisions 1+2
@@ -86,7 +89,27 @@ REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 V3_LOCAL="${V3_LOCAL:-$REPO_ROOT/westlake-deploy-ohos/v3-hbc}"
 V3_CHROOT_ROOT="${V3_CHROOT_ROOT:-/data/local/tmp/v3-hbc-chroot}"
 TS="${TS:-$(date +%Y%m%d-%H%M%S)}"
-LOG_DIR="${LOG_DIR:-/tmp/v3-chroot-deploy-$TS}"
+# LOG_DIR resolution (fix Tier-1 #2 from review 400642fa, §4 Stage 6):
+#   Cross-invocation log-dir bug — TS regenerates per invocation, so the
+#   stage-by-stage flow (SOP §3.2) writes launch.log to TS1 but `verify`
+#   in a later invocation looks in TS2 → marker check always misses.
+# Resolution:
+#   1. If $V3_CHROOT_LOG_DIR is set, use it verbatim (operator-tagged run).
+#   2. Otherwise default to /tmp/v3-chroot-deploy-current (stable symlink
+#      pointing at the per-invocation timestamped dir, updated each run).
+# The symlink target is the per-TS dir so forensic diffs across runs are
+# preserved; reading via the symlink always finds the most-recent run.
+V3_CHROOT_LOG_DIR_DEFAULT="/tmp/v3-chroot-deploy-current"
+if [ -n "${V3_CHROOT_LOG_DIR:-}" ]; then
+    LOG_DIR="$V3_CHROOT_LOG_DIR"
+    LOG_DIR_PHYSICAL="$LOG_DIR"
+elif [ -n "${LOG_DIR:-}" ]; then
+    # Back-compat: respect a caller-set LOG_DIR (e.g., old scripts).
+    LOG_DIR_PHYSICAL="$LOG_DIR"
+else
+    LOG_DIR_PHYSICAL="/tmp/v3-chroot-deploy-$TS"
+    LOG_DIR="$V3_CHROOT_LOG_DIR_DEFAULT"
+fi
 
 # Free-space floor (in MB) — 412 MB bundle + 200 MB headroom
 MIN_FREE_DATA_MB="${MIN_FREE_DATA_MB:-600}"
@@ -97,6 +120,12 @@ LAUNCH_BUDGET_SECS="${LAUNCH_BUDGET_SECS:-60}"
 # Flags
 DRY_RUN=0
 SETENFORCE_0=0
+# Tracks whether `setenforce 0` actually executed in this process (set by
+# Stage 5). Used by the EXIT-trap restore to decide whether to issue
+# `setenforce 1`. Distinct from $SETENFORCE_0 (the flag), which only
+# indicates operator INTENT — if the script aborts before Stage 5 fires,
+# nothing was applied and nothing needs restoring.
+SETENFORCE_0_APPLIED=0
 COMMAND=""
 
 # Parse args (long-form flags before / after the positional command)
@@ -116,6 +145,15 @@ done
 
 COMMAND="${COMMAND:-${POSITIONAL[0]:-help}}"
 
+# Create the physical timestamped LOG_DIR. If LOG_DIR is the default
+# symlink path, point the symlink at the timestamped dir so subsequent
+# invocations (e.g. stage-by-stage flow) read/write the same location.
+mkdir -p "$LOG_DIR_PHYSICAL"
+if [ "$LOG_DIR" = "$V3_CHROOT_LOG_DIR_DEFAULT" ] && [ "$LOG_DIR_PHYSICAL" != "$LOG_DIR" ]; then
+    # Refresh symlink to point at this invocation's physical dir.
+    rm -f "$V3_CHROOT_LOG_DIR_DEFAULT" 2>/dev/null
+    ln -sfn "$LOG_DIR_PHYSICAL" "$V3_CHROOT_LOG_DIR_DEFAULT"
+fi
 mkdir -p "$LOG_DIR"
 
 # ============================================================================
@@ -192,6 +230,43 @@ _to_win_path() {
         wslpath -w "$p"
     else
         echo "$p"
+    fi
+}
+
+# Fix Tier-2 #1 from review 400642fa, §1 row "setenforce 1 restored":
+# Restore SELinux to Enforcing if Stage 5 actually issued `setenforce 0`.
+# Called from EXIT trap (covers abort paths between Stage 5 and Stage 6)
+# AND from stage_teardown (covers operator who runs launch then teardown
+# without verify). Idempotent — safe to call any number of times.
+_restore_enforcing() {
+    # Guard against trap firing during DRY_RUN or before setenforce ever ran.
+    if [ "$SETENFORCE_0_APPLIED" != "1" ]; then
+        return 0
+    fi
+    if [ "$DRY_RUN" = "1" ]; then
+        return 0
+    fi
+    # Best-effort restore — never abort here (we may already be exiting due
+    # to another error). Use the raw hdc binary to bypass our DRY/wrapper
+    # path and avoid recursion into log helpers if the channel is silent.
+    # Wrap in `if ! ... ; then :; fi` instead of `|| true` to satisfy the
+    # script's no-`|| true` discipline (W2 brick mechanism).
+    if ! "$HDC" -t "$HDC_SERIAL" shell "setenforce 1" >/dev/null 2>&1; then
+        : # hdc unreachable; we'll surface the mode check below regardless.
+    fi
+    local mode=""
+    if mode=$("$HDC" -t "$HDC_SERIAL" shell "getenforce" 2>/dev/null | tr -d ' \r\n'); then
+        :
+    fi
+    if [ "$mode" = "Enforcing" ]; then
+        # Mark as restored so subsequent invocations are no-ops.
+        SETENFORCE_0_APPLIED=0
+        # Emit a log line if the log dir still exists (it should).
+        [ -d "$LOG_DIR" ] && echo "[$(date +%H:%M:%S)] _restore_enforcing: SELinux restored to Enforcing" >> "$LOG_DIR/deploy.log" 2>/dev/null
+    else
+        # Surface the failure to stderr; do not abort.
+        echo "WARNING: _restore_enforcing: SELinux mode is '$mode' (expected Enforcing). Board may be in Permissive until reboot or manual fix." >&2
+        [ -d "$LOG_DIR" ] && echo "[$(date +%H:%M:%S)] _restore_enforcing: FAILED — mode='$mode'" >> "$LOG_DIR/deploy.log" 2>/dev/null
     fi
 }
 
@@ -279,6 +354,13 @@ REQUIRED_MANIFEST=(
 )
 
 # Optional artifacts (warn-not-fail)
+# NOTE: All device-rel paths are prefixed with $V3_CHROOT_ROOT by _push_one
+# (line ~497). HelloWorld.apk's "/data/local/tmp/HelloWorld.apk" therefore
+# lands at $V3_CHROOT_ROOT/data/local/tmp/HelloWorld.apk — INSIDE the chroot,
+# NOT at host /data/local/tmp/. Brick-safe (no exception to the all-inside-
+# chroot invariant); agent 62's self-audit description of an "outside-chroot
+# exception" was incorrect. Verified by agent 63 review (2026-05-19, commit
+# 400642fa, §1 row 2).
 OPTIONAL_MANIFEST=(
     "jars/framework-res.apk=/system/android/framework/framework-res.apk"
     "lib/libsurface.z.so=/system/lib/libsurface.z.so"
@@ -481,6 +563,50 @@ stage_setup() {
         ok "verified ${#dirs[@]} chroot directories"
     else
         ok "[DRY] ${#dirs[@]} chroot dirs would be created"
+    fi
+
+    # Fix Tier-1 #1 from review 400642fa, §4 Stage 4/5:
+    # The chroot exec sites (`chroot $V3_CHROOT_ROOT /system/bin/sh ...` at
+    # Stage 4 line ~703 and Stage 5 line ~772) and launch.sh's shebang
+    # (`#!/system/bin/sh`) require a shell binary INSIDE the chroot. Stage 2
+    # pushes only appspawn-x into /system/bin/, so without this copy the
+    # chroot exec fails with "No such file or directory" and the
+    # `[v3-chroot-launch]` marker is never emitted (yet the script would
+    # silently report PASS).
+    #
+    # Discover which shell binary exists on the board (toybox-only OHOS
+    # variants don't have /system/bin/sh) and copy the first that exists
+    # into $V3_CHROOT_ROOT/system/bin/sh via a board-internal cp (brick-safe
+    # — only writes inside the chroot).
+    if [ "$DRY_RUN" = "0" ]; then
+        local probe_out shell_src=""
+        probe_out=$(hdc_shell "ls /system/bin/sh /system/bin/toybox /system/bin/toolbox 2>/dev/null" | tr -d '\r')
+        local cand
+        for cand in /system/bin/sh /system/bin/toybox /system/bin/toolbox; do
+            if echo "$probe_out" | grep -qx "$cand"; then
+                shell_src="$cand"
+                break
+            fi
+        done
+        if [ -z "$shell_src" ]; then
+            abort "Stage 1: no shell binary found on board (tried /system/bin/{sh,toybox,toolbox}). Cannot populate chroot shell. STOP."
+        fi
+        log "discovered board shell: $shell_src → will copy to $V3_CHROOT_ROOT/system/bin/sh"
+        local cpout
+        cpout=$(hdc_shell "cp $shell_src $V3_CHROOT_ROOT/system/bin/sh && chmod 755 $V3_CHROOT_ROOT/system/bin/sh && echo CP_OK")
+        _assert_no_fail_or_drwx "$cpout" "stage_setup shell copy"
+        if ! echo "$cpout" | grep -q CP_OK; then
+            abort "Stage 1: shell copy did not emit CP_OK: $cpout"
+        fi
+        # Verify the chroot shell is now executable
+        local verify_out
+        verify_out=$(hdc_shell "test -x $V3_CHROOT_ROOT/system/bin/sh && echo SH_OK" | tr -d '\r\n')
+        if [ "$verify_out" != "SH_OK" ]; then
+            abort "Stage 1: $V3_CHROOT_ROOT/system/bin/sh not executable after copy (got: '$verify_out')"
+        fi
+        ok "chroot shell installed: $shell_src → $V3_CHROOT_ROOT/system/bin/sh (verified -x)"
+    else
+        ok "[DRY] would discover board shell and copy to $V3_CHROOT_ROOT/system/bin/sh"
     fi
 
     _alive_probe
@@ -699,15 +825,20 @@ LAUNCHSH
         echo "$out" | grep -q CHMOD_OK || abort "Stage 4: chmod 755 launch.sh failed: $out"
         ok "/launch.sh installed and executable"
 
-        # Sanity probe — chroot in and `pwd`+ls
+        # Sanity probe — chroot in and `pwd`+ls. Promoted from warn-not-fail
+        # to ABORT per review 400642fa, Tier 2 #4. Now that Stage 1 guarantees
+        # an executable /system/bin/sh inside the chroot, a "No such" here is
+        # a real signal (most likely a baked-string mismatch in framework.jar
+        # path resolution or a chroot lib-loader issue) — not a missing-shell
+        # artifact. Failing fast prevents Stage 5 from emitting a misleading
+        # PASS when launch.sh would never execute.
         out=$(hdc_shell "chroot $V3_CHROOT_ROOT /system/bin/sh /launch.sh /system/bin/sh -c 'pwd; ls /system/android/framework/framework.jar 2>&1' 2>&1")
         log "chroot env probe output:"
         echo "$out" | sed 's/^/    /' | tee -a "$LOG_DIR/deploy.log"
         if echo "$out" | grep -q "No such"; then
-            warn "chroot env probe: framework.jar not visible (likely chroot/binary issue)"
-        else
-            ok "chroot env probe: framework.jar visible inside chroot"
+            abort "Stage 4: chroot env probe FAILED — saw 'No such' in output. Either /system/bin/sh inside chroot is broken (Stage 1 should have installed it) or framework.jar is not visible at /system/android/framework/framework.jar inside chroot. STOP."
         fi
+        ok "chroot env probe: framework.jar visible inside chroot"
     fi
 
     _alive_probe
@@ -736,13 +867,17 @@ stage_launch() {
         mode_before=$(hdc_shell "getenforce" | tr -d ' \r\n')
         log "SELinux before launch: $mode_before"
         hdc_shell "setenforce 0 2>&1" >/dev/null
+        # Mark applied so the EXIT trap (and any later teardown) will restore
+        # Enforcing if the script aborts before Stage 6 — fix Tier-2 #1 from
+        # review 400642fa, §1 row "setenforce 1 restored".
+        SETENFORCE_0_APPLIED=1
         local mode_after
         mode_after=$(hdc_shell "getenforce" | tr -d ' \r\n')
         log "SELinux after setenforce 0: $mode_after"
         if [ "$mode_after" != "Permissive" ]; then
             warn "setenforce 0 did NOT switch to Permissive (got: $mode_after)"
         else
-            ok "SELinux temporarily Permissive (will restore in Stage 6)"
+            ok "SELinux temporarily Permissive (will restore in Stage 6 or EXIT trap)"
         fi
     fi
 
@@ -789,9 +924,11 @@ stage_verify() {
     _alive_probe
 
     if [ "$DRY_RUN" = "0" ]; then
-        # Restore SELinux to Enforcing (if --setenforce-0 was used)
-        if [ "$SETENFORCE_0" = "1" ]; then
-            hdc_shell "setenforce 1 2>&1" >/dev/null
+        # Restore SELinux to Enforcing if Stage 5 actually issued setenforce 0.
+        # Uses the centralized _restore_enforcing helper (idempotent; also
+        # registered as EXIT trap so this stage is the happy-path call).
+        if [ "$SETENFORCE_0_APPLIED" = "1" ]; then
+            _restore_enforcing
             local mode
             mode=$(hdc_shell "getenforce" | tr -d ' \r\n')
             if [ "$mode" = "Enforcing" ]; then
@@ -906,6 +1043,20 @@ stage_teardown() {
         ok "$V3_CHROOT_ROOT removed cleanly"
     fi
 
+    # Defense-in-depth (fix Tier-2 #1 from review 400642fa): if operator
+    # passed --setenforce-0 to this teardown invocation AND the board is
+    # currently Permissive, restore Enforcing. This handles the kill-9
+    # case where the launch process's EXIT trap never fired.
+    if [ "$DRY_RUN" = "0" ] && [ "$SETENFORCE_0" = "1" ]; then
+        local cur_mode
+        cur_mode=$(hdc_shell "getenforce" | tr -d ' \r\n')
+        if [ "$cur_mode" = "Permissive" ]; then
+            warn "teardown: board is Permissive; restoring to Enforcing (defense-in-depth)"
+            SETENFORCE_0_APPLIED=1
+            _restore_enforcing
+        fi
+    fi
+
     pass_msg "Teardown PASS — chroot removed; board unchanged outside /data/local/tmp"
 }
 
@@ -948,6 +1099,14 @@ print_help() {
 }
 
 main() {
+    # Fix Tier-2 #1 from review 400642fa: register EXIT trap BEFORE any
+    # stage can issue `setenforce 0`. Restores SELinux to Enforcing if
+    # Stage 5 actually applied setenforce 0 in this process. Idempotent
+    # (checks SETENFORCE_0_APPLIED flag) and safe to fire on any exit
+    # path (success, abort, error). Help/status paths exit early without
+    # touching SELinux, so the trap is a no-op for those.
+    trap '_restore_enforcing' EXIT
+
     case "$COMMAND" in
         preflight|stage-0)  stage_preflight ;;
         setup|stage-1)      stage_setup ;;
