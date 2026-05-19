@@ -1,9 +1,46 @@
 # V3 Workstreams — W1 through W13
 
-**Date:** 2026-05-16
-**Author:** agent 42
+**Date:** 2026-05-16 (initial); **2026-05-19 update:** W4 split + W6-prep + W6-perf added; W2 retry note
+**Author:** agent 42 (initial); agent 58 (2026-05-19 findings update)
 **Status:** AUTHORITATIVE for V3 OHOS path
 **Companion:** `V3-ARCHITECTURE.md`, `V3-SUPERVISION-PLAN.md`, `CR61_1_AMENDMENT_LIBIPC_VIA_HBC.md`
+
+---
+
+## 2026-05-19 findings update (callout)
+
+Two new findings docs landed today; both reshape the W4 / W6 plans:
+
+- **`WESTLAKE-ISLAND-BORROW-MAP.md`** (commit `9705487c`) — verdict: stay V3 HBC-reuse;
+  borrow **5 patterns from Island** (NeverDieAdapterDecorator, LifecycleDriver,
+  SystemServiceRouter, `scripts/v3-smoke.sh`, `V3-REDLINES.md`). NOT borrowing Island's
+  process-isolation architecture; NOT borrowing Island's PNG-then-fb0 single-window
+  display. The 5 borrows land inside the existing W4 + W9 envelope.
+- **`03-REQUIREMENT-INDEX.md`** (commit `caa3fd56`) — 50 V5.0 packages all
+  DISCOVERY_REQUIRED; only `wifi` is V7-Pilot-Ready, `app.admin` is V7-READY_WITH_GAPS;
+  48 others are workspace skeleton. Top-10 critical packages (`android.app`,
+  `android.content`, `android.os`, `android.view`, `android.widget`, `android.graphics`,
+  `android.content.pm`, `android.content.res`, `android.util`, `android.text`)
+  drive the W4-engine routing scope.
+- **3-way service coverage gap surfaced:** `android.location`, `android.hardware.camera2`,
+  `android.security.keystore` (all McD-critical) have **ZERO runtime evidence**
+  across HBC / Island / 03-Req today. Becomes a W7 prereq (see also V3-SUPERVISION-PLAN.md
+  G6 + W14 sub-item).
+
+**W4 split rationale:** the engine layer's true size is currently *assumed*. Before
+investing 5-8 PD on it, run a **W4-empty spike** on pure HBC with zero Westlake
+engine code and measure how far noice/McD actually get. Then size W4-engine to
+the gap. This is a "subtraction not addition" move per
+`feedback_subtraction_not_addition.md`.
+
+**New workstreams added:**
+
+- `W4-empty` (pre-spike, supersedes the initial flat W4) — measure HBC-alone reach
+- `W4-engine` (renamed from original W4, conditional scope from W4-empty result)
+- `W6-prep` — composable peer-window architectural validation (product goal #1)
+- `W6-perf` — FPS harness via IDisplayEventConnection (product goal #2)
+
+All four are gated on W2 PASS; all four parallel-safe with each other and with W8.
 
 ---
 
@@ -14,10 +51,13 @@
 | W1 | HBC artifact inventory + pull | [#626](https://github.com/A2OH/westlake/issues/626) | 2-3 | — |
 | W2 | Boot HBC runtime standalone on DAYU200 | [#627](https://github.com/A2OH/westlake/issues/627) | 3-5 | W1 |
 | W3 | Replace OhosMvpLauncher with appspawn-x integration | [#628](https://github.com/A2OH/westlake/issues/628) | 3-4 | W1, W2 |
-| W4 | Adapter customization for Westlake scope | [#629](https://github.com/A2OH/westlake/issues/629) | 5-8 | W2, W3 |
+| **W4-empty** | **Pure-HBC baseline spike: how far do noice/McD reach with engine = empty?** | (open day-1) | **2-3** | **W2** |
+| **W4-engine** | Adapter customization for Westlake scope (conditional, scoped from W4-empty) | [#629](https://github.com/A2OH/westlake/issues/629) | 2-8 (TBD by W4-empty) | W4-empty |
 | W5 | Mock APK validation (non-Hilt simple APK through V3) | [#630](https://github.com/A2OH/westlake/issues/630) | 2-3 | W3 |
-| W6 | noice on OHOS via V3 | [#631](https://github.com/A2OH/westlake/issues/631) | 5-8 | W4, W5 |
-| W7 | McD on OHOS via V3 | [#632](https://github.com/A2OH/westlake/issues/632) | 4-6 | W4, W5, W6 |
+| **W6-prep** | **Composable peer-window architectural validation (2 Westlake apps + 1 ArkTS app simultaneous)** | (open day-1) | **3-5** | **W2** |
+| **W6-perf** | **FPS harness via IDisplayEventConnection on HBC HelloWorld** | (open day-1) | **1-2** | **W2** |
+| W6 | noice on OHOS via V3 | [#631](https://github.com/A2OH/westlake/issues/631) | 5-8 | W4-engine, W5, W6-prep, W6-perf |
+| W7 | McD on OHOS via V3 | [#632](https://github.com/A2OH/westlake/issues/632) | 4-6 | W4-engine, W5, W6, W7-prereq (camera2/location/keystore) |
 | W8 | SceneBoard bring-up (board config) — independent of V3 | [#633](https://github.com/A2OH/westlake/issues/633) | 5-10 | (none on V3) |
 | W9 | Borrow HBC Tier-1 patterns (ScopedJniAttach, DEPLOY_SOP, restore script) | [#634](https://github.com/A2OH/westlake/issues/634) | 2-3 | W1 |
 | W10 | Memory + handoff doc refresh for V3 | [#635](https://github.com/A2OH/westlake/issues/635) | 1 | W1 |
@@ -25,9 +65,9 @@
 | W12 | CR61.1 amendment + downstream code disposition | [#637](https://github.com/A2OH/westlake/issues/637) | 1 | — (this CR landed today) |
 | W13 | Migration plan: archive dalvik-kitkat OHOS work | [#638](https://github.com/A2OH/westlake/issues/638) | 1-2 | W1, W3 |
 
-**Total estimated effort:** 35-55 person-days across W1-W13. W8 (SceneBoard) is independent and may run in parallel — see `V3-SUPERVISION-PLAN.md` for the dependency DAG.
+**Total estimated effort:** 38-60 person-days across W1-W13 + the three new spikes (W4-empty, W6-prep, W6-perf). W4-empty may *reduce* W4-engine scope materially. W8 (SceneBoard) is independent and may run in parallel — see `V3-SUPERVISION-PLAN.md` for the dependency DAG.
 
-**GitHub issues:** all 13 opened in `A2OH/westlake` (#626-#638) on 2026-05-16 by agent 42.
+**GitHub issues:** original 13 opened in `A2OH/westlake` (#626-#638) on 2026-05-16 by agent 42. W4-empty / W6-prep / W6-perf to be filed at day-1 of dispatch (post-W2 PASS).
 
 ---
 
@@ -78,6 +118,14 @@ git log --oneline -- third_party/hbc-runtime/ | wc -l   # should equal 1 (the im
 ---
 
 ## W2 — Boot HBC runtime standalone on DAYU200
+
+### Status (2026-05-19)
+
+**Hardened retry in flight 2026-05-19** (Stage discipline per `V3-DEPLOY-HARDENED-SOP.md`
++ `全局三条`: channel-health probe between every Stage, never `|| true` a `chcon`, never
+silent-SKIP a required artifact). Previous attempt (2026-05-16, agent 49) soft-bricked
+the DAYU200; postmortem in `V3-W2-POSTMORTEM.md`. All downstream W3 / W4-empty /
+W6-prep / W6-perf gates remain blocked on W2 PASS.
 
 ### Goal
 
@@ -157,13 +205,123 @@ find android-to-openharmony-migration -name '*.java' -o -name '*.kt' -o -name '*
 
 ---
 
-## W4 — Adapter customization for Westlake scope
+## W4-empty — Pure-HBC baseline spike (NEW 2026-05-19)
 
 ### Goal
 
-Identify the specific places where Westlake's service scope differs from HBC's HelloWorld scope, and either (a) consume HBC's adapter as-is (preferred), (b) shadow specific adapter classes in our own `oh-adapter-runtime.jar` (per CR-FF Pattern 2, PathClassLoader-loaded), or (c) raise upstream change requests to HBC. **Zero edits to HBC adapter source.**
+Before sizing W4-engine, **measure** the actual reach of pure-HBC on noice + McD with
+zero Westlake engine code involved. HBC's substrate (real `framework.jar` + real
+`appspawn-x` + 530 AIDL adapter methods + real PMS) is materially more complete
+than the V2-on-phone substrate that proved the 5-pillar pattern was necessary.
+The honest question: **may HBC's substrate already be sufficient for arbitrary
+APK hosting?** Cheap to find out before committing 5-8 PD to W4-engine.
 
-Examples of likely Westlake-scope differences:
+This spike is a "subtraction not addition" move per
+`feedback_subtraction_not_addition.md`: start from the empty engine baseline and
+let observed failures scope the work, not the other way around.
+
+### Acceptance criteria
+
+- [ ] Factory-clean DAYU200 (per W2-recovery procedure), stock HBC bundle
+      deployed (`scripts/deploy-hbc-to-dayu200.sh`), **zero Westlake-owned code**
+      in `/system/` (verified: `find /system/ -iname '*westlake*' -o -iname '*aosp-shim-westlake*'`
+      returns empty)
+- [ ] `aa start <noice-bundle>/<MainActivity>` (or HBC equivalent) issued; full
+      launch sequence instrumented at every stage:
+  - process spawn (`appspawn-x` fork) reached?
+  - `Application.onCreate` entered?
+  - Hilt bootstrap (`@HiltAndroidApp` annotation processor's generated
+    `Hilt_NoiceApplication.onCreate`) entered?
+  - `MainActivity.onCreate` entered?
+  - `Activity.performStart` returned?
+  - `Activity.performResume` returned?
+  - first frame submitted to display (`Choreographer.doFrame`)?
+- [ ] Stage-by-stage reach captured in
+      `docs/engine/V3-W4-EMPTY-FINDINGS.md` with: first failure stacktrace,
+      hilog snippet, suspected root cause class.
+- [ ] Same measurement repeated for **McD** APK (different failure mode profile).
+- [ ] Recommendation block in the findings doc, one of:
+  - **Both apps reach first frame:** W4-engine = trivial (just port the 5
+    Island borrows + 03-Req top-10 routing scaffold); ~2 PD.
+  - **Both apps crash before `Application.onCreate`:** W4-engine = port the
+    relevant V2-Phone substrate work; brief explicitly references the V2-Phone
+    learnings (CR10 hidden-API bypass, CR-Z safe-context bind stub,
+    M4-PRE11 LoadedApk dir redirect, M4-PRE12 LocaleManager binder hook,
+    CR58 lifecycle drive, PF-inproc-002 Application instance routing) as
+    candidates to port forward; ~5-8 PD.
+  - **Mixed (one reaches first frame, the other crashes early):** W4-engine
+    scoped to the crashing-app's blocker only; ~3-5 PD.
+- [ ] Self-audit: zero new Westlake code committed during the spike itself
+      (the spike *only* runs HBC; it produces a findings doc, not code).
+
+### Dependencies
+
+W2 PASS (board boots HBC; `aa start` works end-to-end on HBC HelloWorld).
+
+### Files / artifacts produced
+
+- `docs/engine/V3-W4-EMPTY-FINDINGS.md`
+- `artifacts/v3/w4-empty/noice-launch-trace/` (hilog + screenshot + stacktrace)
+- `artifacts/v3/w4-empty/mcd-launch-trace/` (hilog + screenshot + stacktrace)
+- Recommendation that closes the scope question for W4-engine.
+
+### Self-audit gate
+
+```bash
+# Zero Westlake code on device during spike
+hdc shell "find /system/ /vendor/ /data/local/tmp/ -iname '*westlake*' -o -iname '*aosp-shim-westlake*'" | wc -l   # expect 0
+# Findings doc exists with the recommendation block
+grep -E "Recommendation: (W4-engine trivial|W4-engine substrate port|W4-engine scoped)" docs/engine/V3-W4-EMPTY-FINDINGS.md
+```
+
+---
+
+## W4-engine — Adapter customization for Westlake scope (renamed; CONDITIONAL on W4-empty)
+
+### Goal
+
+Now that W4-empty has measured the actual gap, identify the specific places where
+Westlake's service scope differs from HBC's HelloWorld scope, and either (a)
+consume HBC's adapter as-is (preferred), (b) shadow specific adapter classes in
+our own `oh-adapter-runtime.jar` (per CR-FF Pattern 2, PathClassLoader-loaded),
+or (c) raise upstream change requests to HBC. **Zero edits to HBC adapter source.**
+
+**Scope is conditional on W4-empty findings.** W4-engine's effort estimate (2-8 PD)
+is determined by which W4-empty recommendation block fired (see W4-empty above).
+
+The **5 Island borrows** from `WESTLAKE-ISLAND-BORROW-MAP.md` land here:
+
+1. **`NeverDieAdapterDecorator`** — `InvocationHandler` wrapping HBC's
+   `OHEnvironment.newAdapterReflective(...)` proxies, catching
+   `InvocationTargetException` → AOSP-default return; ~½ day, 50 LOC.
+2. **`LifecycleDriver`** — `flushViewRunQueue` + `drainPendingMessages` helpers
+   extracted from V2-Phone `NoiceInProcessActivity` / `McdInProcessActivity` into
+   a generic Westlake-owned helper class. **Caveat**: borrow-doc flags that
+   the reflection targets (View.mRunQueue etc.) are framework internals and
+   may need an explicit V3 macro-shim amendment OR an HBC-side API exposure
+   request. Prefer (b). 1 day.
+3. **`SystemServiceRouter`** — Westlake-owned class wrapping
+   `HBC.getXxxAdapter()` with the real-ctor + safe-stub matrix from Island's
+   `StubContext.getSystemService`. NO `Unsafe.allocateInstance`; NO
+   `setAccessible` (Island uses both, V3 forbids). Drives the 03-Req top-10
+   routing scaffold. 1-2 days.
+4. **`scripts/v3-smoke.sh`** — 77-demo regression methodology adapted for V3
+   (`mock APK suite` + `noice via V3` + `McD via V3` via `aa start`). Lands
+   under W9 but consumed by W4-engine + W5 + W6 + W7. 1-2 days.
+5. **`docs/engine/V3-REDLINES.md`** + 5 grep CI scripts under
+   `scripts/v3-redline-ci/` — mechanical audit cadence for the macro-shim
+   contract. Lands under W9 but referenced from every W4-engine CR's
+   self-audit section. ½ day.
+
+The **03-Req top-10 routing scaffold** lands here. Per `03-REQUIREMENT-INDEX.md`
+§"Top-10 Critical Packages for V3 W4", these are the packages every Westlake
+W4-engine routing decision must explicitly cover (one row per package in the
+diff catalog): `android.app`, `android.content`, `android.os`, `android.view`,
+`android.widget`, `android.graphics`, `android.content.pm`, `android.content.res`,
+`android.util`, `android.text`. 7 of 10 already have HBC coverage; 3 of 10 (the
+gap rows in the 3-way coverage table) are W4-engine deliverables.
+
+Examples of likely Westlake-scope differences (subject to W4-empty narrowing):
 - Intent rewriting for cross-package launches (existing Java-side Instrumentation subclass — see `project_noice_inprocess_breakthrough.md`)
 - Hilt-aware lifecycle behaviors (noice uses Hilt; HBC HelloWorld doesn't)
 - Multi-app coordination (HBC tests one app at a time; Westlake hosts several)
@@ -171,20 +329,28 @@ Examples of likely Westlake-scope differences:
 
 ### Acceptance criteria
 
-- [ ] Diff catalog: `docs/engine/V3-WESTLAKE-SCOPE-DIFFS.md` enumerates every Westlake-scope behavior that HBC's adapter doesn't already do, with disposition (consume-as-is / shadow-class / upstream-request)
+- [ ] Diff catalog: `docs/engine/V3-WESTLAKE-SCOPE-DIFFS.md` enumerates every Westlake-scope behavior that HBC's adapter doesn't already do, with disposition (consume-as-is / shadow-class / upstream-request). One row per 03-Req top-10 package minimum.
+- [ ] All 5 Island borrows landed where listed above (cross-link
+      `WESTLAKE-ISLAND-BORROW-MAP.md` §3 Borrows #1-5).
 - [ ] Every "shadow-class" disposition has a Westlake-owned class in `oh-adapter-runtime-westlake.jar` (separate jar so we can pull HBC's adapter-runtime jar verbatim alongside)
 - [ ] Every "upstream-request" disposition has an issue filed in HBC's tracker (or, if HBC has no public tracker, in our `A2OH/westlake` repo with `hbc-upstream` label) with concrete request text
 - [ ] Zero edits to `third_party/hbc-runtime/adapter-source/` — verified by `git status`
 - [ ] Macro-shim contract self-audit clean across the shadow classes (no Unsafe / setAccessible / per-app)
+- [ ] `V3-REDLINES.md` 5 CI greps PASS on the W4-engine diff
 
 ### Dependencies
 
-W2 (need HBC running to know which adapters Westlake actually exercises), W3 (need launch model in place).
+W4-empty (need the spike's recommendation block to scope), W3 (need launch model in place).
+
+Cross-links: `WESTLAKE-ISLAND-BORROW-MAP.md` §3 (5 borrows), `03-REQUIREMENT-INDEX.md`
+§"Top-10 Critical Packages for V3 W4" (routing scaffold).
 
 ### Files / artifacts produced
 
 - `docs/engine/V3-WESTLAKE-SCOPE-DIFFS.md`
 - `oh-adapter-runtime-westlake.jar` source tree (Westlake-owned, PathClassLoader-loaded)
+- `westlake-host-gradle/app/src/main/java/com/westlake/host/{NeverDieAdapterDecorator,LifecycleDriver,SystemServiceRouter}.java`
+- `docs/engine/V3-SYSTEMSERVICE-ROUTING.md` (one row per top-10 package × HBC adapter source / safe-stub policy)
 - Upstream-request issues filed where applicable
 
 ### Self-audit gate
@@ -195,6 +361,13 @@ git diff --name-only HEAD~5 | grep -E "^third_party/hbc-runtime/adapter-source/"
 # Macro contract on Westlake shadow classes
 grep -rn "Unsafe.allocateInstance\|setAccessible(true)" oh-adapter-runtime-westlake/ && echo "FAIL" || echo "OK"
 grep -rniE "noice|mcdonalds|com\.mcd" oh-adapter-runtime-westlake/ | grep -v "^.*://\|^.*// " && echo "FAIL: per-app branch" || echo "OK"
+# V3-REDLINES CI clean
+bash scripts/v3-redline-ci/check-all.sh
+# All 5 Island borrows present
+for f in NeverDieAdapterDecorator LifecycleDriver SystemServiceRouter; do
+  test -f westlake-host-gradle/app/src/main/java/com/westlake/host/${f}.java || echo "MISSING: $f"
+done
+test -f scripts/v3-smoke.sh && test -f docs/engine/V3-REDLINES.md
 ```
 
 ---
@@ -235,6 +408,116 @@ hdc shell snapshot_display | file - | grep -i png && echo "OK: pixel captured"
 
 ---
 
+## W6-prep — Composable peer-window architectural validation (NEW 2026-05-19)
+
+### Goal
+
+Validate the **composable peer-window product goal** (Android-as-OHOS-citizen alongside
+ArkTS apps via WindowManager) architecturally before committing noice/McD to W6/W7.
+This is the architectural-validation equivalent of W2: spawn two Westlake-hosted
+Android apps via `appspawn-x` and verify OHOS `WindowManager` sees them as **two
+separate peer windows**, alongside an ArkTS app, on the DAYU200 panel.
+
+If this fails (e.g., HBC's `appspawn-x` integration only supports single-foreground
+in DAYU200 stock config, like the W8 SceneBoard finding suggests), W6/W7 product
+shape changes — better to discover that here than at W7-final.
+
+Uses HBC's HelloWorld (or a simpler mock-APK twin) as test driver. No real-app
+dependency.
+
+### Acceptance criteria
+
+- [ ] Two distinct `appspawn-x`-spawned PIDs visible (`pidof appspawn-x` + child PIDs)
+      each running a minimal Westlake-hosted Android app
+- [ ] OHOS `dumpsys window windows` (or equivalent) shows **2 separate peer windows**
+      alongside ≥1 ArkTS app
+- [ ] Panel screenshot shows all 3 windows visible simultaneously (or the
+      board-config gating that makes this impossible is documented as a W8 blocker)
+- [ ] `docs/engine/V3-W6-PREP-COMPOSABLE-VALIDATION.md` writes up:
+  - peer-window evidence (logs + dumpsys + screenshot)
+  - recommendation: PROCEED to W6 / W7, OR pivot product goal (e.g., single-app
+    full-screen-only on DAYU200 + composable on a different OHOS device profile)
+- [ ] If W6-prep PASSES: W6 / W7 product shape locked.
+- [ ] If W6-prep FAILS due to SceneBoard: W8 becomes a hard blocker for W6
+      acceptance (not just W6's nice-to-have); raise as cross-W gate.
+
+### Dependencies
+
+W2 PASS (board boots HBC; `aa start` works). Parallel-safe with W4-empty, W4-engine,
+W6-perf, W8.
+
+### Files / artifacts produced
+
+- `docs/engine/V3-W6-PREP-COMPOSABLE-VALIDATION.md`
+- `artifacts/v3/w6-prep/dumpsys-window-windows.txt`
+- `artifacts/v3/w6-prep/peer-windows-panel.png`
+- (Optional) `mock-apks/v3-peer-twin/` — a 2nd mock APK distinct from W5's
+
+### Self-audit gate
+
+```bash
+# Two appspawn-x children visible
+test "$(hdc shell pgrep -P "$(pidof appspawn-x)" | wc -l)" -ge 2
+# Window dumpsys shows multiple visible windows
+hdc shell "dumpsys window windows" | grep -E "Window #[0-9]+" | wc -l   # expect >= 3 (2 Android + 1 ArkTS)
+test -f artifacts/v3/w6-prep/peer-windows-panel.png
+```
+
+---
+
+## W6-perf — FPS harness via IDisplayEventConnection (NEW 2026-05-19)
+
+### Goal
+
+Validate the **perf product goal** (real-frame-rate Android-on-OHOS) architecturally
+on HBC's HelloWorld before noice/McD. Instrument HBC's
+`IDisplayEventConnection`-backed `Choreographer` callback and measure FPS on a
+known-stable scene (HBC HelloWorld's static TextView).
+
+The HBC reach milestone (Activity.onCreate line 83 with real Application/PhoneWindow
+machinery) proves the *callback wiring* is alive; W6-perf measures the *rate* at
+which it fires.
+
+### Acceptance criteria
+
+- [ ] HBC HelloWorld runs continuously for ≥60 s; FPS measured at the
+      `Choreographer.FrameCallback.doFrame(frameTimeNanos)` seam
+- [ ] One of:
+  - **PASS**: stable 60 FPS ± 1 (matching DAYU200 panel refresh rate)
+  - **CHARACTERIZED SHORTFALL**: stable ≤30 FPS or sporadic stalls,
+    *with bottleneck profile* (which call in the doFrame → measure → layout →
+    draw → submit chain is dominant?)
+- [ ] `docs/engine/V3-W6-PERF-HARNESS.md` writes up:
+  - measurement methodology (which timestamps captured, which percentiles)
+  - p50 / p99 frame interval
+  - bottleneck profile (e.g., `RenderThread eglSwapBuffers ~12 ms p99`)
+  - PASS / CHARACTERIZED-SHORTFALL verdict + recommendation
+- [ ] Harness script reusable under W5 + W6 + W7 (gets composed into
+      `scripts/v3-smoke.sh`)
+
+### Dependencies
+
+W2 PASS. Parallel-safe with W4-empty, W4-engine, W6-prep, W8.
+
+### Files / artifacts produced
+
+- `docs/engine/V3-W6-PERF-HARNESS.md`
+- `scripts/v3-perf-harness.sh`
+- `artifacts/v3/w6-perf/hbc-helloworld-60s/fps.csv`
+- (Optional) Hilog-side timestamp tap helper if `Choreographer` instrumentation
+  needs a native hook
+
+### Self-audit gate
+
+```bash
+# Harness produces a CSV with >= 3000 frames (60 s × 50+ FPS)
+wc -l < artifacts/v3/w6-perf/hbc-helloworld-60s/fps.csv   # expect >= 3000
+# Findings doc has the verdict line
+grep -E "Verdict: (PASS|CHARACTERIZED-SHORTFALL)" docs/engine/V3-W6-PERF-HARNESS.md
+```
+
+---
+
 ## W6 — noice on OHOS via V3
 
 ### Goal
@@ -254,7 +537,7 @@ Run unmodified `com.github.ashutoshgngwr.noice` APK through the V3 stack. Reprod
 
 ### Dependencies
 
-W4 (adapter scope diffs done), W5 (mock APK proves V3 stack works generically).
+W4-engine (adapter scope diffs done; 5 Island borrows landed), W5 (mock APK proves V3 stack works generically), W6-prep (composable product shape validated), W6-perf (FPS profile known).
 
 ### Files / artifacts produced
 
@@ -283,8 +566,33 @@ grep -rniE "noice|ai\.noice" android-to-openharmony-migration/{westlake-host-gra
 
 Run unmodified McDonald's app through the V3 stack. McD has deep cross-package intents (the Java-side Instrumentation rewriting open item — see `project_noice_inprocess_breakthrough.md`) and is the harder target.
 
+### W7-prereq — McD-critical service coverage (NEW 2026-05-19)
+
+Per `WESTLAKE-ISLAND-BORROW-MAP.md` §4 ("3-way service coverage table"),
+three McD-critical packages have **zero runtime evidence** across HBC, Island,
+and 03-Req today:
+
+- `android.location` (`LocationManager`) — McD store-finder
+- `android.hardware.camera2` — McD QR scanner
+- `android.security.keystore` — McD biometric login
+
+W7 **cannot accept complete** without at least safe-stub (or
+`NeverDieAdapterDecorator`-routed) coverage for all three. Concretely:
+
+- [ ] Diff catalog row in `V3-WESTLAKE-SCOPE-DIFFS.md` for each
+- [ ] Disposition for each: shadow-class (safe-stub) OR HBC-upstream-request OR
+      JAVA_SYNTH per V7.0 route vocabulary
+- [ ] Runtime evidence on V3 stack (a row in `V3-SYSTEMSERVICE-ROUTING.md`
+      with hilog citation showing the route fires without crashing the calling Activity)
+
+If safe-stub is insufficient (i.e., McD genuinely needs real camera2 to load
+past splash), W7 acceptance pivots to either (a) HBC adds the real adapter
+forward-bridge (upstream request), or (b) Westlake adds the JAVA_SYNTH
+implementation (engine-layer work, sized as a sub-CR of W7).
+
 ### Acceptance criteria
 
+- [ ] W7-prereq acceptance closed (3-package coverage above)
 - [ ] McD APK launches via `aa start com.mcdonalds.app`
 - [ ] SplashActivity renders → Wi-Fry McD-branded offline screen reached
 - [ ] Cross-package intent rewriting: when McD launches a sibling activity in a different package, Westlake's Instrumentation subclass rewrites the intent and the launch succeeds inside the same HBC child process (or, if architecturally required, a sibling child)
@@ -294,7 +602,7 @@ Run unmodified McDonald's app through the V3 stack. McD has deep cross-package i
 
 ### Dependencies
 
-W4, W5, W6 (lessons from noice carry forward).
+W4-engine, W5, W6 (lessons from noice carry forward), W7-prereq (camera2/location/keystore coverage).
 
 ### Files / artifacts produced
 
@@ -367,6 +675,8 @@ W1 (need HBC source available for reference reading).
 - `docs/engine/V3-DEPLOY-SOP.md`
 - `docs/engine/V3-RCA-DISCIPLINE.md`
 - `scripts/restore-v3-state.sh`
+- (2026-05-19 add) `scripts/v3-smoke.sh` (Island borrow #4 — 77-demo regression methodology adapted; cross-link `WESTLAKE-ISLAND-BORROW-MAP.md` §3 Borrow #4)
+- (2026-05-19 add) `docs/engine/V3-REDLINES.md` + `scripts/v3-redline-ci/` (Island borrow #5 — macro-shim contract CI; cross-link Borrow #5)
 
 ### Self-audit gate
 
@@ -377,6 +687,8 @@ git grep -l "JNIEnv\*\|AttachCurrentThread" -- '*.cpp' '*.c' \
   | xargs -I{} echo "FAIL: missing ScopedJniAttach in {}"
 # restore-v3-state.sh is idempotent
 bash scripts/restore-v3-state.sh && bash scripts/restore-v3-state.sh && echo "OK"
+# V3-REDLINES + smoke script exist
+test -f scripts/v3-smoke.sh && test -f docs/engine/V3-REDLINES.md
 ```
 
 ---

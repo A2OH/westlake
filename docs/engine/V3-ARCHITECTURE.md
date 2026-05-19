@@ -387,3 +387,115 @@ Every V3 CR's report must include:
 - `artifacts/ohos-mvp/multi-hap-peer-window-spike/20260515_181930/CHECKPOINT.md` — SceneBoard-off finding on DAYU200 (drives W8 scope)
 - Memory: `project_v2_ohos_direction.md` — SUPERSEDED BY V3
 - Memory: `project_noice_inprocess_breakthrough.md` — Phase-1 Android baseline (unchanged)
+
+---
+
+## Findings 2026-05-19
+
+Three findings landed today that refine V3 without changing the architecture itself.
+Recorded here so future readers don't have to re-derive the rationale. Companion docs:
+`WESTLAKE-ISLAND-BORROW-MAP.md`, `03-REQUIREMENT-INDEX.md`, updated
+`V3-WORKSTREAMS.md` (W4 split + W6-prep + W6-perf), updated `V3-SUPERVISION-PLAN.md`
+(DAG + G3.5 / G4.5a / G4.5b gates + risk #11 + #12).
+
+### Engine layer rationale (why V3 needs Westlake-owned code above HBC)
+
+A reasonable challenge: *if we inherit HBC's real `framework.jar` + appspawn-x + 530
+AIDL adapter methods + real PMS, why does Westlake need an engine layer at all?*
+
+- **Inheriting substrate ≠ launching arbitrary APKs.** HBC's stack proves a single
+  test APK (HelloWorld) reaches `MainActivity.onCreate` line 83. Generalizing to
+  arbitrary third-party APKs is a separate problem: per-APK identity (bundle id /
+  uid / data dir), Hilt bootstrap, lifecycle drive past `performResume`,
+  SystemService routing for services HBC doesn't bridge, cross-package intent
+  rewriting, regression matrix.
+- **V2-Phone empirically proved real apps need this work even with full real
+  `framework.jar` on the host's native BCP.** The 5-pillar pattern
+  (`project_noice_inprocess_breakthrough.md`) — hidden-API bypass + LoadedApk dir
+  redirect + safe-context bind stub + LocaleManager binder hook + lifecycle drive
+  to Resumed — was not optional for noice + McD; it was load-bearing. CR58 / CR59
+  / M4-PRE11 / M4-PRE12 / PF-inproc-002 each landed because something past
+  `Application.onCreate` failed without it. HBC's substrate is more complete than
+  V2-Phone's (real appspawn-x, real PMS) but is not magically *complete enough*
+  to skip every one of those pillars; that has to be measured.
+- **Per-app boundary work has nowhere else to live.** HBC's APK transparency
+  invariant (zero `import adapter.*` in any APK source) forbids putting per-app
+  cooperation in the APK. HBC's "blame adapter first" rule + no-source-edits
+  redline forbid us editing HBC's adapter for Westlake-specific cases. The only
+  place left is a Westlake-owned engine layer above HBC, below the unmodified APK.
+- **Product goals require engine-level coordination.** Composable peer windows
+  (product goal #1) need a Westlake-side multi-app coordinator deciding how 2
+  hosted apps map onto OHOS WindowManager. FPS instrumentation (#2) needs a
+  Westlake-side IDisplayEventConnection tap. Neither is HBC's job.
+- **Honest caveat.** The *size* of the engine work is currently assumed, not
+  measured. `W4-empty` (new 2026-05-19) is the spike that turns assumption into
+  evidence — pure HBC, engine = empty, see how far noice / McD actually reach.
+  If both reach first frame, W4-engine collapses to ~2 PD (just port the 5
+  Island borrows + 03-Req top-10 routing). If both crash early, W4-engine grows
+  to 5-8 PD with explicit V2-Phone substrate-port candidates. Either way, the
+  engine layer itself remains necessary — only its bulk is to be sized.
+
+### Island borrow scope (top-5; what we adopt, what we explicitly don't)
+
+Per `WESTLAKE-ISLAND-BORROW-MAP.md` (commit `9705487c`) — verdict: stay V3
+HBC-reuse, borrow these 5 operational + IBinder-facade-shaped patterns. NOT
+borrowing Island's substrate.
+
+1. **`NeverDieAdapterDecorator`** — `InvocationHandler` over HBC's adapter
+   proxies, catching `InvocationTargetException` → AOSP-default for the method's
+   return type. Lands in W4-engine. ~½ day.
+2. **`LifecycleDriver`** — generic helper extracting `flushViewRunQueue` +
+   `drainPendingMessages` from V2-Phone's per-app `*InProcessActivity.kt` into a
+   Westlake-owned class. Lands in W4-engine. 1 day. Caveat: reflection on
+   framework internals — prefer requesting an HBC-side API exposure first.
+3. **`SystemServiceRouter`** — Westlake-owned class wrapping
+   `HBC.getXxxAdapter()` with the real-ctor + safe-stub matrix from Island's
+   `StubContext.getSystemService`, drives 03-Req top-10 routing. NO `Unsafe`, NO
+   `setAccessible` (V3 redlines). Lands in W4-engine. 1-2 days.
+4. **`scripts/v3-smoke.sh`** — 77-demo regression methodology adapted for V3 (mock
+   APK suite + noice + McD via `aa start`). Lands in W9. 1-2 days.
+5. **`docs/engine/V3-REDLINES.md`** + 5 grep CI scripts under
+   `scripts/v3-redline-ci/` — mechanical audit cadence for §7 macro-shim contract.
+   Lands in W9. ½ day.
+
+**Explicitly NOT borrowing:**
+
+- **Island's process-isolation architecture.** Island runs a fully process-isolated
+  Bionic+chroot ART against a Musl daemon over Neutral Protocol on AF_UNIX. V3 is
+  single-process HBC-reuse on real AOSP-14 ART cross-built to OHOS musl via
+  `libbionic_compat.so`. The architectures are not substitutable — Island's
+  redline ("Bionic and Musl must never share a process") is the architectural
+  opposite of V3's premise.
+- **Island's PNG-files-then-blit-to-fb0 display path.** Island demos render
+  480×800 PNGs and blit directly to `/dev/graphics/fb0` after killing
+  render_service. V3 expects real `render_service` / `IBufferProducer` integration
+  via HBC's `ANativeWindow → OHGraphicBufferProducer` bridge — same path real
+  OHOS apps use. The product goal of composable peer windows alongside ArkTS apps
+  via real WindowManager is incompatible with the fb0-takeover model.
+
+The 5 borrows are tactical, not architectural. The non-borrow list is the architectural
+redline that distinguishes V3 from a "should we go Island instead?" pivot.
+
+### Service coverage gap (W7 prereq, surfaced by 3-way comparison)
+
+Per `WESTLAKE-ISLAND-BORROW-MAP.md` §4 "3-way service coverage table" and
+`03-REQUIREMENT-INDEX.md`, three McD-critical service packages have **zero runtime
+evidence** across HBC / Island / 03-Req today:
+
+- `android.location` (`LocationManager`) — McD store-finder
+- `android.hardware.camera2` — McD QR scanner
+- `android.security.keystore` — McD biometric login
+
+This becomes a **W7 prerequisite** (see `V3-WORKSTREAMS.md` W7 §"W7-prereq"). Disposition for
+each row is one of: safe-stub via NeverDieAdapterDecorator (cheap, may not be
+enough), JAVA_SYNTH implementation (engine-layer work), or HBC-upstream-request
+(forward-bridge in HBC's adapter). If none of those work for camera2, the
+QR-scanner-dependent McD flows fall out of scope for W7 acceptance and become
+a follow-on CR.
+
+This gap also surfaces a longer-tail concern: the 03-Req corpus's 50 packages
+are 48/50 `DISCOVERY_REQUIRED` today; the V7 schema is filled only for `wifi`
+and `app.admin`. Westlake's V3 cannot wait for 03-Req to catch up. The
+`SystemServiceRouter` (Island borrow #3) is what fills the gap incrementally,
+one row at a time, with each row's evidence captured in
+`docs/engine/V3-SYSTEMSERVICE-ROUTING.md`.
