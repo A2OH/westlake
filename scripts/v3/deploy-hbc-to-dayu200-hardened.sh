@@ -361,6 +361,184 @@ _reset_shell_channel() {
     ok "M5: channel reset complete ($ctx) — fresh host-server, alive probe PASS"
 }
 
+# ============================================================================
+# Stage-3f fine-grained chunking helpers (2026-05-20, agent 89, dispatched
+# after agents 87+88 both hit Channel A death at Stage 3f mid-stage despite
+# M1-M5 mitigations being live elsewhere).
+# ============================================================================
+# Hypothesis: Stage 3f's batched chmod (6 invocations, several glob-wide) +
+# symlink (5 back-to-back) + restorecon (2, one `find -exec`) sub-burst
+# accumulates Channel A pressure faster than the inter-stage M5 hdc-kill can
+# recover from. M1-M5 bracket the BOUNDARIES of stage_3f but the dense
+# interior burst still triggers the wedge.
+#
+# Strategy (per dispatch directive — risky-productive over safety theater):
+#   - Each chmod = own hdc invocation (not a glob-of-several-targets in one
+#     shell, not a multi-target chmod). One `chmod <mode> <path>` per call.
+#   - Each symlink = own invocation (already true; we add cadenced probes).
+#   - Each restorecon = own invocation (already true; we add cadenced probes).
+#   - M2 sentinel every CHUNKED_M2_EVERY ops.
+#   - M5 sub-reset every CHUNKED_M5_EVERY ops within a stage (if total > 10).
+#
+# These do NOT introduce new safety primitives. They reuse M2 (_alive_probe)
+# and M5 (_reset_shell_channel) at finer granularity inside a single stage.
+# That's the "chunking is the natural extension of M1-M5" interpretation of
+# the dispatch directive.
+
+# Cadence knobs — tunable from env without code edit.
+CHUNKED_M2_EVERY="${CHUNKED_M2_EVERY:-5}"
+CHUNKED_M5_EVERY="${CHUNKED_M5_EVERY:-10}"
+
+# Module-level chunked op counter. Reset by _chunked_op_reset at stage entry.
+_CHUNKED_OP_COUNT=0
+
+_chunked_op_reset() {
+    _CHUNKED_OP_COUNT=0
+}
+
+# _chunked_op_tick <stage-ctx>
+#   Increments the counter, fires M2 every CHUNKED_M2_EVERY ops, M5 sub-reset
+#   every CHUNKED_M5_EVERY ops. Caller supplies a short context label that
+#   will appear in any abort message so the operator can pin the exact tick
+#   that wedged.
+_chunked_op_tick() {
+    local ctx="${1:-chunked}"
+    _CHUNKED_OP_COUNT=$((_CHUNKED_OP_COUNT + 1))
+    if [ "$DRY_RUN" = "1" ]; then
+        return 0
+    fi
+    if [ $((_CHUNKED_OP_COUNT % CHUNKED_M2_EVERY)) -eq 0 ]; then
+        local _mark="HBC_CHUNK_$$_$(date +%s)_${RANDOM:-0}"
+        local _out
+        _out=$("$HDC" -t "$HDC_SERIAL" shell "echo $_mark" </dev/null 2>&1 | tr -d '\r\n')
+        if [ -z "$_out" ]; then
+            abort "M2-chunked: Channel A dead at $ctx op #$_CHUNKED_OP_COUNT (empty stdout) — HBC全局三条 abort"
+        fi
+        if [ "$_out" != "$_mark" ]; then
+            abort "M2-chunked: Channel A mismatch at $ctx op #$_CHUNKED_OP_COUNT (sent='$_mark' got='$_out') — HBC全局三条 abort"
+        fi
+        ok "M2-chunked: tick OK at $ctx op #$_CHUNKED_OP_COUNT"
+    fi
+    if [ $((_CHUNKED_OP_COUNT % CHUNKED_M5_EVERY)) -eq 0 ]; then
+        _reset_shell_channel "chunked-sub-reset at $ctx op #$_CHUNKED_OP_COUNT"
+    fi
+}
+
+# _chunked_chmod <mode> <target> [stage-ctx]
+#   One chmod per hdc invocation. Glob targets are intentionally NOT supported
+#   here — caller must expand the glob into discrete paths so each call has
+#   bounded Channel A pressure. Uses hdc_shell_check so device-side exit is
+#   propagated faithfully (not host-exit-0 laundered).
+_chunked_chmod() {
+    local mode="$1" target="$2" ctx="${3:-chmod}"
+    if [ "$DRY_RUN" = "1" ]; then
+        echo "[DRY] _chunked_chmod $mode $target ($ctx)" >&2
+        _chunked_op_tick "$ctx"
+        return 0
+    fi
+    # Use hdc_shell_check: surfaces non-zero device exit (chmod on ENOENT,
+    # EPERM under SELinux denial, etc.) instead of silent NOOP.
+    if ! hdc_shell_check "chmod $mode '$target'"; then
+        warn "$ctx: chmod $mode $target failed (target may be absent — non-fatal, matches existing Stage 3f tolerance for glob-miss)"
+    fi
+    _chunked_op_tick "$ctx"
+}
+
+# _chunked_chmod_glob <mode> <glob-pattern> [stage-ctx]
+#   Special case for paths where the local-side cannot easily enumerate (e.g.
+#   /system/lib/*.so). Expands the glob device-side via `ls` BEFORE issuing
+#   per-path chmods, so each chmod is still its own invocation. If the glob
+#   matches nothing, this is a benign no-op (matches existing tolerance).
+_chunked_chmod_glob() {
+    local mode="$1" glob="$2" ctx="${3:-chmod-glob}"
+    if [ "$DRY_RUN" = "1" ]; then
+        echo "[DRY] _chunked_chmod_glob $mode $glob ($ctx) — would enumerate device-side and per-path chmod" >&2
+        _chunked_op_tick "$ctx"
+        return 0
+    fi
+    # Enumerate device-side. ls returns one path per line; empty = no match.
+    local paths p
+    paths=$(hdc_shell "for p in $glob; do [ -e \"\$p\" ] && echo \"\$p\"; done" | tr -d '\r')
+    if [ -z "$paths" ]; then
+        log "$ctx: glob '$glob' matched no files (benign)"
+        return 0
+    fi
+    local n=0
+    while IFS= read -r p; do
+        [ -n "$p" ] || continue
+        _chunked_chmod "$mode" "$p" "$ctx"
+        n=$((n + 1))
+    done <<<"$paths"
+    ok "$ctx: chunked $n chmod ops complete"
+}
+
+# _chunked_symlink <link-target> <link-path> [stage-ctx]
+#   rm -f + ln -sf, each in its own hdc invocation. Two ops per call.
+_chunked_symlink() {
+    local linkto="$1" linkpath="$2" ctx="${3:-symlink}"
+    if [ "$DRY_RUN" = "1" ]; then
+        echo "[DRY] _chunked_symlink $linkto -> $linkpath ($ctx)" >&2
+        _chunked_op_tick "$ctx"
+        _chunked_op_tick "$ctx"
+        return 0
+    fi
+    if ! hdc_shell_check "rm -f '$linkpath'"; then
+        warn "$ctx: rm -f $linkpath failed (non-fatal)"
+    fi
+    _chunked_op_tick "$ctx:rm"
+    if ! hdc_shell_check "ln -sf '$linkto' '$linkpath'"; then
+        abort "$ctx: ln -sf $linkto $linkpath failed"
+    fi
+    _chunked_op_tick "$ctx:ln"
+}
+
+# _chunked_restorecon <target> [stage-ctx]
+#   One restorecon per invocation. Caller is responsible for the M4 ENOENT
+#   pre-check (we keep that explicit at the call site to match stage_3f's
+#   existing pattern — see L1530-1532 / L1536-1538).
+_chunked_restorecon() {
+    local target="$1" ctx="${2:-restorecon}"
+    if [ "$DRY_RUN" = "1" ]; then
+        echo "[DRY] _chunked_restorecon $target ($ctx)" >&2
+        _chunked_op_tick "$ctx"
+        return 0
+    fi
+    if ! hdc_shell_check "restorecon '$target'"; then
+        warn "$ctx: restorecon $target non-zero exit (may be benign if path missing from file_contexts)"
+    fi
+    _chunked_op_tick "$ctx"
+}
+
+# _chunked_restorecon_recursive <dir> [stage-ctx]
+#   Recursive restorecon via device-side enumeration: list every file under
+#   <dir> then restorecon each in its own invocation. Replaces the heavy
+#   `find -exec restorecon {} \;` subshell-storm pattern at stage_3f L1539
+#   which is suspected of contributing to Channel A wedge.
+_chunked_restorecon_recursive() {
+    local dir="$1" ctx="${2:-restorecon-r}"
+    if [ "$DRY_RUN" = "1" ]; then
+        echo "[DRY] _chunked_restorecon_recursive $dir ($ctx) — would enumerate + per-file restorecon" >&2
+        _chunked_op_tick "$ctx"
+        return 0
+    fi
+    local paths p
+    # Enumerate device-side ONCE (this is a single shell invocation; the
+    # find traverses but does not spawn a subshell per file). The chcon/
+    # restorecon work then happens in chunked calls.
+    paths=$(hdc_shell "find '$dir' -maxdepth 4 2>/dev/null" | tr -d '\r')
+    if [ -z "$paths" ]; then
+        warn "$ctx: $dir contained no entries (find returned empty)"
+        return 0
+    fi
+    local n=0
+    while IFS= read -r p; do
+        [ -n "$p" ] || continue
+        _chunked_restorecon "$p" "$ctx"
+        n=$((n + 1))
+    done <<<"$paths"
+    ok "$ctx: chunked $n restorecon ops complete under $dir"
+}
+
 # G6 — hdc.exe version pin / warn
 _check_hdc_version() {
     if [ "$DRY_RUN" = "1" ]; then
@@ -1464,11 +1642,14 @@ stage_3f() {
     log "Stage 3f · appspawn-x bin + cfg + linker + selinux + 5 symlinks"
     _alive_probe
     if [ "$DRY_RUN" = "1" ]; then
-        ok "[DRY] stage_3f: would push 4 bin + 3 cfg + 5 symlinks; 2 M4 ENOENT-checks + restorecon × 2; M2 boundary × 2; chcon_verify adapter_bridge dual-path"
+        ok "[DRY] stage_3f: would push 4 bin + 3 cfg + 5 symlinks; chunked chmod/symlink/restorecon (M2 every $CHUNKED_M2_EVERY ops, M5 every $CHUNKED_M5_EVERY ops); 2 M4 ENOENT-checks; M2 boundary × 2; chcon_verify adapter_bridge dual-path"
         pass_msg "[DRY] Stage 3f PASS"
         return 0
     fi
     _ensure_stage_dir
+    # Reset the chunked-op counter at stage entry so cadence is per-stage,
+    # not cumulative across runs/dispatchers.
+    _chunked_op_reset
 
     # Binaries
     stage_push "$V3_LOCAL/bin/appspawn-x"              /system/bin/appspawn-x
@@ -1492,26 +1673,63 @@ stage_3f() {
     stage_push "$V3_LOCAL/etc/ld-musl-namespace-arm.ini" /system/etc/ld-musl-namespace-arm.ini
     stage_push "$V3_LOCAL/etc/file_contexts"           /system/etc/selinux/targeted/contexts/file_contexts
 
-    # chmod batch
-    hdc_shell "chmod 755 /system/bin/appspawn-x"                                       >/dev/null
-    # Fix A: glob-based chmod may match nothing on some boards; use
-    # hdc_shell_check + warn (downgraded from prior || true silent NOOP).
-    if ! hdc_shell_check "chmod 644 /system/lib/*.so /system/lib/platformsdk/*.z.so 2>/dev/null"; then
-        warn "Stage 3f: glob chmod 644 non-zero (some targets may be absent on this board — benign)"
-    fi
-    hdc_shell "chmod 644 /system/android/lib/*.so"                                     >/dev/null
-    hdc_shell "chmod 644 /system/android/framework/*.jar"                              >/dev/null
-    hdc_shell "chmod 644 /system/android/framework/arm/*.art /system/android/framework/arm/*.oat /system/android/framework/arm/*.vdex" >/dev/null
-    hdc_shell "chmod 644 /system/etc/init/appspawn_x.cfg /system/etc/appspawn_x_sandbox.json /system/etc/ld-musl-namespace-arm.ini /system/etc/selinux/targeted/contexts/file_contexts" >/dev/null
-    ok "chmod batch complete"
+    # ====================================================================
+    # Chunked chmod batch (2026-05-20, agent 89) — per-op hdc invocation
+    # with cadenced M2/M5. Replaces 6 multi-target/glob-batched hdc_shell
+    # calls suspected of contributing to the Stage 3f Channel A wedge
+    # (agents 87, 88 both died here).
+    # ====================================================================
+    log "Stage 3f: chunked chmod batch (per-op + M2 every $CHUNKED_M2_EVERY / M5 every $CHUNKED_M5_EVERY)"
 
-    # 5 symlinks (per HBC SOP lines 159-163 + G2.14aa libandroid.so dual-path)
-    hdc_shell "ln -sf /lib/ld-musl-arm.so.1 /system/lib/libc_musl.so"                                                                                  >/dev/null
-    hdc_shell "rm -f /system/android/lib/libshared_libz.z.so; ln -sf /system/lib/chipset-sdk-sp/libshared_libz.z.so /system/android/lib/libshared_libz.z.so" >/dev/null
-    hdc_shell "rm -f /system/android/lib/libappexecfwk_common.z.so; ln -sf /system/lib/platformsdk/libappexecfwk_common.z.so /system/android/lib/libappexecfwk_common.z.so" >/dev/null
-    hdc_shell "rm -f /system/android/lib/libandroid.so; ln -sf liboh_android_runtime.so /system/android/lib/libandroid.so"                              >/dev/null
-    hdc_shell "rm -f /system/lib/libandroid.so; ln -sf liboh_android_runtime.so /system/lib/libandroid.so"                                              >/dev/null
-    ok "5 symlinks installed"
+    # appspawn-x binary
+    _chunked_chmod 755 /system/bin/appspawn-x "3f-chmod-bin"
+
+    # /system/lib/*.so glob → enumerate device-side, chmod per file.
+    # NOTE: this is the largest single contributor to the prior batch's
+    # Channel A pressure (50+ matched files). Chunking it is the highest-
+    # leverage change in this refactor.
+    _chunked_chmod_glob 644 "/system/lib/*.so" "3f-chmod-systemlib"
+    _chunked_chmod_glob 644 "/system/lib/platformsdk/*.z.so" "3f-chmod-platformsdk"
+
+    # /system/android/lib/*.so glob
+    _chunked_chmod_glob 644 "/system/android/lib/*.so" "3f-chmod-androidlib"
+
+    # /system/android/framework/*.jar — known small set (~12 jars)
+    _chunked_chmod_glob 644 "/system/android/framework/*.jar" "3f-chmod-frameworkjar"
+
+    # Boot image art/oat/vdex — known 27 files (9 segments × 3 ext). The
+    # original batched all 3 globs into one hdc invocation; split per ext
+    # so each chunk is bounded to ~9 files of M2/M5 cadence.
+    _chunked_chmod_glob 644 "/system/android/framework/arm/*.art"  "3f-chmod-bcp-art"
+    _chunked_chmod_glob 644 "/system/android/framework/arm/*.oat"  "3f-chmod-bcp-oat"
+    _chunked_chmod_glob 644 "/system/android/framework/arm/*.vdex" "3f-chmod-bcp-vdex"
+
+    # Configs — 4 discrete files (path-enumerate locally; no glob needed).
+    _chunked_chmod 644 /system/etc/init/appspawn_x.cfg                          "3f-chmod-cfg-appspawn"
+    _chunked_chmod 644 /system/etc/appspawn_x_sandbox.json                      "3f-chmod-cfg-sandbox"
+    _chunked_chmod 644 /system/etc/ld-musl-namespace-arm.ini                    "3f-chmod-cfg-musl"
+    _chunked_chmod 644 /system/etc/selinux/targeted/contexts/file_contexts      "3f-chmod-cfg-fc"
+    ok "Stage 3f: chunked chmod batch complete ($_CHUNKED_OP_COUNT ops so far)"
+
+    # ====================================================================
+    # Chunked symlink batch (5 symlinks per HBC SOP lines 159-163 + G2.14aa
+    # libandroid.so dual-path). Each _chunked_symlink fires 2 ops (rm + ln)
+    # so the 5 symlinks below = 10 ops with M2/M5 cadence interleaved.
+    # ====================================================================
+    log "Stage 3f: chunked symlink batch (5 links = 10 ops)"
+
+    # libc_musl: special — no preceding rm (kept exactly as before; just
+    # uses the chunked ln-only path via direct hdc_shell_check + tick).
+    if ! hdc_shell_check "ln -sf /lib/ld-musl-arm.so.1 /system/lib/libc_musl.so"; then
+        abort "Stage 3f: ln -sf libc_musl failed"
+    fi
+    _chunked_op_tick "3f-symlink-musl"
+
+    _chunked_symlink /system/lib/chipset-sdk-sp/libshared_libz.z.so       /system/android/lib/libshared_libz.z.so       "3f-symlink-libz"
+    _chunked_symlink /system/lib/platformsdk/libappexecfwk_common.z.so    /system/android/lib/libappexecfwk_common.z.so "3f-symlink-appexec"
+    _chunked_symlink liboh_android_runtime.so                             /system/android/lib/libandroid.so             "3f-symlink-androidlib"
+    _chunked_symlink liboh_android_runtime.so                             /system/lib/libandroid.so                     "3f-symlink-systemlib"
+    ok "Stage 3f: chunked symlink batch complete ($_CHUNKED_OP_COUNT ops so far)"
 
     # M2/M3 (2026-05-20): channel-alive sentinel + 500ms settle window between
     # the push-burst (4 bin + 3 cfg + 5 symlinks + chmod) and the restorecon
@@ -1519,27 +1737,24 @@ stage_3f() {
     # — chcon_verify of liboh_adapter_bridge.so found Channel A silent.
     _burst_boundary "stage_3f: push-burst+chmod → restorecon-burst"
 
-    # restorecon for appspawn-x (file_contexts new rules take effect on relabel)
-    # Fix A: explicit device-side exit propagation. The W2-class || true pattern
-    # is replaced with `if ! hdc_shell_check ...` so silent restorecon failures
-    # surface as warnings, not silent NOOPs.
-    # M4 (2026-05-20): inline existence check before each restorecon target.
-    # restorecon's own ENOENT path is silent (returns 0 on missing file in
-    # some toybox variants); making the precondition explicit catches the
-    # caller-invariant bug before it confuses the post-condition.
+    # ====================================================================
+    # Chunked restorecon batch (2026-05-20, agent 89):
+    #   1. /system/bin/appspawn-x: single restorecon (chunked + ticked).
+    #   2. /system/android/lib/ recursive: was `find -exec restorecon {} \;`
+    #      which spawns a subshell per file. Replace with device-side find
+    #      enumeration → per-file _chunked_restorecon with M2/M5 cadence.
+    # M4 ENOENT pre-checks preserved exactly as before.
+    # ====================================================================
     if ! hdc_shell_check "test -e /system/bin/appspawn-x"; then
         abort "M4: restorecon target missing on device: /system/bin/appspawn-x (chcon-on-ENOENT prevention)"
     fi
-    if ! hdc_shell_check "restorecon /system/bin/appspawn-x"; then
-        warn "Stage 3f: restorecon /system/bin/appspawn-x non-zero exit"
-    fi
+    _chunked_restorecon /system/bin/appspawn-x "3f-rc-appspawn"
+
     if ! hdc_shell_check "test -d /system/android/lib"; then
         abort "M4: restorecon target dir missing: /system/android/lib (chcon-on-ENOENT prevention)"
     fi
-    if ! hdc_shell_check "find /system/android/lib -exec restorecon {} \\;"; then
-        warn "Stage 3f: restorecon /system/android/lib non-zero exit (may be benign for files missing from file_contexts)"
-    fi
-    ok "restorecon /system/bin/appspawn-x + /system/android/lib"
+    _chunked_restorecon_recursive /system/android/lib "3f-rc-androidlib"
+    ok "Stage 3f: chunked restorecon batch complete ($_CHUNKED_OP_COUNT ops so far)"
 
     # M2/M3 (2026-05-20): SECOND boundary — restorecon burst → chcon_verify
     # burst. Defense-in-depth: even if restorecon succeeded silently, channel
