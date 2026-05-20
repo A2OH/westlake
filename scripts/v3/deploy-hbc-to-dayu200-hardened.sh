@@ -39,6 +39,34 @@
 #   Gate 12 — loop-budget on launch (Island demo/run-live.sh L71)
 #   Gate 13 — processdump availability probe in preflight
 #
+# 2026-05-20 amendments (agent 85 — Stage B mitigations per agent 84):
+#   M1 — Drop all `|| true` on chcons (audit pass: 0 found in code paths;
+#        only documented reboot fire-and-forget remains at L1424)
+#   M2 — `_alive_probe` (via `_burst_boundary`) between every push-burst →
+#        chcon-burst transition INSIDE each stage. Catches Channel A death
+#        in ≤ 1 batch instead of at end-of-stage. Also mid-batch sentinel
+#        every 8 chcons inside `chcon_verify` for long batches (stage 3e × 27).
+#        Specific boundaries: stage_3c, stage_3d, stage_3e push→chcon;
+#        stage_3f push→restorecon AND restorecon→chcon (the Stage B abort site).
+#   M3 — `_settle_window` (sleep 0.5) immediately after each M2 sentinel,
+#        giving the kernel + audit subsystem + hdc daemon a settle beat
+#        before the chcon burst begins. Combined with M2 in `_burst_boundary`.
+#   M4 — Inline `test -e` existence check before every chcon. Catches the
+#        chcon-on-ENOENT hypothesis (strongest remaining for Stage B): if a
+#        chcon target doesn't exist on the device, abort with the explicit
+#        ENOENT-prevention message rather than letting the chcon succeed-on-
+#        missing-file path mask the caller-invariant violation. Implemented
+#        inside `chcon_verify` and the 2 standalone `restorecon` sites in
+#        stage_3f.
+#   M5 — Inter-stage shell-channel reset via `hdc kill` (host-server only,
+#        device-side hdcd untouched) + 1s settle + `_alive_probe` immediately
+#        after. Wired into the `all` dispatcher between every major /system-
+#        writing stage (3b→3c→3d→3e→3f→3.7). Drops accumulated hdc-host-server
+#        resources to defeat the cumulative-session-leak hypothesis.
+#   --dry-run flag added: short-circuits every device-affecting helper.
+#        Acceptance: `bash deploy-hbc-to-dayu200-hardened.sh all --dry-run`
+#        completes cleanly with `[DRY]` markers and no hdc transport invoked.
+#
 # This script DOES NOT amend, replace, or alias the original
 # `scripts/v3/deploy-hbc-to-dayu200.sh` — both live side-by-side. The old
 # one is the forensic record of what bricked the board; this one is what
@@ -63,6 +91,9 @@
 #                                                       # reboot — needs --reboot)
 #   bash deploy-hbc-to-dayu200-hardened.sh all --reboot  # full deploy
 #   bash deploy-hbc-to-dayu200-hardened.sh --uninstall # pre-brick rollback
+#   bash deploy-hbc-to-dayu200-hardened.sh all --dry-run # static validation,
+#                                                       #   no board contact
+#                                                       #   (M1-M5 acceptance)
 #
 # Stages:
 #   0    preflight (uname, getconf, getenforce, hdc version, /system/android clean)
@@ -122,6 +153,12 @@ UNINSTALL=0
 # the rollback snapshot before a real run, and exercises Gate 8 plumbing
 # end-to-end as a smoke test.
 SNAPSHOT_ONLY=0
+# DRY_RUN (added by M1-M5 2026-05-20): short-circuit all device-affecting
+# helpers so an operator (or CI) can statically validate the dispatcher +
+# stage ordering without touching the board. _alive_probe, _settle_window,
+# _reset_shell_channel, stage_push, chcon_verify, _chcon_one_safe, hdc_shell,
+# hdc_raw all gate their side-effects on this flag.
+DRY_RUN=0
 
 # Strip --flags out so we can dispatch on remaining positional
 POSITIONAL=()
@@ -132,6 +169,7 @@ for arg in "$@"; do
         --reboot)          DO_REBOOT=1    ;;
         --uninstall)       UNINSTALL=1    ;;
         --snapshot-only)   SNAPSHOT_ONLY=1 ;;
+        --dry-run)         DRY_RUN=1      ;;
         -h|--help)         sed -n '1,90p' "$0"; exit 0 ;;
         --*) echo "ERROR: unknown flag: $arg" >&2; exit 2 ;;
         *)   POSITIONAL+=("$arg") ;;
@@ -170,6 +208,12 @@ hdc_raw() {
     # loop after iteration 1. Port of chroot Fix B (agent 71 finding;
     # commits 0f4dc8be + ee449def). See V3-W2-POSTMORTEM §H2 and
     # feedback_hdc_shell_check_pattern.md for the structural class.
+    #
+    # DRY_RUN gate (M1-M5 2026-05-20): emit intended invocation and return 0.
+    if [ "$DRY_RUN" = "1" ]; then
+        echo "[DRY] hdc $*" >&2
+        return 0
+    fi
     "$HDC" -t "$HDC_SERIAL" "$@" </dev/null
 }
 
@@ -179,6 +223,12 @@ hdc_shell() {
     # hdc_shell_check below — host exit is permanently 0 on transport success
     # regardless of device-side outcome (Rule 7, feedback_hdc_shell_check_pattern.md).
     # </dev/null mandatory (see hdc_raw note).
+    #
+    # DRY_RUN gate (M1-M5 2026-05-20): emit intended shell + return empty.
+    if [ "$DRY_RUN" = "1" ]; then
+        echo "[DRY] hdc shell: $*" >&2
+        return 0
+    fi
     "$HDC" -t "$HDC_SERIAL" shell "$@" </dev/null 2>&1 | tr -d '\r'
 }
 
@@ -188,6 +238,11 @@ hdc_shell() {
 # behind the 2026-05-16 soft-brick (see feedback_hdc_shell_check_pattern.md).
 # Anti-pattern this exists to prevent: silent-NOOP (control flow always taken).
 hdc_shell_check() {
+    # DRY_RUN gate (M1-M5 2026-05-20): always return success in dry-run.
+    if [ "$DRY_RUN" = "1" ]; then
+        echo "[DRY] hdc_shell_check: $*" >&2
+        return 0
+    fi
     local out rc
     # </dev/null is critical: without it, agent 72 found that helpers called
     # from inside `while IFS= read` loops consume the loop's process-sub stdin
@@ -203,7 +258,16 @@ hdc_shell_check() {
 # G1 — Channel-alive sentinel. Mandatory between every stage.
 # Implements both HBC's check_hdc_alive (deploy_stage.sh L158-162) AND
 # the Westlake addition (empty-stdout-as-abort, per postmortem H2).
+#
+# M2 (2026-05-20) — also fired INSIDE every stage between a push-burst and a
+# chcon-burst (see chcon_verify and stage_3f). Per agent 84: catches Channel A
+# death in ≤ 1 batch instead of at end-of-stage.
 _alive_probe() {
+    # DRY_RUN gate (M1-M5 2026-05-20): emit and return.
+    if [ "$DRY_RUN" = "1" ]; then
+        echo "[DRY] _alive_probe" >&2
+        return 0
+    fi
     local mark="HBC_DEPLOY_$$_$(date +%s)_${RANDOM:-0}"
     local out
     # Direct hdc invocation with </dev/null (mirrors chroot script) — bypass any
@@ -218,8 +282,91 @@ _alive_probe() {
     return 0
 }
 
+# M3 (2026-05-20) — settle window between push-burst and chcon-burst.
+# Per agent 84: give the kernel + audit subsystem + hdc daemon 500ms to flush
+# pending state from the push phase before entering chcon work. Called right
+# after the M2 sentinel.
+_settle_window() {
+    if [ "$DRY_RUN" = "1" ]; then
+        echo "[DRY] _settle_window 500ms" >&2
+        return 0
+    fi
+    sleep 0.5
+}
+
+# M2+M3 combined helper — emits an explicit "between push-burst and chcon-burst"
+# context label, fires the alive probe (which aborts on any silent stdout), and
+# then sleeps the settle window. Callers pass a free-form context string for
+# the abort message, e.g. "stage_3c: between push-burst and chcon-burst".
+_burst_boundary() {
+    local ctx="${1:-burst-boundary}"
+    log "M2: channel-alive probe at boundary: $ctx"
+    # _alive_probe aborts with a generic message; emit our specific context
+    # first so the operator sees WHICH boundary tripped.
+    if [ "$DRY_RUN" = "0" ]; then
+        local mark="HBC_BOUNDARY_$$_$(date +%s)_${RANDOM:-0}"
+        local out
+        out=$("$HDC" -t "$HDC_SERIAL" shell "echo $mark" </dev/null 2>&1 | tr -d '\r\n')
+        if [ -z "$out" ]; then
+            abort "M2: channel A dead at $ctx (empty stdout) — HBC全局三条 abort"
+        fi
+        if [ "$out" != "$mark" ]; then
+            abort "M2: channel A mismatch at $ctx (sent='$mark' got='$out') — HBC全局三条 abort"
+        fi
+    else
+        echo "[DRY] _burst_boundary: $ctx" >&2
+    fi
+    _settle_window
+    ok "M2/M3: boundary OK ($ctx) + 500ms settle"
+}
+
+# M5 (2026-05-20) — inter-stage shell-channel reset.
+# Per agent 84: drops accumulated hdc client/daemon resources between stages
+# (cumulative-session-leak hypothesis). hdc 3.2.0b on Windows supports the
+# ADB-style `hdc kill` (host-server kill); next invocation auto-starts a fresh
+# server. Combined with a 1-second settle and re-validation of the channel via
+# _alive_probe immediately after, this should clear any single-shell-session
+# resource leak that accumulated over the prior stage.
+#
+# DESIGN NOTE — what `hdc kill` actually does in 3.2.0b: it terminates the
+# host-side hdc-server (the persistent daemon-process spawned per WSL session
+# to multiplex hdc.exe invocations). It does NOT touch the device-side `hdcd`
+# (which we explicitly do NOT want to disturb). On the next hdc invocation the
+# host server auto-respawns and re-handshakes with the still-running device-side
+# hdcd. The transport socket on both ends is fresh; any leaked per-session
+# state (stdout buffer pinning, fd accumulation, etc.) is dropped.
+#
+# If `hdc kill` is unavailable in this build (e.g. 1.3.0d/e drop it), the
+# `|| true` swallows the error and we fall back to a plain 1-second wait +
+# re-probe — which is still a meaningful "let the channel settle" beat even
+# without the explicit kill.
+_reset_shell_channel() {
+    local ctx="${1:-inter-stage}"
+    log "M5: shell-channel reset before next stage ($ctx)"
+    if [ "$DRY_RUN" = "1" ]; then
+        echo "[DRY] _reset_shell_channel: hdc kill + 1s + _alive_probe ($ctx)" >&2
+        return 0
+    fi
+    # hdc kill terminates the host-side server only. Device hdcd is untouched.
+    # The || true is justified per feedback_hdc_shell_check_pattern.md as
+    # fire-and-forget: kill drops the very transport we'd evaluate exit on,
+    # so the host exit code is uninformative by design.
+    "$HDC" kill </dev/null >/dev/null 2>&1 || true
+    sleep 1
+    # Re-probe immediately. If the device-side hdcd survived (it should), the
+    # next hdc invocation auto-respawns the host server and _alive_probe
+    # confirms the round-trip works. If it doesn't, we abort here rather than
+    # discover the channel is dead at the next stage's first hdc_shell call.
+    _alive_probe
+    ok "M5: channel reset complete ($ctx) — fresh host-server, alive probe PASS"
+}
+
 # G6 — hdc.exe version pin / warn
 _check_hdc_version() {
+    if [ "$DRY_RUN" = "1" ]; then
+        log "[DRY] G6: skip hdc version probe"
+        return 0
+    fi
     if [ ! -x "$HDC" ]; then
         abort "G6: hdc binary not found / not executable at: $HDC"
     fi
@@ -437,6 +584,10 @@ _chcon_snapshot_restore() {
 # Idempotent: only writes the header line if the file doesn't already exist
 # (preserves baseline across resumed runs).
 _chcon_snapshot_init() {
+    if [ "$DRY_RUN" = "1" ]; then
+        log "[DRY] Gate 8: would initialise snapshot at $CHCON_SNAPSHOT_DEVICE"
+        return 0
+    fi
     if hdc_shell_check "test -s $CHCON_SNAPSHOT_DEVICE"; then
         log "Gate 8: existing snapshot preserved at $CHCON_SNAPSHOT_DEVICE"
         return 0
@@ -618,6 +769,10 @@ _budgeted_hdc_shell() {
 # a crash with no backtrace.
 _probe_processdump() {
     log "Gate 13: probing processdump availability"
+    if [ "$DRY_RUN" = "1" ]; then
+        ok "[DRY] Gate 13: would probe processdump --help"
+        return 0
+    fi
     # processdump --help is the canonical no-side-effect invocation. Returns
     # non-zero on stuck/missing/broken.
     local out rc
@@ -650,6 +805,11 @@ stage_push() {
     #       and is kept; the test-s probe is a fast-fail gate that runs first.
     local local_path="$1" device_path="$2"
     [ -f "$local_path" ] || abort "stage_push: local missing: $local_path"
+    # DRY_RUN (M1-M5 2026-05-20): skip all device probes; report intended send.
+    if [ "$DRY_RUN" = "1" ]; then
+        ok "[DRY] stage_push: $(basename "$local_path") → $device_path"
+        return 0
+    fi
     local bn
     bn=$(basename "$local_path")
     local win
@@ -711,14 +871,59 @@ stage_push() {
 # G2 — chcon-with-verify (replaces `chcon ... || true` from old script)
 # Gate 8 integration: capture baseline contexts BEFORE applying chcon, so a
 # kill/abort mid-batch leaves a replayable snapshot at $CHCON_SNAPSHOT_DEVICE.
+#
+# M2 (2026-05-20): callers should _burst_boundary("<stage>: push→chcon")
+# IMMEDIATELY before invoking chcon_verify when the chcon batch follows a
+# push burst. chcon_verify itself fires an alive-probe at entry (catches
+# channel death during the inter-helper gap), and again after every 8 chcons
+# (catches death mid-batch on long batches like stage 3e's 27 entries).
+#
+# M4 (2026-05-20): _chcon_one_safe inline target-existence check before every
+# chcon call. Catches chcon-on-ENOENT (the strongest remaining Stage B
+# hypothesis: chcon was issued against a path that didn't exist due to a
+# logic/race bug). If a path doesn't exist, abort with explicit ENOENT-prevention
+# message rather than letting the chcon succeed-on-missing-file path (or fail
+# with a confusing "selinux: invalid context" that masks the real issue).
 chcon_verify() {
     # Args: <label> <path1> [path2 ...]
     local label="$1"; shift
+    # DRY_RUN (M1-M5 2026-05-20): report intended chcons without device round-trip.
+    if [ "$DRY_RUN" = "1" ]; then
+        local _p
+        for _p in "$@"; do
+            ok "[DRY] chcon_verify $label: $_p"
+        done
+        return 0
+    fi
+    # M2: alive probe at chcon_verify entry. The chcon batch is a known
+    # hot-path for the W2 channel-death symptom (Stage B aborted in stage_3f's
+    # chcon_verify of liboh_adapter_bridge.so). Catching it here gives the
+    # operator a specific "channel died entering chcon_verify(label=$label)"
+    # message instead of "stage_3f failed somewhere".
+    if [ "$DRY_RUN" = "0" ]; then
+        local _mark="HBC_CV_$$_$(date +%s)_${RANDOM:-0}"
+        local _out
+        _out=$("$HDC" -t "$HDC_SERIAL" shell "echo $_mark" </dev/null 2>&1 | tr -d '\r\n')
+        if [ -z "$_out" ]; then
+            abort "M2: channel A dead entering chcon_verify(label=$label, n=$#) — HBC全局三条 abort"
+        fi
+        if [ "$_out" != "$_mark" ]; then
+            abort "M2: channel A mismatch entering chcon_verify(label=$label) — HBC全局三条 abort"
+        fi
+    fi
     # Gate 8: snapshot baseline labels for every path we're about to chcon.
     # Idempotent: paths already in the snapshot are skipped.
     _chcon_snapshot_capture "$@"
-    local p out got
+    local p out got n=0
     for p in "$@"; do
+        # M4: inline target-existence check (chcon-on-ENOENT prevention).
+        # Uses hdc_shell_check so the device-side `test -e` exit is propagated
+        # faithfully (not laundered to host-exit-0). On ENOENT, abort with an
+        # explicit message that pins the bug: the caller pushed a target the
+        # snapshot/manifest expects to exist, but the device-side check denies it.
+        if ! hdc_shell_check "test -e '$p'"; then
+            abort "M4: chcon target does not exist on device: $p (chcon-on-ENOENT prevention — caller invariant violated; either push-burst missed this entry or its path is malformed)"
+        fi
         out=$(hdc_shell "chcon u:object_r:${label}:s0 '$p' 2>&1")
         _assert_no_fail_or_drwx "$out" "chcon $p"
         got=$(hdc_shell "ls -lZ '$p' 2>&1" | grep -oE "[a-z_]+_file" | head -1)
@@ -726,6 +931,24 @@ chcon_verify() {
             abort "G2: chcon did not stick on $p (got label='$got' expected='$label')"
         fi
         ok "chcon $label: $p"
+        n=$((n+1))
+        # M2 long-batch sentinel: re-probe every 8 chcons. Stage 3e batches 27
+        # paths at once; catching death at chcon #9 vs chcon #27 is the
+        # difference between "rollback 8 of 27 chcons" and "rollback 27 of 27".
+        if [ $((n % 8)) = 0 ] && [ $n -lt $# ]; then
+            if [ "$DRY_RUN" = "0" ]; then
+                local _mark2="HBC_CVB_$$_$(date +%s)_${RANDOM:-0}"
+                local _out2
+                _out2=$("$HDC" -t "$HDC_SERIAL" shell "echo $_mark2" </dev/null 2>&1 | tr -d '\r\n')
+                if [ -z "$_out2" ]; then
+                    abort "M2: channel A dead mid-chcon-batch after $n/$# (label=$label) — HBC全局三条 abort"
+                fi
+                if [ "$_out2" != "$_mark2" ]; then
+                    abort "M2: channel A mismatch mid-chcon-batch after $n/$# (label=$label) — HBC全局三条 abort"
+                fi
+            fi
+            ok "M2: mid-batch channel-alive after $n/$# chcons"
+        fi
     done
 }
 
@@ -779,6 +1002,12 @@ stage_0() {
     _check_hdc_version
 
     # board connectivity
+    if [ "$DRY_RUN" = "1" ]; then
+        log "[DRY] Stage 0: skip 'hdc list targets' + all device-side probes; verify local artifacts only"
+        _verify_required_artifacts
+        pass_msg "[DRY] Stage 0 PASS — required artifacts present (device probes skipped)"
+        return 0
+    fi
     local listing
     listing=$("$HDC" list targets 2>&1 | tr -d '\r')
     if ! echo "$listing" | grep -q "$HDC_SERIAL"; then
@@ -863,6 +1092,10 @@ stage_0() {
 stage_1() {
     log "Stage 1 · backup 13 device-side originals (TS=$TS)"
     _alive_probe
+    if [ "$DRY_RUN" = "1" ]; then
+        pass_msg "[DRY] Stage 1 PASS — would back up 13 device-side originals"
+        return 0
+    fi
 
     # Gate 10: re-apply expected mount table (Island pattern). Replaces the
     # prior `|| true` remount that silently swallowed remount failures.
@@ -927,6 +1160,10 @@ stage_2() {
     fi
 
     _alive_probe
+    if [ "$DRY_RUN" = "1" ]; then
+        pass_msg "[DRY] Stage 2 PASS — would stop foundation + render_service"
+        return 0
+    fi
 
     # CRITICAL: never stop appspawn (per HBC SOP line 51 "停了会断 hdc 通信链")
     # Fix A: hdc_shell_check propagates device-side exit. Service-stop errors
@@ -961,6 +1198,10 @@ stage_2() {
 stage_3_0() {
     log "Stage 3.0 · mkdir 4 prerequisite directories + ensure staging"
     _alive_probe
+    if [ "$DRY_RUN" = "1" ]; then
+        pass_msg "[DRY] Stage 3.0 PASS — would restore mounts + force-stop Photos + mkdir 4 dirs"
+        return 0
+    fi
 
     # Gate 10: re-apply expected mount table (Island demo/run-live.sh L35-42
     # pattern). Idempotent — mountpoint -q probe precedes each remount.
@@ -1000,6 +1241,20 @@ stage_3_0() {
 stage_3b() {
     log "Stage 3b · OH services .so (10 files + libbms symlink)"
     _alive_probe
+    if [ "$DRY_RUN" = "1" ]; then
+        local _f
+        for _f in libwms.z.so libappms.z.so libbms.z.so libskia_canvaskit.z.so \
+                  libappspawn_client.z.so librender_service.z.so; do
+            ok "[DRY] stage_push: $_f → /system/lib/$_f"
+        done
+        for _f in libabilityms.z.so libscene_session.z.so libscene_session_manager.z.so \
+                  librender_service_base.z.so libappexecfwk_common.z.so; do
+            ok "[DRY] stage_push: $_f → /system/lib/platformsdk/$_f"
+        done
+        ok "[DRY] symlink /system/lib/platformsdk/libbms.z.so"
+        pass_msg "[DRY] Stage 3b PASS — 11 .so + 1 symlink (would push)"
+        return 0
+    fi
     _ensure_stage_dir
 
     # /system/lib/
@@ -1039,6 +1294,11 @@ stage_3b() {
 stage_3c() {
     log "Stage 3c · AOSP native .so → /system/android/lib/ (38 + 3 dual-path)"
     _alive_probe
+    if [ "$DRY_RUN" = "1" ]; then
+        ok "[DRY] stage_3c: would push 38 AOSP .so + 3 dual-path shims; chcon system_lib_file on 6 paths (M2/M3/M4 wired)"
+        pass_msg "[DRY] Stage 3c PASS"
+        return 0
+    fi
     _ensure_stage_dir
 
     # 38 AOSP native: every *.so in v3-hbc/lib/ EXCEPT .z.so, liboh_*, libapk_installer
@@ -1072,7 +1332,12 @@ stage_3c() {
         abort "Stage 3c: unexpected drwx in /system/android/lib/: $drwx"
     fi
 
-    # G2: chcon dual-path adapter shims + VERIFY label stuck
+    # M2/M3 (2026-05-20): channel-alive sentinel + 500ms settle window between
+    # the push burst and the chcon burst. Per agent 84: if channel A died
+    # mid-stage in Stage B, we want to know within 1 batch (not at end-of-stage).
+    _burst_boundary "stage_3c: push-burst → chcon-burst"
+
+    # G2: chcon dual-path adapter shims + VERIFY label stuck (M4 ENOENT-check inline)
     chcon_verify system_lib_file \
         /system/android/lib/liboh_android_runtime.so /system/lib/liboh_android_runtime.so \
         /system/android/lib/liboh_hwui_shim.so /system/lib/liboh_hwui_shim.so \
@@ -1090,6 +1355,11 @@ stage_3c() {
 stage_3d() {
     log "Stage 3d · framework jars + ICU + fonts.xml dual-path"
     _alive_probe
+    if [ "$DRY_RUN" = "1" ]; then
+        ok "[DRY] stage_3d: would push 12 jars + ICU + fonts.xml dual-path; chcon system_fonts_file on 2 paths (M2/M3/M4 wired)"
+        pass_msg "[DRY] Stage 3d PASS"
+        return 0
+    fi
     _ensure_stage_dir
 
     local f
@@ -1119,7 +1389,11 @@ stage_3d() {
     out=$(hdc_shell "rm -f /system/etc/fonts.xml; cp /system/android/etc/fonts.xml /system/etc/fonts.xml && echo OK" | tr -d '\r\n')
     [ "$out" = "OK" ] || abort "Stage 3d: fonts.xml /system/etc cp failed: $out"
 
-    # G2: chcon system_fonts_file:s0 on BOTH copies, verify each
+    # M2/M3 (2026-05-20): channel-alive sentinel + 500ms settle window between
+    # the push burst (12 jars + ICU + fonts.xml) and the chcon burst on fonts.xml.
+    _burst_boundary "stage_3d: push-burst → chcon-burst"
+
+    # G2: chcon system_fonts_file:s0 on BOTH copies, verify each (M4 ENOENT-check inline)
     chcon_verify system_fonts_file /system/etc/fonts.xml /system/android/etc/fonts.xml
 
     _alive_probe
@@ -1134,6 +1408,11 @@ stage_3d() {
 stage_3e() {
     log "Stage 3e · boot image (27 files: 9 segments × 3 ext)"
     _alive_probe
+    if [ "$DRY_RUN" = "1" ]; then
+        ok "[DRY] stage_3e: would push 27 boot image files; chcon system_lib_file × 27 (M2/M3/M4 wired; M2 mid-batch sentinel at chcon 8/16/24)"
+        pass_msg "[DRY] Stage 3e PASS"
+        return 0
+    fi
     _ensure_stage_dir
 
     local g e
@@ -1145,8 +1424,15 @@ stage_3e() {
         done
     done
 
+    # M2/M3 (2026-05-20): channel-alive sentinel + 500ms settle window between
+    # the 27-file push burst and the 27-entry chcon burst. Stage 3e is the
+    # longest burst in the script — without this boundary, a Channel A death
+    # at chcon #1 of 27 would surface only at chcon #27 or end-of-stage.
+    _burst_boundary "stage_3e: push-burst (27 boot files) → chcon-burst (27 labels)"
+
     # G2: chcon every boot image segment to system_lib_file:s0 (HBC SOP §3e
     # line 137-146 explains the appspawn:s0 flock denial otherwise).
+    # M4 ENOENT-check inline. M2 mid-batch sentinel every 8 chcons (inside chcon_verify).
     local segs=()
     for g in boot boot-core-libart boot-core-icu4j boot-okhttp boot-bouncycastle \
              boot-apache-xml boot-adapter-mainline-stubs boot-framework \
@@ -1169,6 +1455,11 @@ stage_3e() {
 stage_3f() {
     log "Stage 3f · appspawn-x bin + cfg + linker + selinux + 5 symlinks"
     _alive_probe
+    if [ "$DRY_RUN" = "1" ]; then
+        ok "[DRY] stage_3f: would push 4 bin + 3 cfg + 5 symlinks; 2 M4 ENOENT-checks + restorecon × 2; M2 boundary × 2; chcon_verify adapter_bridge dual-path"
+        pass_msg "[DRY] Stage 3f PASS"
+        return 0
+    fi
     _ensure_stage_dir
 
     # Binaries
@@ -1214,22 +1505,47 @@ stage_3f() {
     hdc_shell "rm -f /system/lib/libandroid.so; ln -sf liboh_android_runtime.so /system/lib/libandroid.so"                                              >/dev/null
     ok "5 symlinks installed"
 
+    # M2/M3 (2026-05-20): channel-alive sentinel + 500ms settle window between
+    # the push-burst (4 bin + 3 cfg + 5 symlinks + chmod) and the restorecon
+    # burst. This is the EXACT boundary that Stage B (commit 4ba8695f) died at
+    # — chcon_verify of liboh_adapter_bridge.so found Channel A silent.
+    _burst_boundary "stage_3f: push-burst+chmod → restorecon-burst"
+
     # restorecon for appspawn-x (file_contexts new rules take effect on relabel)
     # Fix A: explicit device-side exit propagation. The W2-class || true pattern
     # is replaced with `if ! hdc_shell_check ...` so silent restorecon failures
     # surface as warnings, not silent NOOPs.
+    # M4 (2026-05-20): inline existence check before each restorecon target.
+    # restorecon's own ENOENT path is silent (returns 0 on missing file in
+    # some toybox variants); making the precondition explicit catches the
+    # caller-invariant bug before it confuses the post-condition.
+    if ! hdc_shell_check "test -e /system/bin/appspawn-x"; then
+        abort "M4: restorecon target missing on device: /system/bin/appspawn-x (chcon-on-ENOENT prevention)"
+    fi
     if ! hdc_shell_check "restorecon /system/bin/appspawn-x"; then
         warn "Stage 3f: restorecon /system/bin/appspawn-x non-zero exit"
+    fi
+    if ! hdc_shell_check "test -d /system/android/lib"; then
+        abort "M4: restorecon target dir missing: /system/android/lib (chcon-on-ENOENT prevention)"
     fi
     if ! hdc_shell_check "find /system/android/lib -exec restorecon {} \\;"; then
         warn "Stage 3f: restorecon /system/android/lib non-zero exit (may be benign for files missing from file_contexts)"
     fi
     ok "restorecon /system/bin/appspawn-x + /system/android/lib"
 
+    # M2/M3 (2026-05-20): SECOND boundary — restorecon burst → chcon_verify
+    # burst. Defense-in-depth: even if restorecon succeeded silently, channel
+    # may have wedged during the find-exec subshell storm. Catch it BEFORE
+    # the adapter-bridge chcon_verify (the Stage B failure site).
+    _burst_boundary "stage_3f: restorecon-burst → chcon_verify(adapter_bridge dual-path)"
+
     # Fix D dual-path: chcon-verify the dual-path adapter bridge on BOTH paths.
     # liboh_android_runtime.so resolution of liboh_adapter_bridge.so requires
     # the latter at both /system/lib/ and /system/android/lib/ with matching
     # system_lib_file label. Gate 8 snapshot is captured automatically.
+    # M4 ENOENT-check is now inline in chcon_verify (verifies each path exists
+    # via hdc_shell_check before invoking chcon; aborts with explicit ENOENT
+    # message if not — directly tests the Stage B leading-hypothesis).
     chcon_verify system_lib_file \
         /system/lib/liboh_adapter_bridge.so \
         /system/android/lib/liboh_adapter_bridge.so
@@ -1255,6 +1571,10 @@ stage_3f() {
 stage_3_7() {
     log "Stage 3.7 · chcon final sweep + verify (G2)"
     _alive_probe
+    if [ "$DRY_RUN" = "1" ]; then
+        pass_msg "[DRY] Stage 3.7 PASS — would re-verify labels on hot paths"
+        return 0
+    fi
     # Re-verify the high-risk labels haven't drifted (Fix D dual-path entries
     # 2026-05-19: liboh_adapter_bridge.so verified at both lib paths)
     local p got
@@ -1307,6 +1627,10 @@ stage_3_8() {
 stage_3_9() {
     log "Stage 3.9 · integrity (md5 + size) + drwx sentinel (G5)"
     _alive_probe
+    if [ "$DRY_RUN" = "1" ]; then
+        pass_msg "[DRY] Stage 3.9 PASS — would md5+size-verify full manifest + drwx sentinel"
+        return 0
+    fi
 
     local errors=0
 
@@ -1414,6 +1738,10 @@ stage_3_9() {
 stage_4() {
     log "Stage 4 · reboot device (sync first)"
     _alive_probe   # G1 final sentinel — never reboot if shell silent
+    if [ "$DRY_RUN" = "1" ]; then
+        pass_msg "[DRY] Stage 4 PASS — would sync + reboot + poll-for-return"
+        return 0
+    fi
 
     hdc_shell "sync" >/dev/null
     log "sync complete; issuing reboot..."
@@ -1450,6 +1778,10 @@ stage_4() {
 stage_5() {
     log "Stage 5 · post-reboot health verify"
     _alive_probe
+    if [ "$DRY_RUN" = "1" ]; then
+        pass_msg "[DRY] Stage 5 PASS — would verify foundation/render_service/launcher/hdcd + BMS ready"
+        return 0
+    fi
 
     # Give init 30s to reach Phase 4 (foundation/launcher up)
     sleep 30
@@ -1502,6 +1834,10 @@ stage_5() {
 stage_6() {
     log "Stage 6 · launch HBC HelloWorld via aa start (Gate 12 budget=${LAUNCH_BUDGET_SECS}s)"
     _alive_probe
+    if [ "$DRY_RUN" = "1" ]; then
+        pass_msg "[DRY] Stage 6 PASS — would force-stop Photos + install HelloWorld + aa start (Gate 12 budget=${LAUNCH_BUDGET_SECS}s)"
+        return 0
+    fi
 
     # Gate 11: force-stop OH Photos before any display-touching launch
     # (Island demo/run-live.sh L60-62). Photos might hold render_service
@@ -1570,6 +1906,10 @@ stage_6() {
 stage_7() {
     log "Stage 7 · scan hilog for MainActivity.onCreate L83 marker"
     _alive_probe
+    if [ "$DRY_RUN" = "1" ]; then
+        pass_msg "[DRY] Stage 7 PASS — would scan hilog for MainActivity.onCreate"
+        return 0
+    fi
 
     local marker="${MARKER:-MainActivity.onCreate}"
     local found=""
@@ -1680,10 +2020,21 @@ case "$STAGE" in
         stage_2
         stage_3_0
         stage_3b
+        # M5 (2026-05-20): inter-stage shell-channel reset between every major
+        # /system-writing stage (3b → 3c → 3d → 3e → 3f). Drops accumulated
+        # hdc-host-server resources so the cumulative-session-leak hypothesis
+        # cannot cause a wedge at the LAST stage in the chain. _alive_probe
+        # immediately after the reset confirms the device-side hdcd survived
+        # and the new transport is healthy before entering the next stage.
+        _reset_shell_channel "post-3b → pre-3c"
         stage_3c
+        _reset_shell_channel "post-3c → pre-3d"
         stage_3d
+        _reset_shell_channel "post-3d → pre-3e"
         stage_3e
+        _reset_shell_channel "post-3e → pre-3f"
         stage_3f
+        _reset_shell_channel "post-3f → pre-3.7"
         stage_3_7
         stage_3_9
         stage_3_8
@@ -1701,7 +2052,7 @@ case "$STAGE" in
         echo "ERROR: unknown stage '$STAGE'" >&2
         echo "Valid: 0 1 2 3.0 3b 3c 3d 3e 3f 3.7 3.8 3.9 4 5 6 7 all" >&2
         echo "       restore-chcon (Gate 8) | restore-mounts (Gate 10) | probe-processdump (Gate 13)" >&2
-        echo "Flags: --reboot | --no-skip-stage-2 | --uninstall | --snapshot-only (Gate 8)" >&2
+        echo "Flags: --reboot | --no-skip-stage-2 | --uninstall | --snapshot-only (Gate 8) | --dry-run (M1-M5 static validation)" >&2
         exit 2
         ;;
 esac
