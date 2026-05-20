@@ -114,6 +114,36 @@ surgical mitigations that don't presume one specific cause. Applied by agent 85
 
 **LOC delta:** +355/-4 (1707 → 2058).
 
+### Mitigation M6 (2026-05-20, agent 89) — Stage 3f fine-grained chunking
+
+After agents 87 and 88 reliably hit Channel A death **inside** Stage 3f
+despite M1-M5 being live (Stage 3f's boundaries are bracketed by `_burst_boundary`
+sentinels, but the **interior** chmod/symlink/restorecon sub-burst accumulates
+Channel A pressure faster than the inter-stage `_reset_shell_channel` can recover
+from), per dispatch directive (`feedback_risky_productive_over_safety_theater.md`)
+the response is to **chunk the burst**, not add another probe.
+
+| Mit | Hypothesis countered | Implementation | Sites |
+|-----|----------------------|----------------|-------|
+| **M6** | Stage 3f's batched chmod (6 multi-target/glob hdc invocations, several covering 50+ files in one shell) + 5 back-to-back symlinks + `find -exec restorecon {} \;` (subshell-storm) builds Channel A pressure faster than the post-stage M5 reset can recover. Agents 87, 88 both died here. | Four chunked helpers in the M-helper block: `_chunked_chmod`, `_chunked_chmod_glob` (device-side enumerates then per-file chmod), `_chunked_symlink` (rm + ln as 2 ops), `_chunked_restorecon`, `_chunked_restorecon_recursive` (replaces `find -exec`). All ops fire through `_chunked_op_tick` which interleaves an M2 sentinel every `CHUNKED_M2_EVERY` ops (default 5) and an M5 sub-reset every `CHUNKED_M5_EVERY` ops (default 10). Counter reset at stage entry via `_chunked_op_reset`. | `stage_3f` chmod batch (now ~10 explicit calls + 4 globs that expand device-side to typically 50-100 ops), symlink batch (5 links = 10 ops), restorecon (1 file + 1 recursive dir = N ops). **Cadence is env-tunable: `CHUNKED_M2_EVERY=3 CHUNKED_M5_EVERY=6 bash deploy-hbc-... 3f` for even finer chunking.** |
+
+**What M6 buys on the next Stage 3f retry:**
+
+1. If Channel A dies inside the chmod batch, the abort message names the exact tick (e.g. `M2-chunked: Channel A dead at 3f-chmod-systemlib op #23`), pinning the exact file the death lined up with.
+2. The `find -exec restorecon` subshell-storm (suspected of being the densest single contributor to the 3f wedge) is replaced with device-side enumeration + per-file restorecon under M2/M5 cadence. Even if the per-file pressure is identical, the M5 sub-reset every 10 ops gives the channel a forced settle within the burst.
+3. Env-tunable cadence means if agent 90 still hits 3f wedge at default 5/10 cadence, they can drop to 3/6 (or 2/4) without re-touching code.
+
+**What M6 does NOT do:**
+
+- Does not add new safety primitives beyond M2 + M5 (per directive — chunking is the natural extension, not a sixth axis of inspection).
+- Does not change the operator command surface (`bash deploy-hbc-... 3f` works identically; new env vars are opt-in).
+- Does not modify chmod/symlink/restorecon semantics — same files, same modes, same labels, same end-state. Only the wire-level shape of how the ops reach the device changes.
+- Does not change M5 inter-stage reset (post-3e → pre-3f, post-3f → pre-3.7 still fire).
+
+**LOC delta (M6 only):** +251/-36 (2058 → 2281).
+
+**Cost:** ~10-15 seconds extra per Stage 3f run from per-op hdc.exe overhead. Considered acceptable trade vs the cumulative cost of agents 86, 87, 88 each consuming their full budget against the same wedge.
+
 **What M1-M5 collectively buy us on the Stage B retry:**
 
 1. If channel dies mid-stage, the abort message names the exact `_burst_boundary` (e.g. "stage_3f: push-burst+chmod → restorecon-burst") instead of "stage_3f failed".
