@@ -19,6 +19,26 @@
 #   7. hdc.exe version pin + warn                   (G6, postmortem §4)
 #   8. 12 incremental stages, each invocable alone  (G7, postmortem §4)
 #
+# 2026-05-19 amendments (agent 75 — chroot lessons ported back):
+#   FIX A — hdc_shell_check helper (device-side exit propagation)
+#           Prevents hdc.exe's host-exit-0 laundering from silently passing
+#           false-positive control-flow predicates.
+#   FIX B — _push_one stdin redirect + test-s post-push verify
+#           </dev/null on every hdc.exe invocation so push helpers may run
+#           inside `while read` loops without losing iteration 2+.
+#   FIX C — host-side awk for df parsing (toybox-on-DAYU200 lacks awk)
+#           Pre-existing in hardened (no-op verified).
+#   FIX D — dual-path manifests for liboh_adapter_bridge.so
+#           Mirrors chroot lines 334-335. Required for
+#           liboh_android_runtime.so chain resolution.
+#
+#   Gate 8  — chcon snapshot-and-restore (replayable label rollback)
+#   Gate 9  — atomic .so swap (push.new + mv = rename(2))
+#   Gate 10 — Island-style mount-restore on resume
+#   Gate 11 — force-stop OH Photos before display-touching stages
+#   Gate 12 — loop-budget on launch (Island demo/run-live.sh L71)
+#   Gate 13 — processdump availability probe in preflight
+#
 # This script DOES NOT amend, replace, or alias the original
 # `scripts/v3/deploy-hbc-to-dayu200.sh` — both live side-by-side. The old
 # one is the forensic record of what bricked the board; this one is what
@@ -97,6 +117,11 @@ KNOWN_GOOD_HDC_VERSIONS="Ver:1.3.0c Ver:1.3.0d Ver:1.3.0e"
 SKIP_STAGE_2=1
 DO_REBOOT=0
 UNINSTALL=0
+# Gate 8 flag: run snapshot init + a single capture of the high-risk target
+# label set without performing any chcon writes. Lets the operator pre-arm
+# the rollback snapshot before a real run, and exercises Gate 8 plumbing
+# end-to-end as a smoke test.
+SNAPSHOT_ONLY=0
 
 # Strip --flags out so we can dispatch on remaining positional
 POSITIONAL=()
@@ -106,6 +131,7 @@ for arg in "$@"; do
         --skip-stage-2)    SKIP_STAGE_2=1 ;;
         --reboot)          DO_REBOOT=1    ;;
         --uninstall)       UNINSTALL=1    ;;
+        --snapshot-only)   SNAPSHOT_ONLY=1 ;;
         -h|--help)         sed -n '1,90p' "$0"; exit 0 ;;
         --*) echo "ERROR: unknown flag: $arg" >&2; exit 2 ;;
         *)   POSITIONAL+=("$arg") ;;
@@ -137,11 +163,41 @@ abort()    { echo "${RED}${BOLD}[ABORT 99]${RESET} $*" >&2; exit 99; }
 # hdc wrappers
 # ============================================================================
 
-hdc_raw() { "$HDC" -t "$HDC_SERIAL" "$@"; }
+hdc_raw() {
+    # </dev/null on hdc.exe invocation: prevents stdin-slurp when this helper
+    # runs inside a `while IFS= read` loop. hdc.exe (Windows build, 3.2.0b)
+    # consumes stdin even when no input is requested, terminating the parent
+    # loop after iteration 1. Port of chroot Fix B (agent 71 finding;
+    # commits 0f4dc8be + ee449def). See V3-W2-POSTMORTEM §H2 and
+    # feedback_hdc_shell_check_pattern.md for the structural class.
+    "$HDC" -t "$HDC_SERIAL" "$@" </dev/null
+}
 
 hdc_shell() {
-    # Returns stdout with CR stripped. Exit code reflects the hdc client.
-    hdc_raw shell "$@" 2>&1 | tr -d '\r'
+    # Returns stdout with CR stripped. Exit code reflects the hdc CLIENT (host
+    # transport), NOT the remote command. For boolean control-flow use
+    # hdc_shell_check below — host exit is permanently 0 on transport success
+    # regardless of device-side outcome (Rule 7, feedback_hdc_shell_check_pattern.md).
+    # </dev/null mandatory (see hdc_raw note).
+    "$HDC" -t "$HDC_SERIAL" shell "$@" </dev/null 2>&1 | tr -d '\r'
+}
+
+# Fix A (chroot port, commit f10ee81b) — hdc_shell_check: propagates DEVICE-side
+# exit code via sentinel wrapper. Use ONLY in boolean control-flow (if / while /
+# && / ||). Plain hdc shell host-exit-0 laundering is the structural bug class
+# behind the 2026-05-16 soft-brick (see feedback_hdc_shell_check_pattern.md).
+# Anti-pattern this exists to prevent: silent-NOOP (control flow always taken).
+hdc_shell_check() {
+    local out rc
+    # </dev/null is critical: without it, agent 72 found that helpers called
+    # from inside `while IFS= read` loops consume the loop's process-sub stdin
+    # and terminate after iteration 1.
+    out=$("$HDC" -t "$HDC_SERIAL" shell "( $* ); echo __EXIT__=\$?" </dev/null 2>&1 | tr -d '\r')
+    rc=$(echo "$out" | grep '^__EXIT__=' | tail -1 | sed 's/__EXIT__=//')
+    if [ -z "$rc" ] || ! [[ "$rc" =~ ^[0-9]+$ ]]; then
+        return 127   # channel issue — no exit marker observed (treat as hard fail)
+    fi
+    return "$rc"
 }
 
 # G1 — Channel-alive sentinel. Mandatory between every stage.
@@ -150,7 +206,9 @@ hdc_shell() {
 _alive_probe() {
     local mark="HBC_DEPLOY_$$_$(date +%s)_${RANDOM:-0}"
     local out
-    out=$(hdc_shell "echo $mark" 2>&1 | tr -d '\r\n')
+    # Direct hdc invocation with </dev/null (mirrors chroot script) — bypass any
+    # wrapper that might disturb sentinel propagation, and stay stdin-isolated.
+    out=$("$HDC" -t "$HDC_SERIAL" shell "echo $mark" </dev/null 2>&1 | tr -d '\r\n')
     if [ -z "$out" ]; then
         abort "G1: hdc shell silent (empty stdout). HBC全局三条 abort condition. STOP."
     fi
@@ -308,8 +366,288 @@ _assert_no_fail_or_drwx() {
     fi
 }
 
+# ============================================================================
+# Gate 8 — chcon snapshot-and-restore
+# ============================================================================
+# Before any chcon batch, capture current SELinux contexts of target files
+# into a device-side snapshot. On abort, a `restore-chcon` subcommand replays
+# the snapshot. Acceptance: kill -9 mid-chcon → operator runs
+# `bash <script> restore-chcon` → factory contexts restored without ROM flash.
+
+CHCON_SNAPSHOT_DEVICE="${CHCON_SNAPSHOT_DEVICE:-/data/local/tmp/v3-chcon-snapshot.txt}"
+CHCON_SNAPSHOT_HOST="${CHCON_SNAPSHOT_HOST:-/tmp/v3-chcon-snapshot.$$}"
+
+# _chcon_snapshot_capture <path1> [path2 ...] — appends current label rows
+# to the device-side snapshot file. Format per line:
+#   <abs-path>\t<u:object_r:LABEL:s0>
+# Idempotent on already-captured paths (no duplicates; first capture wins
+# so a re-run after partial chcon doesn't overwrite the original baseline).
+_chcon_snapshot_capture() {
+    local p label existing
+    for p in "$@"; do
+        # Skip if already captured (preserves baseline label across resumes)
+        existing=$(hdc_shell "grep -E '^${p}\\b' $CHCON_SNAPSHOT_DEVICE 2>/dev/null" | tr -d '\r')
+        if [ -n "$existing" ]; then
+            continue
+        fi
+        # ls -lZ output looks like: -rw-r--r-- 1 root root u:object_r:LABEL:s0 ... path
+        label=$(hdc_shell "ls -lZ '$p' 2>/dev/null" | grep -oE 'u:object_r:[a-zA-Z0-9_]+:s0' | head -1)
+        if [ -z "$label" ]; then
+            warn "Gate 8: could not capture label for $p (file may not exist yet)"
+            continue
+        fi
+        # Append atomically (printf >> file is one write call for short lines)
+        hdc_shell "printf '%s\\t%s\\n' '$p' '$label' >> $CHCON_SNAPSHOT_DEVICE" >/dev/null
+    done
+}
+
+# _chcon_snapshot_restore — replay snapshot, chcon each row back to its
+# captured label. Invoked by the `restore-chcon` subcommand. Idempotent.
+_chcon_snapshot_restore() {
+    log "Gate 8 restore: replaying $CHCON_SNAPSHOT_DEVICE"
+    if ! hdc_shell_check "test -s $CHCON_SNAPSHOT_DEVICE"; then
+        warn "Gate 8 restore: snapshot absent or empty on device ($CHCON_SNAPSHOT_DEVICE)"
+        return 0
+    fi
+    # Pull snapshot to host, parse, replay chcon device-side line by line.
+    local win
+    win=$(_to_win_path "$CHCON_SNAPSHOT_HOST")
+    hdc_raw file recv "$CHCON_SNAPSHOT_DEVICE" "$win" >/dev/null
+    if [ ! -s "$CHCON_SNAPSHOT_HOST" ]; then
+        warn "Gate 8 restore: snapshot recv produced empty file at $CHCON_SNAPSHOT_HOST"
+        return 1
+    fi
+    local restored=0 failed=0 path label
+    while IFS=$'\t' read -r path label; do
+        [ -n "$path" ] || continue
+        [ -n "$label" ] || continue
+        if hdc_shell_check "chcon $label $path"; then
+            restored=$((restored+1))
+        else
+            failed=$((failed+1))
+            warn "Gate 8 restore: chcon $label $path FAILED"
+        fi
+    done < "$CHCON_SNAPSHOT_HOST"
+    rm -f "$CHCON_SNAPSHOT_HOST"
+    log "Gate 8 restore: $restored restored, $failed failed"
+    [ "$failed" = "0" ]
+}
+
+# Initialise snapshot file at the start of any deploy that will run chcon.
+# Idempotent: only writes the header line if the file doesn't already exist
+# (preserves baseline across resumed runs).
+_chcon_snapshot_init() {
+    if hdc_shell_check "test -s $CHCON_SNAPSHOT_DEVICE"; then
+        log "Gate 8: existing snapshot preserved at $CHCON_SNAPSHOT_DEVICE"
+        return 0
+    fi
+    hdc_shell "printf '# v3 chcon snapshot %s\\n' '$(date)' > $CHCON_SNAPSHOT_DEVICE" >/dev/null
+    if ! hdc_shell_check "test -s $CHCON_SNAPSHOT_DEVICE"; then
+        abort "Gate 8: could not initialise snapshot file at $CHCON_SNAPSHOT_DEVICE"
+    fi
+    ok "Gate 8: snapshot initialised at $CHCON_SNAPSHOT_DEVICE"
+}
+
+# ============================================================================
+# Gate 9 — atomic file swap for live-service .so replacement
+# ============================================================================
+# Pattern: push to <dst>.new, verify size, mv <dst>.new <dst>. Linux rename(2)
+# is atomic for files on the same filesystem; an interrupt at any point leaves
+# either old-fully-loaded or new-fully-loaded, never half-replaced. Running
+# processes that have the old file mmap'd keep their mapping (kernel defers
+# unlink until last reference drops); only new dlopens see the new file.
+
+# Live-service .so allowlist — files in this list trigger _atomic_install
+# from inside stage_push's Step 4. Includes the service-loaded .so where a
+# half-replaced write would crash a live consumer (libams, libwms,
+# render_service base, etc.).
+LIVE_SERVICE_SO=(
+    "/system/lib/libwms.z.so"
+    "/system/lib/libappms.z.so"
+    "/system/lib/libbms.z.so"
+    "/system/lib/libskia_canvaskit.z.so"
+    "/system/lib/libappspawn_client.z.so"
+    "/system/lib/librender_service.z.so"
+    "/system/lib/platformsdk/libabilityms.z.so"
+    "/system/lib/platformsdk/libscene_session.z.so"
+    "/system/lib/platformsdk/libscene_session_manager.z.so"
+    "/system/lib/platformsdk/librender_service_base.z.so"
+    "/system/lib/platformsdk/libappexecfwk_common.z.so"
+    "/system/lib/liboh_adapter_bridge.so"
+    "/system/lib/libapk_installer.so"
+    "/system/lib/libinstalls.z.so"
+    "/system/lib/liboh_hwui_shim.so"
+    "/system/lib/liboh_android_runtime.so"
+    "/system/lib/liboh_skia_rtti_shim.so"
+)
+
+_is_live_service_so() {
+    local target="$1" entry
+    for entry in "${LIVE_SERVICE_SO[@]}"; do
+        [ "$target" = "$entry" ] && return 0
+    done
+    return 1
+}
+
+# _atomic_install <staging_src> <final_dst>
+#   1. cp staging → <dst>.new (NOT directly to dst)
+#   2. verify <dst>.new exists, size>0, size matches staging
+#   3. mv <dst>.new <dst>   (rename(2) is atomic on same FS)
+#   4. verify <dst> exists, size>0, no .new residue
+_atomic_install() {
+    local src="$1" dst="$2"
+    local new="${dst}.new"
+
+    # Step 1: cp to .new
+    local cpout
+    cpout=$(hdc_shell "cp $src $new 2>&1")
+    _assert_no_fail_or_drwx "$cpout" "_atomic_install cp $src→$new"
+
+    # Step 2: verify .new exists & has positive size matching staging
+    if ! hdc_shell_check "test -s $new"; then
+        abort "Gate 9: $new not present/empty after cp from $src"
+    fi
+    local ssz nsz
+    ssz=$(hdc_shell "stat -c %s $src 2>/dev/null" | tr -d ' \r\n')
+    nsz=$(hdc_shell "stat -c %s $new 2>/dev/null" | tr -d ' \r\n')
+    if [ "$ssz" != "$nsz" ] || [ -z "$ssz" ]; then
+        abort "Gate 9: size mismatch staging→new ($src=$ssz, $new=$nsz)"
+    fi
+
+    # Step 3: atomic rename. mv on same FS = rename(2) = atomic.
+    local mvout
+    mvout=$(hdc_shell "mv $new $dst 2>&1")
+    _assert_no_fail_or_drwx "$mvout" "_atomic_install mv $new→$dst"
+
+    # Step 4: verify dst landed, no .new residue
+    if ! hdc_shell_check "test -s $dst"; then
+        abort "Gate 9: $dst not present/empty after mv from $new"
+    fi
+    if hdc_shell_check "test -e $new"; then
+        warn "Gate 9: $new still present after mv (cleanup)"
+        hdc_shell "rm -f $new" >/dev/null
+    fi
+}
+
+# ============================================================================
+# Gate 10 — Island-style mount-restore on resume
+# ============================================================================
+# Cites Island demo/run-live.sh L35-42 (idempotent mount --bind via mountpoint
+# -q probe). After any board reboot that might have happened during prior
+# deploy attempts, mounts may be stale. The `restore-mounts` subcommand
+# re-applies the expected mount table: remount /system rw (transient) for
+# subsequent /system writes; restore appspawn-x exec mount semantics.
+
+# Canonical mount table for a hardened-/system deploy in progress.
+# Format: <op> <args...>
+# Re-applied verbatim by _restore_mounts (idempotent — mountpoint -q probe
+# precedes each remount). Drawn from the Stage 3.0 patterns in this script.
+_restore_mounts() {
+    log "Gate 10 restore: re-applying expected mount table (Island pattern)"
+    # remount / rw — required for any /system or /system/etc writes that
+    # follow. The kernel may have re-mounted ro on the prior reboot.
+    if hdc_shell_check "mount | grep -E '\\s/\\s.*\\bro\\b'"; then
+        local out
+        out=$(hdc_shell "mount -o remount,rw / 2>&1")
+        _assert_no_fail_or_drwx "$out" "_restore_mounts remount,rw /"
+        ok "Gate 10: / remounted rw"
+    else
+        ok "Gate 10: / already rw"
+    fi
+    if hdc_shell_check "mount | grep -E '\\s/system\\s.*\\bro\\b'"; then
+        local out
+        out=$(hdc_shell "mount -o remount,rw /system 2>&1")
+        _assert_no_fail_or_drwx "$out" "_restore_mounts remount,rw /system"
+        ok "Gate 10: /system remounted rw"
+    else
+        ok "Gate 10: /system already rw (or not a separate mount)"
+    fi
+}
+
+# ============================================================================
+# Gate 11 — force-stop OH Photos before any display-touching stage
+# ============================================================================
+# Cites Island demo/run-live.sh L60-62. Prevents the Photos viewer from
+# holding a render_service lock while we replace librender_service.z.so etc.
+# Defensive even in headless deploy — Photos may be running from a prior
+# operator interaction with the panel.
+
+# OH Photos candidate bundle names (Phone vs HMS variants).
+PHOTOS_BUNDLES=(
+    "com.ohos.photos"
+    "com.huawei.hmsapp.photos"
+)
+
+_force_stop_photos() {
+    log "Gate 11: force-stop OH Photos (Island defensive pattern, run-live.sh L60-62)"
+    local bn
+    for bn in "${PHOTOS_BUNDLES[@]}"; do
+        # aa force-stop returns 0 even when the bundle isn't installed; we
+        # capture and log rather than gate. The defensive intent is satisfied
+        # by best-effort send.
+        hdc_shell "aa force-stop $bn 2>&1 | tail -1" >/dev/null
+        ok "Gate 11: aa force-stop $bn issued"
+    done
+}
+
+# ============================================================================
+# Gate 12 — loop-budget on launch
+# ============================================================================
+# Cites Island demo/run-live.sh L71 (`-loop=10 -loop-budget=60000`). Any
+# spawn or daemon start must have a max-runtime budget so a hung launch
+# aborts cleanly rather than pinning resources forever.
+
+LAUNCH_BUDGET_SECS="${LAUNCH_BUDGET_SECS:-60}"
+
+# _budgeted_hdc_shell <budget_secs> <shell command...>
+#   Wraps a long-running hdc shell invocation with `timeout`. Returns 124
+#   if budget hit (matching coreutils timeout semantics).
+_budgeted_hdc_shell() {
+    local budget="$1"; shift
+    timeout "${budget}s" "$HDC" -t "$HDC_SERIAL" shell "$@" </dev/null 2>&1 | tr -d '\r'
+}
+
+# ============================================================================
+# Gate 13 — processdump availability check
+# ============================================================================
+# Phase 1b in chroot was BLOCKED because processdump wasn't reachable inside
+# the chroot. /system deploy must verify processdump probes cleanly BEFORE
+# any /system modification — diagnostic capability is the value-add over the
+# chroot path (per V3-W2-PHASE-1B2-RETRY §5). If processdump is broken at
+# preflight, ABORT before any writes; recovery is much cheaper than after
+# a crash with no backtrace.
+_probe_processdump() {
+    log "Gate 13: probing processdump availability"
+    # processdump --help is the canonical no-side-effect invocation. Returns
+    # non-zero on stuck/missing/broken.
+    local out rc
+    out=$(hdc_shell "processdump --help 2>&1; echo __EXIT__=\$?" 2>&1 | tr -d '\r')
+    rc=$(echo "$out" | grep '^__EXIT__=' | tail -1 | sed 's/__EXIT__=//')
+    if [ -z "$rc" ]; then
+        abort "Gate 13: processdump probe returned no exit sentinel (channel issue)"
+    fi
+    # OHOS processdump returns 0 on --help; if it ENOENTs (rc=127) or
+    # segvs (rc=139), the diagnostic capability is gone.
+    if [ "$rc" = "127" ]; then
+        abort "Gate 13: processdump NOT FOUND on board — diagnostic capability missing; ABORT before /system writes"
+    fi
+    if [ "$rc" != "0" ] && [ "$rc" != "1" ] && [ "$rc" != "2" ]; then
+        # rc=1/2 are acceptable for some toybox-style --help variants
+        abort "Gate 13: processdump --help unexpected exit $rc (output: $(echo "$out" | head -3 | tr '\n' ' '))"
+    fi
+    ok "Gate 13: processdump reachable (rc=$rc)"
+}
+
 stage_push() {
     # Args: <local_path> <device_path>
+    #
+    # Fix B port (chroot commit 0f4dc8be):
+    #   (1) hdc_raw now applies </dev/null universally — the file-send call below
+    #       is stdin-isolated by construction, so callers may safely run
+    #       stage_push inside `while IFS= read` loops without losing iteration 2+.
+    #   (2) Post-push verify via `test -s` (device-side exit code propagation
+    #       through hdc_shell_check). Pre-existing md5 round-trip is stronger
+    #       and is kept; the test-s probe is a fast-fail gate that runs first.
     local local_path="$1" device_path="$2"
     [ -f "$local_path" ] || abort "stage_push: local missing: $local_path"
     local bn
@@ -317,10 +655,17 @@ stage_push() {
     local win
     win=$(_to_win_path "$local_path")
 
-    # Step 1: send to staging
+    # Step 1: send to staging (</dev/null isolation via hdc_raw)
     local out
     out=$(hdc_raw file send "$win" "$STAGE_DIR/$bn" 2>&1 | tr -d '\r')
     _assert_no_fail_or_drwx "$out" "stage_push send $bn"
+
+    # Step 1b: Fix B post-push verify — fast device-side test before md5 work.
+    # Catches silent-truncation / silent-NOOP / wrong-target-path cases that
+    # md5sum would also catch but with much more wire traffic.
+    if ! hdc_shell_check "test -s $STAGE_DIR/$bn"; then
+        abort "stage_push: device staging NOT present/zero after push: $STAGE_DIR/$bn (local=$local_path)"
+    fi
 
     # Step 2: stat must say "regular file" (NOT directory — the 造目录 quirk)
     local kind
@@ -337,10 +682,16 @@ stage_push() {
         abort "stage_push: md5 mismatch staging $bn (local=$lmd5 stage=$smd5)"
     fi
 
-    # Step 4: cp staging → final
-    local cpout
-    cpout=$(hdc_shell "cp $STAGE_DIR/$bn $device_path 2>&1")
-    _assert_no_fail_or_drwx "$cpout" "stage_push cp $bn"
+    # Step 4: cp staging → final (atomic for live .so via Gate 9 wrapper —
+    # see _atomic_install below; direct cp here writes via .new + mv when the
+    # device target is on the live-service .so allowlist)
+    if _is_live_service_so "$device_path"; then
+        _atomic_install "$STAGE_DIR/$bn" "$device_path"
+    else
+        local cpout
+        cpout=$(hdc_shell "cp $STAGE_DIR/$bn $device_path 2>&1")
+        _assert_no_fail_or_drwx "$cpout" "stage_push cp $bn"
+    fi
 
     # Step 5: md5 final == md5 local (catches mid-cp truncation)
     local fmd5
@@ -349,13 +700,23 @@ stage_push() {
         abort "stage_push: md5 mismatch final $bn (local=$lmd5 device=$fmd5)"
     fi
 
+    # Step 6: Fix B post-install device-side existence + size>0 gate
+    if ! hdc_shell_check "test -s $device_path"; then
+        abort "stage_push: device final NOT present/zero after install: $device_path"
+    fi
+
     ok "$bn → $device_path  ($lmd5)"
 }
 
 # G2 — chcon-with-verify (replaces `chcon ... || true` from old script)
+# Gate 8 integration: capture baseline contexts BEFORE applying chcon, so a
+# kill/abort mid-batch leaves a replayable snapshot at $CHCON_SNAPSHOT_DEVICE.
 chcon_verify() {
     # Args: <label> <path1> [path2 ...]
     local label="$1"; shift
+    # Gate 8: snapshot baseline labels for every path we're about to chcon.
+    # Idempotent: paths already in the snapshot are skipped.
+    _chcon_snapshot_capture "$@"
     local p out got
     for p in "$@"; do
         out=$(hdc_shell "chcon u:object_r:${label}:s0 '$p' 2>&1")
@@ -382,16 +743,26 @@ run_uninstall() {
     log "UNINSTALL: rolling back deployed V3 artifacts (PRE-BRICK only)"
     _check_hdc_version
     _alive_probe
-    hdc_shell "mount -o remount,rw / 2>&1" >/dev/null || true
+    # Gate 10: re-apply expected mount table for rollback (replaces || true
+    # silent-NOOP remount).
+    _restore_mounts
     # Restore from device-side .orig_<TS> backups
     hdc_shell "for f in \$(find /system -name '*.orig_${TS}' 2>/dev/null); do cp \$f \${f%.orig_${TS}}; done" >/dev/null
     hdc_shell "rm -rf /system/android"
     hdc_shell "rm -f /system/bin/appspawn-x"
     hdc_shell "rm -f /system/etc/init/appspawn_x.cfg /system/etc/appspawn_x_sandbox.json"
     hdc_shell "rm -f /system/lib/liboh_adapter_bridge.so /system/lib/libapk_installer.so /system/lib/libinstalls.z.so"
+    # Fix D rollback: remove the dual-path adapter bridge in /system/android/lib too
+    hdc_shell "rm -f /system/android/lib/liboh_adapter_bridge.so"
     hdc_shell "rm -f /system/lib/liboh_hwui_shim.so /system/lib/liboh_skia_rtti_shim.so /system/lib/liboh_android_runtime.so"
     hdc_shell "rm -f /system/lib/libc_musl.so /system/lib/libandroid.so"
-    hdc_shell "bm uninstall -n com.example.helloworld 2>&1" >/dev/null || true
+    # bm uninstall returns non-zero if app is absent; use hdc_shell_check + warn
+    # rather than swallowing with || true. Absent app is expected during rollback.
+    if ! hdc_shell_check "bm uninstall -n com.example.helloworld 2>&1"; then
+        warn "uninstall: bm uninstall non-zero (app may already be absent — benign)"
+    fi
+    # Gate 8: replay snapshot to restore factory contexts before exit.
+    _chcon_snapshot_restore
     _alive_probe
     pass_msg "UNINSTALL done. Reboot device for clean state."
     exit 0
@@ -469,8 +840,18 @@ stage_0() {
     # G3 — local artifact inventory check
     _verify_required_artifacts
 
+    # Gate 13 — processdump probe (diagnostic-capability gate). If processdump
+    # is unreachable/broken we ABORT before any /system writes; diagnostic
+    # capability is the value-add of /system over the chroot path.
+    _probe_processdump
+
+    # Gate 8 — initialise chcon snapshot file on device. Idempotent (preserves
+    # baseline across resumed runs). Any subsequent chcon_verify call will
+    # append the pre-chcon label of every target path.
+    _chcon_snapshot_init
+
     _alive_probe
-    pass_msg "Stage 0 PASS — preflight clean, factory baseline confirmed"
+    pass_msg "Stage 0 PASS — preflight clean, factory baseline confirmed (Gate 13 + Gate 8 armed)"
 }
 
 # ============================================================================
@@ -483,7 +864,9 @@ stage_1() {
     log "Stage 1 · backup 13 device-side originals (TS=$TS)"
     _alive_probe
 
-    hdc_shell "mount -o remount,rw /" >/dev/null || true
+    # Gate 10: re-apply expected mount table (Island pattern). Replaces the
+    # prior `|| true` remount that silently swallowed remount failures.
+    _restore_mounts
 
     # 6 files in /system/lib/
     local lib_files=(libwms.z.so libappms.z.so libbms.z.so libskia_canvaskit.z.so
@@ -496,18 +879,24 @@ stage_1() {
                      "/system/etc/selinux/targeted/contexts/file_contexts")
 
     local expected=$(( ${#lib_files[@]} + ${#sdk_files[@]} + ${#etc_files[@]} ))
+    # Backup semantic: cp <src> <.orig_TS> IFF src exists and .orig_TS does
+    # not. Rewritten without `|| true`: the device-side conditional [ -f ] &&
+    # [ ! -f ] && cp is itself a boolean; missing-src or already-backed-up
+    # short-circuits to a successful no-op on the device shell, which our
+    # host-side check_hdc-shell now propagates faithfully. The verify-count
+    # gate at the end is the actual acceptance criterion.
     local f orig
     for f in "${lib_files[@]}"; do
         orig="/system/lib/${f}.orig_${TS}"
-        hdc_shell "[ -f /system/lib/$f ] && [ ! -f $orig ] && cp /system/lib/$f $orig || true" >/dev/null
+        hdc_shell "if [ -f /system/lib/$f ] && [ ! -f $orig ]; then cp /system/lib/$f $orig; fi" >/dev/null
     done
     for f in "${sdk_files[@]}"; do
         orig="/system/lib/platformsdk/${f}.orig_${TS}"
-        hdc_shell "[ -f /system/lib/platformsdk/$f ] && [ ! -f $orig ] && cp /system/lib/platformsdk/$f $orig || true" >/dev/null
+        hdc_shell "if [ -f /system/lib/platformsdk/$f ] && [ ! -f $orig ]; then cp /system/lib/platformsdk/$f $orig; fi" >/dev/null
     done
     for f in "${etc_files[@]}"; do
         orig="${f}.orig_${TS}"
-        hdc_shell "[ -f $f ] && [ ! -f $orig ] && cp $f $orig || true" >/dev/null
+        hdc_shell "if [ -f $f ] && [ ! -f $orig ]; then cp $f $orig; fi" >/dev/null
     done
 
     # Verify count
@@ -540,8 +929,14 @@ stage_2() {
     _alive_probe
 
     # CRITICAL: never stop appspawn (per HBC SOP line 51 "停了会断 hdc 通信链")
-    hdc_shell "begetctl stop_service foundation"     >/dev/null || true
-    hdc_shell "begetctl stop_service render_service" >/dev/null || true
+    # Fix A: hdc_shell_check propagates device-side exit. Service-stop errors
+    # are downgraded to WARN rather than silently swallowed.
+    if ! hdc_shell_check "begetctl stop_service foundation"; then
+        warn "Stage 2: begetctl stop_service foundation non-zero exit (service may already be down)"
+    fi
+    if ! hdc_shell_check "begetctl stop_service render_service"; then
+        warn "Stage 2: begetctl stop_service render_service non-zero exit (service may already be down)"
+    fi
 
     local pf pr ph
     pf=$(hdc_shell "pidof foundation"     | tr -d ' \r\n')
@@ -567,8 +962,16 @@ stage_3_0() {
     log "Stage 3.0 · mkdir 4 prerequisite directories + ensure staging"
     _alive_probe
 
-    hdc_shell "mount -o remount,rw /" >/dev/null || true
-    hdc_shell "mount -o remount,rw /system" >/dev/null || true
+    # Gate 10: re-apply expected mount table (Island demo/run-live.sh L35-42
+    # pattern). Idempotent — mountpoint -q probe precedes each remount.
+    # Replaces the prior `|| true` remount calls which silently swallowed
+    # remount failures (W2-class bug).
+    _restore_mounts
+
+    # Gate 11: force-stop OH Photos (Island demo/run-live.sh L60-62). Even in
+    # headless deploy, the Photos viewer may be holding a render_service or
+    # graphics-buffer lock that conflicts with later .so replacement.
+    _force_stop_photos
 
     _ensure_stage_dir
 
@@ -771,6 +1174,11 @@ stage_3f() {
     # Binaries
     stage_push "$V3_LOCAL/bin/appspawn-x"              /system/bin/appspawn-x
     stage_push "$V3_LOCAL/lib/liboh_adapter_bridge.so" /system/lib/liboh_adapter_bridge.so
+    # Fix D port (chroot dual-path; agent 73 Phase 1b.2 finding 2026-05-19):
+    # liboh_android_runtime.so chain-fails on liboh_adapter_bridge.so resolution
+    # when loaded from /system/android/lib/ without a sibling there. Mirrors
+    # chroot script line 334-335 (dual-path same .so to both lib trees).
+    stage_push "$V3_LOCAL/lib/liboh_adapter_bridge.so" /system/android/lib/liboh_adapter_bridge.so
     stage_push "$V3_LOCAL/lib/libapk_installer.so"     /system/lib/libapk_installer.so
     stage_push "$V3_LOCAL/lib/libinstalls.z.so"        /system/lib/libinstalls.z.so
 
@@ -787,7 +1195,11 @@ stage_3f() {
 
     # chmod batch
     hdc_shell "chmod 755 /system/bin/appspawn-x"                                       >/dev/null
-    hdc_shell "chmod 644 /system/lib/*.so /system/lib/platformsdk/*.z.so 2>/dev/null" >/dev/null || true
+    # Fix A: glob-based chmod may match nothing on some boards; use
+    # hdc_shell_check + warn (downgraded from prior || true silent NOOP).
+    if ! hdc_shell_check "chmod 644 /system/lib/*.so /system/lib/platformsdk/*.z.so 2>/dev/null"; then
+        warn "Stage 3f: glob chmod 644 non-zero (some targets may be absent on this board — benign)"
+    fi
     hdc_shell "chmod 644 /system/android/lib/*.so"                                     >/dev/null
     hdc_shell "chmod 644 /system/android/framework/*.jar"                              >/dev/null
     hdc_shell "chmod 644 /system/android/framework/arm/*.art /system/android/framework/arm/*.oat /system/android/framework/arm/*.vdex" >/dev/null
@@ -803,9 +1215,24 @@ stage_3f() {
     ok "5 symlinks installed"
 
     # restorecon for appspawn-x (file_contexts new rules take effect on relabel)
-    hdc_shell "restorecon /system/bin/appspawn-x"                          >/dev/null 2>&1
-    hdc_shell "find /system/android/lib -exec restorecon {} \\;"           >/dev/null 2>&1 || true
+    # Fix A: explicit device-side exit propagation. The W2-class || true pattern
+    # is replaced with `if ! hdc_shell_check ...` so silent restorecon failures
+    # surface as warnings, not silent NOOPs.
+    if ! hdc_shell_check "restorecon /system/bin/appspawn-x"; then
+        warn "Stage 3f: restorecon /system/bin/appspawn-x non-zero exit"
+    fi
+    if ! hdc_shell_check "find /system/android/lib -exec restorecon {} \\;"; then
+        warn "Stage 3f: restorecon /system/android/lib non-zero exit (may be benign for files missing from file_contexts)"
+    fi
     ok "restorecon /system/bin/appspawn-x + /system/android/lib"
+
+    # Fix D dual-path: chcon-verify the dual-path adapter bridge on BOTH paths.
+    # liboh_android_runtime.so resolution of liboh_adapter_bridge.so requires
+    # the latter at both /system/lib/ and /system/android/lib/ with matching
+    # system_lib_file label. Gate 8 snapshot is captured automatically.
+    chcon_verify system_lib_file \
+        /system/lib/liboh_adapter_bridge.so \
+        /system/android/lib/liboh_adapter_bridge.so
 
     # G2 verify appspawn-x got appspawn_exec label
     local label
@@ -828,11 +1255,13 @@ stage_3f() {
 stage_3_7() {
     log "Stage 3.7 · chcon final sweep + verify (G2)"
     _alive_probe
-    # Re-verify the high-risk labels haven't drifted
+    # Re-verify the high-risk labels haven't drifted (Fix D dual-path entries
+    # 2026-05-19: liboh_adapter_bridge.so verified at both lib paths)
     local p got
     for p in /system/android/lib/liboh_android_runtime.so /system/lib/liboh_android_runtime.so \
              /system/android/lib/liboh_hwui_shim.so      /system/lib/liboh_hwui_shim.so \
              /system/android/lib/liboh_skia_rtti_shim.so /system/lib/liboh_skia_rtti_shim.so \
+             /system/lib/liboh_adapter_bridge.so          /system/android/lib/liboh_adapter_bridge.so \
              /system/etc/fonts.xml /system/android/etc/fonts.xml; do
         got=$(hdc_shell "ls -lZ $p 2>/dev/null" | grep -oE "[a-z_]+_file" | head -1)
         case "$p" in
@@ -919,6 +1348,9 @@ stage_3_9() {
     done
     manifest+=("$V3_LOCAL/bin/appspawn-x=/system/bin/appspawn-x")
     manifest+=("$V3_LOCAL/lib/liboh_adapter_bridge.so=/system/lib/liboh_adapter_bridge.so")
+    # Fix D dual-path verify (chroot Phase 1b.2 finding 2026-05-19; matches
+    # /system/android/lib/ push in stage_3f)
+    manifest+=("$V3_LOCAL/lib/liboh_adapter_bridge.so=/system/android/lib/liboh_adapter_bridge.so")
     manifest+=("$V3_LOCAL/lib/libapk_installer.so=/system/lib/libapk_installer.so")
     manifest+=("$V3_LOCAL/lib/libinstalls.z.so=/system/lib/libinstalls.z.so")
     manifest+=("$V3_LOCAL/etc/appspawn_x.cfg=/system/etc/init/appspawn_x.cfg")
@@ -985,13 +1417,20 @@ stage_4() {
 
     hdc_shell "sync" >/dev/null
     log "sync complete; issuing reboot..."
+    # || true is documented-justified here per feedback_hdc_shell_check_pattern.md:
+    # `reboot` is fire-and-forget — channel drops MID-command by design. We
+    # cannot meaningfully evaluate the device-side exit code. The poll loop
+    # below is the actual reboot acceptance gate.
     hdc_shell "reboot" >/dev/null || true
 
     # Poll for return
     local i=0
     while [ $i -lt 72 ]; do
         sleep 5
-        if "$HDC" shell "echo alive" 2>/dev/null | tr -d '\r\n' | grep -q alive; then
+        # Fix A port (control-flow boolean propagation): output-equality predicate
+        # (NOT host-exit-code reliance). </dev/null + -t serial to match Fix A
+        # discipline; chroot script uses identical pattern.
+        if [ "$("$HDC" -t "$HDC_SERIAL" shell "echo alive" </dev/null 2>/dev/null | tr -d '\r\n')" = "alive" ]; then
             ok "device back online after $((i*5))s"
             break
         fi
@@ -1035,8 +1474,15 @@ stage_5() {
         warn "appspawn-x not running yet (may spawn on first app launch)"
     fi
 
-    # BMS ready check
-    if hdc_shell "hilog 2>/dev/null | head -500" | grep -qiE 'BMS.*ready|BundleMgr.*init.*ok'; then
+    # BMS ready check — Fix A port: capture first, then evaluate. Avoids the
+    # `if hdc_shell ... | grep` structural ambiguity (which silently swallows
+    # a channel outage as "no match"). Empty output here is a channel-health
+    # warning, not a missing-BMS warning.
+    local _hilog
+    _hilog=$(hdc_shell "hilog 2>/dev/null | head -500")
+    if [ -z "$_hilog" ]; then
+        warn "BMS check: hilog returned empty (channel may be degraded)"
+    elif echo "$_hilog" | grep -qiE 'BMS.*ready|BundleMgr.*init.*ok'; then
         ok "BMS ready signal found in hilog"
     else
         warn "no BMS ready signal in first 500 hilog lines"
@@ -1054,8 +1500,13 @@ stage_5() {
 # ============================================================================
 
 stage_6() {
-    log "Stage 6 · launch HBC HelloWorld via aa start"
+    log "Stage 6 · launch HBC HelloWorld via aa start (Gate 12 budget=${LAUNCH_BUDGET_SECS}s)"
     _alive_probe
+
+    # Gate 11: force-stop OH Photos before any display-touching launch
+    # (Island demo/run-live.sh L60-62). Photos might hold render_service
+    # state from a prior operator interaction.
+    _force_stop_photos
 
     local apk="$V3_LOCAL/app/HelloWorld.apk"
     if [ ! -f "$apk" ]; then
@@ -1063,8 +1514,13 @@ stage_6() {
     else
         local win
         win=$(_to_win_path "$apk")
+        # hdc_raw applies </dev/null universally (Fix B port); post-push verify
+        # via hdc_shell_check (test -s) catches silent push failure.
         hdc_raw file send "$win" "/data/local/tmp/HelloWorld.apk" >/dev/null
-        ok "HelloWorld.apk → /data/local/tmp/"
+        if ! hdc_shell_check "test -s /data/local/tmp/HelloWorld.apk"; then
+            abort "Stage 6: HelloWorld.apk did NOT land on device (silent push failure)"
+        fi
+        ok "HelloWorld.apk → /data/local/tmp/ (size>0 verified)"
 
         local out
         out=$(hdc_shell "bm install -p /data/local/tmp/HelloWorld.apk 2>&1" | tr -d '\r')
@@ -1076,11 +1532,21 @@ stage_6() {
 
     local aa_sh="$REPO_ROOT/scripts/v3/aa-launch.sh"
     if [ -x "$aa_sh" ]; then
-        log "invoking $aa_sh launch-helloworld..."
-        "$aa_sh" launch-helloworld || warn "aa-launch.sh non-zero exit (continue to Stage 7 for marker)"
+        # Gate 12: loop-budget on launch (Island demo/run-live.sh L71). Bounds
+        # aa-launch.sh runtime so a hung launch surfaces as timeout (rc=124)
+        # rather than pinning resources forever.
+        log "invoking $aa_sh launch-helloworld (Gate 12 budget=${LAUNCH_BUDGET_SECS}s)..."
+        timeout "${LAUNCH_BUDGET_SECS}s" "$aa_sh" launch-helloworld
+        local rc=$?
+        if [ "$rc" = "124" ]; then
+            warn "Stage 6: aa-launch.sh hit Gate 12 launch budget (${LAUNCH_BUDGET_SECS}s) — aborted; Stage 7 marker still authoritative"
+        elif [ "$rc" != "0" ]; then
+            warn "aa-launch.sh non-zero exit ($rc) (continue to Stage 7 for marker)"
+        fi
     else
-        log "aa-launch.sh missing; calling aa directly"
-        hdc_shell "aa start -a com.example.helloworld.MainActivity -b com.example.helloworld 2>&1" | sed 's/^/    /'
+        log "aa-launch.sh missing; calling aa directly (Gate 12 budget=${LAUNCH_BUDGET_SECS}s)"
+        # Gate 12: budget-wrap direct aa start too.
+        _budgeted_hdc_shell "$LAUNCH_BUDGET_SECS" "aa start -a com.example.helloworld.MainActivity -b com.example.helloworld 2>&1" | sed 's/^/    /'
     fi
 
     sleep 3
@@ -1110,7 +1576,13 @@ stage_7() {
     local attempts=12
     local i=0
     while [ $i -lt $attempts ]; do
-        if hdc_shell "hilog -x 2>/dev/null | tail -400" | grep -F "$marker" > /tmp/hbc_marker_$$.log; then
+        # Fix A port: capture-then-evaluate. Empty hilog is a channel-degraded
+        # warning distinct from "marker missing".
+        local _h
+        _h=$(hdc_shell "hilog -x 2>/dev/null | tail -400")
+        if [ -z "$_h" ]; then
+            warn "Stage 7 attempt $((i+1)): hilog empty (channel may be degraded)"
+        elif echo "$_h" | grep -F "$marker" > /tmp/hbc_marker_$$.log; then
             found=$(head -3 /tmp/hbc_marker_$$.log)
             rm -f /tmp/hbc_marker_$$.log
             break
@@ -1142,6 +1614,29 @@ if [ "$UNINSTALL" = "1" ]; then
     run_uninstall
 fi
 
+# Gate 8 — --snapshot-only short-circuit. Initialise snapshot + capture the
+# high-risk label set without performing any chcon. Exercises the Gate 8
+# plumbing end-to-end (init + capture + recv) as a smoke gate operators can
+# run any time the board is up.
+if [ "$SNAPSHOT_ONLY" = "1" ]; then
+    _check_hdc_version
+    _alive_probe
+    _chcon_snapshot_init
+    # Capture the well-known high-risk paths. Missing paths are skipped with
+    # WARN (not aborted) — many won't exist on factory baseline yet.
+    _chcon_snapshot_capture \
+        /system/lib/liboh_android_runtime.so /system/android/lib/liboh_android_runtime.so \
+        /system/lib/liboh_hwui_shim.so       /system/android/lib/liboh_hwui_shim.so \
+        /system/lib/liboh_skia_rtti_shim.so  /system/android/lib/liboh_skia_rtti_shim.so \
+        /system/lib/liboh_adapter_bridge.so  /system/android/lib/liboh_adapter_bridge.so \
+        /system/etc/fonts.xml                /system/android/etc/fonts.xml \
+        /system/bin/appspawn-x
+    log "Gate 8 snapshot-only: contents of $CHCON_SNAPSHOT_DEVICE:"
+    hdc_shell "cat $CHCON_SNAPSHOT_DEVICE" | sed 's/^/    /'
+    pass_msg "Gate 8 --snapshot-only PASS — invoke 'restore-chcon' subcommand to replay"
+    exit 0
+fi
+
 case "$STAGE" in
     0|stage-0)         stage_0   ;;
     1|stage-1)         stage_1   ;;
@@ -1159,6 +1654,26 @@ case "$STAGE" in
     5|stage-5)         stage_5   ;;
     6|stage-6)         stage_6   ;;
     7|stage-7)         stage_7   ;;
+    # Gate 8 — restore chcon snapshot (operator-invoked rollback)
+    restore-chcon)
+        _check_hdc_version
+        _alive_probe
+        _chcon_snapshot_restore
+        ;;
+    # Gate 10 — restore mount table (operator-invoked rollback)
+    restore-mounts)
+        _check_hdc_version
+        _alive_probe
+        _restore_mounts
+        pass_msg "Gate 10 restore-mounts PASS"
+        ;;
+    # Gate 13 — standalone processdump probe
+    probe-processdump)
+        _check_hdc_version
+        _alive_probe
+        _probe_processdump
+        pass_msg "Gate 13 probe-processdump PASS"
+        ;;
     all)
         stage_0
         stage_1
@@ -1185,6 +1700,8 @@ case "$STAGE" in
     *)
         echo "ERROR: unknown stage '$STAGE'" >&2
         echo "Valid: 0 1 2 3.0 3b 3c 3d 3e 3f 3.7 3.8 3.9 4 5 6 7 all" >&2
+        echo "       restore-chcon (Gate 8) | restore-mounts (Gate 10) | probe-processdump (Gate 13)" >&2
+        echo "Flags: --reboot | --no-skip-stage-2 | --uninstall | --snapshot-only (Gate 8)" >&2
         exit 2
         ;;
 esac
