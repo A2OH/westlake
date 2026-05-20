@@ -860,9 +860,17 @@ stage_push() {
         abort "stage_push: md5 mismatch final $bn (local=$lmd5 device=$fmd5)"
     fi
 
-    # Step 6: Fix B post-install device-side existence + size>0 gate
+    # Step 6: Fix B post-install device-side existence + size>0 gate.
+    # 2026-05-20 agent-86 finding: ~1.6% transient hdc 3.2.0b shell-exit-code
+    # flake here (test -s returns non-zero even when file is present + correct
+    # md5 + correct size). One-retry-with-500ms-settle bounds the false-positive
+    # rate without weakening the gate against real silent-failure.
     if ! hdc_shell_check "test -s $device_path"; then
-        abort "stage_push: device final NOT present/zero after install: $device_path"
+        sleep 0.5
+        if ! hdc_shell_check "test -s $device_path"; then
+            abort "stage_push: device final NOT present/zero after install: $device_path (failed 2x with 500ms settle — likely real, not transient)"
+        fi
+        log "  stage_push: device verify needed retry after settle for $bn (transient)"
     fi
 
     ok "$bn → $device_path  ($lmd5)"
