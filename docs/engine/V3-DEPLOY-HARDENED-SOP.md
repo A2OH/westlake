@@ -94,6 +94,40 @@ path:
 | Fix C | Host-side awk for `df` output parsing (DAYU200 toybox lacks awk). | Verified: hardened script already pipes all `awk` host-side. No port needed. |
 | Fix D | Dual-path `liboh_adapter_bridge.so` to `/system/lib/` AND `/system/android/lib/`. `liboh_android_runtime.so` chain-resolution requires the bridge at both paths. | `stage_3f` pushes both paths; chcon_verify covers both; Stage 3.9 integrity manifest includes both; `run_uninstall` removes both. |
 
+### Mitigations M1-M5 (2026-05-20) — Stage B fault-isolation retry
+
+After the Stage B halt (commit `4ba8695f`; see `V3-W2-STAGE-B-REPORT.md`) and
+the three probes that DENIED the leading hypotheses (`V3-W2-CHCON-WRITE-PROBE.md`
+denied H1 chcon-WRITE channel-death, `V3-W2-CONCURRENCY-PROBE.md` denied Channel
+A+B concurrency, agent 84's load probe denied push-rate), agent 84 recommended 5
+surgical mitigations that don't presume one specific cause. Applied by agent 85
+(2026-05-20).
+
+| Mit | Hypothesis countered | Implementation | Sites |
+|-----|----------------------|----------------|-------|
+| **M1** | `chcon \|\| true` silent NOOP on absent files | Audit pass: 0 hits of `chcon.*\|\| true` or `restorecon.*\|\| true` in code paths. Only the documented `reboot \|\| true` at L1424 remains (fire-and-forget; channel drops by design). Acceptance: `grep -n "chcon.*\|\| true" scripts/v3/deploy-hbc-to-dayu200-hardened.sh` = 1 hit, all in header comment. | Verified clean. |
+| **M2** | Channel A dies mid-stage between a push-burst and a chcon-burst — operator sees "end-of-stage abort" with no fault-isolation. | `_burst_boundary()` helper fires a sentinel echo via direct `"$HDC" -t shell` (bypassing wrappers for max stdin-isolation); abort with explicit boundary-context message on silent or mismatched stdout. Inside `chcon_verify()`, a mid-batch sentinel fires every 8 chcons for long batches (stage 3e × 27). | `stage_3c` push→chcon; `stage_3d` push→chcon; `stage_3e` push→chcon (+ mid-batch every 8); `stage_3f` push→restorecon + restorecon→chcon (the Stage B abort site); `chcon_verify` entry. **7 boundaries total.** |
+| **M3** | Kernel + audit subsystem + hdc daemon may have pending state from the push phase when the chcon phase begins (xattr-write storm + LSM transitions hit while audit ring still draining push events). | `_settle_window()` helper sleeps 0.5s right after each M2 sentinel. Combined with M2 in `_burst_boundary`. | Co-located with M2 (7 settle windows). |
+| **M4** | chcon-on-ENOENT — Stage B may have called chcon on a path that didn't exist due to logic bug or race (strongest remaining hypothesis after the 3 probes). | Inline `if ! hdc_shell_check "test -e '$p'"` before every chcon in `chcon_verify()`; abort with explicit ENOENT-prevention message. Two additional standalone `M4 test -e/-d` checks in `stage_3f` before its 2 restorecon calls. | `chcon_verify` (covers every chcon batch across 3c/3d/3e/3f); `stage_3f` restorecon × 2. **Empirically tests Stage B leading hypothesis — fires loudly if any chcon target is missing.** |
+| **M5** | Cumulative session leak — hdc client/daemon accumulates resources over the full deploy span (5 stages, ~100 hdc invocations) and eventually wedges Channel A. | `_reset_shell_channel()` helper: `hdc kill` (host-server kill; device-side `hdcd` untouched) + 1s settle + `_alive_probe`. Aborts if the post-reset alive probe fails (which would mean device-side hdcd died — distinct from cumulative leak). | `all` dispatcher between every major /system-writing stage: post-3b→pre-3c, post-3c→pre-3d, post-3d→pre-3e, post-3e→pre-3f, post-3f→pre-3.7. **5 resets per full `all` run.** |
+| `--dry-run` | Static validation needed to verify dispatcher + stage ordering without board contact. | All device-affecting helpers gate on `DRY_RUN=1` and emit `[DRY]` markers. Each `stage_*` short-circuits with a `[DRY] PASS` message after `_alive_probe`. | Acceptance: `bash deploy-hbc-to-dayu200-hardened.sh all --dry-run` completes with rc=0; same for individual stage invocations. |
+
+**LOC delta:** +355/-4 (1707 → 2058).
+
+**What M1-M5 collectively buy us on the Stage B retry:**
+
+1. If channel dies mid-stage, the abort message names the exact `_burst_boundary` (e.g. "stage_3f: push-burst+chmod → restorecon-burst") instead of "stage_3f failed".
+2. If a chcon target is missing, M4 fires loudly with "chcon target does not exist on device: $p (chcon-on-ENOENT prevention)" — directly tests the leading hypothesis and pins the caller-invariant bug if present.
+3. If cumulative leak is the cause, M5 cleanly drops between stages and any wedge will show up at a known reset boundary instead of randomly within a stage.
+4. If none of the above fires and Stage B still aborts, we've ruled out 4 of the 5 remaining hypotheses simultaneously — the failure must be in the 5th (remount-rw or large-file push concurrency), which then becomes the next probe target.
+
+**What M1-M5 do NOT do:**
+
+- Do not introduce any new permanent /system writes (M4 is read-only `test -e`).
+- Do not touch the existing 13 Gates or 4 chroot-port Fixes (orthogonal layer).
+- Do not change the `all` ordering of stages (only adds M5 resets between them).
+- Do not modify `chroot.sh`, the legacy `deploy-hbc-to-dayu200.sh`, or any other script.
+
 ## 4. HBC "全局三条" abort conditions enforced
 
 Per `westlake-deploy-ohos/v3-hbc/scripts/DEPLOY_SOP.md` lines 6-10 and
@@ -221,6 +255,19 @@ bash scripts/v3/deploy-hbc-to-dayu200-hardened.sh probe-processdump
 These are READ-ONLY-OR-RECOVERY operations (no `/system` modification beyond
 chcon label restoration); safe to invoke at any time the channel is healthy.
 
+### 6.7 M1-M5 dry-run static validation (new 2026-05-20)
+
+```bash
+# Static validation — no board contact, no hdc transport invoked
+bash scripts/v3/deploy-hbc-to-dayu200-hardened.sh all --dry-run
+bash scripts/v3/deploy-hbc-to-dayu200-hardened.sh all --dry-run --reboot   # also covers stages 4-7
+bash scripts/v3/deploy-hbc-to-dayu200-hardened.sh 3f --dry-run             # individual stage
+```
+
+Validates dispatcher + stage ordering + M2/M3/M4/M5 helper wiring without
+touching the device. Useful for CI smoke and for re-verifying after future
+edits. Acceptance: rc=0 + `[DRY]` markers on every device-affecting helper.
+
 ## 7. Pre-brick rollback
 
 If the deploy succeeded but caused boot-time instability (post-reboot
@@ -276,6 +323,11 @@ artifact + smoke + lints (skips W-slots).
 | hdc_shell control-flow   | Trusted host exit 0 (false-positive risk) | Fix A: `hdc_shell_check` propagates device-side exit |
 | Push stdin in while-loop | Iteration 2+ lost to hdc.exe stdin slurp | Fix B: `</dev/null` on `hdc_raw`; post-push `test -s` gate |
 | Adapter bridge resolution | Single path `/system/lib/`             | Fix D: dual-path `/system/lib/` + `/system/android/lib/` |
+| Mid-stage channel health  | End-of-stage `_alive_probe` only       | M2: `_burst_boundary` between every push-burst → chcon-burst transition (7 boundaries) + mid-batch sentinel every 8 chcons |
+| Settle window             | None                                   | M3: 500ms `_settle_window` after each M2 sentinel (kernel/audit/hdc drain) |
+| chcon-on-ENOENT defense   | None (chcon may silently succeed on missing file in some toybox variants) | M4: inline `test -e` check before every chcon in `chcon_verify` + 2 standalone in `stage_3f` restorecon |
+| Inter-stage session reset | None (single host-server pinned across full deploy) | M5: `hdc kill` + 1s + `_alive_probe` between every major /system-writing stage (5 resets per `all` run) |
+| Static dry-run mode       | None                                   | `--dry-run` flag short-circuits all device-affecting helpers with `[DRY]` markers |
 
 ## 10. Cross-references
 
@@ -294,3 +346,4 @@ artifact + smoke + lints (skips W-slots).
 - HBC stage_push template: `westlake-deploy-ohos/v3-hbc/scripts/deploy_stage.sh` L125-156
 - Launch model: `docs/engine/V3-LAUNCH-MODEL.md`
 - Memory: `feedback_hdc_shell_check_pattern.md` (Fix A rationale), `feedback_chroot_dynamic_elf_ro_bind.md` (Stage 3 chroot mount pattern), `feedback_soft_brick_w2_2026-05-16.md` (origin postmortem)
+- M1-M5 origin: agent 84 final report (Stage B retry recommendation); applied by agent 85 (2026-05-20). Probe evidence: `V3-W2-STAGE-B-REPORT.md` (commit `4ba8695f`), `V3-W2-CHCON-WRITE-PROBE.md` (commit `84cea37d`, H1 DENIED), `V3-W2-CONCURRENCY-PROBE.md` (commit `02b2fcac`, A+B concurrency DENIED).
