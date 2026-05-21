@@ -95,7 +95,7 @@ Shape #2 keeps M7's Channel-A-call discipline (still 3 calls — the embedded sh
 
 ## Local commit SHA
 
-TBD on commit.
+`b93a675a`
 
 ## Report path
 
