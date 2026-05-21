@@ -539,6 +539,157 @@ _chunked_restorecon_recursive() {
     ok "$ctx: chunked $n restorecon ops complete under $dir"
 }
 
+# ============================================================================
+# M7 — tarball-batch helpers (2026-05-20, agent 95)
+# ============================================================================
+# After agent 94's E2E sweep (`V3-W2-E2E-94-REPORT.md`) confirmed M6's chunked
+# Channel A still dies at op #260 (`hdc.exe` 3.2.0b cumulative-call-count
+# ceiling — postmortem H2), the structural fix per
+# `feedback_risky_productive_over_safety_theater.md` is to **STOP making
+# per-op Channel A calls** for the chmod/symlink/restorecon storm and instead
+# deliver the entire layout via ONE Channel C (file send) + ONE Channel A
+# (tar extract + restorecon -R) round-trip.
+#
+# Pattern:
+#   1. _stage_tar_build_dir <stage-name>      — fresh local staging dir
+#   2. _stage_tar_add_file <staging> <src> <dst-under-/>  [mode]
+#                                              — copy + chmod (preserves modes)
+#   3. _stage_tar_add_symlink <staging> <target> <linkpath>
+#                                              — actual symlink in staging
+#   4. _stage_tar_pack <staging> <tarball>     — tar cf locally
+#   5. _stage_tar_push_and_extract <tarball> <stage-name> [restorecon-paths...]
+#                                              — single file send + single
+#                                                shell with tar xf + restorecon
+#
+# Wire-level Channel A calls collapsed:
+#   - N chmod  → 0  (modes set locally via chmod before tar; tar preserves)
+#   - M ln -sf → 0  (symlinks created locally; tar preserves)
+#   - K restorecon individual → 1 (single restorecon -R covers all paths)
+#
+# Toybox tar (DAYU200) lacks --xattrs, so we DON'T rely on SELinux xattrs in
+# the tarball. Labels are restored by the on-device restorecon -R after extract,
+# using /system/etc/selinux/targeted/contexts/file_contexts (which Stage 3f
+# itself deploys — so the file_contexts MUST be in the tarball OR pushed before
+# the tar extract; we deploy it in-tarball, then explicit chcon on the
+# adapter_bridge dual-path entries handled below for paths whose policy entry
+# is non-default).
+
+_stage_tar_build_dir() {
+    local stage="$1"
+    local staging="/tmp/v3-${stage}-staging-$$"
+    rm -rf "$staging"
+    mkdir -p "$staging"
+    echo "$staging"
+}
+
+# _stage_tar_add_file <staging> <local-src> <dst-relative-to-staging-root> [mode]
+#   Copies src into staging at the requested path (mirroring on-device layout
+#   under staging-root). Parent dirs auto-created. Mode default 644.
+_stage_tar_add_file() {
+    local staging="$1" src="$2" dst="$3" mode="${4:-644}"
+    [ -f "$src" ] || { warn "M7: _stage_tar_add_file source missing: $src"; return 1; }
+    # dst is relative to / on device; in staging it becomes "$staging/$dst"
+    # (without leading slash). Normalise.
+    local rel="${dst#/}"
+    local destdir="$staging/$(dirname "$rel")"
+    mkdir -p "$destdir"
+    cp "$src" "$staging/$rel"
+    chmod "$mode" "$staging/$rel"
+}
+
+# _stage_tar_add_symlink <staging> <link-target> <link-path-rel-to-staging-root>
+#   Creates an actual symlink under staging. tar will preserve it as a symlink
+#   on extract.
+_stage_tar_add_symlink() {
+    local staging="$1" target="$2" linkpath="$3"
+    local rel="${linkpath#/}"
+    local destdir="$staging/$(dirname "$rel")"
+    mkdir -p "$destdir"
+    # rm any prior placeholder; ln -s with target string verbatim (target is
+    # NOT dereferenced at local creation — it stays as the literal symlink
+    # body which tar preserves and the device kernel resolves).
+    rm -f "$staging/$rel"
+    ln -s "$target" "$staging/$rel"
+}
+
+# _stage_tar_pack <staging-dir> <tarball-path>
+#   tar cf locally. owner=root/group=root so on-device extract lands the
+#   files as root-owned (DAYU200 hdcd runs as root). NO --xattrs (toybox tar
+#   doesn't support it); restorecon -R handles labels post-extract.
+_stage_tar_pack() {
+    local staging="$1" tarball="$2"
+    [ -d "$staging" ] || { abort "M7: pack: staging dir missing: $staging"; }
+    rm -f "$tarball"
+    # -C cd into staging; "." captures the whole tree relative to /.
+    tar cf "$tarball" --owner=root --group=root -C "$staging" .
+    if [ ! -s "$tarball" ]; then
+        abort "M7: pack: tarball empty after tar cf: $tarball"
+    fi
+    local sz
+    sz=$(stat -c %s "$tarball" 2>/dev/null || wc -c <"$tarball")
+    log "M7: packed $tarball (size=$sz from $staging)"
+}
+
+# _stage_tar_push_and_extract <local-tarball> <stage-ctx> [restorecon-path1 ...]
+#   Single Channel C push + single Channel A shell. The shell command does
+#   tar xf, restorecon -R on each provided path, removes the device tarball,
+#   and echoes a sentinel ("<stage-ctx>_TAR_OK") for stdout verification.
+#
+#   Channel A call budget for this helper:
+#     1 = post-push test -s verify  (hdc_shell_check)
+#     1 = tar extract + restorecon -R + rm + sentinel  (single hdc_shell)
+#     1 = sentinel-output sanity check is folded into the same call
+#   Plus 1 pre-call _alive_probe + 1 post-call _alive_probe (M2 framing) at
+#   caller site. Total ≤ 4 Channel A round-trips per stage that uses M7.
+_stage_tar_push_and_extract() {
+    local tarball="$1" ctx="$2"; shift 2
+    local restorecon_paths="$*"
+
+    if [ "$DRY_RUN" = "1" ]; then
+        ok "[DRY] M7: would push $tarball + single-shell extract + restorecon -R $restorecon_paths"
+        return 0
+    fi
+
+    local bn dev_tarball win
+    bn=$(basename "$tarball")
+    dev_tarball="/data/local/tmp/$bn"
+    win=$(_to_win_path "$tarball")
+
+    # Channel C: single file send (large but one transaction; Channel C verified
+    # alive end-state in agent 94 even after Channel A died).
+    local sendout
+    sendout=$(hdc_raw file send "$win" "$dev_tarball" 2>&1 | tr -d '\r')
+    _assert_no_fail_or_drwx "$sendout" "M7: push tarball $bn"
+
+    # Channel A #1: verify push landed with positive size.
+    if ! hdc_shell_check "test -s $dev_tarball"; then
+        abort "M7: tarball not present/zero on device after push: $dev_tarball"
+    fi
+
+    # Channel A #2: extract + restorecon -R + cleanup, all in ONE shell call.
+    # Sentinel echo at the END means partial extracts (where tar exits non-zero
+    # halfway through) won't masquerade as success — sentinel only fires if
+    # every preceding && succeeded.
+    local sentinel="${ctx^^}_TAR_OK"
+    local cmd="cd / && tar xf $dev_tarball"
+    if [ -n "$restorecon_paths" ]; then
+        # restorecon -R per provided path. Single shell — no per-path round trip.
+        local p
+        for p in $restorecon_paths; do
+            cmd="$cmd && restorecon -R $p"
+        done
+    fi
+    cmd="$cmd && rm -f $dev_tarball && echo $sentinel"
+
+    local extractout
+    extractout=$(hdc_shell "$cmd" | tr -d '\r')
+    _assert_no_fail_or_drwx "$extractout" "M7: tar extract $bn"
+    if ! echo "$extractout" | grep -qF "$sentinel"; then
+        abort "M7: extract sentinel '$sentinel' MISSING from extract output (tar/restorecon failed mid-pipeline): $(echo "$extractout" | tail -5 | tr '\n' '|')"
+    fi
+    ok "M7: extract + restorecon complete (sentinel=$sentinel)"
+}
+
 # G6 — hdc.exe version pin / warn
 _check_hdc_version() {
     if [ "$DRY_RUN" = "1" ]; then
@@ -1639,141 +1790,125 @@ stage_3e() {
 # ============================================================================
 
 stage_3f() {
-    log "Stage 3f · appspawn-x bin + cfg + linker + selinux + 5 symlinks"
+    log "Stage 3f · appspawn-x bin + cfg + linker + selinux + 5 symlinks (M7 tarball pattern)"
     _alive_probe
     if [ "$DRY_RUN" = "1" ]; then
-        ok "[DRY] stage_3f: would push 4 bin + 3 cfg + 5 symlinks; chunked chmod/symlink/restorecon (M2 every $CHUNKED_M2_EVERY ops, M5 every $CHUNKED_M5_EVERY ops); 2 M4 ENOENT-checks; M2 boundary × 2; chcon_verify adapter_bridge dual-path"
+        ok "[DRY] stage_3f: would build M7 tarball (5-6 bin/lib + 4 cfg + 5 symlinks), push as 1 file, extract + restorecon -R via single shell, chcon_verify adapter_bridge dual-path"
         pass_msg "[DRY] Stage 3f PASS"
         return 0
     fi
     _ensure_stage_dir
-    # Reset the chunked-op counter at stage entry so cadence is per-stage,
-    # not cumulative across runs/dispatchers.
-    _chunked_op_reset
 
-    # Binaries
-    stage_push "$V3_LOCAL/bin/appspawn-x"              /system/bin/appspawn-x
-    stage_push "$V3_LOCAL/lib/liboh_adapter_bridge.so" /system/lib/liboh_adapter_bridge.so
+    # ====================================================================
+    # M7 tarball batch (2026-05-20, agent 95) — REPLACES the M6 per-op
+    # chunked-chmod/symlink/restorecon storm. Per agent 94's E2E sweep, M6
+    # chunked Channel A still wedged at op #260 (`hdc.exe` 3.2.0b
+    # cumulative-call-count ceiling — postmortem H2). M7 collapses the
+    # entire 3f payload into ONE Channel C push + ONE Channel A shell call.
+    #
+    # Channel A round-trips for the whole 3f payload (everything except the
+    # adapter-bridge chcon_verify dual-path at the tail):
+    #   1 = _alive_probe at entry
+    #   1 = M7 post-push test -s verify
+    #   1 = M7 single-shell (tar xf + restorecon -R + rm + sentinel)
+    #   2 = adapter-bridge chcon_verify (test -e + chcon + verify on 2 paths
+    #       = ~6 ops; bounded; this is the only remaining per-path Channel A
+    #       work, intentionally kept for label-stuck verification of the dual
+    #       path that depends on it for resolution)
+    #   1 = appspawn-x label verify
+    #   1 = _alive_probe at exit
+    # Total: ~7-10 Channel A calls vs ~280 in M6 — 28x reduction.
+    # ====================================================================
+
+    log "Stage 3f: M7 tarball build (replaces M6 chunked-chmod storm)"
+    local staging tarball
+    staging=$(_stage_tar_build_dir "stage3f")
+    tarball="/tmp/v3-stage3f-$$.tar"
+
+    # --- Binaries (mode 755 for executable, 644 for libs) ---
+    _stage_tar_add_file "$staging" "$V3_LOCAL/bin/appspawn-x"              /system/bin/appspawn-x                                       755
+    _stage_tar_add_file "$staging" "$V3_LOCAL/lib/liboh_adapter_bridge.so" /system/lib/liboh_adapter_bridge.so                          644
     # Fix D port (chroot dual-path; agent 73 Phase 1b.2 finding 2026-05-19):
     # liboh_android_runtime.so chain-fails on liboh_adapter_bridge.so resolution
     # when loaded from /system/android/lib/ without a sibling there. Mirrors
     # chroot script line 334-335 (dual-path same .so to both lib trees).
-    stage_push "$V3_LOCAL/lib/liboh_adapter_bridge.so" /system/android/lib/liboh_adapter_bridge.so
-    stage_push "$V3_LOCAL/lib/libapk_installer.so"     /system/lib/libapk_installer.so
-    stage_push "$V3_LOCAL/lib/libinstalls.z.so"        /system/lib/libinstalls.z.so
+    _stage_tar_add_file "$staging" "$V3_LOCAL/lib/liboh_adapter_bridge.so" /system/android/lib/liboh_adapter_bridge.so                  644
+    _stage_tar_add_file "$staging" "$V3_LOCAL/lib/libapk_installer.so"     /system/lib/libapk_installer.so                              644
+    _stage_tar_add_file "$staging" "$V3_LOCAL/lib/libinstalls.z.so"        /system/lib/libinstalls.z.so                                 644
 
     # libsurface optional
     if [ -f "$V3_LOCAL/lib/libsurface.z.so" ]; then
-        stage_push "$V3_LOCAL/lib/libsurface.z.so" /system/lib/libsurface.z.so
+        _stage_tar_add_file "$staging" "$V3_LOCAL/lib/libsurface.z.so"     /system/lib/libsurface.z.so                                  644
     fi
 
-    # configs
-    stage_push "$V3_LOCAL/etc/appspawn_x.cfg"          /system/etc/init/appspawn_x.cfg
-    stage_push "$V3_LOCAL/etc/appspawn_x_sandbox.json" /system/etc/appspawn_x_sandbox.json
-    stage_push "$V3_LOCAL/etc/ld-musl-namespace-arm.ini" /system/etc/ld-musl-namespace-arm.ini
-    stage_push "$V3_LOCAL/etc/file_contexts"           /system/etc/selinux/targeted/contexts/file_contexts
+    # --- Configs ---
+    _stage_tar_add_file "$staging" "$V3_LOCAL/etc/appspawn_x.cfg"          /system/etc/init/appspawn_x.cfg                              644
+    _stage_tar_add_file "$staging" "$V3_LOCAL/etc/appspawn_x_sandbox.json" /system/etc/appspawn_x_sandbox.json                          644
+    _stage_tar_add_file "$staging" "$V3_LOCAL/etc/ld-musl-namespace-arm.ini" /system/etc/ld-musl-namespace-arm.ini                      644
+    _stage_tar_add_file "$staging" "$V3_LOCAL/etc/file_contexts"           /system/etc/selinux/targeted/contexts/file_contexts          644
+
+    # --- Symlinks (5 total per HBC SOP §3f lines 159-163 + G2.14aa libandroid.so) ---
+    # These were 10 Channel A ops in M6 (rm + ln × 5). Now they're 5 local
+    # symlink-create operations; tar preserves the symlink kind, and tar xf
+    # on-device re-creates them as symlinks (overwriting any existing path).
+    _stage_tar_add_symlink "$staging" /lib/ld-musl-arm.so.1                                /system/lib/libc_musl.so
+    _stage_tar_add_symlink "$staging" /system/lib/chipset-sdk-sp/libshared_libz.z.so       /system/android/lib/libshared_libz.z.so
+    _stage_tar_add_symlink "$staging" /system/lib/platformsdk/libappexecfwk_common.z.so    /system/android/lib/libappexecfwk_common.z.so
+    _stage_tar_add_symlink "$staging" liboh_android_runtime.so                             /system/android/lib/libandroid.so
+    _stage_tar_add_symlink "$staging" liboh_android_runtime.so                             /system/lib/libandroid.so
+
+    # --- Pack ---
+    _stage_tar_pack "$staging" "$tarball"
+    ok "Stage 3f: M7 tarball built ($(wc -c <"$tarball") bytes, $(find "$staging" -type f -o -type l | wc -l) entries)"
+
+    # M2 (2026-05-20): channel-alive sentinel BEFORE the M7 push-burst.
+    # Without this, a Channel A death across the inter-stage M5 reset would
+    # surface inside the M7 single-shell with a less-specific abort message.
+    _burst_boundary "stage_3f: pre-M7-push (entry boundary)"
 
     # ====================================================================
-    # Chunked chmod batch (2026-05-20, agent 89) — per-op hdc invocation
-    # with cadenced M2/M5. Replaces 6 multi-target/glob-batched hdc_shell
-    # calls suspected of contributing to the Stage 3f Channel A wedge
-    # (agents 87, 88 both died here).
+    # M7 push + extract: ONE Channel C send, ONE Channel A shell call.
+    # restorecon -R paths cover the three /system trees this stage writes:
+    #   /system/bin (appspawn-x label = appspawn_exec, per file_contexts)
+    #   /system/lib (default system_lib_file via /system/lib(/.*)? policy)
+    #   /system/android/lib (explicit system_lib_file per file_contexts L34)
+    #   /system/android/framework + framework/arm (boot image + jars labeled in 3d/3e;
+    #       restorecon -R covers in case any drift happened between 3d/3e and 3f)
+    #   /system/etc/init (init.cfg gets appropriate label from file_contexts)
+    # Note: we intentionally do NOT restorecon -R /system itself — would
+    # walk the entire /system tree and dwarf the value-add of M7.
     # ====================================================================
-    log "Stage 3f: chunked chmod batch (per-op + M2 every $CHUNKED_M2_EVERY / M5 every $CHUNKED_M5_EVERY)"
+    _stage_tar_push_and_extract "$tarball" "stage3f" \
+        /system/bin \
+        /system/lib \
+        /system/android/lib \
+        /system/android/framework \
+        /system/etc/init
 
-    # appspawn-x binary
-    _chunked_chmod 755 /system/bin/appspawn-x "3f-chmod-bin"
-
-    # /system/lib/*.so glob → enumerate device-side, chmod per file.
-    # NOTE: this is the largest single contributor to the prior batch's
-    # Channel A pressure (50+ matched files). Chunking it is the highest-
-    # leverage change in this refactor.
-    _chunked_chmod_glob 644 "/system/lib/*.so" "3f-chmod-systemlib"
-    _chunked_chmod_glob 644 "/system/lib/platformsdk/*.z.so" "3f-chmod-platformsdk"
-
-    # /system/android/lib/*.so glob
-    _chunked_chmod_glob 644 "/system/android/lib/*.so" "3f-chmod-androidlib"
-
-    # /system/android/framework/*.jar — known small set (~12 jars)
-    _chunked_chmod_glob 644 "/system/android/framework/*.jar" "3f-chmod-frameworkjar"
-
-    # Boot image art/oat/vdex — known 27 files (9 segments × 3 ext). The
-    # original batched all 3 globs into one hdc invocation; split per ext
-    # so each chunk is bounded to ~9 files of M2/M5 cadence.
-    _chunked_chmod_glob 644 "/system/android/framework/arm/*.art"  "3f-chmod-bcp-art"
-    _chunked_chmod_glob 644 "/system/android/framework/arm/*.oat"  "3f-chmod-bcp-oat"
-    _chunked_chmod_glob 644 "/system/android/framework/arm/*.vdex" "3f-chmod-bcp-vdex"
-
-    # Configs — 4 discrete files (path-enumerate locally; no glob needed).
-    _chunked_chmod 644 /system/etc/init/appspawn_x.cfg                          "3f-chmod-cfg-appspawn"
-    _chunked_chmod 644 /system/etc/appspawn_x_sandbox.json                      "3f-chmod-cfg-sandbox"
-    _chunked_chmod 644 /system/etc/ld-musl-namespace-arm.ini                    "3f-chmod-cfg-musl"
-    _chunked_chmod 644 /system/etc/selinux/targeted/contexts/file_contexts      "3f-chmod-cfg-fc"
-    ok "Stage 3f: chunked chmod batch complete ($_CHUNKED_OP_COUNT ops so far)"
+    # M2/M3 boundary AFTER the M7 single-shell, BEFORE the chcon_verify burst.
+    # Catches the case where the M7 shell succeeded but Channel A died right
+    # after (sentinel arrived but next op silent).
+    _burst_boundary "stage_3f: post-M7-extract → chcon_verify(adapter_bridge dual-path)"
 
     # ====================================================================
-    # Chunked symlink batch (5 symlinks per HBC SOP lines 159-163 + G2.14aa
-    # libandroid.so dual-path). Each _chunked_symlink fires 2 ops (rm + ln)
-    # so the 5 symlinks below = 10 ops with M2/M5 cadence interleaved.
+    # Targeted chcon_verify — REMAINS PER-OP. Two reasons:
+    #   1. Fix D adapter-bridge dual-path is a known label-stuck-required
+    #      site (Stage B 2026-05-19 confirmed silent-failure here). We want
+    #      explicit label-stuck verification, not just "restorecon -R said OK".
+    #   2. /system/lib/liboh_adapter_bridge.so falls under the default
+    #      /system/lib(/.*)? policy which IS system_lib_file in OHOS,
+    #      BUT the per-file_contexts entry (L34) for /system/android/lib(/.*)?
+    #      depends on file_contexts being PRESENT before restorecon — which
+    #      it now is (we deploy file_contexts in this same tarball, before
+    #      restorecon -R). The chcon_verify here is the belt-and-braces gate.
+    # Channel A op count: ~6 (test -e × 2 + chcon × 2 + verify × 2). Bounded.
     # ====================================================================
-    log "Stage 3f: chunked symlink batch (5 links = 10 ops)"
-
-    # libc_musl: special — no preceding rm (kept exactly as before; just
-    # uses the chunked ln-only path via direct hdc_shell_check + tick).
-    if ! hdc_shell_check "ln -sf /lib/ld-musl-arm.so.1 /system/lib/libc_musl.so"; then
-        abort "Stage 3f: ln -sf libc_musl failed"
-    fi
-    _chunked_op_tick "3f-symlink-musl"
-
-    _chunked_symlink /system/lib/chipset-sdk-sp/libshared_libz.z.so       /system/android/lib/libshared_libz.z.so       "3f-symlink-libz"
-    _chunked_symlink /system/lib/platformsdk/libappexecfwk_common.z.so    /system/android/lib/libappexecfwk_common.z.so "3f-symlink-appexec"
-    _chunked_symlink liboh_android_runtime.so                             /system/android/lib/libandroid.so             "3f-symlink-androidlib"
-    _chunked_symlink liboh_android_runtime.so                             /system/lib/libandroid.so                     "3f-symlink-systemlib"
-    ok "Stage 3f: chunked symlink batch complete ($_CHUNKED_OP_COUNT ops so far)"
-
-    # M2/M3 (2026-05-20): channel-alive sentinel + 500ms settle window between
-    # the push-burst (4 bin + 3 cfg + 5 symlinks + chmod) and the restorecon
-    # burst. This is the EXACT boundary that Stage B (commit 4ba8695f) died at
-    # — chcon_verify of liboh_adapter_bridge.so found Channel A silent.
-    _burst_boundary "stage_3f: push-burst+chmod → restorecon-burst"
-
-    # ====================================================================
-    # Chunked restorecon batch (2026-05-20, agent 89):
-    #   1. /system/bin/appspawn-x: single restorecon (chunked + ticked).
-    #   2. /system/android/lib/ recursive: was `find -exec restorecon {} \;`
-    #      which spawns a subshell per file. Replace with device-side find
-    #      enumeration → per-file _chunked_restorecon with M2/M5 cadence.
-    # M4 ENOENT pre-checks preserved exactly as before.
-    # ====================================================================
-    if ! hdc_shell_check "test -e /system/bin/appspawn-x"; then
-        abort "M4: restorecon target missing on device: /system/bin/appspawn-x (chcon-on-ENOENT prevention)"
-    fi
-    _chunked_restorecon /system/bin/appspawn-x "3f-rc-appspawn"
-
-    if ! hdc_shell_check "test -d /system/android/lib"; then
-        abort "M4: restorecon target dir missing: /system/android/lib (chcon-on-ENOENT prevention)"
-    fi
-    _chunked_restorecon_recursive /system/android/lib "3f-rc-androidlib"
-    ok "Stage 3f: chunked restorecon batch complete ($_CHUNKED_OP_COUNT ops so far)"
-
-    # M2/M3 (2026-05-20): SECOND boundary — restorecon burst → chcon_verify
-    # burst. Defense-in-depth: even if restorecon succeeded silently, channel
-    # may have wedged during the find-exec subshell storm. Catch it BEFORE
-    # the adapter-bridge chcon_verify (the Stage B failure site).
-    _burst_boundary "stage_3f: restorecon-burst → chcon_verify(adapter_bridge dual-path)"
-
-    # Fix D dual-path: chcon-verify the dual-path adapter bridge on BOTH paths.
-    # liboh_android_runtime.so resolution of liboh_adapter_bridge.so requires
-    # the latter at both /system/lib/ and /system/android/lib/ with matching
-    # system_lib_file label. Gate 8 snapshot is captured automatically.
-    # M4 ENOENT-check is now inline in chcon_verify (verifies each path exists
-    # via hdc_shell_check before invoking chcon; aborts with explicit ENOENT
-    # message if not — directly tests the Stage B leading-hypothesis).
     chcon_verify system_lib_file \
         /system/lib/liboh_adapter_bridge.so \
         /system/android/lib/liboh_adapter_bridge.so
 
-    # G2 verify appspawn-x got appspawn_exec label
+    # G2 verify appspawn-x got appspawn_exec label (from restorecon -R via
+    # file_contexts L16 — `/system/bin/appspawn-x  u:object_r:appspawn_exec:s0`).
     local label
     label=$(hdc_shell "ls -lZ /system/bin/appspawn-x" | grep -oE 'appspawn_exec' | head -1)
     if [ "$label" != "appspawn_exec" ]; then
@@ -1782,8 +1917,12 @@ stage_3f() {
         ok "appspawn-x SELinux label: appspawn_exec"
     fi
 
+    # Cleanup local staging + tarball (idempotent across re-runs; PID-suffixed
+    # paths so concurrent runs don't collide).
+    rm -rf "$staging" "$tarball"
+
     _alive_probe
-    pass_msg "Stage 3f PASS — 4 bin + 3 cfg + selinux + 5 symlinks + restorecon"
+    pass_msg "Stage 3f PASS — M7 tarball: 5-6 bin/lib + 4 cfg + 5 symlinks + restorecon -R + chcon_verify dual-path"
 }
 
 # ============================================================================
