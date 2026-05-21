@@ -632,12 +632,24 @@ _stage_tar_pack() {
 
 # _stage_tar_push_and_extract <local-tarball> <stage-ctx> [restorecon-path1 ...]
 #   Single Channel C push + single Channel A shell. The shell command does
-#   tar xf, restorecon -R on each provided path, removes the device tarball,
-#   and echoes a sentinel ("<stage-ctx>_TAR_OK") for stdout verification.
+#   tar xf, restorecon (per-file enumeration via find) on each provided path,
+#   removes the device tarball, and echoes a sentinel ("<stage-ctx>_TAR_OK")
+#   for stdout verification.
 #
-#   Channel A call budget for this helper:
+#   M7-v2 (2026-05-20, agent 97) — replaces the original `restorecon -R <dir>`
+#   form. OHOS's `restorecon` binary does NOT accept `-R` (returns
+#   "invalid args! rc=255"), confirmed by agent 96 (E2E-96 report): single-file
+#   `restorecon /system/bin/appspawn-x` succeeds rc=0, recursive form aborts
+#   the M7 single-shell mid-pipeline and the sentinel never fires. Fix:
+#   shell-side `find <dir> -type f` enumeration inside the SAME single hdc
+#   shell call, per-file restorecon, errors suppressed so a missing entry
+#   under one of the provided paths does not abort the sentinel chain (the
+#   chcon_verify dual-path that runs AFTER this helper is still the
+#   authoritative label-stuck gate).
+#
+#   Channel A call budget for this helper (UNCHANGED from M7 v1):
 #     1 = post-push test -s verify  (hdc_shell_check)
-#     1 = tar extract + restorecon -R + rm + sentinel  (single hdc_shell)
+#     1 = tar extract + per-file restorecon via find + rm + sentinel  (single hdc_shell)
 #     1 = sentinel-output sanity check is folded into the same call
 #   Plus 1 pre-call _alive_probe + 1 post-call _alive_probe (M2 framing) at
 #   caller site. Total ≤ 4 Channel A round-trips per stage that uses M7.
@@ -646,7 +658,7 @@ _stage_tar_push_and_extract() {
     local restorecon_paths="$*"
 
     if [ "$DRY_RUN" = "1" ]; then
-        ok "[DRY] M7: would push $tarball + single-shell extract + restorecon -R $restorecon_paths"
+        ok "[DRY] M7: would push $tarball + single-shell extract + per-file restorecon (via find) for: $restorecon_paths"
         return 0
     fi
 
@@ -666,18 +678,29 @@ _stage_tar_push_and_extract() {
         abort "M7: tarball not present/zero on device after push: $dev_tarball"
     fi
 
-    # Channel A #2: extract + restorecon -R + cleanup, all in ONE shell call.
+    # Channel A #2: extract + per-file restorecon + cleanup, all in ONE shell call.
     # Sentinel echo at the END means partial extracts (where tar exits non-zero
     # halfway through) won't masquerade as success — sentinel only fires if
     # every preceding && succeeded.
+    #
+    # M7-v2 restorecon strategy: build a `find ... -print0` over all provided
+    # paths (collapsed into ONE find invocation) and pipe to `xargs -0 -n1
+    # restorecon`. This keeps the entire restorecon work inside ONE device-side
+    # shell with ONE find traversal and one restorecon process per file —
+    # which is exactly what OHOS's restorecon supports (per-file rc=0). We use
+    # `xargs ... 2>/dev/null` so individual per-file restorecon non-zero exits
+    # (path missing from file_contexts → benign) don't break the && chain;
+    # chcon_verify after this is the authoritative label-stuck gate.
     local sentinel="${ctx^^}_TAR_OK"
     local cmd="cd / && tar xf $dev_tarball"
     if [ -n "$restorecon_paths" ]; then
-        # restorecon -R per provided path. Single shell — no per-path round trip.
-        local p
-        for p in $restorecon_paths; do
-            cmd="$cmd && restorecon -R $p"
-        done
+        # Build a single find expression spanning all paths. We filter to -type f
+        # (restorecon on a directory is what fails; per-file is what works).
+        # Symlinks are excluded — they don't carry their own SELinux label.
+        # Existing-path filter via separate `-type d` test is unnecessary because
+        # find on a missing path prints to stderr (suppressed) and returns 1;
+        # the `|| true` after the pipeline absorbs that.
+        cmd="$cmd && ( find $restorecon_paths -type f -print0 2>/dev/null | xargs -0 -n1 -r restorecon 2>/dev/null ; true )"
     fi
     cmd="$cmd && rm -f $dev_tarball && echo $sentinel"
 
@@ -687,7 +710,7 @@ _stage_tar_push_and_extract() {
     if ! echo "$extractout" | grep -qF "$sentinel"; then
         abort "M7: extract sentinel '$sentinel' MISSING from extract output (tar/restorecon failed mid-pipeline): $(echo "$extractout" | tail -5 | tr '\n' '|')"
     fi
-    ok "M7: extract + restorecon complete (sentinel=$sentinel)"
+    ok "M7-v2: extract + per-file restorecon complete (sentinel=$sentinel)"
 }
 
 # G6 — hdc.exe version pin / warn
@@ -1793,7 +1816,7 @@ stage_3f() {
     log "Stage 3f · appspawn-x bin + cfg + linker + selinux + 5 symlinks (M7 tarball pattern)"
     _alive_probe
     if [ "$DRY_RUN" = "1" ]; then
-        ok "[DRY] stage_3f: would build M7 tarball (5-6 bin/lib + 4 cfg + 5 symlinks), push as 1 file, extract + restorecon -R via single shell, chcon_verify adapter_bridge dual-path"
+        ok "[DRY] stage_3f: would build M7 tarball (5-6 bin/lib + 4 cfg + 5 symlinks), push as 1 file, extract + per-file restorecon (M7-v2 find|xargs) via single shell, chcon_verify adapter_bridge dual-path"
         pass_msg "[DRY] Stage 3f PASS"
         return 0
     fi
