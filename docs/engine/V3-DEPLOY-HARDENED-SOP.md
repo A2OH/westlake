@@ -144,6 +144,42 @@ the response is to **chunk the burst**, not add another probe.
 
 **Cost:** ~10-15 seconds extra per Stage 3f run from per-op hdc.exe overhead. Considered acceptable trade vs the cumulative cost of agents 86, 87, 88 each consuming their full budget against the same wedge.
 
+### Mitigation M7 (2026-05-20, agent 95) — Stage 3f tarball-batch (structural fix)
+
+After agent 94's E2E sweep (`V3-W2-E2E-94-REPORT.md`) **confirmed M6 still
+wedges at op #260**, the cumulative `hdc.exe` 3.2.0b shell-call ceiling
+(postmortem H2) is established as a hard ceiling that **no per-op probe or
+chunking strategy can clear** — M6 successfully chunked the burst, but the
+underlying ceiling is a count, not a rate. Per
+`feedback_risky_productive_over_safety_theater.md`, the response is
+**structural**: collapse the entire Stage 3f mutator burst into a single
+file-channel push + single shell-channel extract.
+
+| Mit | Hypothesis countered | Implementation | Sites |
+|-----|----------------------|----------------|-------|
+| **M7** | Cumulative Channel A call count is bounded (~260 in agent-94's environment) regardless of M6 cadence. No probe-or-chunk strategy clears the ceiling — M7 instead reduces the total Channel A budget for the heaviest stage from ~280 to ~7-10 by collapsing chmod/symlink/restorecon into a single on-device `tar xf` + `restorecon -R`. | Five tarball helpers in the M-helper block: `_stage_tar_build_dir` (mktemp staging at `/tmp/v3-<stage>-staging-$$`), `_stage_tar_add_file` (cp + local chmod to set mode that tar preserves), `_stage_tar_add_symlink` (real symlink in staging; tar preserves), `_stage_tar_pack` (`tar cf --owner=root --group=root -C staging .`), `_stage_tar_push_and_extract` (single `hdc file send` + single `hdc shell "cd / && tar xf X && restorecon -R … && rm X && echo <sentinel>_TAR_OK"`). Sentinel echo at the END of the && chain means partial extracts can't masquerade as success. No `--xattrs` (toybox tar doesn't support); SELinux labels restored by `restorecon -R` reading the in-tarball `/system/etc/selinux/targeted/contexts/file_contexts`. | `stage_3f` ONLY (the wedge site). Replaces ~280 per-op Channel A calls (M6 chmod glob expansions + 10 symlink ops + per-file restorecon recursive) with ~7-10 (entry probe, post-push verify, extract+restorecon shell, adapter-bridge chcon_verify dual-path, label verify, exit probe). |
+
+**What M7 buys on the next Stage 3f retry:**
+
+1. **28x Channel A reduction** for the wedge stage. The cumulative-call ceiling that bit agent 94 at op #260 now requires ~28 full Stage-3f runs to hit instead of one.
+2. **Atomic semantics for the bulk of 3f**: tar xf either extracts everything or fails with a non-zero exit that prevents the sentinel from firing. Half-extracts can't silently progress past the gate.
+3. **Symlinks are preserved verbatim**: tar copies the symlink as a kind-l entry with the target string intact. The device-side extract re-creates them as real symlinks (no on-device `rm -f && ln -sf` round-trips).
+4. **Modes are preserved**: local `chmod` sets each file's mode before `tar cf`; tar preserves modes; extract re-applies them (no on-device chmod round-trips).
+5. **One on-device `restorecon -R`** sweeps all label-relevant paths (`/system/bin`, `/system/lib`, `/system/android/lib`, `/system/android/framework`, `/system/etc/init`) in a single Channel A call, reading the in-tarball `file_contexts`.
+
+**What M7 does NOT do:**
+
+- Does not eliminate the `chcon_verify` for `liboh_adapter_bridge.so` dual-path (kept as a targeted label-stuck assertion at the Stage B failure site; ~6 Channel A calls, bounded).
+- Does not touch stage_3b/3c/3d/3e (their per-stage Channel A call counts are inside the ceiling — agent 94 sailed through them cleanly. If a future ceiling drop changes this we can apply M7 to those too — the helpers are stage-agnostic).
+- Does not modify Gate 9 atomic-install semantics for OTHER stages. Stage 3f's bins are first-deploy on a factory-baseline `/system` (Stage 0 verifies `/system/android` absent), so atomic-install isn't a correctness requirement for 3f's bin push.
+- Does not change M1-M6 around it: M2 boundaries fire before and after the M7 shell call; M5 inter-stage resets unchanged.
+- Does not require any new operator flags or env vars.
+- Does not modify chroot script, the legacy `deploy-hbc-to-dayu200.sh`, or any other stage.
+
+**Cost:** ~5MB tarball over the file channel (one transaction; ~1.6s at the observed 3150 kB/s from agent 94). One on-device `tar xf` (subsecond on the 10-file tarball) + one `restorecon -R` over five short paths (subsecond per path, ≤5s total). Net: faster than M6's per-op chunk cadence (which had ~15s overhead from M2/M5 ticks).
+
+**LOC delta (M7 only):** +127/-110 (script delta: ~+167 helpers, -109 stage_3f body); SOP +~50 lines.
+
 **What M1-M5 collectively buy us on the Stage B retry:**
 
 1. If channel dies mid-stage, the abort message names the exact `_burst_boundary` (e.g. "stage_3f: push-burst+chmod → restorecon-burst") instead of "stage_3f failed".
