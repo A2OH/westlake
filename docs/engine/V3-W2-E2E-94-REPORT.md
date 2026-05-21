@@ -137,7 +137,7 @@ appspawn-x running: UNKNOWN (cannot probe; binary verified present on /system/bi
 HBC HelloWorld: NOT_REACHED
 McD launch: NOT_REACHED
 Board state at end: asymmetric — USB enumerated + file channel alive + shell channel dead (W2-POSTMORTEM H2 pattern, not OS brick)
-Local commit SHA: <filled after commit>
+Local commit SHA: 0648775f9d21a80dc9f39f3a2ebc5538c15ba902
 Report path: docs/engine/V3-W2-E2E-94-REPORT.md
 Recommendation: see below
 ```
