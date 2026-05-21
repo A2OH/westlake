@@ -51,3 +51,8 @@ aosp-surface-daemon-port/out/
 # Scratch directory created when a probe script's $(date) expansion gets
 # captured literally as a directory name.
 artifacts/real-mcd/current_phone_check_$(date*
+
+# HBC V7-images ROM snapshot (~5.9 GB of binaries pulled from HBC dev box).
+# See docs/engine/V3-HBC-V7-IMAGES-PULL.md for inventory + md5 ground truth.
+# Re-pull with the scp commands in that doc — do not commit the binaries.
+hbc-v7-images/
