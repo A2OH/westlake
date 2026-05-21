@@ -192,7 +192,7 @@ reachable.
 
 ## Local commit SHA
 
-To be filled by commit step below (this report committed locally as a single commit per mandate; no push).
+`dece9bb4` (this report committed locally; no push per mandate).
 
 ---
 
