@@ -1,0 +1,9 @@
+=== NetTest start ===
+=== NetTest start ===
+OK https://api.trynoice.com/v1/subscriptions/plans -> HTTP 200
+OK https://cdn.trynoice.com/library/library.json -> HTTP 404
+=== NetTest done ===
+=== NetTest start ===
+OK https://api.trynoice.com/v1/subscriptions/plans -> HTTP 200
+OK https://cdn.trynoice.com/library/library.json -> HTTP 404
+=== NetTest done ===
