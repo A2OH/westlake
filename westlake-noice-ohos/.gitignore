@@ -17,3 +17,10 @@ boot*.vdex
 !native-libs/libv4force.so
 !native-tls/libtlsjni.so
 !native-tls/tlsjni-extra.dex
+# clean-WSL reproducibility package: committed prebuilt fixed binaries
+# (md5-suffixed so they don't match the *.jar/*.so patterns; force-added).
+# See MANIFEST.md + REPRODUCE-CLEAN-WSL.md. framework.jar + boot image are NOT
+# committed (size) — pull with collect-artifacts.sh.
+!prebuilt-jars/
+!prebuilt-native/
+!sslsockets-fix/
