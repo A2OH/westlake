@@ -1,0 +1,14 @@
+TlsJni: static init, loading libtlsjni
+TlsJni: libtlsjni loaded OK
+TlsJniSocket: ctor host=api.trynoice.com
+TlsJniSocket: startHandshake begin
+TlsJniSocket: fd=28
+TlsJniSocket: sslConnect ret=-172683088
+nat_SSL_write=130
+nat_SSL_read=433
+TlsJniSocket: ctor host=cdn.trynoice.com
+TlsJniSocket: startHandshake begin
+TlsJniSocket: fd=28
+TlsJniSocket: sslConnect ret=-172677776
+nat_SSL_write=128
+nat_SSL_read=294
