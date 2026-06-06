@@ -1,0 +1,31 @@
+    // a method with matching name+param_proto and overwrite the iftable slot.
+    // Gated on !IsBootClassLoader. Read-only on IMT (only iftable methods get
+    // rewritten — IMT correctness is downstream of FinalizeIfTable's update_imt
+    // and dispatch falls back to FindVirtualMethodForInterface via [FIX-H-RANGE]
+    // when IMT corruption is detected, so leaving IMT alone is safe).
+    if (UNLIKELY(klass->GetClassLoader() != nullptr &&
+                 !class_linker_->IsBootClassLoader(klass->GetClassLoader()) &&
+                 !klass->IsProxyClass())) {
+      // [FIX-IFTABLE-PROXY-2026-06-06] NEVER run this repair pass on dynamic
+      // proxy classes ($ProxyN from java.lang.reflect.Proxy / Retrofit / OkHttp /
+      // Mockito / etc.). A proxy method's GetName()/GetParameterTypeList() resolve
+      // its GetDexMethodIndex() (the *interface* prototype's index) against
+      // GetDexFile() == the $Proxy class's dex cache (= core-oj Proxy dex) i.e. the
+      // WRONG dex -> garbage proto -> sig_ok==false -> "NO candidate" for every
+      // (Kotlin-suspend, Continuation-param) interface method -> proxy iftable left
+      // broken -> AbstractMethodError on dispatch -> Retrofit dead. ART already
+      // builds proxy iftables correctly via SetupInterfaceLookupTable; this pass is
+      // purely additive damage for proxies. Universal fix for ALL dynamic proxies
+      // across ALL APKs.
+      // [W12G-OPT-A-2026-05-28] Skip iftable repair when klass has no virtual
+      // methods. The repair pass scans iftable entries comparing impl-method
+      // names against iface-method names, then on mismatch scans klass->vtable
+      // for a candidate with matching name+param-sig. If klass has zero virtual
+      // methods, klass->vtable has nothing klass-declared to find — the scan
+      // would always return no candidate. ~3000 of 8563 McD classes have
+      // nvirt=0 (W12-F diagnostic), so this fast-exit skips ~35% of repair work.
+      if (num_virtual_methods == 0) {
+        fprintf(stderr,
+                "[W12G-OPT-A] %s nvirt=0 skip iftable repair\n",
+                klass->PrettyDescriptor().c_str());
+        fflush(stderr);
