@@ -1,5 +1,22 @@
 # MANIFEST — noice-on-OHOS reproducibility artifacts
 
+## Release assets (the binary baseline — too large for git)
+
+https://github.com/A2OH/westlake/releases/tag/baseline-300581d1-20260608
+
+| asset | size | md5 | what |
+|---|---|---|---|
+| `westlake-complete-bundle-20260608.tar.gz` | 247 MB | `14eaa14f` | **COMPLETE from-zero set**: v3-hbc consistent overlay (appspawn-x + 56 libs + jars + boot + etc + scripts) + `current-fixes/` (runtime 16e08711, libart 7b856a2d + paired boot, hwui 8b8f84ec, bridge 60126181, jars, shims) + `device-tmp/` (start_asx.sh, launch_noice.sh, bpfgrant, apk_install, noice APK) + README-COMPLETE.md + MANIFEST.md5 |
+| `ohos-base-system.img.gz` | 606 MB | `fca2f09e` | OHOS DAYU200/RK3568 base system image (gunzip → flash) |
+| `ohos-base-updater.img` | 20 MB | `f3d15a6b` | OHOS updater image |
+| `westlake-baseline-300581d1-20260608.tar.gz` | 74 MB | `74f67dbb` | curated layer-3 fixes only (subset of the complete bundle) |
+
+**From-zero reproduction:** flash `ohos-base-*` → deploy the complete bundle's
+`overlay/` (per `overlay/scripts/DEPLOY_SOP.md`) → apply `current-fixes/` →
+push `device-tmp/` to `/data/local/tmp` → `start_asx.sh` then `launch_noice.sh`.
+All assembled on host; no live device was needed to produce them.
+
+
 > **Pre-built baseline tarball (the collect-only / un-rebuildable half):** https://github.com/A2OH/westlake/releases/tag/baseline-300581d1-20260608 — `westlake-baseline-300581d1-20260608.tar.gz` (74MB, md5 `74f67dbb`, generation `300581d1`). Contains runtime `16e08711` (un-rebuildable), libart `7b856a2d`, libhwui `8b8f84ec`, bridge `60126181`, the paired 27-segment boot image, BCP jars, shims, tools, and the noice APK, plus its own `MANIFEST.md5` + `README-BASELINE.md`. Restore to the device paths in its README, then follow `REPRODUCE.md`. Assembled on host — no live device required.
 
 Every artifact required to reproduce the **current deployed** "noice running on
