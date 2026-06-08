@@ -1,5 +1,7 @@
 # MANIFEST — noice-on-OHOS reproducibility artifacts
 
+> **Pre-built baseline tarball (the collect-only / un-rebuildable half):** https://github.com/A2OH/westlake/releases/tag/baseline-300581d1-20260608 — `westlake-baseline-300581d1-20260608.tar.gz` (74MB, md5 `74f67dbb`, generation `300581d1`). Contains runtime `16e08711` (un-rebuildable), libart `7b856a2d`, libhwui `8b8f84ec`, bridge `60126181`, the paired 27-segment boot image, BCP jars, shims, tools, and the noice APK, plus its own `MANIFEST.md5` + `README-BASELINE.md`. Restore to the device paths in its README, then follow `REPRODUCE.md`. Assembled on host — no live device required.
+
 Every artifact required to reproduce the **current deployed** "noice running on
 OpenHarmony (Westlake adapter)" state. Device: OpenHarmony DAYU200 / RK3568,
 32-bit ARM, app uid **13731**, appspawn-x AOSP adapter.
