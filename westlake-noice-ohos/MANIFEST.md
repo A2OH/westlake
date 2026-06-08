@@ -9,6 +9,7 @@ https://github.com/A2OH/westlake/releases/tag/baseline-300581d1-20260608
 | `westlake-complete-bundle-20260608.tar.gz` | 247 MB | `14eaa14f` | **COMPLETE from-zero set**: v3-hbc consistent overlay (appspawn-x + 56 libs + jars + boot + etc + scripts) + `current-fixes/` (runtime 16e08711, libart 7b856a2d + paired boot, hwui 8b8f84ec, bridge 60126181, jars, shims) + `device-tmp/` (start_asx.sh, launch_noice.sh, bpfgrant, apk_install, noice APK) + README-COMPLETE.md + MANIFEST.md5 |
 | `ohos-base-system.img.gz` | 606 MB | `fca2f09e` | OHOS DAYU200/RK3568 base system image (gunzip → flash) |
 | `ohos-base-updater.img` | 20 MB | `f3d15a6b` | OHOS updater image |
+| `ohos-dayu200-flash-extras.tar` | 496 MB | `984e1c3e` | the rest of the RK3568 flash set: MiniLoaderAll.bin, parameter.txt, config.cfg, uboot/boot_linux/ramdisk/resource/vendor/chip_*/sys_prod/eng_system/updater.img + MD5SUMS.txt (untar → folder for RKDevTool/upgrade_tool). NOTE: `userdata.img` (1.4 GB) intentionally omitted — it is the wipe-on-flash user partition |
 | `westlake-baseline-300581d1-20260608.tar.gz` | 74 MB | `74f67dbb` | curated layer-3 fixes only (subset of the complete bundle) |
 
 **From-zero reproduction:** flash `ohos-base-*` → deploy the complete bundle's
