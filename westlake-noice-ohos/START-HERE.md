@@ -60,3 +60,14 @@ apk_install /data/local/tmp/noice-base.apk
 - Share/scroll fixes: the live device is one rebuildable delta ahead of the
   committed jars (clamp `efd3f740`, scroll/pasteboard bridge) — see
   `SESSION-2026-06-08.md` + `share-fix/`. Not needed for a basic bring-up.
+
+## Also runs: Material Components Catalog (`io.material.catalog`)
+The same baseline also runs the **Material Components Catalog**, including its
+**2nd-level demo Activities** (which previously crashed the whole process). It needs
+two deltas on top of the noice baseline — see **`catalog-fix/REPRODUCE-CATALOG.md`**:
+1. metaData NPE fix — `adapter-runtime-bcp.jar.6e32a253` (+ boot regen).
+2. 2nd-level `createHardwareBitmap` SIGBUS fix — `libhwui.so.0c82b1db` +
+   `liboh_adapter_bridge.so.20ab65a6` (no boot regen).
+
+Both are committed in `catalog-fix/` (prebuilt + source). Validated 2026-06-23:
+`AdaptiveListViewDemoActivity` renders, deeper nav works, SIGBUS=0.

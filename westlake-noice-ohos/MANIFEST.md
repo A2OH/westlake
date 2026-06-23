@@ -33,6 +33,13 @@ Legend for **Repro** column: **committed** = the fixed binary is in this repo ·
 **collect** = pull from device with `collect-artifacts.sh` (too large / un-rebuildable)
 · **build** = produced by the build command shown.
 
+> **Material Components Catalog (`io.material.catalog`)** runs on the same baseline.
+> Its two catalog-specific deltas live in **`catalog-fix/`** (see
+> `catalog-fix/REPRODUCE-CATALOG.md`): `adapter-runtime-bcp.jar.6e32a253` (metaData
+> NPE fix, needs boot regen) and `libhwui.so.0c82b1db` +
+> `liboh_adapter_bridge.so.20ab65a6` (2nd-level `createHardwareBitmap` SIGBUS fix,
+> no boot regen). All committed (prebuilt + source). Validated 2026-06-23.
+
 ## A. Deployed device binaries (the fixes)
 
 | Artifact | Device path | Deployed md5 | Source location (this repo) | Build / regen command | Repro |
