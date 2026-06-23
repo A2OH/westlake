@@ -36,9 +36,13 @@ Legend for **Repro** column: **committed** = the fixed binary is in this repo ·
 > **Material Components Catalog (`io.material.catalog`)** runs on the same baseline.
 > Its two catalog-specific deltas live in **`catalog-fix/`** (see
 > `catalog-fix/REPRODUCE-CATALOG.md`): `adapter-runtime-bcp.jar.6e32a253` (metaData
-> NPE fix, needs boot regen) and `libhwui.so.0c82b1db` +
-> `liboh_adapter_bridge.so.20ab65a6` (2nd-level `createHardwareBitmap` SIGBUS fix,
-> no boot regen). All committed (prebuilt + source). Validated 2026-06-23.
+> NPE fix, BCP) and `libhwui.so.0c82b1db` + `liboh_adapter_bridge.so.20ab65a6`
+> (2nd-level `createHardwareBitmap` SIGBUS fix, no boot regen). All committed
+> (prebuilt + source). **Turnkey assets** (no dex2oat) in release `catalog-20260623`:
+> `catalog-overlay-20260623.tar` (173 MB, `5bcdf3e3` — coherent 10-jar BCP set +
+> matching boot image; `boot-framework.oat` == device-validated `ad790fe9`, pairs with
+> libart `7b856a2d`) and `catalog-io.material.catalog.apk` (15 MB, `8cfd28db`, stock).
+> Validated 2026-06-23.
 
 ## A. Deployed device binaries (the fixes)
 

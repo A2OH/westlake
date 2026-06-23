@@ -17,6 +17,25 @@ There are **two independent fixes**, applied on top of the noice baseline:
 
 ---
 
+## Quickest path (turnkey, no dex2oat)
+A complete, **brick-safe prebuilt** is published so you don't have to regenerate the
+boot image yourself:
+
+> Release **`catalog-20260623`**: https://github.com/A2OH/westlake/releases/tag/catalog-20260623
+> - `catalog-overlay-20260623.tar` (173 MB) — the coherent 10-jar BCP set + matching
+>   30-segment boot image (metaData fix baked in). `boot-framework.oat` is byte-identical
+>   to the device-validated `ad790fe9`, proving it pairs with the baseline libart
+>   `7b856a2d`. Ships its own `README-CATALOG-OVERLAY.md` + `MANIFEST.md5`.
+> - `catalog-io.material.catalog.apk` (15 MB) — the stock catalog APK used to validate.
+
+Turnkey sequence: bring up the noice baseline → deploy `catalog-overlay-20260623.tar`
+(jars → `/system/android/framework/`, boot → `/system/android/framework/arm/`; keep
+libart `7b856a2d`) → deploy the two `.so` from this dir (Fix 2 below) → install the
+APK → reboot → launch. **No dex2oat / no boot regen on your side.** The rest of this
+doc explains the fixes and how to rebuild them from source.
+
+---
+
 ## Fix 1 — metaData NPE (catalog won't even launch without it)
 
 **Root cause.** `CatalogApplication.onCreate → overrideApplicationComponent` calls
@@ -46,7 +65,8 @@ To rebuild the jar from baseline instead of using the prebuilt:
 # (keep META-INF). See ../scripts/SmaliAssemble.java and ../framework-smali-patches/.
 ```
 
-**Boot regen is mandatory** (arb is a boot-classpath jar). Use `regen_boot.sh` (10-jar
+**Boot regen** (only if NOT using the prebuilt overlay above — arb is a boot-classpath
+jar, so its dex must be re-AOT'd into the boot image). Use `regen_boot.sh` (10-jar
 BCP, dex2oat64, 30 segments). Replace **only** the arb jar in the jar set with
 `6e32a253`; keep the other 9 baseline jars unchanged:
 ```bash
@@ -120,8 +140,9 @@ bash build/build_adapter.sh  --target=liboh_adapter_bridge.so   # → liboh_adap
 
 ## Install the catalog APK + bring up + validate
 
-1. Install the Material Components Catalog APK (`io.material.catalog`, e.g. the
-   F-Droid build) via the baseline's `apk_install`.
+1. Install the Material Components Catalog APK via the baseline's `apk_install` — use
+   the published `catalog-io.material.catalog.apk` (release `catalog-20260623`;
+   `io.material.catalog`, `MainActivity`, the exact build validated here).
 2. Bring up exactly as in `../START-HERE.md` (setenforce 0 → `start_asx.sh` → chcon
    socket → wait for Phase 4). Reboot once after deploying Fix 1 + Fix 2.
 3. Launch + drive (the catalog child runs as uid **16371**, *not* noice's 13731):
