@@ -30,6 +30,9 @@
 #include <signal.h>
 #include <unistd.h>
 #include <errno.h>
+#include <pwd.h>   // getpwnam (getUidForName)
+#include <grp.h>   // getgrnam (getGidForName)
+#include <time.h>  // clock_gettime (Process timing natives)
 
 namespace android {
 
@@ -91,6 +94,64 @@ Process_setThreadPriority2(JNIEnv* env, jclass /*clazz*/, jint tid, jint priorit
     setpriority(PRIO_PROCESS, static_cast<id_t>(tid), priority);
 }
 
+// 2026-05-30 (C/Netflix) — getThreadPriority(int tid) -> int.  AOSP impl:
+// getpriority(PRIO_PROCESS, tid), throwing IllegalArgumentException on error.
+// Netflix's init reads its own thread priority and threw UnsatisfiedLinkError
+// without this.  getpriority returns the nice value (-20..19) and may legitimately
+// return -1, so errno distinguishes a real error; on error we return 0
+// (THREAD_PRIORITY_DEFAULT), best-effort, rather than throw — non-fatal for adapter.
+jint JNICALL
+Process_getThreadPriority(JNIEnv* /*env*/, jclass /*clazz*/, jint tid) {
+    errno = 0;
+    int pri = getpriority(PRIO_PROCESS, static_cast<id_t>(tid));
+    if (pri == -1 && errno != 0) {
+        return 0;
+    }
+    return pri;
+}
+
+// 2026-05-30 (C/Netflix) — getUidForName(String)/getGidForName(String) -> int.
+// Ancient AOSP Process natives (frameworks/base/core/jni/android_util_Process.cpp).
+// AOSP also parses Android synthetic names (u0_aNN / app_NN / "system" ...); here we
+// do the /etc-backed lookup (getpwnam/getgrnam) and return -1 ("no such name") otherwise,
+// which is AOSP's documented contract for unknown names — callers handle -1.
+jint JNICALL
+Process_getUidForName(JNIEnv* env, jclass /*clazz*/, jstring name) {
+    if (name == nullptr) return -1;
+    const char* n = env->GetStringUTFChars(name, nullptr);
+    if (!n) return -1;
+    jint r = -1;
+    struct passwd* pw = getpwnam(n);
+    if (pw) r = static_cast<jint>(pw->pw_uid);
+    env->ReleaseStringUTFChars(name, n);
+    return r;
+}
+jint JNICALL
+Process_getGidForName(JNIEnv* env, jclass /*clazz*/, jstring name) {
+    if (name == nullptr) return -1;
+    const char* n = env->GetStringUTFChars(name, nullptr);
+    if (!n) return -1;
+    jint r = -1;
+    struct group* gr = getgrnam(n);
+    if (gr) r = static_cast<jint>(gr->gr_gid);
+    env->ReleaseStringUTFChars(name, n);
+    return r;
+}
+
+// 2026-05-30 (C/Netflix) — getElapsedCpuTime() -> long (real process CPU time, ms).
+// Confirmed native by Netflix's own UnsatisfiedLinkError. NOTE: the process-start-time
+// getters (getStartUptimeMillis / getStartElapsedRealtime / ...Requested...) were tried as a
+// batch and ABORTED register_android_os_Process (RegisterNatives -1 -> startReg OrDie -> no
+// appspawn-x): at least one is NOT a native on this framework.jar's Process (Java-implemented),
+// and RegisterNatives fails the WHOLE batch on a single non-native/sig miss. Add such methods
+// ONLY after their own UnsatisfiedLinkError surfaces (file rule). Keeping only getElapsedCpuTime.
+static jlong w14_clock_ms(clockid_t c) {
+    struct timespec ts;
+    if (clock_gettime(c, &ts) != 0) return 0;
+    return static_cast<jlong>(ts.tv_sec) * 1000 + ts.tv_nsec / 1000000;
+}
+jlong JNICALL Process_getElapsedCpuTime(JNIEnv*, jclass) { return w14_clock_ms(CLOCK_PROCESS_CPUTIME_ID); }
+
 const JNINativeMethod kProcessMethods[] = {
     { "setArgV0Native",
       "(Ljava/lang/String;)V",
@@ -104,6 +165,17 @@ const JNINativeMethod kProcessMethods[] = {
     { "setThreadPriority",
       "(II)V",
       reinterpret_cast<void*>(Process_setThreadPriority2) },
+    { "getThreadPriority",
+      "(I)I",
+      reinterpret_cast<void*>(Process_getThreadPriority) },
+    { "getUidForName",
+      "(Ljava/lang/String;)I",
+      reinterpret_cast<void*>(Process_getUidForName) },
+    { "getGidForName",
+      "(Ljava/lang/String;)I",
+      reinterpret_cast<void*>(Process_getGidForName) },
+    { "getElapsedCpuTime", "()J",
+      reinterpret_cast<void*>(Process_getElapsedCpuTime) },
 };
 
 }  // namespace

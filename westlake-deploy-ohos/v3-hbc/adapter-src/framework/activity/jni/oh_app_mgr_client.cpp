@@ -147,4 +147,18 @@ void OHAppMgrClient::notifyAppState(int state) {
     }
 }
 
+// [B49 2026-05-31] Signal OH AMS the module's AbilityStage is created so it proceeds
+// to ScheduleLaunchAbility. A converted Android app has no real OHOS AbilityStage, so
+// we report Done immediately (the Activity launch then happens via ScheduleLaunchAbility
+// -> the existing B47-SLA LaunchActivityItem bridge). Without this signal, AMS waits and
+// LIFECYCLE_HALF_TIMEOUT ("Add Ability Stage TimeOut") reaps the app right after bind.
+void OHAppMgrClient::addAbilityStageDone() {
+    if (!connected_ || proxy_ == nullptr) {
+        LOGE("addAbilityStageDone: not connected to AppMgrService");
+        return;
+    }
+    LOGI("AddAbilityStageDone: recordId=%d", recordId_);
+    proxy_->AddAbilityStageDone(recordId_);
+}
+
 }  // namespace oh_adapter

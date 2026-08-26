@@ -26,10 +26,21 @@
 #include "oh_window_manager_client.h"  // 2026-05-06: single-source rule (§9.1 #2)
 
 #include <android/log.h>
+#include <cstddef>
+#include <cstdio>
+#include <cstdlib>
+#include <sys/syscall.h>
+#include <unistd.h>
 
 // OH RenderService client headers
 #include "ui/rs_surface_node.h"
 #include "transaction/rs_transaction.h"
+
+// OH native-window C boundary.  Keep CreateNativeWindowFromSurface forward-declared:
+// OH also exports several unrelated window.h headers and the build include order is
+// deliberately broad.
+#include "external_window.h"
+extern "C" OHNativeWindow* CreateNativeWindowFromSurface(void* pSurface);
 
 #include "oh_br_trace.h"   // G2.14ac IPC trace+log macros
 
@@ -39,6 +50,73 @@
 #define LOGW(...) __android_log_print(ANDROID_LOG_WARN, LOG_TAG, __VA_ARGS__)
 
 namespace oh_adapter {
+
+namespace {
+
+// Opt-in white-box probe for diagnosing usage corruption at the Android/OH boundary.
+// It deliberately uses only the deployed OH C API: no virtual Surface calls and no
+// AOSP ANativeWindow wrapper.  Request one buffer, record both the allocation usage
+// and adjacent virAddr field, then abort it so no diagnostic frame is presented.
+//
+// Run with WL_USAGE_PREFLIGHT=1.  Keeping this opt-in makes the production behavior
+// byte-for-byte equivalent when the probe is not requested.
+void ProbeNativeWindowUsage(const char* stage, int32_t sessionId,
+                            OHOS::sptr<OHOS::Surface>& surface)
+{
+    if (getenv("WL_USAGE_PREFLIGHT") == nullptr || surface == nullptr) {
+        return;
+    }
+
+    OHNativeWindow* window = CreateNativeWindowFromSurface(&surface);
+    if (window == nullptr) {
+        fprintf(stderr, "[WESTLAKE-USAGE-PREFLIGHT] stage=%s session=%d create-window failed\n",
+                stage, sessionId);
+        fflush(stderr);
+        return;
+    }
+
+    uint64_t windowUsage = 0;
+    const int32_t getUsageRc =
+            OH_NativeWindow_NativeWindowHandleOpt(window, GET_USAGE, &windowUsage);
+    OHNativeWindowBuffer* buffer = nullptr;
+    int fenceFd = -1;
+    const int32_t requestRc =
+            OH_NativeWindow_NativeWindowRequestBuffer(window, &buffer, &fenceFd);
+    BufferHandle* handle = buffer != nullptr
+            ? OH_NativeWindow_GetBufferHandleFromNative(buffer) : nullptr;
+
+    fprintf(stderr,
+            "[WESTLAKE-USAGE-PREFLIGHT] stage=%s session=%d tid=%ld window=%p "
+            "windowUsage=0x%llx getRc=%d requestRc=%d buffer=%p handle=%p "
+            "handleUsage=0x%llx virAddr=%p size=%d dims=%dx%d fmt=%d "
+            "locals[buffer=%p fence=%p] layout[size=%zu usageOff=%zu virOff=%zu]\n",
+            stage, sessionId, static_cast<long>(syscall(SYS_gettid)), window,
+            static_cast<unsigned long long>(windowUsage), getUsageRc, requestRc,
+            buffer, handle,
+            static_cast<unsigned long long>(handle != nullptr ? handle->usage : 0),
+            handle != nullptr ? handle->virAddr : nullptr,
+            handle != nullptr ? handle->size : 0,
+            handle != nullptr ? handle->width : 0,
+            handle != nullptr ? handle->height : 0,
+            handle != nullptr ? handle->format : 0,
+            static_cast<void*>(&buffer), static_cast<void*>(&fenceFd),
+            sizeof(BufferHandle), offsetof(BufferHandle, usage), offsetof(BufferHandle, virAddr));
+    fflush(stderr);
+
+    if (buffer != nullptr) {
+        const int32_t abortRc = OH_NativeWindow_NativeWindowAbortBuffer(window, buffer);
+        fprintf(stderr,
+                "[WESTLAKE-USAGE-PREFLIGHT] stage=%s session=%d abortRc=%d\n",
+                stage, sessionId, abortRc);
+        fflush(stderr);
+    }
+    if (fenceFd >= 0) {
+        close(fenceFd);
+    }
+    OH_NativeWindow_NativeObjectUnreference(window);
+}
+
+}  // namespace
 
 OHSurfaceBridge& OHSurfaceBridge::getInstance() {
     static OHSurfaceBridge instance;
@@ -55,9 +133,18 @@ bool OHSurfaceBridge::createSurface(int32_t sessionId, const std::string& window
 
     // Check if session already exists
     if (sessions_.find(sessionId) != sessions_.end()) {
-        LOGW("createSurface: Session %d already exists, destroying first", sessionId);
-        // Clean up existing session (without holding lock — use internal helper)
         auto& existing = sessions_[sessionId];
+        // [W21 2026-05-30] Idempotent reuse. Netflix's render path calls createSurface
+        // repeatedly for the SAME session/geometry; the old destroy+recreate tore down the
+        // live surface every call -> no stable frame composited -> no visible splash. Reuse the
+        // existing surface when geometry is unchanged so frames can present.
+        if (existing && existing->width == width &&
+            existing->height == height && existing->format == format) {
+            LOGI("createSurface: Session %d already exists (same geometry), REUSING (W21)", sessionId);
+            return true;
+        }
+        LOGW("createSurface: Session %d exists but geometry changed, recreating", sessionId);
+        // Clean up existing session (without holding lock — use internal helper)
         if (existing->producerAdapter) {
             auto* producer = static_cast<OHGraphicBufferProducer*>(existing->producerAdapter);
             producer->disconnect();
@@ -117,6 +204,15 @@ bool OHSurfaceBridge::createSurface(int32_t sessionId, const std::string& window
 
     session->ohSurface = ohSurface;
 
+    // WESTLAKE 2026-08-19: do not call the typed Surface default-property API here.
+    // The build-time surface.h is newer than the board's libsurface.z.so vtable;
+    // those virtual calls dispatch to the wrong slots. In Toutiao a nominal getter
+    // reached SetDefaultUsage with a stale stack register, making an ASLR pointer part
+    // of every later BufferHandle usage and causing RenderService to classify the layer
+    // as protected. Geometry, format, and usage are configured for every window through
+    // the deployed OHNativeWindow C ABI in getOhNativeWindow(), the actual OH boundary.
+    ProbeNativeWindowUsage("surface-created", sessionId, ohSurface);
+
     // 2026-05-08 G2.14ad: RSUIDirector creation removed.
     // RSUIDirector is for OH ArkUI view-tree management; helloworld uses
     // hwui+EGL+ANativeWindow direct buffer push and does not need it.
@@ -141,6 +237,9 @@ bool OHSurfaceBridge::createSurface(int32_t sessionId, const std::string& window
          static_cast<unsigned long long>(surfaceNode->GetId()),
          ohSurface.GetRefPtr(),
          static_cast<unsigned long long>(pathAUniqueId));
+
+    /*G2.9-SURFACE-READY*/ OHOS::Rosen::RSTransaction::FlushImplicitTransaction();
+    LOGI("createSurface[G2.9]: flushed RSSurfaceNode to RS before hwui EGL bind (session %d)", sessionId);
 
     return true;
 }

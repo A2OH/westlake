@@ -123,6 +123,11 @@ public class AppSchedulerBridge {
      * Idempotent — only runs once per process.
      */
     private static volatile boolean sBindAppDone = false;
+
+    // [G2.6-THEME] cache the parsed app theme at bind so the launch path can re-apply it;
+    // the launch-time ApplicationInfo (currentApplication().getApplicationInfo()) comes back
+    // theme=0x0, so without this AppCompat throws "You need a Theme.AppCompat theme".
+    private static int sEnrichedTheme = 0;
     private static synchronized void ensureBindApplication(
             ActivityThread activityThread, String bundleName, String[] ohConfigKv) {
         if (sBindAppDone) return;
@@ -1126,7 +1131,10 @@ public class AppSchedulerBridge {
             String classLoader = m.optString("classLoaderName", "");
             if (!classLoader.isEmpty()) ai.classLoaderName = classLoader;
             int theme = m.optInt("appTheme", 0);
-            if (theme != 0) ai.theme = theme;
+            if (theme != 0) {
+                ai.theme = theme;
+                sEnrichedTheme = theme;  // [G2.6-THEME] carry to launch (launch appInfo loses it)
+            }
             int netSec = m.optInt("networkSecurityConfigRes", 0);
             if (netSec != 0) ai.networkSecurityConfigRes = netSec;
             int targetSdk = m.optInt("targetSdkVersion", 0);
@@ -1241,6 +1249,16 @@ public class AppSchedulerBridge {
             IApplicationThread applicationThread = activityThread.getApplicationThread();
             if (applicationThread == null) {
                 System.err.println("[B47-SLA] applicationThread == null");
+                return;
+            }
+            // [FIX-A2-2026-05-26] Honor bind status. Per Diag-MCD-A3E636, this
+            // path used to dispatch LaunchActivityItem even when
+            // ensureBindApplication silently caught a Throwable and returned
+            // without setting sBindAppDone — that scheduled a launch into a
+            // half-initialized app and SEGV'd downstream. If bind never
+            // completed, skip the launch and let AMS observe absence.
+            if (!sBindAppDone) {
+                System.err.println("[B47-SLA] SKIP: ensureBindApplication did not complete (sBindAppDone=false); refusing to scheduleTransaction");
                 return;
             }
 
@@ -1381,7 +1399,6 @@ public class AppSchedulerBridge {
             // initWindowDecorActionBar / loadIcon paths might dereference.
             activityInfo.icon = 0;
             activityInfo.labelRes = 0;
-            activityInfo.theme = 0;
             activityInfo.logo = 0;
             activityInfo.banner = 0;
             if (aiApp != null) {
@@ -1389,10 +1406,17 @@ public class AppSchedulerBridge {
                 aiApp.iconRes = 0;
                 aiApp.labelRes = 0;
                 aiApp.descriptionRes = 0;
-                aiApp.theme = 0;
                 aiApp.logo = 0;
                 aiApp.banner = 0;
                 aiApp.roundIconRes = 0;
+                // [G2.6-THEME] propagate the parsed app theme into the launch objects.
+                // Icons stay zeroed (OH-injected 0x010000xx ids -> Resources$NotFound),
+                // but the theme must be a real Theme.AppCompat descendant or
+                // AppCompatDelegate.createActivity throws. The theme res id is the app's
+                // own 0x7fxxxxxx (resolvable from its resources.arsc). Mirrors the smali
+                // edit deployed in adapter-runtime-bcp.jar 848f414e.
+                activityInfo.theme = sEnrichedTheme;
+                aiApp.theme = sEnrichedTheme;
             }
             // Schedule the transaction — triggers the full activity launch sequence
             System.err.println("[B47-SLA] BEFORE scheduleTransaction className="

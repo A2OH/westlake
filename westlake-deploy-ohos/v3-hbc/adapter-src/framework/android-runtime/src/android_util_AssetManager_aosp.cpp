@@ -33,10 +33,8 @@
 #include "android-base/stringprintf.h"
 #include "android_runtime/android_util_AssetManager.h"
 #include "android_runtime/AndroidRuntime.h"
-// G2.14u r2 (2026-05-07): android_util_Binder.h removed — adapter Parcel
-// is binder-decoupled, the only AssetManager consumer of binder helpers is
-// newParcelFileDescriptor() at the bottom of ReturnParcelFileDescriptor()
-// below, which is now inlined to a HiLog warn + nullptr fallback.
+// AssetManager only needs the local Java ParcelFileDescriptor(FileDescriptor)
+// constructor. It does not parcel the descriptor or require a Binder driver.
 #include <hilog/log.h>
 #include "androidfw/Asset.h"
 #include "androidfw/AssetManager.h"
@@ -226,7 +224,6 @@ static jstring NativeGetOverlayablesToString(JNIEnv* env, jclass /*clazz*/, jlon
   return env->NewStringUTF(result.c_str());
 }
 
-#ifdef __ANDROID__ // Layoutlib does not support parcel
 static jobject ReturnParcelFileDescriptor(JNIEnv* env, std::unique_ptr<Asset> asset,
                                           jlongArray out_offsets) {
   off64_t start_offset, length;
@@ -256,26 +253,32 @@ static jobject ReturnParcelFileDescriptor(JNIEnv* env, std::unique_ptr<Asset> as
     close(fd);
     return nullptr;
   }
-  // G2.14u r2: ParcelFileDescriptor wrapping requires libbinder Java↔C++ bridge
-  // (android_util_Binder.cpp::newParcelFileDescriptor); adapter does not link
-  // libbinder.  AssetManager.openFd() / openNonAssetFd() callers receive null
-  // here.  HelloWorld first-frame path uses the int-fd / Asset path, not the
-  // PFD wrapper, so this null is acceptable bring-up state.  Real AOSP-app
-  // ContentProvider paths that depend on PFD will need a future binder bridge.
-  HiLogPrint(LOG_CORE, LOG_WARN, 0xD000F00u, "OH_AssetManager",
-             "[stub] newParcelFileDescriptor: returning null (no binder bridge)");
-  close(fd);
-  return nullptr;
+
+  // This is the implementation of android::newParcelFileDescriptor used by
+  // AOSP android_util_Binder.cpp: construct the local Java owner directly.
+  // No Binder transaction or native Parcel operation is involved.
+  jclass pfd_class = env->FindClass("android/os/ParcelFileDescriptor");
+  if (pfd_class == nullptr) {
+    close(fd);
+    return nullptr;
+  }
+  jmethodID constructor = env->GetMethodID(
+      pfd_class, "<init>", "(Ljava/io/FileDescriptor;)V");
+  if (constructor == nullptr) {
+    close(fd);
+    env->DeleteLocalRef(pfd_class);
+    return nullptr;
+  }
+  jobject parcel_fd = env->NewObject(pfd_class, constructor, file_desc);
+  env->DeleteLocalRef(pfd_class);
+  env->DeleteLocalRef(file_desc);
+  if (parcel_fd == nullptr) {
+    close(fd);
+    return nullptr;
+  }
+  // Ownership of fd has transferred to ParcelFileDescriptor.
+  return parcel_fd;
 }
-#else
-static jobject ReturnParcelFileDescriptor(JNIEnv* env, std::unique_ptr<Asset> asset,
-                                          jlongArray out_offsets) {
-  jniThrowException(env, "java/lang/UnsupportedOperationException",
-                    "Implement me");
-  // never reached
-  return nullptr;
-}
-#endif
 
 static jint NativeGetGlobalAssetCount(JNIEnv* /*env*/, jobject /*clazz*/) {
   return Asset::getGlobalCount();
@@ -478,8 +481,27 @@ static jlong NativeOpenAsset(JNIEnv* env, jclass /*clazz*/, jlong ptr, jstring a
   std::unique_ptr<Asset> asset =
       assetmanager->Open(asset_path_utf8.c_str(), static_cast<Asset::AccessMode>(access_mode));
   if (!asset) {
+    fprintf(stderr, "[WESTLAKE-ASSET] open FAILED path='%s'\n", asset_path_utf8.c_str());
+    fflush(stderr);
     jniThrowException(env, "java/io/FileNotFoundException", asset_path_utf8.c_str());
     return 0;
+  }
+  // WESTLAKE (2026-07-22): the nine-patch wall (§44) is a NULL Bitmap out of
+  // BitmapFactory.decodeStream. Discriminator: if the Asset here has length 0 the problem is
+  // asset plumbing; a sane length means a genuine skia decode failure (and only then is a
+  // libhwui rebuild worth paying for). Logged only for .png so the output stays small.
+  {
+    const char* p9 = asset_path_utf8.c_str();
+    size_t plen = strlen(p9);
+    if (plen > 4 && strcmp(p9 + plen - 4, ".png") == 0) {
+      static int wl_png = 0;
+      if (wl_png < 12) {
+        wl_png++;
+        fprintf(stderr, "[WESTLAKE-ASSET] png path='%s' len=%lld\n",
+                p9, (long long) asset->getLength());
+        fflush(stderr);
+      }
+    }
   }
   return reinterpret_cast<jlong>(asset.release());
 }
@@ -531,8 +553,24 @@ static jlong NativeOpenNonAsset(JNIEnv* env, jclass /*clazz*/, jlong ptr, jint j
   }
 
   if (!asset) {
+    fprintf(stderr, "[WESTLAKE-ASSET2] OpenNonAsset FAILED path='%s'\n", asset_path_utf8.c_str());
+    fflush(stderr);
     jniThrowException(env, "java/io/FileNotFoundException", asset_path_utf8.c_str());
     return 0;
+  }
+  {   // WESTLAKE (2026-07-22) nine-patch discriminator -- see §44: len==0 => asset plumbing bug,
+      // sane len => genuine skia decode failure. Drawable PNGs come through THIS function.
+    const char* p9 = asset_path_utf8.c_str();
+    size_t plen = strlen(p9);
+    if (plen > 4 && strcmp(p9 + plen - 4, ".png") == 0) {
+      static int wl_png2 = 0;
+      if (wl_png2 < 12) {
+        wl_png2++;
+        fprintf(stderr, "[WESTLAKE-ASSET2] png path='%s' len=%lld\n",
+                p9, (long long) asset->getLength());
+        fflush(stderr);
+      }
+    }
   }
   return reinterpret_cast<jlong>(asset.release());
 }
@@ -587,16 +625,40 @@ static jlong NativeOpenXmlAsset(JNIEnv* env, jobject /*clazz*/, jlong ptr, jint 
     return 0;
   }
 
+  // WESTLAKE (arm64 board, 2026-07-21): getIncFsBuffer() only yields a mappable buffer for
+  // STORED entries; for a DEFLATED res/*.xml (which is most of them in a normal APK) it can
+  // come back null/zero-length.  Upstream then hands `nullptr, 0` to ResXMLTree::setTo and
+  // the parser reports "XmlPullParserException: No start tag found" — which is exactly how
+  // inflating noice's drawable/abc_vector_test (res/K3.xml) failed.  Fall back to
+  // Asset::getBuffer(), which decompresses into memory.
+  const void* data = nullptr;
+  size_t length = asset->getLength();
   const incfs::map_ptr<void> buffer = asset->getIncFsBuffer(true /* aligned */);
-  const size_t length = asset->getLength();
-  if (!buffer.convert<uint8_t>().verify(length)) {
+  if (buffer && length > 0 && buffer.convert<uint8_t>().verify(length)) {
+    data = buffer.unsafe_ptr();
+  } else {
+    data = asset->getBuffer(true /* wordAligned */);
+    length = asset->getLength();
+  }
+  fprintf(stderr, "[WESTLAKE-XML] OpenXmlAsset(%s): data=%p len=%zu\n",
+          asset_path_utf8.c_str(), data, length); fflush(stderr);
+  if (data == nullptr || length == 0) {
       jniThrowException(env, "java/io/FileNotFoundException",
                         "File not fully present due to incremental installation");
       return 0;
   }
 
   auto xml_tree = util::make_unique<ResXMLTree>(assetmanager->GetDynamicRefTableForCookie(cookie));
-  status_t err = xml_tree->setTo(buffer.unsafe_ptr(), length, true);
+  status_t err = xml_tree->setTo(data, length, true);
+  {
+    const uint8_t* p8 = static_cast<const uint8_t*>(data);
+    fprintf(stderr,
+            "[WESTLAKE-XML] setTo err=%d sizeof(ResXMLTree)=%zu sizeof(ResStringPool)=%zu "
+            "magic=%02x%02x%02x%02x eventType=%d\n",
+            (int)err, sizeof(ResXMLTree), sizeof(ResStringPool),
+            p8[0], p8[1], p8[2], p8[3], (int)xml_tree->getEventType());
+    fflush(stderr);
+  }
   if (err != NO_ERROR) {
     jniThrowException(env, "java/io/FileNotFoundException", "Corrupt XML binary file");
     return 0;
@@ -713,6 +775,12 @@ static jintArray NativeGetStyleAttributes(JNIEnv* env, jclass /*clazz*/, jlong p
 static jobjectArray NativeGetResourceStringArray(JNIEnv* env, jclass /*clazz*/, jlong ptr,
                                                  jint resid) {
   ScopedLock<AssetManager2> assetmanager(AssetManagerFromLong(ptr));
+  // WESTLAKE 2026-08-19: the deployed aosp-15 AssetManager2 owns ApkAssets through
+  // weak references and promotes them for the duration of a ScopedOperation. The
+  // old raw GetApkAssets() vector view can race expiration and also has the wrong
+  // element layout for the deployed vector<pair<wp, sp>> representation. Follow
+  // upstream AOSP's lifetime protocol before resolving and reading string pools.
+  auto operation = assetmanager->StartOperation();
   auto bag_result = assetmanager->GetBag(static_cast<uint32_t>(resid));
   if (!bag_result.has_value()) {
     return nullptr;
@@ -733,7 +801,12 @@ static jobjectArray NativeGetResourceStringArray(JNIEnv* env, jclass /*clazz*/, 
     }
 
     if (attr_value.type == Res_value::TYPE_STRING) {
-      const ApkAssets* apk_assets = assetmanager->GetApkAssets()[attr_value.cookie];
+      const auto& apk_assets = assetmanager->GetApkAssets(attr_value.cookie);
+      if (!apk_assets) {
+        ALOGW("NativeGetResourceStringArray: expired assets object #%u / %d",
+              i, attr_value.cookie);
+        continue;
+      }
       const ResStringPool* pool = apk_assets->GetLoadedArsc()->GetStringPool();
 
       jstring java_string;

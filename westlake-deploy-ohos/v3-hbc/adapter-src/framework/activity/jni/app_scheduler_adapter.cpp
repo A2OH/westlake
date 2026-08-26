@@ -442,8 +442,15 @@ void AppSchedulerAdapter::ScheduleUpdateApplicationInfoInstalled(
 
 void AppSchedulerAdapter::ScheduleAbilityStage(const OHOS::AppExecFwk::HapModuleInfo &hapModuleInfo)
 {
-    ALOGD("[OH_ONLY] ScheduleAbilityStage - OH module-level lifecycle, "
-          "no direct Android AbilityStage concept");
+    // [B49 2026-05-31] OH AMS gates the ability launch on the AbilityStage handshake:
+    // after ScheduleAbilityStage it waits for AddAbilityStageDone before calling
+    // ScheduleLaunchAbility. A converted Android app has no OHOS AbilityStage, so we
+    // report Done immediately -> AMS proceeds to ScheduleLaunchAbility -> the Activity
+    // (the existing B47-SLA LaunchActivityItem bridge). Without this, AMS reaps the app
+    // with LIFECYCLE_HALF_TIMEOUT ("Add Ability Stage TimeOut") right after bind.
+    ALOGI("[B49-STAGE] ScheduleAbilityStage(module=%s) -> AddAbilityStageDone "
+          "(signal AMS to proceed to ability launch)", hapModuleInfo.moduleName.c_str());
+    OHAppMgrClient::getInstance().addAbilityStageDone();
 }
 
 // ================================================================
