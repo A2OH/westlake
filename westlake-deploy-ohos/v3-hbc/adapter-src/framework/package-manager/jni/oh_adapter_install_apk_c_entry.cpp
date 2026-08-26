@@ -193,7 +193,12 @@ extern "C" int oh_adapter_install_apk_with_manifest(
         nlohmann::json a;
         a["name"]          = ability.name;
         a["label"]         = ability.label.empty() ? manifest.appLabel : ability.label;
-        a["launchMode"]    = ability.launchMode;
+        // [LM-FIX 2026-05-31] Android launch modes have NO OHOS SPECIFIED(2) equivalent (SPECIFIED needs
+        // AbilityStage.onAcceptWant, absent in Android). Writing the raw value let singleTask(2)->SPECIFIED(2),
+        // so AMS routed MainActivity through StartSpecifiedAbility->ScheduleAcceptWant(stub)->Activity never
+        // launches->reap (THE splash gate). Map so Activities are never SPECIFIED. OHOS: SINGLETON=0 STANDARD=1
+        // SPECIFIED=2; android: 0=std 1=singleTop 2=singleTask 3=singleInstance.
+        a["launchMode"]    = (ability.launchMode == 2 || ability.launchMode == 3) ? 0 /*SINGLETON*/ : 1 /*STANDARD*/;
         a["screenOrientation"] = ability.screenOrientation;
         a["exported"]      = ability.exported;
         nlohmann::json actions = nlohmann::json::array();

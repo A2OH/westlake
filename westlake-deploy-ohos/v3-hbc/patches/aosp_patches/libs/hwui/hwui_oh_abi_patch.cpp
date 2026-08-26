@@ -69,6 +69,7 @@
 #include <cstddef>   // size_t
 #include <cstdio>
 #include <dlfcn.h>   // dlopen/dlsym (G2.14af eglCreateWindowSurface hijack)
+#include <unistd.h>  // usleep (G3.2 bounded eglCreateWindowSurface retry)
 #include <memory>
 #include <string>
 #include <string_view>
@@ -738,6 +739,30 @@ EGLSurface eglCreateWindowSurface(EGLDisplay dpy, EGLConfig config,
 
     EGLSurface surface = g_real_eglCreateWindowSurface_fn(
         dpy, config, actualWindow, attrib_list);
+    // [G3.2-EGL-RETRY 2026-06-01] OH's eglCreateWindowSurface on a freshly-handed OH
+    // NativeWindow succeeds only RARELY — the producer/RS surface is not reliably ready at
+    // first bind, so hwui aborts ("drawRenderNode called on a context with no surface").
+    // The relayout loop "fixed" this incidentally by forcing re-creates until one landed
+    // (that rare success = the captured noice splash s014). Do it cleanly + bounded HERE.
+    // STEP 1 (DIAGNOSTIC — operator: read this first): the eglGetError() code reveals WHY
+    //   EGL_BAD_NATIVE_WINDOW => the OH NativeWindow handed by the adapter is invalid/not-ready
+    //   EGL_BAD_MATCH        => EGLConfig vs OH NativeWindow format mismatch (adapter SET_FORMAT)
+    //   EGL_BAD_ALLOC        => producer already connected / out of buffers
+    // STEP 2: a bounded retry (below) turns the rare success reliable IF it's a readiness race;
+    //   if it still fails after ~1s of retries, the code in STEP 1 points to the real (config/
+    //   window) fix. Needs <unistd.h> for usleep.
+    if (surface == EGL_NO_SURFACE) {
+        EGLint e0 = eglGetError();
+        HiLogPrint(3, 4, 0xD000F00, "OH_EglHijack",
+                   "eglCreateWindowSurface FAILED err=0x%x — bounded retry (G3.2)", e0);
+        for (int r = 0; r < 50 && surface == EGL_NO_SURFACE; r++) {
+            usleep(20 * 1000);  // 20ms x up to 50 = 1s budget
+            surface = g_real_eglCreateWindowSurface_fn(dpy, config, actualWindow, attrib_list);
+        }
+        HiLogPrint(3, 4, 0xD000F00, "OH_EglHijack",
+                   "eglCreateWindowSurface after retry -> EGLSurface=%p (lastErr=0x%x)",
+                   surface, eglGetError());
+    }
     HiLogPrint(3, 4, 0xD000F00, "OH_EglHijack",
                "eglCreateWindowSurface: dpy=%p config=%p window=%p (orig=%p) "
                "-> EGLSurface=%p",

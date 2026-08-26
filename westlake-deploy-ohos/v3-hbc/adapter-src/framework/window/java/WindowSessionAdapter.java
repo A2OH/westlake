@@ -60,6 +60,18 @@ public class WindowSessionAdapter extends IWindowSession.Stub {
     // Track OH sessions created by this adapter, keyed by IWindow IBinder
     private final Map<IBinder, int[]> mSessionMap = new HashMap<>();
 
+    // [G2.8-RELAYOUT-LOOP 2026-06-01] Reverse-push IWindow.resized only ONCE per window
+    // (bootstrap to escape ViewRootImpl's 0x0-frame spiral). Re-pushing every relayout
+    // re-triggers a ViewRootImpl traversal → infinite relayout loop that churns the surface.
+    private final java.util.Set<IBinder> mReversePushed =
+            java.util.Collections.synchronizedSet(new java.util.HashSet<IBinder>());
+    // [G2.8b-SC-CACHE 2026-06-01] Cache the SurfaceControl per window. Building a NEW
+    // SurfaceControl every relayout makes ViewRootImpl see a changed surface each traversal
+    // → hwui destroys+recreates its EGLSurface → the recreate fails (cannot bind a 2nd window
+    // surface to the same OH producer) → libhwui abort before frame #1 draws.
+    private final Map<IBinder, SurfaceControl> mSurfaceControls =
+            java.util.Collections.synchronizedMap(new HashMap<IBinder, SurfaceControl>());
+
     private static native long nativeGetOHSessionService();
     /**
      * Spec: doc/window_manager_ipc_adapter_design.html §3.1.5.2 / §3.1.5.6.1
@@ -82,7 +94,16 @@ public class WindowSessionAdapter extends IWindowSession.Stub {
             int x, int y, int width, int height);
     private static native int nativeNotifyDrawingCompleted(int sessionId);
     private static native void nativeDestroySession(int sessionId);
+    // 2026-05-19: visibility transition helpers — counterpart to AddWindow at
+    // session creation.  Called from relayout based on viewVisibility arg.
+    // See oh_window_manager_client.cpp::hideWindow / showWindow for design
+    // notes (in-App-process C++ cache, idempotent at native layer).
+    private static native int nativeHideWindow(int sessionId);
+    private static native int nativeShowWindow(int sessionId);
     private static native long nativeGetSurfaceNodeId(int sessionId);
+    // [G3.6-MULTIWINDOW 2026-06-02] stamp the SurfaceControl's session (bridge JNI ->
+    // oh_sc_attach_session via dlsym) so each window's SC resolves to its OWN OH NativeWindow.
+    private static native void nativeAttachSessionToSc(SurfaceControl sc, int sessionId);
     private static native int nativeInjectTouchEvent(int sessionId, int action,
             float x, float y, long downTime, long eventTime);
 
@@ -526,6 +547,26 @@ public class WindowSessionAdapter extends IWindowSession.Stub {
                 + " -> useWH=" + width + "x" + height
                 + " visibility=" + viewVisibility);
 
+        // 2026-05-19: visibility transition — when AOSP signals INVISIBLE/GONE,
+        // hide the WMS window so launcher can claim foreground; when VISIBLE
+        // returns, re-show.  Idempotent at C++ layer (wmsShown cache on
+        // SessionEntry), so calling every relayout is safe and 0 extra IPC.
+        // Without this, helloworld stays z-order top after home-key press.
+        // See android.view.View constants: VISIBLE=0, INVISIBLE=4, GONE=8.
+        if (viewVisibility == android.view.View.VISIBLE) {
+            int rcShow = nativeShowWindow(sessionId);
+            if (rcShow != 0) {
+                System.err.println("[OH_WSA-relayout] nativeShowWindow session=" + sessionId
+                        + " rc=" + rcShow);
+            }
+        } else {
+            int rcHide = nativeHideWindow(sessionId);
+            if (rcHide != 0) {
+                System.err.println("[OH_WSA-relayout] nativeHideWindow session=" + sessionId
+                        + " rc=" + rcHide);
+            }
+        }
+
         // Update OH session rect
         nativeUpdateSessionRect(sessionId, 0, 0, width, height);
 
@@ -570,25 +611,33 @@ public class WindowSessionAdapter extends IWindowSession.Stub {
         // calls setFrame(frame, false) → mWinFrame=(0,0,720,1280) → next measure
         // uses real size.  Adapter must mimic this path since OH server doesn't
         // know to call it.
-        try {
-            ClientWindowFrames pushedFrames = new ClientWindowFrames();
-            pushedFrames.frame.set(0, 0, width, height);
-            pushedFrames.displayFrame.set(0, 0, width, height);
-            pushedFrames.parentFrame.set(0, 0, width, height);
-            pushedFrames.attachedFrame = new Rect(0, 0, width, height);
-            android.util.MergedConfiguration cfg = new android.util.MergedConfiguration();
-            // empty global+override config is fine — Activity already created with
-            // real config; this is just to satisfy the IWindow.resized signature.
-            InsetsState pushedInsets = new InsetsState();
-            // displayId for default display
-            int displayId = 0;
-            window.resized(pushedFrames, false /* reportDraw */, cfg, pushedInsets,
-                    true /* forceLayout */, false /* alwaysConsumeSystemBars */,
-                    displayId, 0 /* syncSeqId */, false /* dragResizing */);
-            System.err.println("[OH_WSA-relayout] reverse-pushed via IWindow.resized: "
-                    + width + "x" + height);
-        } catch (Throwable t) {
-            System.err.println("[OH_WSA-relayout] IWindow.resized reverse-push failed: " + t);
+        // [G2.8-RELAYOUT-LOOP] only reverse-push ONCE per window (bootstrap). Re-pushing every
+        // relayout re-triggers a ViewRootImpl traversal → infinite loop (see field decl).
+        if (!mReversePushed.contains(window.asBinder())) {
+            try {
+                ClientWindowFrames pushedFrames = new ClientWindowFrames();
+                pushedFrames.frame.set(0, 0, width, height);
+                pushedFrames.displayFrame.set(0, 0, width, height);
+                pushedFrames.parentFrame.set(0, 0, width, height);
+                pushedFrames.attachedFrame = new Rect(0, 0, width, height);
+                android.util.MergedConfiguration cfg = new android.util.MergedConfiguration();
+                // empty global+override config is fine — Activity already created with
+                // real config; this is just to satisfy the IWindow.resized signature.
+                InsetsState pushedInsets = new InsetsState();
+                // displayId for default display
+                int displayId = 0;
+                window.resized(pushedFrames, false /* reportDraw */, cfg, pushedInsets,
+                        true /* forceLayout */, false /* alwaysConsumeSystemBars */,
+                        displayId, 0 /* syncSeqId */, false /* dragResizing */);
+                mReversePushed.add(window.asBinder());
+                System.err.println("[OH_WSA-relayout] reverse-pushed via IWindow.resized (once): "
+                        + width + "x" + height);
+            } catch (Throwable t) {
+                System.err.println("[OH_WSA-relayout] IWindow.resized reverse-push failed: " + t);
+            }
+        } else {
+            System.err.println("[G2.8] reverse-push SKIPPED (already bootstrapped "
+                    + width + "x" + height + ") -- breaking relayout loop");
         }
 
         // Populate output MergedConfiguration with defaults
@@ -634,14 +683,32 @@ public class WindowSessionAdapter extends IWindowSession.Stub {
         // appendix G2.14r for the full causal chain.
         if (outSurfaceControl != null) {
             long surfaceNodeId = nativeGetSurfaceNodeId(sessionId);
-            Log.i(TAG, "relayout: creating SurfaceControl with OH surfaceNodeId=" + surfaceNodeId
-                    + ", producerHandle=0x" + Long.toHexString(surfaceHandle));
             try {
-                SurfaceControl.Builder builder = new SurfaceControl.Builder()
-                        .setName(windowName)
-                        .setBufferSize(width, height);
-                SurfaceControl sc = builder.build();
+                // [G2.8b-SC-CACHE 2026-06-01] Build the SurfaceControl ONCE per window and reuse
+                // it on every subsequent relayout. Creating a new SurfaceControl each call makes
+                // ViewRootImpl see a changed surface → hwui destroys+recreates its EGLSurface →
+                // the recreate fails (cannot bind a 2nd window surface to the same OH producer) →
+                // libhwui abort before frame #1 draws. Reusing the same SC keeps hwui's first
+                // (now-successful, post-G3.4b format/usage fix) EGL surface alive so it can draw.
+                SurfaceControl sc = mSurfaceControls.get(window.asBinder());
+                if (sc == null) {
+                    SurfaceControl.Builder builder = new SurfaceControl.Builder()
+                            .setName(windowName)
+                            .setBufferSize(width, height);
+                    sc = builder.build();
+                    mSurfaceControls.put(window.asBinder(), sc);
+                    Log.i(TAG, "relayout: created SurfaceControl ONCE (G2.8b) surfaceNodeId="
+                            + surfaceNodeId + " producerHandle=0x" + Long.toHexString(surfaceHandle));
+                } else {
+                    Log.i(TAG, "relayout: reusing cached SurfaceControl (G2.8b) for session " + sessionId);
+                }
                 outSurfaceControl.copyFrom(sc, "OH_relayout");
+                // [G3.6-MULTIWINDOW 2026-06-02] Stamp THIS window's session onto the SC hwui
+                // will render to, so sc_to_oh_native_window resolves it to THIS window's OH
+                // NativeWindow instead of the thread-local last-attached session. Without it,
+                // noice's 2nd window (AppIntro vs Main) collided on the 1st window's already-
+                // EGL-bound nw -> 2nd eglCreateWindowSurface failed -> libhwui abort.
+                nativeAttachSessionToSc(outSurfaceControl, sessionId);
 
                 // G2.14r: instead of adding a new BCP native method (which
                 // requires boot image rebuild), the session ID is communicated

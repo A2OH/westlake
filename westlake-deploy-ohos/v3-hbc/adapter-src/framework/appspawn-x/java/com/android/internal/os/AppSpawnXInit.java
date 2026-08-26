@@ -485,6 +485,27 @@ public class AppSpawnXInit {
                 Log.e(TAG, "BC provider not found — SHA-1 patch skipped");
             }
 
+            // [W-noice-TLS SHIM 2026-05-31] No Conscrypt -> no "SSLContext.TLS" provider, so apps that
+            // construct OkHttp/SSLContext in onCreate (noice: NoiceApiClient -> OkHttpClient ->
+            // SSLContext.getInstance("TLS")) die before their UI renders. Register a constructible-but-fake
+            // TLS provider so onCreate completes + the splash renders. Real handshakes are NOT supported
+            // (createSocket throws) — the real fix is the Conscrypt port (W-noice-TLS phases 1-4).
+            try {
+                java.security.Security.setProperty("ssl.TrustManagerFactory.algorithm", "PKIX");
+                java.security.Security.setProperty("ssl.KeyManagerFactory.algorithm", "PKIX");
+                java.security.Security.addProvider(new TlsShimProvider());
+                javax.net.ssl.SSLContext sc = javax.net.ssl.SSLContext.getInstance("TLS");
+                sc.init(null, null, null);
+                javax.net.ssl.TrustManagerFactory tmf = javax.net.ssl.TrustManagerFactory.getInstance(
+                        javax.net.ssl.TrustManagerFactory.getDefaultAlgorithm());
+                tmf.init((java.security.KeyStore) null);
+                Log.i(TAG, "[TLS-SHIM] SSLContext(TLS)+TrustManagerFactory("
+                        + javax.net.ssl.TrustManagerFactory.getDefaultAlgorithm()
+                        + ") constructible OK provider=" + sc.getProvider().getName());
+            } catch (Throwable tlsT) {
+                Log.e(TAG, "[TLS-SHIM] registration FAILED — OkHttp/TLS apps will still crash in onCreate", tlsT);
+            }
+
             // Self-test
             try {
                 java.security.MessageDigest md = java.security.MessageDigest.getInstance("SHA-1");

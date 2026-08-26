@@ -64,6 +64,15 @@ public:
     void notifyAppState(int state);
 
     /**
+     * [B49] Signal OH AMS that the module's AbilityStage is created ("Done"), so AMS
+     * proceeds from ScheduleAbilityStage to ScheduleLaunchAbility (the Activity launch).
+     * A converted Android app has no real OHOS AbilityStage, so we report Done
+     * immediately. Maps to OH IAppMgr.AddAbilityStageDone(recordId). Without this,
+     * AMS waits and reaps the app with LIFECYCLE_HALF_TIMEOUT ("Add Ability Stage TimeOut").
+     */
+    void addAbilityStageDone();
+
+    /**
      * G2.14i: cache the recordId received via ScheduleLaunchApplication.AppLaunchData
      * so subsequent ApplicationForegrounded/Backgrounded calls reach the right
      * AppRunningRecord on the OH AppMS side. Default -1 hits "get appRecord fail".

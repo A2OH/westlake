@@ -147,7 +147,14 @@ OhSurfaceControl* alloc_sc(const char* name) {
     sc->width = 0;  sc->height = 0;
     sc->format = 1; // RGBA_8888
     sc->flags = 0;  sc->layer = 0;  sc->visible = false;
-    sc->sessionId = 0;  // G2.14r: 0 = unattached (legacy)
+    // [G3.5-MULTIWINDOW 2026-06-02] Stamp the session relayout just set (via
+    // nativeUpdateSessionRect -> oh_wm_get_last_session), captured at CREATION time so each
+    // window's SC carries ITS OWN session. Fixes the noice AppIntro+Main collision where
+    // sessionId=0 SCs both fell back to the last-attached session at RESOLUTION time -> both
+    // resolved to one window's nw -> 2nd eglCreateWindowSurface failed -> abort. copyFrom
+    // already propagates dst->sessionId = src->sessionId, so this reaches hwui's SC.
+    resolve_rs_routes();
+    sc->sessionId = g_oh_wm_get_last_session ? g_oh_wm_get_last_session() : 0;
     if (name) {
         std::strncpy(sc->name, name, sizeof(sc->name) - 1);
         sc->name[sizeof(sc->name) - 1] = 0;
@@ -230,9 +237,16 @@ jlong SC_nativeCreate(JNIEnv* env, jclass /*clazz*/,
     OhSurfaceControl* sc = alloc_sc(nameC);
     sc->width = w;  sc->height = h;
     sc->format = format;  sc->flags = flags;
+    // 2026-05-20 R5: stamp sessionId from thread-local last-attached-session so
+    // BBQ::isSameSurfaceControl (also added in this round) can compare two SCs
+    // by stable session identity — adapter equivalent of AOSP IBinder handle.
+    // Without this every relayout's builder.build() returns SC with sessionId=0,
+    // BBQ sees "different" each frame, rebuilds itself, drives hwui setSurface
+    // storm → destroy/create EGLSurface on same OH NativeWindow → flicker.
+    sc->sessionId = resolve_effective_session(0);
     if (nameStr && nameC) env->ReleaseStringUTFChars(nameStr, nameC);
-    ALOGI("SC.create '%s' %dx%d fmt=%d flags=0x%x ptr=%p",
-          sc->name, sc->width, sc->height, sc->format, sc->flags, sc);
+    ALOGI("SC.create '%s' %dx%d fmt=%d flags=0x%x ptr=%p sessionId=%d",
+          sc->name, sc->width, sc->height, sc->format, sc->flags, sc, sc->sessionId);
     return reinterpret_cast<jlong>(sc);
 }
 
@@ -246,6 +260,11 @@ jlong SC_nativeCopyFromSurfaceControl(JNIEnv*, jclass, jlong nativeObject) {
     dst->width = src->width;  dst->height = src->height;
     dst->format = src->format;  dst->flags = src->flags;
     dst->layer = src->layer;  dst->visible = src->visible;
+    // 2026-05-20 R5: propagate sessionId so copyFrom preserves SC identity.
+    // ViewRoot's relayout flow ends with mSurfaceControl.copyFrom(outSC); if dst
+    // loses sessionId here, BBQ::isSameSurfaceControl returns false next frame
+    // even though the underlying OH session hasn't changed.
+    dst->sessionId = src->sessionId;
     return reinterpret_cast<jlong>(dst);
 }
 void SC_nativeWriteToParcel(JNIEnv*, jclass, jlong /*nativeObject*/, jobject /*parcel*/) { }
@@ -1074,7 +1093,18 @@ void ASurfaceControl_release(void* surfaceControl) {
         if (sc->ownsHolder && sc->rsHolder && g_oh_rs_destroy_subsurface) {
             g_oh_rs_destroy_subsurface(sc->rsHolder);
         }
-        delete sc;
+        // [G3.7-NO-DOUBLE-FREE 2026-06-02] Do NOT `delete sc` here. hwui's RenderThread
+        // double-releases this ASurfaceControl on the 2-window teardown path (now reached
+        // because G3.6 makes both windows' EGL surfaces succeed): the 2nd release derefs the
+        // freed struct -> SIGSEGV(SEGV_MAPERR) in ASurfaceControl_release+20 (crash that kills
+        // noice right after its surfaces are created, before frame #1). Mark it consumed and
+        // leak the tiny (3-word) struct: the holder is destroyed once, and any further release
+        // sees refcount<=0 on still-mapped memory and is a harmless no-op. (Deployed binary is
+        // patched in place — liboh_android_runtime.so is not reproducible from chenyue: it
+        // lacks the SQLite JNI present in the on-device build.)
+        sc->ownsHolder = false;
+        sc->rsHolder = nullptr;
+        /* delete sc;  -- REMOVED: see G3.7 above */
     }
 }
 
