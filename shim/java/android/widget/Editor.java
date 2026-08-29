@@ -1973,6 +1973,10 @@ public class Editor {
 
     private void drawHardwareAccelerated(Canvas canvas, Layout layout, Path highlight,
             Paint highlightPaint, int cursorOffsetVertical) {
+        // A layout can be cleared during window/activity teardown between TextView's draw
+        // decision and this helper.  Treat that transient state as an empty frame, matching the
+        // null-tolerant entry contract of onDraw(), instead of crashing the process.
+        if (layout == null) return;
         final long lineRange = layout.getLineRangeForDraw(canvas);
         int firstLine = TextUtils.unpackRangeStartFromLong(lineRange);
         int lastLine = TextUtils.unpackRangeEndFromLong(lineRange);

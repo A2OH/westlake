@@ -402,6 +402,64 @@ static std::map<int32_t, std::shared_ptr<OHOS::Rosen::RSSurfaceNode>>& wl_window
 // WESTLAKE §253: app IWindow (global ref) + re-send helper, see wl_send_app_visible().
 jobject g_wlAppWindow = nullptr;
 
+// WESTLAKE §810: Flush the UI thread's implicit RS transaction after the first
+// hardware frame has completed.  Flushing from hwui's RenderThread is unsafe
+// because RSTransaction's implicit transaction is thread-local (§353); doing so
+// raced node creation and destroyed otherwise-live surfaces.  nativeGetSurfaceNodeId
+// runs in ViewRootImpl.performTraversals before syncAndDrawFrame.  Posting through
+// the main MessageQueue's native fd therefore runs after that traversal (and its
+// synchronous first hardware draw) returns, on the same UI thread that owns the
+// node/property transaction.
+extern "C" int wl_MessageQueue_post(
+        void* looper, void (*callback)(void*), void* data);
+
+// The RenderThread post-swap hook must not flush until the UI thread has
+// committed node creation/properties.  The old unconditional hook raced that
+// transaction and could destroy the just-created RS node (§353).
+static std::atomic<bool> g_wl_ui_rs_ready{false};
+
+static void wl_flush_first_frame_from_main_mq(void*) {
+    OHOS::Rosen::RSTransaction::FlushImplicitTransaction();
+    g_wl_ui_rs_ready.store(true, std::memory_order_release);
+    fprintf(stderr,
+            "[WESTLAKE-RSCOMMIT-810] flushed UI-thread RS transaction; RenderThread armed\n");
+    fflush(stderr);
+}
+
+static bool wl_post_first_frame_flush(JNIEnv* env) {
+    jclass looperCls = env->FindClass("android/os/Looper");
+    jmethodID getMain = looperCls != nullptr ? env->GetStaticMethodID(
+        looperCls, "getMainLooper", "()Landroid/os/Looper;") : nullptr;
+    jobject mainLooper = getMain != nullptr
+        ? env->CallStaticObjectMethod(looperCls, getMain) : nullptr;
+    if (env->ExceptionCheck()) { env->ExceptionClear(); mainLooper = nullptr; }
+    jmethodID getQueue = (looperCls != nullptr && mainLooper != nullptr)
+        ? env->GetMethodID(looperCls, "getQueue", "()Landroid/os/MessageQueue;") : nullptr;
+    jobject queue = getQueue != nullptr ? env->CallObjectMethod(mainLooper, getQueue) : nullptr;
+    if (env->ExceptionCheck()) { env->ExceptionClear(); queue = nullptr; }
+    jclass queueCls = queue != nullptr ? env->GetObjectClass(queue) : nullptr;
+    jfieldID ptrField = queueCls != nullptr
+        ? env->GetFieldID(queueCls, "mPtr", "J") : nullptr;
+    if (env->ExceptionCheck()) { env->ExceptionClear(); ptrField = nullptr; }
+    const jlong ptr = (queue != nullptr && ptrField != nullptr)
+        ? env->GetLongField(queue, ptrField) : 0;
+    if (env->ExceptionCheck()) { env->ExceptionClear(); }
+
+    const bool posted = ptr != 0 && wl_MessageQueue_post(
+        reinterpret_cast<void*>(static_cast<uintptr_t>(ptr)),
+        wl_flush_first_frame_from_main_mq, nullptr) == 0;
+    fprintf(stderr,
+            "[WESTLAKE-RSCOMMIT-810] post mainQueue=%p posted=%d\n",
+            reinterpret_cast<void*>(static_cast<uintptr_t>(ptr)), posted ? 1 : 0);
+    fflush(stderr);
+
+    if (queueCls != nullptr) env->DeleteLocalRef(queueCls);
+    if (queue != nullptr) env->DeleteLocalRef(queue);
+    if (mainLooper != nullptr) env->DeleteLocalRef(mainLooper);
+    if (looperCls != nullptr) env->DeleteLocalRef(looperCls);
+    return posted;
+}
+
 // WESTLAKE §537 — force every window's surfaceInsets to zero, every relayout.
 //
 // AOSP gives an ELEVATED window (dialogs, bottom sheets) a surface LARGER than its frame so the
@@ -624,6 +682,87 @@ extern "C" void wl_send_app_visible(JNIEnv* env) {
                 if (avFld != nullptr) { env->SetBooleanField(vri, avFld, JNI_TRUE); }
                 if (fdFld != nullptr) { env->SetBooleanField(vri, fdFld, JNI_TRUE); }
                 if (env->ExceptionCheck()) { env->ExceptionClear(); }
+                // The standalone window has no Android WMS callback to complete
+                // the first GONE -> VISIBLE transition. This function runs from
+                // relayout after dispatchAttachedToWindow(), so mAttachInfo can
+                // otherwise remain GONE until a much later traversal even though
+                // OH is already showing and drawing the surface. Modern ImageView
+                // uses aggregated window visibility to activate its Drawable;
+                // Fresco therefore keeps controllers detached and never submits
+                // visible image requests during that gap.
+                //
+                // Complete the exact AOSP performTraversals visibility contract
+                // synchronously once per root: update AttachInfo, then dispatch
+                // window and aggregated visibility through the live host tree.
+                // The per-root bring-up gate above prevents re-entrant repeats.
+                {
+                    jfieldID aiFld = env->GetFieldID(
+                        vriCls, "mAttachInfo", "Landroid/view/View$AttachInfo;");
+                    if (aiFld == nullptr) { env->ExceptionClear(); }
+                    jfieldID viewFld = env->GetFieldID(vriCls, "mView", "Landroid/view/View;");
+                    if (viewFld == nullptr) { env->ExceptionClear(); }
+                    jobject attachInfo = aiFld != nullptr
+                        ? env->GetObjectField(vri, aiFld) : nullptr;
+                    jobject host = viewFld != nullptr
+                        ? env->GetObjectField(vri, viewFld) : nullptr;
+                    if (env->ExceptionCheck()) {
+                        env->ExceptionClear();
+                        attachInfo = nullptr;
+                        host = nullptr;
+                    }
+                    jint oldWindowVisibility = -1;
+                    bool dispatchedVisible = false;
+                    if (attachInfo != nullptr && host != nullptr) {
+                        jclass aiCls = env->GetObjectClass(attachInfo);
+                        jfieldID visibilityFld = aiCls != nullptr
+                            ? env->GetFieldID(aiCls, "mWindowVisibility", "I") : nullptr;
+                        if (env->ExceptionCheck()) {
+                            env->ExceptionClear();
+                            visibilityFld = nullptr;
+                        }
+                        if (visibilityFld != nullptr) {
+                            oldWindowVisibility = env->GetIntField(attachInfo, visibilityFld);
+                            if (oldWindowVisibility != 0 /* View.VISIBLE */) {
+                                env->SetIntField(attachInfo, visibilityFld, 0);
+                                jclass hostCls = env->GetObjectClass(host);
+                                jmethodID dispatchWindow = hostCls != nullptr
+                                    ? env->GetMethodID(hostCls,
+                                        "dispatchWindowVisibilityChanged", "(I)V") : nullptr;
+                                if (env->ExceptionCheck()) {
+                                    env->ExceptionClear();
+                                    dispatchWindow = nullptr;
+                                }
+                                jmethodID dispatchAggregated = hostCls != nullptr
+                                    ? env->GetMethodID(hostCls,
+                                        "dispatchVisibilityAggregated", "(Z)Z") : nullptr;
+                                if (env->ExceptionCheck()) {
+                                    env->ExceptionClear();
+                                    dispatchAggregated = nullptr;
+                                }
+                                if (dispatchWindow != nullptr) {
+                                    env->CallVoidMethod(host, dispatchWindow, 0);
+                                }
+                                if (!env->ExceptionCheck() && dispatchAggregated != nullptr) {
+                                    (void)env->CallBooleanMethod(
+                                        host, dispatchAggregated, JNI_TRUE);
+                                }
+                                if (env->ExceptionCheck()) {
+                                    env->ExceptionClear();
+                                } else {
+                                    dispatchedVisible = true;
+                                }
+                                if (hostCls != nullptr) env->DeleteLocalRef(hostCls);
+                            }
+                        }
+                        if (aiCls != nullptr) env->DeleteLocalRef(aiCls);
+                    }
+                    fprintf(stderr,
+                            "[WESTLAKE-APPVIS] immediate root visibility old=%d dispatched=%d\n",
+                            static_cast<int>(oldWindowVisibility), dispatchedVisible ? 1 : 0);
+                    fflush(stderr);
+                    if (host != nullptr) env->DeleteLocalRef(host);
+                    if (attachInfo != nullptr) env->DeleteLocalRef(attachInfo);
+                }
                 // WESTLAKE §260: TURN HARDWARE ACCELERATION ON.
                 // §259 proved the window is added with HW_ACCEL=false, so ViewRootImpl draws in
                 // SOFTWARE (lockCanvas/unlockCanvasAndPost) and NO buffer ever reaches the OH
@@ -676,6 +815,9 @@ extern "C" void wl_send_app_visible(JNIEnv* env) {
                 } else {
                     env->ExceptionClear();
                 }
+                // §810: one callback per newly brought-up root.  The per-root gate
+                // above guarantees this is not a per-frame flush.
+                wl_post_first_frame_flush(env);
                 if (wl_direct < 4) {
                     wl_direct++;
                     fprintf(stderr,
@@ -2451,7 +2593,15 @@ void wl_rs_commit_frame() {
     // t≈14s, exactly when `[WESTLAKE-RSCOMMIT] flush #1` fires just before the first swap; swaps
     // then freeze at 6 while the child keeps running.  Gate it off by default and keep it available
     // via WL_RSCOMMIT for comparison.
-    static const bool wl_enabled = (getenv("WL_RSCOMMIT") != nullptr);
+    // WESTLAKE §811: §810 now provides an explicit cross-thread handoff.
+    // Only after the UI thread has flushed node creation may RenderThread
+    // flush the transaction associated with a completed EGL swap.  This
+    // preserves §353's race protection while fixing the cold-start state
+    // where a valid buffer remains queued (state=3) and the launcher stays on
+    // screen until an unrelated later frame happens to advance acquisition.
+    static const bool wl_forced = (getenv("WL_RSCOMMIT") != nullptr);
+    const bool wl_enabled = wl_forced ||
+        g_wl_ui_rs_ready.load(std::memory_order_acquire);
     static int wl_n = 0;
     if (wl_n < 6) {
         wl_n++;

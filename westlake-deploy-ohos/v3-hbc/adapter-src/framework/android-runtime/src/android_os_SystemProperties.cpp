@@ -45,7 +45,7 @@ constexpr int kSpValueMax = 96;  // OH parameter value max length
 //     these can default to "" but SDK_INT must be a valid integer.
 //
 // Values are project-stable and chosen to match the AOSP 14 (API 34) we
-// build the framework jars against, plus the device CPU (ARM32 on RK3568).
+// build the framework jars against, plus the adapter process architecture.
 // Updating Android target version requires updating these in lockstep.
 //
 // Do NOT add unrelated app-facing keys here — that would silently mask real
@@ -56,12 +56,23 @@ struct AdapterPropFallback {
     const char* value;
 };
 static const AdapterPropFallback kAdapterPropFallbacks[] = {
-    // CPU ABI list — RK3568 ARM32 userspace.
+    // Build.SUPPORTED_ABIS must describe the adapter process, not merely the
+    // board CPU.  Reporting the old ARM32 list from an aarch64 app process
+    // makes Android fallback loaders reject arm64-v8a entries that are present
+    // in an unchanged APK.
+#if defined(__aarch64__)
+    { "ro.product.cpu.abilist",       "arm64-v8a" },
+    { "ro.product.cpu.abilist32",     "" },
+    { "ro.product.cpu.abilist64",     "arm64-v8a" },
+    { "ro.product.cpu.abi",           "arm64-v8a" },
+    { "ro.product.cpu.abi2",          "" },
+#else
     { "ro.product.cpu.abilist",       "armeabi-v7a,armeabi" },
     { "ro.product.cpu.abilist32",     "armeabi-v7a,armeabi" },
     { "ro.product.cpu.abilist64",     "" },
     { "ro.product.cpu.abi",           "armeabi-v7a" },
     { "ro.product.cpu.abi2",          "armeabi" },
+#endif
     // Build version — AOSP 14 (API 34).
     { "ro.build.version.sdk",         "34" },
     { "ro.build.version.release",     "14" },
