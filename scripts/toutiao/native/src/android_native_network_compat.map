@@ -1,0 +1,17 @@
+LIBC {
+    global:
+        getaddrinfo;
+        freeaddrinfo;
+        socket;
+        connect;
+        setsockopt;
+        getsockopt;
+        epoll_create;
+        epoll_ctl;
+        epoll_wait;
+        poll;
+        westlake_namespace_anchor;
+        westlake_namespace_socket_probe;
+    local:
+        *;
+};

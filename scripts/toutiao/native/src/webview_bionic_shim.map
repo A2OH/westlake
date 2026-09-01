@@ -1,0 +1,9 @@
+LIBC_N {
+    global:
+        __pwrite64_chk;
+};
+
+LIBC {
+    global:
+        *;
+} LIBC_N;
